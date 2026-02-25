@@ -148,16 +148,21 @@ final class MIDIPlaybackServiceMock: MIDIPlaybackServiceProtocol {
     var playError: Error?
 
     private(set) var playedTakes: [RecordingTake] = []
+    private(set) var playedOffsets: [TimeInterval] = []
 
     func play(take: RecordingTake) throws {
+        try play(take: take, fromOffsetSec: 0)
+    }
+
+    func play(take: RecordingTake, fromOffsetSec offsetSec: TimeInterval) throws {
         if let playError { throw playError }
         playedTakes.append(take)
+        playedOffsets.append(offsetSec)
         isPlaying = true
     }
 
     func stop() {
         isPlaying = false
-        onPlaybackFinished?()
     }
 }
 

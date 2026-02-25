@@ -47,6 +47,10 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
     init() {}
 
     func play(take: RecordingTake) throws {
+        try play(take: take, fromOffsetSec: 0)
+    }
+
+    func play(take: RecordingTake, fromOffsetSec offsetSec: TimeInterval) throws {
         stop()
 
         try prepareEngineIfNeeded()
@@ -56,7 +60,7 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
             return
         }
 
-        let events = makeEvents(from: take.notes)
+        let events = makeEvents(from: take.notes, fromOffsetSec: offsetSec)
         isPlaying = true
 
         playbackTask = Task { [weak self] in
@@ -70,10 +74,7 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
         playbackTask = nil
         stopAllActiveNotes()
 
-        if isPlaying {
-            isPlaying = false
-            onPlaybackFinished?()
-        }
+        isPlaying = false
     }
 
     private func prepareEngineIfNeeded() throws {
@@ -173,18 +174,33 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
         activeNotes.removeAll(keepingCapacity: false)
     }
 
-    private func makeEvents(from notes: [RecordedNote]) -> [ScheduledEvent] {
+    private func makeEvents(from notes: [RecordedNote], fromOffsetSec offsetSec: TimeInterval) -> [ScheduledEvent] {
         var events: [ScheduledEvent] = []
         events.reserveCapacity(notes.count * 2)
+
+        let offset = max(0, offsetSec)
 
         for note in notes {
             let startTime = max(0, note.startOffsetSec)
             let duration = max(0.01, note.durationSec)
             let endTime = startTime + duration
 
+            guard endTime > offset else { continue }
+
+            let adjustedStart: TimeInterval
+            let adjustedEnd: TimeInterval
+
+            if startTime >= offset {
+                adjustedStart = startTime - offset
+                adjustedEnd = endTime - offset
+            } else {
+                adjustedStart = 0
+                adjustedEnd = endTime - offset
+            }
+
             events.append(
                 ScheduledEvent(
-                    time: startTime,
+                    time: adjustedStart,
                     note: note.note,
                     channel: note.channel,
                     type: .noteOn(velocity: note.velocity)
@@ -192,7 +208,7 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
             )
             events.append(
                 ScheduledEvent(
-                    time: endTime,
+                    time: adjustedEnd,
                     note: note.note,
                     channel: note.channel,
                     type: .noteOff

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PianoRollView: View {
     let take: RecordingTake?
+    let playheadSec: TimeInterval?
 
     private let leftInset: CGFloat = 52
     private let topInset: CGFloat = 16
@@ -14,6 +15,7 @@ struct PianoRollView: View {
                 Canvas { context, size in
                     drawGrid(in: &context, size: size, take: take)
                     drawNotes(in: &context, take: take)
+                    drawPlayhead(in: &context, size: size, take: take)
                 }
                 .frame(width: canvasWidth(for: take), height: canvasHeight(for: take))
             }
@@ -30,6 +32,24 @@ struct PianoRollView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .textBackgroundColor))
         }
+    }
+
+    private func drawPlayhead(in context: inout GraphicsContext, size: CGSize, take: RecordingTake) {
+        guard let playheadSec else { return }
+        guard take.durationSec > 0 else { return }
+
+        let clamped = max(0, min(playheadSec, take.durationSec))
+        let x = leftInset + (CGFloat(clamped) * secondWidth)
+        guard x.isFinite else { return }
+
+        var line = Path()
+        line.move(to: CGPoint(x: x, y: topInset))
+        line.addLine(to: CGPoint(x: x, y: size.height - 8))
+        context.stroke(
+            line,
+            with: .color(.orange.opacity(0.9)),
+            style: StrokeStyle(lineWidth: 2)
+        )
     }
 
     private func drawGrid(in context: inout GraphicsContext, size: CGSize, take: RecordingTake) {
@@ -101,4 +121,3 @@ struct PianoRollView: View {
         return topInset + (CGFloat(topIndex) * rowHeight)
     }
 }
-

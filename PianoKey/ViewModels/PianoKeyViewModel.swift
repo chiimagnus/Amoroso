@@ -80,6 +80,10 @@ final class PianoKeyViewModel {
     private let shortcutService: ShortcutServiceProtocol
     private var permissionPollingTask: Task<Void, Never>?
     private var appDidBecomeActiveObserver: NSObjectProtocol?
+    private var playbackClockTask: Task<Void, Never>?
+    private var pendingSeekTask: Task<Void, Never>?
+    private var playbackStartedAt: Date?
+    private var playbackOffsetSec: TimeInterval = 0
 
     init(
         midiInputService: MIDIInputServiceProtocol,
@@ -273,6 +277,7 @@ final class PianoKeyViewModel {
         }
 
         selectedTakeID = id
+        playheadSec = 0
         if let selectedTake {
             recorderStatusMessage = "Selected \(selectedTake.name)"
         }
@@ -318,9 +323,10 @@ final class PianoKeyViewModel {
         }
 
         do {
-            try playbackService.play(take: selectedTake)
+            let offset = max(0, min(playheadSec, selectedTake.durationSec))
+            try playbackService.play(take: selectedTake, fromOffsetSec: offset)
             recorderMode = .playing
-            playheadSec = 0
+            startPlaybackClock(fromOffsetSec: offset, durationSec: selectedTake.durationSec)
             recorderStatusMessage = "Playing \(selectedTake.name)"
             statusMessage = "Playing take"
             log(title: "Recorder", detail: "Playback started: \(selectedTake.name)")
@@ -328,6 +334,30 @@ final class PianoKeyViewModel {
             recorderStatusMessage = "Playback failed: \(error.localizedDescription)"
             statusMessage = "Playback failed"
             log(title: "Playback Failed", detail: error.localizedDescription)
+        }
+    }
+
+    func seekPlayback(to seconds: TimeInterval) {
+        guard let selectedTake else { return }
+
+        let clamped = max(0, min(seconds, selectedTake.durationSec))
+        playheadSec = clamped
+
+        guard recorderMode == .playing else { return }
+
+        pendingSeekTask?.cancel()
+        pendingSeekTask = Task { [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(50))
+            guard !Task.isCancelled else { return }
+            do {
+                try playbackService.play(take: selectedTake, fromOffsetSec: clamped)
+                startPlaybackClock(fromOffsetSec: clamped, durationSec: selectedTake.durationSec)
+            } catch {
+                recorderStatusMessage = "Seek failed: \(error.localizedDescription)"
+                statusMessage = "Seek failed"
+                log(title: "Seek Failed", detail: error.localizedDescription)
+            }
         }
     }
 
@@ -366,6 +396,11 @@ final class PianoKeyViewModel {
 
         case .playing:
             playbackService.stop()
+            pendingSeekTask?.cancel()
+            pendingSeekTask = nil
+            playbackClockTask?.cancel()
+            playbackClockTask = nil
+            playbackStartedAt = nil
             recorderMode = .idle
             recorderStatusMessage = "Playback stopped"
             statusMessage = "Playback stopped"
@@ -537,7 +572,16 @@ final class PianoKeyViewModel {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if recorderMode == .playing {
+                    pendingSeekTask?.cancel()
+                    pendingSeekTask = nil
+                    playbackClockTask?.cancel()
+                    playbackClockTask = nil
+                    playbackStartedAt = nil
+
                     recorderMode = .idle
+                    if let selectedTake {
+                        playheadSec = selectedTake.durationSec
+                    }
                     recorderStatusMessage = "Playback finished"
                     statusMessage = "Playback finished"
                 }
@@ -698,6 +742,30 @@ final class PianoKeyViewModel {
             selectedTakeID = preferredID
         } else {
             selectedTakeID = takes.first?.id
+        }
+
+        playheadSec = 0
+    }
+
+    private func startPlaybackClock(fromOffsetSec offsetSec: TimeInterval, durationSec: TimeInterval) {
+        playbackClockTask?.cancel()
+        playbackClockTask = nil
+
+        playbackStartedAt = .now
+        playbackOffsetSec = offsetSec
+
+        playbackClockTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                guard recorderMode == .playing, playbackService.isPlaying else { return }
+                guard let playbackStartedAt else { return }
+
+                let elapsed = Date().timeIntervalSince(playbackStartedAt)
+                let current = min(durationSec, playbackOffsetSec + elapsed)
+                playheadSec = current
+
+                try? await Task.sleep(for: .milliseconds(33))
+            }
         }
     }
 

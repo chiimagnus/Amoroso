@@ -9,19 +9,11 @@ struct RecorderPanelView: View {
             RecorderTransportBarView(viewModel: viewModel)
             Divider()
 
-            HStack(spacing: 0) {
-                RecorderLibraryView(viewModel: viewModel)
-                    .frame(width: 230)
-
-                Divider()
-
-                PianoRollView(take: viewModel.selectedTake)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            PianoRollView(take: viewModel.selectedTake, playheadSec: viewModel.playheadSec)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
             RecorderStatusBarView(viewModel: viewModel)
         }
     }
 }
-
