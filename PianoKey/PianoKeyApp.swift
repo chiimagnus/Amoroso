@@ -9,6 +9,7 @@ struct PianoKeyApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let modelContainer: ModelContainer
     @State private var viewModel: PianoKeyViewModel
+    @State private var menuBarExtraVisibilityStore = MenuBarExtraVisibilityStore()
 
     init() {
         // Default to "menu bar only" to keep PianoKey as a menu bar tool app.
@@ -59,10 +60,15 @@ struct PianoKeyApp: App {
             AppCommands()
         }
 
-        Window("Settings", id: "setting") {
-            SettingsView()
+        MenuBarExtra(
+            "PianoKey",
+            systemImage: "pianokeys",
+            isInserted: Binding(
+                get: { menuBarExtraVisibilityStore.isInserted },
+                set: { menuBarExtraVisibilityStore.isInserted = $0 }
+            )
+        ) {
+            MenuBarMenuContentView(viewModel: viewModel)
         }
-        .defaultSize(width: 480, height: 260)
-        .windowResizability(.contentMinSize)
     }
 }
