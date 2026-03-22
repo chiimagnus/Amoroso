@@ -27,7 +27,7 @@ Environment overrides:
 EOF
 }
 
-for arg in "${@:-}"; do
+for arg in "$@"; do
   case "$arg" in
     -h|--help)
       print_help
