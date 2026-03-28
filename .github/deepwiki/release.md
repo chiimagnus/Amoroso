@@ -13,8 +13,8 @@
 | --- | --- | --- |
 | App Marketing Version | `configuration.md`（引用 `project.pbxproj`） | 见配置页单一事实源 |
 | App Build Number | `configuration.md`（引用 `project.pbxproj`） | 见配置页单一事实源 |
-| 分支 | Git | `crh` |
-| Commit | Git | `228d32deee961c17dc0a7c561f90e7753182e805` |
+| 分支 | `GENERATION.md` | 见 `GENERATION.md` |
+| Commit | `GENERATION.md` | 见 `GENERATION.md` |
 
 ## 建议发布流程（当前仓库推断）
 
@@ -44,10 +44,10 @@
 ## 示例片段
 
 ```text
-// PianoKey.xcodeproj/project.pbxproj
-MARKETING_VERSION = 1.0;
-CURRENT_PROJECT_VERSION = 1;
-PRODUCT_BUNDLE_IDENTIFIER = com.chiimagnus.PianoKey;
+// PianoKey.xcodeproj/project.pbxproj（示意：实际值以该文件与 configuration.md 为准）
+MARKETING_VERSION = ...;
+CURRENT_PROJECT_VERSION = ...;
+PRODUCT_BUNDLE_IDENTIFIER = ...;
 ```
 
 ## Coverage Gaps（如有）

@@ -49,8 +49,10 @@
 3. 映射流程：Single Key、Chord、Melody 三类规则至少各验证一次。
 4. 持久化流程：新建或编辑 Profile 后重启应用仍保留。
 
-新增复杂逻辑时，优先补充 XCTest（建议新建 `PianoKeyTests`，按功能命名如 `DefaultMappingEngineTests`）。
+新增复杂逻辑时，优先补充 **Swift Testing** 单元测试（建议在 `PianoKeyTests/` 下按功能命名如 `DefaultMappingEngineTests.swift`）。
 如果引入新的 Service Protocol，请同时提供至少一个 mock 测试双（test double），覆盖成功路径与失败路径。涉及状态轮询、时间窗口和节流逻辑时，优先把时间源抽象为可注入依赖，避免测试依赖真实等待。
+
+> 注：本仓库测试采用 **Swift Testing**（`import Testing` + `@Test` + `#expect`），不是 XCTest。新增测试文件请按现有风格放在 `PianoKeyTests/` 下。
 
 ## 提交与 Pull Request 规范
 

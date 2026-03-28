@@ -39,7 +39,7 @@
 | 脚本 | 用途 | 示例 |
 | --- | --- | --- |
 | `.github/scripts/build-open.sh` | 一键构建并打开 `.app`（默认 Debug，可选 Release） | `.github/scripts/build-open.sh` |
-| `.github/scripts/midi-send-test.swift` | 验证 macOS → 外部设备的 MIDI 输出链路（发送 Note On/Off） | `swift .github/scripts/midi-send-test.swift --list` |
+| `.github/scripts/midi-send-test.swift` | 验证 macOS → 外部设备的 MIDI 输出链路（发送 Note On/Off） | `swift .github/scripts/midi-send-test.swift --list`<br>`swift .github/scripts/midi-send-test.swift --dest 0`<br>`swift .github/scripts/midi-send-test.swift --match "IAC"` |
 
 ## 功能开关与行为差异
 

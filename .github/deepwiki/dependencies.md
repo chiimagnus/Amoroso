@@ -54,8 +54,8 @@
 
 | 维度 | 真值来源 | 当前值 | 备注 |
 | --- | --- | --- | --- |
-| 分支 | Git | `crh` | 生成时当前分支 |
-| Commit | Git | `228d32deee961c17dc0a7c561f90e7753182e805` | 生成时 HEAD |
+| 分支 | `GENERATION.md` | 见 `GENERATION.md` | 避免在多个页面重复维护 |
+| Commit | `GENERATION.md` | 见 `GENERATION.md` | 避免在多个页面重复维护 |
 | App `MARKETING_VERSION` | `configuration.md`（引用 `project.pbxproj`） | 见配置页单一事实源 | 避免多页写死版本值 |
 | App `CURRENT_PROJECT_VERSION` | `configuration.md`（引用 `project.pbxproj`） | 见配置页单一事实源 | 避免多页写死版本值 |
 
