@@ -1,7 +1,5 @@
 # 🎹 LonelyPianist
 
-> **把你的 MIDI 键盘，变成 Mac 的万能遥控器。**
-
 <p align="center">
   <img src="https://img.shields.io/badge/platform-macOS_14%2B-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Platform">
   <img src="https://img.shields.io/badge/Swift-5.9%2B-orange?style=for-the-badge&logo=swift&logoColor=white" alt="Swift">
