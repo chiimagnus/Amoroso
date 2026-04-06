@@ -10,6 +10,7 @@ final class LonelyPianistViewModel {
         case runtime = "Runtime"
         case mappings = "Mappings"
         case recorder = "Recorder"
+        case dialogue = "Dialogue"
         case settings = "Settings"
 
         var id: String { rawValue }
@@ -22,6 +23,8 @@ final class LonelyPianistViewModel {
                 return "slider.horizontal.3"
             case .recorder:
                 return "waveform"
+            case .dialogue:
+                return "bubble.left.and.bubble.right"
             case .settings:
                 return "gearshape"
             }
@@ -74,6 +77,12 @@ final class LonelyPianistViewModel {
 
     var dialogueStatus: DialogueManager.Status = .idle
     var dialogueLatencyMs: Int?
+    var dialoguePlaybackInterruptionBehavior: DialoguePlaybackInterruptionBehavior = .interrupt {
+        didSet {
+            UserDefaults.standard.set(dialoguePlaybackInterruptionBehavior.rawValue, forKey: DialoguePlaybackInterruptionBehavior.userDefaultsKey)
+            dialogueManager.playbackInterruptionBehavior = dialoguePlaybackInterruptionBehavior
+        }
+    }
 
     private let logger = Logger(subsystem: "com.chiimagnus.LonelyPianist", category: "ViewModel")
 
@@ -119,6 +128,9 @@ final class LonelyPianistViewModel {
 
         bindServiceCallbacks()
         bindAppLifecycleCallbacks()
+
+        let behaviorRaw = UserDefaults.standard.string(forKey: DialoguePlaybackInterruptionBehavior.userDefaultsKey)
+        dialoguePlaybackInterruptionBehavior = DialoguePlaybackInterruptionBehavior(rawValue: behaviorRaw ?? "") ?? .interrupt
 
         dialogueStatus = dialogueManager.status
         dialogueManager.onStatusChange = { [weak self] status in
@@ -259,6 +271,7 @@ final class LonelyPianistViewModel {
             return
         }
 
+        dialogueManager.playbackInterruptionBehavior = dialoguePlaybackInterruptionBehavior
         dialogueManager.start()
         statusMessage = "Dialogue started"
     }

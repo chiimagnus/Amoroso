@@ -14,7 +14,8 @@ struct LonelyPianistApp: App {
     init() {
         // Default to "menu bar only" to keep LonelyPianist as a menu bar tool app.
         UserDefaults.standard.register(defaults: [
-            AppIconDisplayMode.userDefaultsKey: AppIconDisplayMode.menuBarOnly.rawValue
+            AppIconDisplayMode.userDefaultsKey: AppIconDisplayMode.menuBarOnly.rawValue,
+            DialoguePlaybackInterruptionBehavior.userDefaultsKey: DialoguePlaybackInterruptionBehavior.interrupt.rawValue
         ])
 
         let schema = Schema([

@@ -10,12 +10,6 @@ final class DialogueManager {
         case playing
     }
 
-    enum PlaybackInterruptionBehavior: String, CaseIterable, Equatable, Sendable {
-        case ignore
-        case interrupt
-        case queue
-    }
-
     private struct NoteKey: Hashable {
         let note: Int
         let channel: Int
@@ -37,7 +31,7 @@ final class DialogueManager {
         didSet { onLatencyChange?(lastLatencyMs) }
     }
 
-    var playbackInterruptionBehavior: PlaybackInterruptionBehavior = .interrupt
+    var playbackInterruptionBehavior: DialoguePlaybackInterruptionBehavior = .interrupt
 
     private let logger = Logger(subsystem: "com.chiimagnus.LonelyPianist", category: "Dialogue")
 
