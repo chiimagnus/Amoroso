@@ -16,3 +16,4 @@ anticipation @ git+https://github.com/jthickstun/anticipation.git
 # Server
 fastapi>=0.110
 uvicorn[standard]>=0.27
+websockets>=10.4
