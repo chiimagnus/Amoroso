@@ -2,12 +2,12 @@
 
 ## 项目结构与模块组织
 
-本仓库是一个 macOS 菜单栏应用（SwiftUI + CoreMIDI + SwiftData）。主代码位于 `LonelyPianist/`，按 MVVM 与服务分层组织：
+本仓库是一个 macOS 桌面应用（SwiftUI + CoreMIDI + SwiftData）。主代码位于 `LonelyPianist/`，按 MVVM 与服务分层组织：
 
 - `Models/`：领域模型与存储实体（MIDI 事件、映射规则、Profile）。
 - `Services/`：基础设施与业务服务（MIDI、输入注入、权限、映射引擎、存储仓储）。
 - `ViewModels/`：状态编排与业务流程入口（当前主要是 `LonelyPianistViewModel`）。
-- `Views/`：菜单栏面板与控制面板 UI。
+- `Views/`：主窗口、控制面板与功能页 UI。
 - `Utilities/`：解析器与默认配置工厂。
 - `.github/deepwiki/`：仓库知识库（业务入口 + 技术细节）。
 

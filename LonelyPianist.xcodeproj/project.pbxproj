@@ -7,10 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D86B79822F4F51BB001F3AFE /* MenuBarDockKit in Frameworks */ = {isa = PBXBuildFile; productRef = C2CC4C475B497C8A806F4CBD /* MenuBarDockKit */; };
+		D85596AE2F83FF72005BE7FE /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = D85596AD2F83FF72005BE7FE /* RealityKitContent */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		D85596BD2F83FF74005BE7FE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = D8D428052F4DFD3800EC9C9B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D85596A82F83FF72005BE7FE;
+			remoteInfo = LonelyPianistAVP;
+		};
 		E10000012A9B000100000007 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = D8D428052F4DFD3800EC9C9B /* Project object */;
@@ -21,11 +28,37 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		D85596A92F83FF72005BE7FE /* LonelyPianistAVP.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LonelyPianistAVP.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D85596AC2F83FF72005BE7FE /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = text; path = RealityKitContent; sourceTree = "<group>"; };
+		D85596BC2F83FF74005BE7FE /* LonelyPianistAVPTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LonelyPianistAVPTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D8D4280D2F4DFD3800EC9C9B /* LonelyPianist.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LonelyPianist.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E10000012A9B000100000001 /* LonelyPianistTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LonelyPianistTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		D85596C62F83FF74005BE7FE /* Exceptions for "LonelyPianistAVP" folder in "LonelyPianistAVP" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = D85596A82F83FF72005BE7FE /* LonelyPianistAVP */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		D85596AA2F83FF72005BE7FE /* LonelyPianistAVP */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				D85596C62F83FF74005BE7FE /* Exceptions for "LonelyPianistAVP" folder in "LonelyPianistAVP" target */,
+			);
+			path = LonelyPianistAVP;
+			sourceTree = "<group>";
+		};
+		D85596BF2F83FF74005BE7FE /* LonelyPianistAVPTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LonelyPianistAVPTests;
+			sourceTree = "<group>";
+		};
 		D8D4280F2F4DFD3800EC9C9B /* LonelyPianist */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = LonelyPianist;
@@ -39,11 +72,25 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		D85596A62F83FF72005BE7FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D85596AE2F83FF72005BE7FE /* RealityKitContent in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D85596B92F83FF74005BE7FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8D4280A2F4DFD3800EC9C9B /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				D86B79822F4F51BB001F3AFE /* MenuBarDockKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -57,11 +104,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		D85596AB2F83FF72005BE7FE /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				D85596AC2F83FF72005BE7FE /* RealityKitContent */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
 		D8D428042F4DFD3800EC9C9B = {
 			isa = PBXGroup;
 			children = (
 				D8D4280F2F4DFD3800EC9C9B /* LonelyPianist */,
 				E10000012A9B000100000002 /* LonelyPianistTests */,
+				D85596AA2F83FF72005BE7FE /* LonelyPianistAVP */,
+				D85596AB2F83FF72005BE7FE /* Packages */,
+				D85596BF2F83FF74005BE7FE /* LonelyPianistAVPTests */,
 				D8D4280E2F4DFD3800EC9C9B /* Products */,
 			);
 			sourceTree = "<group>";
@@ -71,6 +129,8 @@
 			children = (
 				D8D4280D2F4DFD3800EC9C9B /* LonelyPianist.app */,
 				E10000012A9B000100000001 /* LonelyPianistTests.xctest */,
+				D85596A92F83FF72005BE7FE /* LonelyPianistAVP.app */,
+				D85596BC2F83FF74005BE7FE /* LonelyPianistAVPTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,6 +138,52 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		D85596A82F83FF72005BE7FE /* LonelyPianistAVP */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D85596C72F83FF74005BE7FE /* Build configuration list for PBXNativeTarget "LonelyPianistAVP" */;
+			buildPhases = (
+				D85596A52F83FF72005BE7FE /* Sources */,
+				D85596A62F83FF72005BE7FE /* Frameworks */,
+				D85596A72F83FF72005BE7FE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D85596AA2F83FF72005BE7FE /* LonelyPianistAVP */,
+			);
+			name = LonelyPianistAVP;
+			packageProductDependencies = (
+				D85596AD2F83FF72005BE7FE /* RealityKitContent */,
+			);
+			productName = LonelyPianistAVP;
+			productReference = D85596A92F83FF72005BE7FE /* LonelyPianistAVP.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D85596BB2F83FF74005BE7FE /* LonelyPianistAVPTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D85596C82F83FF74005BE7FE /* Build configuration list for PBXNativeTarget "LonelyPianistAVPTests" */;
+			buildPhases = (
+				D85596B82F83FF74005BE7FE /* Sources */,
+				D85596B92F83FF74005BE7FE /* Frameworks */,
+				D85596BA2F83FF74005BE7FE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				D85596BE2F83FF74005BE7FE /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				D85596BF2F83FF74005BE7FE /* LonelyPianistAVPTests */,
+			);
+			name = LonelyPianistAVPTests;
+			packageProductDependencies = (
+			);
+			productName = LonelyPianistAVPTests;
+			productReference = D85596BC2F83FF74005BE7FE /* LonelyPianistAVPTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		D8D4280C2F4DFD3800EC9C9B /* LonelyPianist */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D8D428182F4DFD3900EC9C9B /* Build configuration list for PBXNativeTarget "LonelyPianist" */;
@@ -95,7 +201,6 @@
 			);
 			name = LonelyPianist;
 			packageProductDependencies = (
-				C2CC4C475B497C8A806F4CBD /* MenuBarDockKit */,
 			);
 			productName = LonelyPianist;
 			productReference = D8D4280D2F4DFD3800EC9C9B /* LonelyPianist.app */;
@@ -131,9 +236,16 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2600;
+				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					D85596A82F83FF72005BE7FE = {
+						CreatedOnToolsVersion = 26.4;
+					};
+					D85596BB2F83FF74005BE7FE = {
+						CreatedOnToolsVersion = 26.4;
+						TestTargetID = D85596A82F83FF72005BE7FE;
+					};
 					D8D4280C2F4DFD3800EC9C9B = {
 						CreatedOnToolsVersion = 26.0;
 					};
@@ -153,7 +265,6 @@
 			mainGroup = D8D428042F4DFD3800EC9C9B;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				19DF3826F71C63EDEEA9353B /* XCLocalSwiftPackageReference "Packages/MenuBarDockKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = D8D4280E2F4DFD3800EC9C9B /* Products */;
@@ -162,11 +273,27 @@
 			targets = (
 				D8D4280C2F4DFD3800EC9C9B /* LonelyPianist */,
 				E10000012A9B000100000006 /* LonelyPianistTests */,
+				D85596A82F83FF72005BE7FE /* LonelyPianistAVP */,
+				D85596BB2F83FF74005BE7FE /* LonelyPianistAVPTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		D85596A72F83FF72005BE7FE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D85596BA2F83FF74005BE7FE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8D4280B2F4DFD3800EC9C9B /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -184,6 +311,20 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		D85596A52F83FF72005BE7FE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D85596B82F83FF74005BE7FE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D8D428092F4DFD3800EC9C9B /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -201,6 +342,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		D85596BE2F83FF74005BE7FE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D85596A82F83FF72005BE7FE /* LonelyPianistAVP */;
+			targetProxy = D85596BD2F83FF74005BE7FE /* PBXContainerItemProxy */;
+		};
 		E10000012A9B000100000008 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = D8D4280C2F4DFD3800EC9C9B /* LonelyPianist */;
@@ -209,6 +355,118 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		D85596C22F83FF74005BE7FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RDQHYSDFFG;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "$(TARGET_NAME)/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chiimagnus.LonelyPianistAVP;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Debug;
+		};
+		D85596C32F83FF74005BE7FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RDQHYSDFFG;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "$(TARGET_NAME)/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chiimagnus.LonelyPianistAVP;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Release;
+		};
+		D85596C42F83FF74005BE7FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RDQHYSDFFG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chiimagnus.LonelyPianistAVPTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LonelyPianistAVP.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LonelyPianistAVP";
+				XROS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Debug;
+		};
+		D85596C52F83FF74005BE7FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = RDQHYSDFFG;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.chiimagnus.LonelyPianistAVPTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = xros;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/LonelyPianistAVP.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/LonelyPianistAVP";
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 26.4;
+			};
+			name = Release;
+		};
 		D8D428162F4DFD3900EC9C9B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -361,11 +619,15 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Debug;
 		};
@@ -397,11 +659,15 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "macosx xros xrsimulator";
+				SUPPORTS_MACCATALYST = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 26.0;
 			};
 			name = Release;
 		};
@@ -459,6 +725,24 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		D85596C72F83FF74005BE7FE /* Build configuration list for PBXNativeTarget "LonelyPianistAVP" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D85596C22F83FF74005BE7FE /* Debug */,
+				D85596C32F83FF74005BE7FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D85596C82F83FF74005BE7FE /* Build configuration list for PBXNativeTarget "LonelyPianistAVPTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D85596C42F83FF74005BE7FE /* Debug */,
+				D85596C52F83FF74005BE7FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		D8D428082F4DFD3800EC9C9B /* Build configuration list for PBXProject "LonelyPianist" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -488,17 +772,10 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		19DF3826F71C63EDEEA9353B /* XCLocalSwiftPackageReference "Packages/MenuBarDockKit" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/MenuBarDockKit;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCSwiftPackageProductDependency section */
-		C2CC4C475B497C8A806F4CBD /* MenuBarDockKit */ = {
+		D85596AD2F83FF72005BE7FE /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = MenuBarDockKit;
+			productName = RealityKitContent;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
