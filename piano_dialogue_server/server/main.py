@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import Any
 
 from fastapi import FastAPI, WebSocket
 from pydantic import ValidationError
 from starlette.websockets import WebSocketDisconnect
 
+from inference import get_inference_engine
 from protocol import ErrorResponse, GenerateRequest, ResultResponse
 
 app = FastAPI(title="Piano Dialogue Server", version="0.1.0")
@@ -46,7 +48,14 @@ async def ws_endpoint(websocket: WebSocket) -> None:
                 await websocket.send_json(ErrorResponse(message=str(error)).model_dump())
                 continue
 
-            response = ResultResponse(notes=request.notes, latency_ms=0)
-            await websocket.send_json(response.model_dump())
+            try:
+                engine = get_inference_engine()
+                t0 = time.perf_counter()
+                reply_notes = engine.generate_response(request.notes, request.params, request.session_id)
+                latency_ms = int((time.perf_counter() - t0) * 1000)
+                response = ResultResponse(notes=reply_notes, latency_ms=latency_ms)
+                await websocket.send_json(response.model_dump())
+            except Exception as error:  # noqa: BLE001
+                await websocket.send_json(ErrorResponse(message=str(error)).model_dump())
     except WebSocketDisconnect:
         return
