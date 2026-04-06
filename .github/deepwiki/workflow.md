@@ -21,7 +21,6 @@
 | --- | --- | --- | --- |
 | 主应用映射链路 | `modules/mapping-engine.md` | Single/Chord/Melody 手测 | 权限与注入副作用 |
 | Recorder | `modules/recording-playback.md` | Rec/Play/Stop + 恢复 | 回放不触发注入 |
-| 菜单栏壳层 | `modules/menubardockkit.md` | 窗口开闭 + Dock 行为 | activationPolicy 时序 |
 
 ## 文档同步工作流
 
@@ -42,8 +41,7 @@
 1. 是否影响权限文案与授权路径？
 2. 是否影响 MappingAction 分支和规则编辑 UI？
 3. 是否影响 Recorder 持久化结构与兼容性？
-4. 是否影响 MenuBar/Dock 可见性行为？
-5. 是否同步更新了 deepwiki 相关页面和 `INDEX.md`？
+4. 是否同步更新了 deepwiki 相关页面和 `INDEX.md`？
 
 ## 协作与评审关注点
 
@@ -78,7 +76,5 @@ xcodebuild -project LonelyPianist.xcodeproj -scheme LonelyPianist -configuration
 - `README.md`
 - `LonelyPianist/LonelyPianistApp.swift`
 - `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`
-- `LonelyPianist/Views/Settings/Commands/AppCommands.swift`
-- `LonelyPianist/Views/MenuBar/MenuBarMenuContentView.swift`
 - `LonelyPianist/Views/Recording/RecorderTransportBarView.swift`
 - `LonelyPianist.xcodeproj/project.pbxproj`

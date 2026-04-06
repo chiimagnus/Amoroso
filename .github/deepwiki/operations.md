@@ -4,8 +4,8 @@
 
 | 状态信号 | 位置 | 代表含义 | 常见动作 |
 | --- | --- | --- | --- |
-| `connectionDescription` | Runtime / MenuBar | MIDI 连接状态 | Start/Stop/Refresh |
-| `statusMessage` | Runtime / MenuBar | 全局运行状态 | 权限与连接排查 |
+| `connectionDescription` | Runtime | MIDI 连接状态 | Start/Stop/Refresh |
+| `statusMessage` | Runtime | 全局运行状态 | 权限与连接排查 |
 | `midiEventCount` | Runtime | 事件吞吐是否增长 | 判断链路是否活着 |
 | `recorderStatusMessage` | Recorder 状态栏 | 录制/回放状态 | Rec/Play/Stop/Seek |
 
@@ -67,7 +67,6 @@ Text("MIDI Events: \(viewModel.midiEventCount)")
 - `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`
 - `LonelyPianist/Views/Runtime/StatusSectionView.swift`
 - `LonelyPianist/Views/Runtime/RecentEventSectionView.swift`
-- `LonelyPianist/Views/MenuBar/MenuBarPanelView.swift`
 - `LonelyPianist/Views/Recording/RecorderStatusBarView.swift`
 - `LonelyPianist/Services/MIDI/CoreMIDIInputService.swift`
 - `README.md`

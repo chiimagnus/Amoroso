@@ -5,7 +5,6 @@
 | 资产 | 位置 | 版本字段来源 | 发布形态 |
 | --- | --- | --- | --- |
 | LonelyPianist App | `LonelyPianist.xcodeproj` target `LonelyPianist` | `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` | macOS 应用构建产物 |
-| MenuBarDockKit | `Packages/MenuBarDockKit` | Swift package manifest + git tag（约定） | Swift library |
 
 ## 版本真值与策略
 
@@ -60,4 +59,3 @@ PRODUCT_BUNDLE_IDENTIFIER = ...;
 - `LonelyPianist.xcodeproj/project.pbxproj`
 - `AGENTS.md`
 - `README.md`
-- `Packages/MenuBarDockKit/Package.swift`

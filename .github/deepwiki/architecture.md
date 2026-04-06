@@ -16,7 +16,6 @@ LonelyPianist 运行于 macOS 桌面环境，依赖系统框架实现：
 | 运行单元 | 位置 | 生命周期 | 主要职责 |
 | --- | --- | --- | --- |
 | LonelyPianist App 进程 | `LonelyPianist/` | App 启动到退出 | UI、监听、映射、录制回放、持久化 |
-| MenuBarDockKit 组件 | `Packages/MenuBarDockKit` | 随 App 进程 | 菜单栏/Dock 显示策略与主窗口辅助 |
 
 ## 组件地图
 
@@ -55,7 +54,6 @@ flowchart LR
   B --> H[SwiftDataMappingProfileRepository]
   B --> I[RoutedMIDIPlaybackService]
   J[SwiftUI Views] --> B
-  K[MenuBarDockKit] --> J
 ```
 
 ## 接口与契约
@@ -87,7 +85,6 @@ flowchart LR
 
 - App：Xcode target `LonelyPianist`（`com.chiimagnus.LonelyPianist`）。
 - 单元测试：Xcode target `LonelyPianistTests`。
-- 本地包：`MenuBarDockKit` 由 Xcode 工程引用。
 
 ## 扩展点与热点
 
@@ -141,4 +138,3 @@ playbackService.onPlaybackFinished = { [weak self] in
 - `LonelyPianist/Services/Storage/SwiftDataMappingProfileRepository.swift`
 - `LonelyPianist/Services/Storage/SwiftDataRecordingTakeRepository.swift`
 - `LonelyPianist.xcodeproj/project.pbxproj`
-- `Packages/MenuBarDockKit/Sources/MenuBarDockKit/DockPresenceService.swift`

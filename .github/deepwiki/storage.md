@@ -7,7 +7,6 @@
 | SwiftData `MappingProfileEntity` | `Models/Storage/MappingProfileEntity.swift` | Profile 元数据 + payloadData | `SwiftDataMappingProfileRepository` |
 | SwiftData `RecordingTakeEntity` | `Models/Storage/RecordingTakeEntity.swift` | Take 元数据与时长 | `SwiftDataRecordingTakeRepository` |
 | SwiftData `RecordedNoteEntity` | `Models/Storage/RecordedNoteEntity.swift` | 单音符事件 | `SwiftDataRecordingTakeRepository` |
-| UserDefaults | `AppIconDisplayMode` | 图标显示模式 | `AppIconDisplayViewModel` |
 
 ## 数据结构矩阵
 
@@ -75,4 +74,3 @@ existing.notes.removeAll(keepingCapacity: false)
 - `LonelyPianist/Services/Storage/SwiftDataRecordingTakeRepository.swift`
 - `LonelyPianist/Models/Mapping/MappingProfile.swift`
 - `LonelyPianist/Models/Recording/RecordingTake.swift`
-- `Packages/MenuBarDockKit/Sources/MenuBarDockKit/AppIconDisplayMode.swift`

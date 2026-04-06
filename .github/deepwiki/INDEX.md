@@ -47,7 +47,6 @@
 - [modules/lonelypianist-app.md](modules/lonelypianist-app.md)
 - [modules/mapping-engine.md](modules/mapping-engine.md)
 - [modules/recording-playback.md](modules/recording-playback.md)
-- [modules/menubardockkit.md](modules/menubardockkit.md)
 
 ## 专题页面
 

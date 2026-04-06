@@ -2,12 +2,11 @@
 
 ## 仓库目标与用户
 
-LonelyPianist 仓库主要包含两条运行面：
+LonelyPianist 仓库主要包含一条运行面：
 
-1. `LonelyPianist` 主应用（macOS 菜单栏 App，实时 MIDI -> 系统输入 + Recorder）。
-2. `Packages/MenuBarDockKit`（抽象菜单栏应用的 Dock 可见性与窗口桥接能力）。
+1. `LonelyPianist` 主应用（macOS 窗口 App，实时 MIDI -> 系统输入 + Recorder）。
 
-仓库当前聚焦主应用与共享包，不再保留独立命令行运行面。
+仓库当前聚焦主应用，不再保留独立命令行运行面或菜单栏壳层。
 
 用户包括终端用户（LonelyPianist App）和开发者（模块维护）。
 
@@ -23,7 +22,6 @@ LonelyPianist 仓库主要包含两条运行面：
 | 运行面 | 位置 | 作用 | 主要入口 |
 | --- | --- | --- | --- |
 | LonelyPianist App | `LonelyPianist/` | 实时 MIDI 映射、权限管理、Recorder UI | `LonelyPianist/LonelyPianistApp.swift` |
-| MenuBarDockKit | `Packages/MenuBarDockKit/` | 菜单栏/Dock 显示策略与 `NSWindow` 读取 | `AppIconDisplayMode.swift`, `DockPresenceService.swift` |
 
 ## 仓库布局
 
@@ -34,14 +32,12 @@ LonelyPianist 仓库主要包含两条运行面：
 | `LonelyPianist/ViewModels` | 状态编排与流程入口 | 跨 UI 与服务的单一状态协调层 |
 | `LonelyPianist/Views` | Runtime/Mapping/Recorder/Settings UI | 用户旅程触发入口 |
 | `LonelyPianistTests` | 录制与状态机测试 | 当前自动化回归基线 |
-| `Packages/MenuBarDockKit` | 本地共享包（UI 壳能力） | 主应用窗口行为依赖项 |
 
 ## 入口点
 
 | 入口 | 位置 | 用途 | 常用命令 / 调用方式 |
 | --- | --- | --- | --- |
 | App 主入口 | `LonelyPianist/LonelyPianistApp.swift` | 装配 ModelContainer 与服务依赖 | `open LonelyPianist.xcodeproj` |
-| 菜单栏入口 | `LonelyPianist/Views/MenuBar/MenuBarMenuContentView.swift` | Start/Stop/Rec/Play/Open 主窗口 | 菜单栏图标操作 |
 | 主窗口入口 | `LonelyPianist/ContentView.swift` | Runtime/Mappings/Recorder/Settings 导航 | `Open LonelyPianist` 按钮 |
 
 ## 关键产物
@@ -121,5 +117,4 @@ xcodebuild -project LonelyPianist.xcodeproj -scheme LonelyPianist -configuration
 - `LonelyPianist/Services/Playback/RoutedMIDIPlaybackService.swift`
 - `LonelyPianist/Services/Storage/SwiftDataMappingProfileRepository.swift`
 - `LonelyPianist/Services/Storage/SwiftDataRecordingTakeRepository.swift`
-- `Packages/MenuBarDockKit/Package.swift`
 - `LonelyPianist.xcodeproj/project.pbxproj`

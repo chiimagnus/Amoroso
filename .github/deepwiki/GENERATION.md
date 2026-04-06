@@ -33,7 +33,6 @@
 - `.github/deepwiki/modules/lonelypianist-app.md`
 - `.github/deepwiki/modules/mapping-engine.md`
 - `.github/deepwiki/modules/recording-playback.md`
-- `.github/deepwiki/modules/menubardockkit.md`
 
 ### Topic Pages
 

@@ -4,7 +4,6 @@
 
 | 配置面 | 位置 / 界面 | 写入方 | 说明 |
 | --- | --- | --- | --- |
-| App 图标显示模式 | Settings -> Picker | `AppIconDisplayViewModel` | `menuBarOnly` / `dockOnly` / `both` |
 | 映射 Profile 配置 | Mappings 页 | `LonelyPianistViewModel` + Repository | 规则、力度阈值、活动 profile |
 | Recorder 数据 | Recorder 页 | `LonelyPianistViewModel` + Recording Repository | Take 列表、重命名、删除 |
 | 构建配置 | `LonelyPianist.xcodeproj/project.pbxproj` | Xcode | 部署目标、bundle id、版本号 |
@@ -13,7 +12,6 @@
 
 | 配置项 | 位置 | 默认值 / 示例 | 影响 |
 | --- | --- | --- | --- |
-| `appIconDisplayMode` | `MenuBarDockKit/AppIconDisplayMode.swift` | App 启动时默认注册 `menuBarOnly` | 决定 Dock 与菜单栏显示行为 |
 | `velocityEnabled` | `MappingProfilePayload` | 默认 `false`（empty payload） | 是否启用力度分层输出 |
 | `defaultVelocityThreshold` | `MappingProfilePayload` | 默认 `90`（empty payload） | 单键高力度输出触发阈值 |
 | Melody 间隔 | `MelodyMappingRule.maxIntervalMilliseconds` | 常见示例 `450~600` | 旋律匹配窗口 |
@@ -45,15 +43,13 @@
 
 | 开关 | 开关位置 | 行为差异 | 生效时机 |
 | --- | --- | --- | --- |
-| AppIconDisplayMode | Settings Picker / UserDefaults | 决定 Dock 与菜单栏可见性 | 变更后立即应用 |
 | Velocity Enabled | Mappings -> Rules | 单键输出是否按力度分流 | 保存 profile 后立即生效 |
 | RecorderMode | `LonelyPianistViewModel.recorderMode` | idle/recording/playing 三态约束按钮状态 | 运行时即时 |
 
 ## 配置漂移检查
 
-1. 若调整图标显示模式语义，需同步 `SettingsView`、`MenuBarExtraVisibilityStore`、`DockPresenceService`。
-2. 若新增 `MappingActionType`，需同步规则编辑 UI、解析器与执行分支。
-3. 若变更 SwiftData 实体字段，需同步仓储读写和回放/渲染流程。
+1. 若新增 `MappingActionType`，需同步规则编辑 UI、解析器与执行分支。
+2. 若变更 SwiftData 实体字段，需同步仓储读写和回放/渲染流程。
 
 ## 常见误配
 
@@ -66,7 +62,7 @@
 ```swift
 // LonelyPianist/LonelyPianistApp.swift
 UserDefaults.standard.register(defaults: [
-    AppIconDisplayMode.userDefaultsKey: AppIconDisplayMode.menuBarOnly.rawValue
+    DialoguePlaybackInterruptionBehavior.userDefaultsKey: DialoguePlaybackInterruptionBehavior.interrupt.rawValue
 ])
 ```
 
@@ -85,10 +81,6 @@ let cgGranted = CGRequestPostEventAccess()
 ## 来源引用（Source References）
 
 - `LonelyPianist/LonelyPianistApp.swift`
-- `LonelyPianist/ViewModels/Settings/AppIconDisplayViewModel.swift`
-- `LonelyPianist/ViewModels/MenuBar/MenuBarExtraVisibilityStore.swift`
-- `Packages/MenuBarDockKit/Sources/MenuBarDockKit/AppIconDisplayMode.swift`
-- `Packages/MenuBarDockKit/Sources/MenuBarDockKit/DockPresenceService.swift`
 - `LonelyPianist/Models/Mapping/MappingProfile.swift`
 - `LonelyPianist/Views/Mapping/RulesEditorSectionView.swift`
 - `LonelyPianist/Services/System/AccessibilityPermissionService.swift`

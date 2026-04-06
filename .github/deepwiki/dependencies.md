@@ -4,8 +4,8 @@
 
 | 维度 | 技术 / 框架 | 版本 / 约束 | 用途 |
 | --- | --- | --- | --- |
-| 语言 | Swift | `swift-tools-version: 6.0`（MenuBarDockKit） | 主应用与包实现 |
-| UI | SwiftUI + Observation | macOS App target | 主窗口、菜单栏、设置与编辑器界面 |
+| 语言 | Swift | `swift-tools-version: 6.0` | 主应用实现 |
+| UI | SwiftUI + Observation | macOS App target | 主窗口、设置与编辑器界面 |
 | MIDI 输入 | CoreMIDI | 系统框架 | 实时采集 note on/off |
 | 输入注入 | CoreGraphics / ApplicationServices | 系统框架 + 辅助功能授权 | 文本与按键注入 |
 | 持久化 | SwiftData | App target | Profile 与 Take 本地存储 |
@@ -16,7 +16,6 @@
 | 模块 / 包 | 位置 | 产物 | 被谁依赖 |
 | --- | --- | --- | --- |
 | `LonelyPianist` | `LonelyPianist/` + Xcode target | `LonelyPianist.app` | 终端用户 |
-| `MenuBarDockKit` | `Packages/MenuBarDockKit/` | Swift library | `LonelyPianist` target |
 
 ## 第三方库 / 框架
 
@@ -27,7 +26,7 @@
 | CoreMIDI | runtime | 系统内置 | 接收 MIDI 源事件 | 无源或连接失败会导致监听空转 |
 | AVFoundation | runtime | 系统内置 | 音频引擎与 sampler | 音色库缺失会导致回放失败 |
 | SwiftData | runtime | 系统内置 | 本地模型持久化 | schema 演进需迁移策略 |
-| AppKit | runtime | 系统内置 | 激活策略、窗口与菜单栏行为 | 菜单栏/Dock 模式切换需谨慎 |
+| AppKit | runtime | 系统内置 | 窗口与系统事件 | 激活与窗口行为需谨慎 |
 
 ## 外部服务与平台
 
@@ -46,7 +45,6 @@
 
 ## 平台兼容性
 
-- `MenuBarDockKit` package manifest 标注 `macOS(.v14)`。
 - Xcode 工程 `LonelyPianist` target 在 `project.pbxproj` 中声明 `MACOSX_DEPLOYMENT_TARGET = 26.0`。
 - 仓库是 **macOS-only**；Linux 环境无法执行完整 `xcodebuild` 与 GUI 运行验证。
 
@@ -61,20 +59,9 @@
 
 ## 升级热点与风险
 
-1. 调整部署目标或 Swift 版本时，需同步验证本地包与主工程兼容。
+1. 调整部署目标或 Swift 版本时，需同步验证主工程与系统 API 兼容。
 2. 变更音频渲染链路需同时覆盖 App 回放与系统音色库加载。
 3. 若引入第三方包，需新增锁定策略与许可审计流程。
-
-## 示例片段
-
-```swift
-// Packages/MenuBarDockKit/Package.swift
-let package = Package(
-    name: "MenuBarDockKit",
-    platforms: [.macOS(.v14)],
-    products: [.library(name: "MenuBarDockKit", targets: ["MenuBarDockKit"])]
-)
-```
 
 ## Coverage Gaps（如有）
 
@@ -84,7 +71,6 @@ let package = Package(
 ## 来源引用（Source References）
 
 - `LonelyPianist.xcodeproj/project.pbxproj`
-- `Packages/MenuBarDockKit/Package.swift`
 - `LonelyPianist/LonelyPianistApp.swift`
 - `LonelyPianist/Services/System/AccessibilityPermissionService.swift`
 - `LonelyPianist/Services/System/ShortcutExecutionService.swift`

@@ -22,7 +22,6 @@
 | Service Protocol | ViewModel 依赖的抽象接口 | `Services/Protocols/*` | 可测试与可替换实现基础 |
 | Connection State | MIDI 输入连接状态机 | `MIDIInputServiceProtocol.swift` | 运行可观测性第一信号 |
 | Playhead | 回放时间轴指针 | Recorder UI + ViewModel | Seek/播放进度控制 |
-| Dock Visibility Controller | 主窗口与 Dock 显示策略协调器 | `MainWindowDockVisibilityController.swift` | 菜单栏工具壳体验关键 |
 
 ## 运行 / 发布术语
 
@@ -36,7 +35,6 @@
 
 - **Listening MIDI** vs **可跨应用输入**：前者只表示已进入监听，后者还要求辅助功能授权。
 - **Recorder 回放** vs **映射注入**：回放仅发声，不触发文本/按键/快捷指令注入。
-- **MenuBarOnly 模式隐藏 Dock** vs **应用退出**：窗口关闭后可隐藏 Dock，但应用仍在菜单栏存活。
 
 ## Coverage Gaps（如有）
 
@@ -51,4 +49,3 @@
 - `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`
 - `LonelyPianist/Services/Mapping/DefaultMappingEngine.swift`
 - `LonelyPianist/Services/Protocols/MIDIInputServiceProtocol.swift`
-- `Packages/MenuBarDockKit/Sources/MenuBarDockKit/MainWindowDockVisibilityController.swift`

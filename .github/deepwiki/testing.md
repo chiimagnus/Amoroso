@@ -15,7 +15,6 @@
 | 单元测试 | `LonelyPianistTests/Recording/DefaultRecordingServiceTests.swift` | 录制事件转换 | 使用 `ClockMock` 控制时间 |
 | 单元测试 | `LonelyPianistTests/ViewModels/LonelyPianistViewModelRecorderStateTests.swift` | 录制/回放状态机 | 验证不触发键盘注入副作用 |
 | 测试替身 | `LonelyPianistTests/TestDoubles/RecorderTestDoubles.swift` | 各类协议 mock | 解耦系统框架依赖 |
-| 包测试（占位） | `Packages/MenuBarDockKit/Tests/...` | 当前仅 placeholder | 需要补实质断言 |
 
 ## 命令与执行顺序
 
@@ -77,14 +76,11 @@
 ## Coverage Gaps（如有）
 
 - UI 自动化测试缺失（Runtime/Mapping/Recorder 交互尚未自动化）。
-- MenuBarDockKit 测试仍为占位。
-
 ## 来源引用（Source References）
 
 - `LonelyPianistTests/Recording/DefaultRecordingServiceTests.swift`
 - `LonelyPianistTests/ViewModels/LonelyPianistViewModelRecorderStateTests.swift`
 - `LonelyPianistTests/TestDoubles/RecorderTestDoubles.swift`
-- `Packages/MenuBarDockKit/Tests/MenuBarDockKitTests/MenuBarDockKitTests.swift`
 - `AGENTS.md`
 - `README.md`
 - `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`

@@ -121,7 +121,6 @@ guard !triggeredChordRuleIDs.contains(rule.id) else { continue }
 - `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`
 - `LonelyPianist/Services/Mapping/DefaultMappingEngine.swift`
 - `LonelyPianist/Services/MIDI/CoreMIDIInputService.swift`
-- `LonelyPianist/Views/MenuBar/MenuBarPanelView.swift`
 - `LonelyPianist/Views/Mapping/RulesEditorSectionView.swift`
 - `LonelyPianist/Views/Recording/RecorderTransportBarView.swift`
 - `LonelyPianist/Services/Playback/AVSamplerMIDIPlaybackService.swift`

@@ -4,7 +4,7 @@
 
 - 负责：
   - 启动与依赖注入。
-  - Runtime / Mappings / Recorder / Settings UI。
+  - Runtime / Mappings / Recorder UI。
   - MIDI 监听、映射执行、权限管理、录制与回放状态机。
   - Profile 与 Take 的本地持久化。
 - 不负责：
@@ -18,7 +18,7 @@
 | `LonelyPianist/LonelyPianistApp.swift` | App 入口 | 依赖注入与 Scene 组装 |
 | `LonelyPianist/ViewModels/LonelyPianistViewModel.swift` | 状态编排核心 | 业务流程主调度器 |
 | `LonelyPianist/Services/*` | 基础能力 | MIDI/映射/输入/权限/回放/存储 |
-| `LonelyPianist/Views/*` | 用户界面 | Runtime/Mapping/Recording/Settings |
+| `LonelyPianist/Views/*` | 用户界面 | Runtime/Mapping/Recording |
 | `LonelyPianist/Models/*` | 领域与存储模型 | Mapping / MIDI / Recording / SwiftData entities |
 
 ## 入口点与生命周期
@@ -71,7 +71,6 @@
 
 | 项目 | 位置 | 默认值 | 生效方式 |
 | --- | --- | --- | --- |
-| App 图标模式 | `AppIconDisplayMode.userDefaultsKey` | 启动注册 `menuBarOnly` | 变更即应用 |
 | 力度开关 | `MappingProfilePayload.velocityEnabled` | 取 profile 配置 | 规则实时生效 |
 | 力度阈值 | `defaultVelocityThreshold` | `90`（empty payload） | 匹配时读取 |
 
