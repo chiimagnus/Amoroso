@@ -213,7 +213,7 @@ cd piano_dialogue_server/server
 
 ### 3) 在 App 中使用 Dialogue
 
-1. 启动 LonelyPianist（从菜单栏打开主窗口）
+1. 启动 LonelyPianist（主窗口直接显示）
 2. 首次使用仍需授予 **辅助功能权限**（否则无法开始监听）
 3. 点击 `Start Listening`
 4. 在侧边栏选择 `Dialogue`，点击 `Start Dialogue`
