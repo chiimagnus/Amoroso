@@ -4,6 +4,10 @@ import json
 from typing import Any
 
 from fastapi import FastAPI, WebSocket
+from pydantic import ValidationError
+from starlette.websockets import WebSocketDisconnect
+
+from protocol import ErrorResponse, GenerateRequest, ResultResponse
 
 app = FastAPI(title="Piano Dialogue Server", version="0.1.0")
 
@@ -22,8 +26,27 @@ async def ws_endpoint(websocket: WebSocket) -> None:
             try:
                 payload: Any = json.loads(raw)
             except Exception:
-                payload = {"type": "error", "message": "invalid json"}
-            await websocket.send_json(payload)
-    finally:
-        await websocket.close()
+                await websocket.send_json(ErrorResponse(message="invalid json").model_dump())
+                continue
 
+            if not isinstance(payload, dict):
+                await websocket.send_json(ErrorResponse(message="invalid payload").model_dump())
+                continue
+
+            message_type = payload.get("type")
+            if message_type != "generate":
+                await websocket.send_json(
+                    ErrorResponse(message=f"unsupported type: {message_type!r}").model_dump()
+                )
+                continue
+
+            try:
+                request = GenerateRequest.model_validate(payload)
+            except ValidationError as error:
+                await websocket.send_json(ErrorResponse(message=str(error)).model_dump())
+                continue
+
+            response = ResultResponse(notes=request.notes, latency_ms=0)
+            await websocket.send_json(response.model_dump())
+    except WebSocketDisconnect:
+        return
