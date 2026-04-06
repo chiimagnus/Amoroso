@@ -22,6 +22,7 @@ final class DialogueManager {
 
     var onStatusChange: (@Sendable (Status) -> Void)?
     var onLatencyChange: (@Sendable (Int?) -> Void)?
+    var onSessionTakeSaved: (@Sendable (UUID) -> Void)?
 
     private(set) var status: Status = .idle {
         didSet { onStatusChange?(status) }
@@ -389,6 +390,7 @@ final class DialogueManager {
 
         do {
             try recordingRepository.saveTake(take)
+            onSessionTakeSaved?(sessionTakeID)
         } catch {
             logger.error("Save dialogue take failed: \(error.localizedDescription, privacy: .public)")
         }

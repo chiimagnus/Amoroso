@@ -143,6 +143,18 @@ final class LonelyPianistViewModel {
                 self?.dialogueLatencyMs = latencyMs
             }
         }
+
+        dialogueManager.onSessionTakeSaved = { [weak self] takeID in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                do {
+                    let preserveID = selectedTakeID ?? takeID
+                    try reloadTakes(preserveSelectedID: preserveID)
+                } catch {
+                    log(title: "Dialogue Save", detail: error.localizedDescription)
+                }
+            }
+        }
     }
 
     var activeProfile: MappingProfile? {
