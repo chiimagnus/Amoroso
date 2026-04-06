@@ -20,7 +20,7 @@
 
 ```bash
 cd piano_dialogue_server
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -r requirements.txt
@@ -34,6 +34,27 @@ pip install -r requirements.txt
   - `export PYTORCH_ENABLE_MPS_FALLBACK=1`
 
 ## P1：离线验证（生成 MIDI）
+
+### 1) 准备模型权重（不提交仓库）
+
+默认脚本会优先读取本地目录：
+
+- `piano_dialogue_server/models/music-small-800k/`
+
+你可以二选一：
+
+**A. 手动下载（浏览器/下载器）**
+
+- 下载权重文件（通常为 `model.safetensors`；有些仓库为 `pytorch_model.bin`）放到：
+  - `piano_dialogue_server/models/music-small-800k/model.safetensors`
+  - 或 `piano_dialogue_server/models/music-small-800k/pytorch_model.bin`
+
+**B. 用脚本下载（可断点续传，走 HF 镜像）**
+
+```bash
+source .venv/bin/activate
+bash scripts/download_model.sh
+```
 
 ```bash
 source .venv/bin/activate
@@ -52,4 +73,4 @@ python scripts/test_infilling.py
 
 - `AMT_MODEL_ID`：HuggingFace 模型 ID（默认值以脚本里为准）
 - `AMT_DEVICE`：`mps` / `cuda` / `cpu`（默认自动选择）
-
+- `AMT_MODEL_DIR`：如果你把模型放在其他目录，用它指向本地目录（优先级最高）
