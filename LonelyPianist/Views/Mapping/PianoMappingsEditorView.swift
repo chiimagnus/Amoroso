@@ -46,6 +46,12 @@ struct PianoMappingsEditorView: View {
             .inspector(isPresented: $isInspectorPresented) {
                 inspectorPanel
             }
+            .onChange(of: isInspectorPresented) { _, isPresented in
+                if !isPresented {
+                    bindingTargetNote = nil
+                    chordOutputCaptureArmed = false
+                }
+            }
     }
 
     private var pianoArea: some View {
@@ -305,6 +311,11 @@ struct PianoMappingsEditorView: View {
     }
 
     private func handlePianoTap(note: Int) {
+        guard bindingTargetNote == nil, !chordOutputCaptureArmed else {
+            bindingMessage = "还在编辑中，请先完成或按 Esc 取消。"
+            return
+        }
+
         if chordMultiSelectEnabled {
             toggleChordNoteSelection(note: note)
             return
@@ -366,9 +377,15 @@ struct PianoMappingsEditorView: View {
     }
 
     private func cancelBindingOnFocusLoss() {
-        guard let note = bindingTargetNote else { return }
+        guard bindingTargetNote != nil || chordOutputCaptureArmed else { return }
+        let noteName = bindingTargetNote.map { MIDINote($0).name } ?? ""
         bindingTargetNote = nil
-        bindingMessage = "窗口失焦，已取消绑定 \(MIDINote(note).name)。"
+        chordOutputCaptureArmed = false
+        if noteName.isEmpty {
+            bindingMessage = "窗口失焦，已取消当前绑定。"
+        } else {
+            bindingMessage = "窗口失焦，已取消绑定 \(noteName)。"
+        }
     }
 
     private func toggleChordNoteSelection(note: Int) {
@@ -434,6 +451,7 @@ struct PianoMappingsEditorView: View {
     }
 
     private func startChordOutputCapture() {
+        bindingTargetNote = nil
         chordOutputCaptureArmed = true
         bindingMessage = "Chord 输出绑定中：请按下一个键位（支持修饰键）。"
     }
