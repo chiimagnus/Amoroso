@@ -17,6 +17,7 @@ final class MIDIInputServiceMock: MIDIInputServiceProtocol {
 final class KeyboardEventServiceMock: KeyboardEventServiceProtocol {
     private(set) var typedTexts: [String] = []
     private(set) var keyCombos: [(CGKeyCode, CGEventFlags)] = []
+    private(set) var keyStrokes: [KeyStroke] = []
 
     func typeText(_ text: String) throws {
         typedTexts.append(text)
@@ -24,6 +25,11 @@ final class KeyboardEventServiceMock: KeyboardEventServiceProtocol {
 
     func sendKeyCombo(keyCode: CGKeyCode, modifiers: CGEventFlags) throws {
         keyCombos.append((keyCode, modifiers))
+    }
+
+    func sendKeyStroke(_ keyStroke: KeyStroke) throws {
+        keyStrokes.append(keyStroke)
+        keyCombos.append((CGKeyCode(keyStroke.keyCode), keyStroke.modifiers.cgEventFlags))
     }
 }
 

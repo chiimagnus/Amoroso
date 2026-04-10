@@ -56,6 +56,13 @@ struct KeyboardEventService: KeyboardEventServiceProtocol {
         keyUp.post(tap: .cghidEventTap)
     }
 
+    func sendKeyStroke(_ keyStroke: KeyStroke) throws {
+        try sendKeyCombo(
+            keyCode: CGKeyCode(keyStroke.keyCode),
+            modifiers: keyStroke.modifiers.cgEventFlags
+        )
+    }
+
     private func postUnicodeCharacter(_ character: Character, source: CGEventSource) throws {
         let units = Array(String(character).utf16)
 

@@ -737,10 +737,7 @@ final class LonelyPianistViewModel {
     }
 
     private func execute(_ keyStroke: KeyStroke) throws {
-        try keyboardEventService.sendKeyCombo(
-            keyCode: CGKeyCode(keyStroke.keyCode),
-            modifiers: keyStroke.modifiers.cgEventFlags
-        )
+        try keyboardEventService.sendKeyStroke(keyStroke)
     }
 
     private func updatePressedNotes(for event: MIDIEvent) {
