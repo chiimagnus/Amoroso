@@ -6,4 +6,7 @@ xcuserdata/
 
 钢琴谱/
 .derivedData
+.derivedData-avp
 .github/features/
+
+.xcodebuildmcp/

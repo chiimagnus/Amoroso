@@ -11,27 +11,7 @@
 - `Utilities/`：解析器与默认配置工厂。
 - `.github/deepwiki/`：仓库知识库（业务入口 + 技术细节）。
 
-## 构建、测试和开发命令
-
-- 打开工程：`open LonelyPianist.xcodeproj`
-- 本地构建（Debug）：`xcodebuild -project LonelyPianist.xcodeproj -scheme LonelyPianist -configuration Debug build`
-- 可选发布构建（Release）：`xcodebuild -project LonelyPianist.xcodeproj -scheme LonelyPianist -configuration Release build`
-
-仓库已包含 `LonelyPianistTests` 自动化测试 target；回归建议采用“本地构建 + 关键单测 + 关键手测路径”组合。
-
-## 开发指南（不启动 Xcode）
-
-一键 build + open，在仓库根目录执行：
-
-- Debug（默认）：`.github/scripts/build-open.sh`
-- Release：`.github/scripts/build-open.sh --release`
-
-脚本行为：
-
-- 使用 `xcodebuild` 构建，并把产物输出到 `DERIVED_DATA_PATH`（默认 `.derivedData/`，已在 `.gitignore` 中忽略）。
-- 构建成功后 `open <DerivedData>/Build/Products/<Config>/LonelyPianist.app`。
-- 默认会尝试优雅退出已运行的 `LonelyPianist` 进程（便于重新加载新构建）；如需保留现有实例，用 `--no-quit`。
-- 团队开发约定：日常开发默认使用该脚本作为入口（不带参数即 Debug + quit）。
+- If using XcodeBuildMCP, use the installed XcodeBuildMCP skill before calling XcodeBuildMCP tools.
 
 ## 代码风格与命名规范
 
@@ -53,18 +33,3 @@
 如果引入新的 Service Protocol，请同时提供至少一个 mock 测试双（test double），覆盖成功路径与失败路径。涉及状态轮询、时间窗口和节流逻辑时，优先把时间源抽象为可注入依赖，避免测试依赖真实等待。
 
 > 注：本仓库测试采用 **Swift Testing**（`import Testing` + `@Test` + `#expect`），不是 XCTest。新增测试文件请按现有风格放在 `LonelyPianistTests/` 下。
-
-## 提交与 Pull Request 规范
-
-- Commit 保持单一主题，优先使用动词开头的简短说明（当前历史以中文说明和 `Task N` 风格并存）。
-- PR 需写清：变更目标、影响范围、验证步骤、是否涉及权限或输入注入行为。
-- 涉及 UI 的 PR 建议附截图；涉及权限流程的 PR 建议附状态文案与复现场景。
-- 不提交本地临时日志或无关格式化噪音，确保文档与实现同步更新。
-- 推荐在 PR 描述末尾附最小检查单：`Build Result`、`Manual Test Cases`、`Risk`、`Rollback Plan`，便于 reviewer 快速判断可合并性。
-- 建议保持提交节奏小步快跑：small commit, clear scope, easy review, easy revert。
-
-## 安全与配置提示
-
-- 本项目涉及系统输入注入能力，任何权限相关改动都应在 PR 中明确“用户可见行为变化”。
-- 不要在仓库中提交本地签名证书、私钥、临时 provisioning profile 或系统路径配置。
-- 若调整 Bundle Identifier 或签名设置，请同步更新 README 中的权限重置示例和排查说明，避免文档失效。
