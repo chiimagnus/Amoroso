@@ -6,6 +6,9 @@ struct PianoMappingsEditorView: View {
     @Bindable var viewModel: LonelyPianistViewModel
     @State private var bindingTargetNote: Int?
     @State private var bindingMessage = "点击琴键进入绑定态；按 Esc 可取消。"
+    @State private var selectedChordRuleID: UUID?
+    @State private var chordSelectedNotes: Set<Int> = []
+    @State private var chordDraftAction: MappingAction = .keyCombo("cmd+c")
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -19,6 +22,14 @@ struct PianoMappingsEditorView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             cancelBindingOnFocusLoss()
         }
+        .onChange(of: viewModel.activeProfileID) { _ in
+            resetChordEditor()
+        }
+        .onChange(of: viewModel.selectedTab) { _ in
+            if viewModel.selectedTab != .singleKey {
+                bindingTargetNote = nil
+            }
+        }
     }
 
     private var pianoArea: some View {
@@ -27,8 +38,9 @@ struct PianoMappingsEditorView: View {
                 PianoKeyboardView(
                     noteRange: 48...83,
                     highlightedNotes: Set(viewModel.pressedNotes),
+                    selectedNotes: viewModel.selectedTab == .chord ? chordSelectedNotes : [],
                     labelsForNote: labelsForNote,
-                    onTapNote: beginBinding
+                    onTapNote: handlePianoTap
                 )
                     .frame(height: 220)
 
@@ -65,12 +77,95 @@ struct PianoMappingsEditorView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("选中规则属性面板将在 P2 完整接入。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                switch viewModel.selectedTab {
+                case .singleKey:
+                    Text("Single Key：点击琴键后输入单字符即可绑定。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                case .chord:
+                    chordInspector
+                case .melody:
+                    Text("Melody 编辑将在 P2-T3 接入。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         } label: {
             Text("Rule Inspector")
+        }
+    }
+
+    private var chordInspector: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Chord Rules")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("New") {
+                    startNewChordRule()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if chordRules.isEmpty {
+                Text("暂无 Chord 规则")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(chordRules) { rule in
+                            Button {
+                                selectChordRule(rule)
+                            } label: {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(MIDINoteParser.stringify(notes: rule.notes, separator: " "))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                        Text("\(rule.action.type.rawValue): \(rule.action.value)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(8)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(rule.id == selectedChordRuleID ? Color.accentColor.opacity(0.18) : Color(nsColor: .textBackgroundColor))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxHeight: 140)
+            }
+
+            Text("Selected: \(MIDINoteParser.stringify(notes: chordSelectedNotes.sorted(), separator: " "))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            MappingActionEditorView(action: $chordDraftAction)
+
+            HStack(spacing: 8) {
+                Button("Save") {
+                    saveChordRule()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(chordSelectedNotes.isEmpty)
+
+                Button("Delete", role: .destructive) {
+                    deleteSelectedChordRule()
+                }
+                .buttonStyle(.bordered)
+                .disabled(selectedChordRuleID == nil)
+            }
+
+            Text("Chord 触发采用严格相等：当前按下 notes 必须与规则 notes 完全一致。")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -115,6 +210,15 @@ struct PianoMappingsEditorView: View {
         }
     }
 
+    private var chordRules: [ChordMappingRule] {
+        guard let rules = viewModel.activeProfile?.payload.chordRules else { return [] }
+        return rules.sorted { lhs, rhs in
+            let lhsKey = MIDINoteParser.stringify(notes: lhs.notes, separator: " ")
+            let rhsKey = MIDINoteParser.stringify(notes: rhs.notes, separator: " ")
+            return lhsKey < rhsKey
+        }
+    }
+
     private func labelsForNote(_ note: Int) -> PianoKeyLabels {
         PianoKeyLabels(
             noteName: MIDINote(note).name,
@@ -130,6 +234,17 @@ struct PianoMappingsEditorView: View {
 
         bindingTargetNote = note
         bindingMessage = "正在绑定 \(MIDINote(note).name)：请输入 1 个可显示字符（Esc 取消）。"
+    }
+
+    private func handlePianoTap(note: Int) {
+        switch viewModel.selectedTab {
+        case .singleKey:
+            beginBinding(note: note)
+        case .chord:
+            toggleChordNoteSelection(note: note)
+        case .melody:
+            bindingMessage = "Melody 点选将在 P2-T3 接入。"
+        }
     }
 
     @ViewBuilder
@@ -204,6 +319,64 @@ struct PianoMappingsEditorView: View {
         guard let note = bindingTargetNote else { return }
         bindingTargetNote = nil
         bindingMessage = "窗口失焦，已取消绑定 \(MIDINote(note).name)。"
+    }
+
+    private func toggleChordNoteSelection(note: Int) {
+        bindingTargetNote = nil
+
+        if chordSelectedNotes.contains(note) {
+            chordSelectedNotes.remove(note)
+        } else {
+            chordSelectedNotes.insert(note)
+        }
+
+        bindingMessage = "Chord 选中：\(MIDINoteParser.stringify(notes: chordSelectedNotes.sorted(), separator: " "))"
+    }
+
+    private func selectChordRule(_ rule: ChordMappingRule) {
+        selectedChordRuleID = rule.id
+        chordSelectedNotes = Set(rule.notes)
+        chordDraftAction = rule.action
+        bindingMessage = "已选中 Chord 规则：\(MIDINoteParser.stringify(notes: rule.notes, separator: " "))"
+    }
+
+    private func startNewChordRule() {
+        selectedChordRuleID = nil
+        chordSelectedNotes.removeAll()
+        chordDraftAction = .keyCombo("cmd+c")
+        bindingMessage = "已进入新建 Chord 规则模式。"
+    }
+
+    private func saveChordRule() {
+        let notes = chordSelectedNotes.sorted()
+        guard !notes.isEmpty else {
+            bindingMessage = "请先在键盘上选择 Chord notes。"
+            return
+        }
+
+        if let selectedChordRuleID {
+            viewModel.updateChordRule(
+                ChordMappingRule(id: selectedChordRuleID, notes: notes, action: chordDraftAction)
+            )
+            bindingMessage = "Chord 规则已更新。"
+        } else {
+            viewModel.createChordRule(notes: notes, action: chordDraftAction)
+            selectedChordRuleID = viewModel.activeProfile?.payload.chordRules.last?.id
+            bindingMessage = "Chord 规则已创建。"
+        }
+    }
+
+    private func deleteSelectedChordRule() {
+        guard let selectedChordRuleID else { return }
+        viewModel.deleteChordRule(id: selectedChordRuleID)
+        startNewChordRule()
+        bindingMessage = "Chord 规则已删除。"
+    }
+
+    private func resetChordEditor() {
+        selectedChordRuleID = nil
+        chordSelectedNotes.removeAll()
+        chordDraftAction = .keyCombo("cmd+c")
     }
 
     private static let modifierOnlyKeyCodes: Set<UInt16> = [

@@ -684,10 +684,23 @@ final class LonelyPianistViewModel {
         }
     }
 
+    func createChordRule(notes: [Int], action: MappingAction) {
+        let normalizedNotes = Self.normalizeRuleNotes(notes)
+        guard !normalizedNotes.isEmpty else { return }
+
+        mutateActiveProfile { profile in
+            profile.payload.chordRules.append(
+                ChordMappingRule(notes: normalizedNotes, action: action)
+            )
+        }
+    }
+
     func updateChordRule(_ rule: ChordMappingRule) {
         mutateActiveProfile { profile in
             guard let index = profile.payload.chordRules.firstIndex(where: { $0.id == rule.id }) else { return }
-            profile.payload.chordRules[index] = rule
+            var normalizedRule = rule
+            normalizedRule.notes = Self.normalizeRuleNotes(rule.notes)
+            profile.payload.chordRules[index] = normalizedRule
         }
     }
 
@@ -695,6 +708,10 @@ final class LonelyPianistViewModel {
         mutateActiveProfile { profile in
             profile.payload.chordRules.removeAll { $0.id == ruleID }
         }
+    }
+
+    func deleteChordRule(id: UUID) {
+        removeChordRule(id)
     }
 
     func addMelodyRule() {
@@ -957,5 +974,11 @@ final class LonelyPianistViewModel {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
         return "Take \(formatter.string(from: date))"
+    }
+
+    nonisolated private static func normalizeRuleNotes(_ notes: [Int]) -> [Int] {
+        Array(
+            Set(notes.map { max(0, min(127, $0)) })
+        ).sorted()
     }
 }
