@@ -23,10 +23,6 @@ final class KeyboardEventServiceMock: KeyboardEventServiceProtocol {
         typedTexts.append(text)
     }
 
-    func sendKeyCombo(keyCode: CGKeyCode, modifiers: CGEventFlags) throws {
-        keyCombos.append((keyCode, modifiers))
-    }
-
     func sendKeyStroke(_ keyStroke: KeyStroke) throws {
         keyStrokes.append(keyStroke)
         keyCombos.append((CGKeyCode(keyStroke.keyCode), keyStroke.modifiers.cgEventFlags))
