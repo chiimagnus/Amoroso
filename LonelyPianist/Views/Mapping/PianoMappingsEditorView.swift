@@ -495,8 +495,8 @@ struct PianoMappingsEditorView: View {
             bindingMessage = "Chord 规则已更新。"
         } else {
             viewModel.createChordRule(notes: notes, action: chordDraftAction)
-            selectedChordRuleID = viewModel.activeProfile?.payload.chordRules.last?.id
-            bindingMessage = "Chord 规则已创建。"
+            startNewChordRule()
+            bindingMessage = "Chord 规则已创建，并已清空编辑态。"
         }
     }
 
@@ -574,8 +574,8 @@ struct PianoMappingsEditorView: View {
                 maxIntervalMilliseconds: melodyMaxIntervalMilliseconds,
                 action: melodyDraftAction
             )
-            selectedMelodyRuleID = viewModel.activeProfile?.payload.melodyRules.last?.id
-            bindingMessage = "Melody 规则已创建。"
+            startNewMelodyRule()
+            bindingMessage = "Melody 规则已创建，并已清空编辑态。"
         }
     }
 
