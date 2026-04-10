@@ -16,7 +16,7 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         lastMelodyTriggerAt.removeAll(keepingCapacity: false)
     }
 
-    func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedMappingAction] {
+    func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedKeyStroke] {
         switch event.type {
         case .noteOn(let note, let velocity):
             return processNoteOn(note: note, velocity: velocity, timestamp: event.timestamp, profile: profile)
@@ -33,17 +33,16 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         velocity: Int,
         timestamp: Date,
         profile: MappingProfile
-    ) -> [ResolvedMappingAction] {
+    ) -> [ResolvedKeyStroke] {
         pressedNotes.insert(note)
 
-        var resolved: [ResolvedMappingAction] = []
+        var resolved: [ResolvedKeyStroke] = []
 
-        if let output = resolveSingleKeyOutput(note: note, velocity: velocity, profile: profile),
-           !output.isEmpty {
+        if let output = resolveSingleKeyOutput(note: note, velocity: velocity, profile: profile) {
             resolved.append(
-                ResolvedMappingAction(
+                ResolvedKeyStroke(
                     triggerType: .singleKey,
-                    action: .text(output),
+                    keyStroke: output,
                     sourceDescription: MIDINote(note).name
                 )
             )
@@ -55,23 +54,23 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         return resolved
     }
 
-    private func resolveSingleKeyOutput(note: Int, velocity: Int, profile: MappingProfile) -> String? {
+    private func resolveSingleKeyOutput(note: Int, velocity: Int, profile: MappingProfile) -> KeyStroke? {
         guard let rule = profile.payload.singleKeyRules.first(where: { $0.note == note }) else {
             return nil
         }
 
+        let baseOutput = KeyStroke(keyCode: rule.output.keyCode)
+
         guard profile.payload.velocityEnabled else {
-            return rule.normalOutput
+            return baseOutput
         }
 
         let threshold = rule.velocityThreshold ?? profile.payload.defaultVelocityThreshold
-        if velocity >= threshold,
-           let highOutput = rule.highVelocityOutput,
-           !highOutput.isEmpty {
-            return highOutput
+        if velocity >= threshold {
+            return baseOutput.adding(.shift)
         }
 
-        return rule.normalOutput
+        return baseOutput
     }
 
     private func processNoteOff(note: Int, profile: MappingProfile) {
@@ -85,10 +84,10 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         }
     }
 
-    private func resolveChordActions(profile: MappingProfile) -> [ResolvedMappingAction] {
+    private func resolveChordActions(profile: MappingProfile) -> [ResolvedKeyStroke] {
         guard !pressedNotes.isEmpty else { return [] }
 
-        var actions: [ResolvedMappingAction] = []
+        var actions: [ResolvedKeyStroke] = []
 
         for rule in profile.payload.chordRules {
             let requiredNotes = Set(rule.notes)
@@ -99,9 +98,9 @@ final class DefaultMappingEngine: MappingEngineProtocol {
             triggeredChordRuleIDs.insert(rule.id)
             let label = rule.notes.map { MIDINote($0).name }.joined(separator: "+")
             actions.append(
-                ResolvedMappingAction(
+                ResolvedKeyStroke(
                     triggerType: .chord,
-                    action: rule.action,
+                    keyStroke: rule.output,
                     sourceDescription: label
                 )
             )
@@ -114,11 +113,11 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         note: Int,
         timestamp: Date,
         profile: MappingProfile
-    ) -> [ResolvedMappingAction] {
+    ) -> [ResolvedKeyStroke] {
         melodyHistory.append((note: note, timestamp: timestamp))
         trimMelodyHistory(reference: timestamp)
 
-        var actions: [ResolvedMappingAction] = []
+        var actions: [ResolvedKeyStroke] = []
 
         for rule in profile.payload.melodyRules {
             guard matches(rule: rule, timestamp: timestamp) else { continue }
@@ -132,9 +131,9 @@ final class DefaultMappingEngine: MappingEngineProtocol {
             let label = rule.notes.map { MIDINote($0).name }.joined(separator: " ")
 
             actions.append(
-                ResolvedMappingAction(
+                ResolvedKeyStroke(
                     triggerType: .melody,
-                    action: rule.action,
+                    keyStroke: rule.output,
                     sourceDescription: label
                 )
             )

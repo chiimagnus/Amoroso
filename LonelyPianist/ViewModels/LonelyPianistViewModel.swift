@@ -649,10 +649,8 @@ final class LonelyPianistViewModel {
         }
     }
 
-    func setSingleKeyMapping(note: Int, output: String) {
+    func setSingleKeyMapping(note: Int, keyCode: UInt16) {
         let clampedNote = max(0, min(127, note))
-        let normalizedOutput = output.trimmingCharacters(in: .newlines)
-        guard !normalizedOutput.isEmpty else { return }
 
         mutateActiveProfile { profile in
             let existingForNote = profile.payload.singleKeyRules.filter { $0.note == clampedNote }
@@ -662,29 +660,35 @@ final class LonelyPianistViewModel {
 
             if var selectedExisting {
                 selectedExisting.note = clampedNote
-                selectedExisting.normalOutput = normalizedOutput
-                selectedExisting.highVelocityOutput = normalizedOutput.uppercased()
+                selectedExisting.output = KeyStroke(keyCode: keyCode)
                 profile.payload.singleKeyRules.append(selectedExisting)
             } else {
                 profile.payload.singleKeyRules.append(
                     SingleKeyMappingRule(
                         note: clampedNote,
-                        normalOutput: normalizedOutput,
-                        velocityThreshold: profile.payload.defaultVelocityThreshold,
-                        highVelocityOutput: normalizedOutput.uppercased()
+                        output: KeyStroke(keyCode: keyCode),
+                        velocityThreshold: profile.payload.defaultVelocityThreshold
                     )
                 )
             }
         }
     }
 
-    func createChordRule(notes: [Int], action: MappingAction) {
+    func setSingleKeyMapping(note: Int, output: String) {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 1, let token = trimmed.first, let keyCode = KeyStroke.keyCode(for: token) else {
+            return
+        }
+        setSingleKeyMapping(note: note, keyCode: keyCode)
+    }
+
+    func createChordRule(notes: [Int], output: KeyStroke) {
         let normalizedNotes = Self.normalizeRuleNotes(notes)
         guard !normalizedNotes.isEmpty else { return }
 
         mutateActiveProfile { profile in
             profile.payload.chordRules.append(
-                ChordMappingRule(notes: normalizedNotes, action: action)
+                ChordMappingRule(notes: normalizedNotes, output: output)
             )
         }
     }
@@ -708,7 +712,7 @@ final class LonelyPianistViewModel {
         removeChordRule(id)
     }
 
-    func createMelodyRule(notes: [Int], maxIntervalMilliseconds: Int, action: MappingAction) {
+    func createMelodyRule(notes: [Int], maxIntervalMilliseconds: Int, output: KeyStroke) {
         let normalizedNotes = Self.normalizeMelodyNotes(notes)
         guard !normalizedNotes.isEmpty else { return }
 
@@ -717,7 +721,7 @@ final class LonelyPianistViewModel {
                 MelodyMappingRule(
                     notes: normalizedNotes,
                     maxIntervalMilliseconds: max(100, maxIntervalMilliseconds),
-                    action: action
+                    output: output
                 )
             )
         }
@@ -829,17 +833,12 @@ final class LonelyPianistViewModel {
 
         for resolvedAction in resolvedActions {
             do {
-                try execute(resolvedAction.action)
-                switch resolvedAction.action.type {
-                case .text:
-                    appendPreview(resolvedAction.action.value)
-                case .keyCombo, .shortcut:
-                    appendPreview("[\(resolvedAction.action.value)]")
-                }
+                try execute(resolvedAction.keyStroke)
+                appendPreview("[\(resolvedAction.keyStroke.displayLabel)]")
 
                 log(
                     title: "\(resolvedAction.triggerType)",
-                    detail: "\(resolvedAction.sourceDescription) -> \(resolvedAction.action.type.rawValue): \(resolvedAction.action.value)"
+                    detail: "\(resolvedAction.sourceDescription) -> \(resolvedAction.keyStroke.displayLabel)"
                 )
             } catch {
                 statusMessage = "Action failed: \(error.localizedDescription)"
@@ -861,16 +860,11 @@ final class LonelyPianistViewModel {
         }
     }
 
-    private func execute(_ action: MappingAction) throws {
-        switch action.type {
-        case .text:
-            try keyboardEventService.typeText(action.value)
-        case .keyCombo:
-            let parsed = try KeyComboParser.parse(action.value)
-            try keyboardEventService.sendKeyCombo(keyCode: parsed.keyCode, modifiers: parsed.modifiers)
-        case .shortcut:
-            try shortcutService.runShortcut(named: action.value)
-        }
+    private func execute(_ keyStroke: KeyStroke) throws {
+        try keyboardEventService.sendKeyCombo(
+            keyCode: CGKeyCode(keyStroke.keyCode),
+            modifiers: keyStroke.modifiers.cgEventFlags
+        )
     }
 
     private func updatePressedNotes(for event: MIDIEvent) {

@@ -8,10 +8,10 @@ struct PianoMappingsEditorView: View {
     @State private var bindingMessage = "点击琴键进入绑定态；按 Esc 可取消。"
     @State private var selectedChordRuleID: UUID?
     @State private var chordSelectedNotes: Set<Int> = []
-    @State private var chordDraftAction: MappingAction = .keyCombo("cmd+c")
+    @State private var chordDraftOutput: KeyStroke = KeyStroke(keyCode: 8, modifiers: [.command])
     @State private var selectedMelodyRuleID: UUID?
     @State private var melodyDraftNotes: [Int] = []
-    @State private var melodyDraftAction: MappingAction = .text("hello ")
+    @State private var melodyDraftOutput: KeyStroke = KeyStroke(keyCode: 4)
     @State private var melodyMaxIntervalMilliseconds: Int = 500
     @State private var isMelodyRecording = false
 
@@ -139,7 +139,7 @@ struct PianoMappingsEditorView: View {
                                         Text(MIDINoteParser.stringify(notes: rule.notes, separator: " "))
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(.primary)
-                                        Text("\(rule.action.type.rawValue): \(rule.action.value)")
+                                        Text("Out: \(rule.output.displayLabel)")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -163,7 +163,7 @@ struct PianoMappingsEditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            MappingActionEditorView(action: $chordDraftAction)
+            keyStrokeEditor(title: "Output", keyStroke: $chordDraftOutput)
 
             HStack(spacing: 8) {
                 Button("Save") {
@@ -213,7 +213,7 @@ struct PianoMappingsEditorView: View {
                                         Text(MIDINoteParser.stringify(notes: rule.notes, separator: " "))
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(.primary)
-                                        Text("\(rule.maxIntervalMilliseconds)ms · \(rule.action.type.rawValue): \(rule.action.value)")
+                                        Text("\(rule.maxIntervalMilliseconds)ms · Out: \(rule.output.displayLabel)")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -261,7 +261,7 @@ struct PianoMappingsEditorView: View {
                     .font(.caption)
             }
 
-            MappingActionEditorView(action: $melodyDraftAction)
+            keyStrokeEditor(title: "Output", keyStroke: $melodyDraftOutput)
 
             HStack(spacing: 8) {
                 Button("Save") {
@@ -320,7 +320,7 @@ struct PianoMappingsEditorView: View {
     private var singleRuleOutputByNote: [Int: String] {
         guard let profile = viewModel.activeProfile else { return [:] }
         return profile.payload.singleKeyRules.reduce(into: [:]) { partialResult, rule in
-            partialResult[rule.note] = rule.normalOutput
+            partialResult[rule.note] = rule.output.displayLabel
         }
     }
 
@@ -412,7 +412,7 @@ struct PianoMappingsEditorView: View {
         }
 
         if Self.modifierOnlyKeyCodes.contains(event.keyCode) {
-            bindingMessage = "已忽略纯修饰键，请输入可显示单字符。"
+            bindingMessage = "已忽略纯修饰键，请输入一个普通按键。"
             return
         }
 
@@ -422,27 +422,11 @@ struct PianoMappingsEditorView: View {
             return
         }
 
-        guard let output = normalizedOutputCharacter(from: event) else {
-            bindingMessage = "仅支持可显示的单字符（不支持回车/制表等）。"
-            return
-        }
-
-        viewModel.setSingleKeyMapping(note: note, output: output)
+        viewModel.setSingleKeyMapping(note: note, keyCode: event.keyCode)
         bindingTargetNote = nil
-        bindingMessage = "已绑定 \(MIDINote(note).name)：Out=\(output) / High=\(output.uppercased())"
-    }
-
-    private func normalizedOutputCharacter(from event: NSEvent) -> String? {
-        guard let characters = event.characters, characters.count == 1,
-              let scalar = characters.unicodeScalars.first else {
-            return nil
-        }
-
-        if CharacterSet.controlCharacters.contains(scalar) || CharacterSet.newlines.contains(scalar) {
-            return nil
-        }
-
-        return String(characters)
+        let normal = KeyStroke(keyCode: event.keyCode)
+        let high = normal.adding(.shift)
+        bindingMessage = "已绑定 \(MIDINote(note).name)：Out=\(normal.displayLabel) / High=\(high.displayLabel)"
     }
 
     private func isEscapeEvent(_ event: NSEvent) -> Bool {
@@ -470,14 +454,14 @@ struct PianoMappingsEditorView: View {
     private func selectChordRule(_ rule: ChordMappingRule) {
         selectedChordRuleID = rule.id
         chordSelectedNotes = Set(rule.notes)
-        chordDraftAction = rule.action
+        chordDraftOutput = rule.output
         bindingMessage = "已选中 Chord 规则：\(MIDINoteParser.stringify(notes: rule.notes, separator: " "))"
     }
 
     private func startNewChordRule() {
         selectedChordRuleID = nil
         chordSelectedNotes.removeAll()
-        chordDraftAction = .keyCombo("cmd+c")
+        chordDraftOutput = KeyStroke(keyCode: 8, modifiers: [.command])
         bindingMessage = "已进入新建 Chord 规则模式。"
     }
 
@@ -490,11 +474,11 @@ struct PianoMappingsEditorView: View {
 
         if let selectedChordRuleID {
             viewModel.updateChordRule(
-                ChordMappingRule(id: selectedChordRuleID, notes: notes, action: chordDraftAction)
+                ChordMappingRule(id: selectedChordRuleID, notes: notes, output: chordDraftOutput)
             )
             bindingMessage = "Chord 规则已更新。"
         } else {
-            viewModel.createChordRule(notes: notes, action: chordDraftAction)
+            viewModel.createChordRule(notes: notes, output: chordDraftOutput)
             startNewChordRule()
             bindingMessage = "Chord 规则已创建，并已清空编辑态。"
         }
@@ -510,7 +494,7 @@ struct PianoMappingsEditorView: View {
     private func resetChordEditor() {
         selectedChordRuleID = nil
         chordSelectedNotes.removeAll()
-        chordDraftAction = .keyCombo("cmd+c")
+        chordDraftOutput = KeyStroke(keyCode: 8, modifiers: [.command])
     }
 
     private func toggleMelodyRecording() {
@@ -537,7 +521,7 @@ struct PianoMappingsEditorView: View {
         selectedMelodyRuleID = rule.id
         melodyDraftNotes = rule.notes
         melodyMaxIntervalMilliseconds = rule.maxIntervalMilliseconds
-        melodyDraftAction = rule.action
+        melodyDraftOutput = rule.output
         isMelodyRecording = false
         bindingMessage = "已选中 Melody 规则。"
     }
@@ -546,7 +530,7 @@ struct PianoMappingsEditorView: View {
         selectedMelodyRuleID = nil
         melodyDraftNotes.removeAll()
         melodyMaxIntervalMilliseconds = 500
-        melodyDraftAction = .text("hello ")
+        melodyDraftOutput = KeyStroke(keyCode: 4)
         isMelodyRecording = false
         bindingMessage = "已进入新建 Melody 规则模式。"
     }
@@ -564,7 +548,7 @@ struct PianoMappingsEditorView: View {
                     id: selectedMelodyRuleID,
                     notes: notes,
                     maxIntervalMilliseconds: melodyMaxIntervalMilliseconds,
-                    action: melodyDraftAction
+                    output: melodyDraftOutput
                 )
             )
             bindingMessage = "Melody 规则已更新。"
@@ -572,7 +556,7 @@ struct PianoMappingsEditorView: View {
             viewModel.createMelodyRule(
                 notes: notes,
                 maxIntervalMilliseconds: melodyMaxIntervalMilliseconds,
-                action: melodyDraftAction
+                output: melodyDraftOutput
             )
             startNewMelodyRule()
             bindingMessage = "Melody 规则已创建，并已清空编辑态。"
@@ -589,9 +573,62 @@ struct PianoMappingsEditorView: View {
     private func resetMelodyEditor() {
         selectedMelodyRuleID = nil
         melodyDraftNotes.removeAll()
-        melodyDraftAction = .text("hello ")
+        melodyDraftOutput = KeyStroke(keyCode: 4)
         melodyMaxIntervalMilliseconds = 500
         isMelodyRecording = false
+    }
+
+    @ViewBuilder
+    private func keyStrokeEditor(title: String, keyStroke: Binding<KeyStroke>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("\(title): \(keyStroke.wrappedValue.displayLabel)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack {
+                Text("KeyCode")
+                    .font(.caption)
+                TextField(
+                    "0",
+                    value: keyCodeBinding(for: keyStroke),
+                    format: .number
+                )
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 90)
+            }
+
+            HStack(spacing: 10) {
+                Toggle("\u{2318}", isOn: modifierBinding(for: keyStroke, modifier: .command))
+                Toggle("\u{2325}", isOn: modifierBinding(for: keyStroke, modifier: .option))
+                Toggle("\u{2303}", isOn: modifierBinding(for: keyStroke, modifier: .control))
+                Toggle("\u{21E7}", isOn: modifierBinding(for: keyStroke, modifier: .shift))
+            }
+            .toggleStyle(.checkbox)
+            .font(.caption)
+        }
+    }
+
+    private func keyCodeBinding(for keyStroke: Binding<KeyStroke>) -> Binding<Int> {
+        Binding(
+            get: { Int(keyStroke.wrappedValue.keyCode) },
+            set: { rawValue in
+                let clamped = max(0, min(rawValue, Int(UInt16.max)))
+                keyStroke.wrappedValue.keyCode = UInt16(clamped)
+            }
+        )
+    }
+
+    private func modifierBinding(for keyStroke: Binding<KeyStroke>, modifier: KeyStrokeModifiers) -> Binding<Bool> {
+        Binding(
+            get: { keyStroke.wrappedValue.modifiers.contains(modifier) },
+            set: { isEnabled in
+                if isEnabled {
+                    keyStroke.wrappedValue.modifiers.insert(modifier)
+                } else {
+                    keyStroke.wrappedValue.modifiers.remove(modifier)
+                }
+            }
+        )
     }
 
     private static let modifierOnlyKeyCodes: Set<UInt16> = [

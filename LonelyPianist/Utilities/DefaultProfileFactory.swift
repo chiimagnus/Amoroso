@@ -13,23 +13,23 @@ enum DefaultProfileFactory {
         let characters = Array("abcdefghijklmnopqrstuvwxyz0123456789")
         let singleRules: [SingleKeyMappingRule] = characters.enumerated().map { index, character in
             let note = noteStart + index
+            let keyCode = KeyStroke.keyCode(for: character) ?? 0
             return SingleKeyMappingRule(
                 note: note,
-                normalOutput: String(character),
-                velocityThreshold: 100,
-                highVelocityOutput: String(character).uppercased()
+                output: KeyStroke(keyCode: keyCode),
+                velocityThreshold: 100
             )
         }
 
         let chordRules: [ChordMappingRule] = [
-            ChordMappingRule(notes: [60, 64, 67], action: .keyCombo("cmd+c")),
-            ChordMappingRule(notes: [62, 65, 69], action: .keyCombo("cmd+v")),
-            ChordMappingRule(notes: [59, 62, 65], action: .keyCombo("cmd+z"))
+            ChordMappingRule(notes: [60, 64, 67], output: keyStroke("c", modifiers: [.command])),
+            ChordMappingRule(notes: [62, 65, 69], output: keyStroke("v", modifiers: [.command])),
+            ChordMappingRule(notes: [59, 62, 65], output: keyStroke("z", modifiers: [.command]))
         ]
 
         let melodyRules: [MelodyMappingRule] = [
-            MelodyMappingRule(notes: [64, 64, 67], maxIntervalMilliseconds: 600, action: .text("hello ")),
-            MelodyMappingRule(notes: [60, 62, 64, 67], maxIntervalMilliseconds: 500, action: .shortcut("Open Notion"))
+            MelodyMappingRule(notes: [64, 64, 67], maxIntervalMilliseconds: 600, output: keyStroke("h")),
+            MelodyMappingRule(notes: [60, 62, 64, 67], maxIntervalMilliseconds: 500, output: keyStroke("n", modifiers: [.command]))
         ]
 
         return MappingProfile(
@@ -56,21 +56,20 @@ enum DefaultProfileFactory {
         let singleRules: [SingleKeyMappingRule] = zip(baseNotes, symbols).map { note, symbol in
             SingleKeyMappingRule(
                 note: note,
-                normalOutput: symbol,
-                velocityThreshold: 95,
-                highVelocityOutput: symbol
+                output: keyStroke(symbol.first ?? "a"),
+                velocityThreshold: 95
             )
         }
 
         let chordRules: [ChordMappingRule] = [
-            ChordMappingRule(notes: [60, 63, 67], action: .keyCombo("cmd+shift+4")),
-            ChordMappingRule(notes: [62, 65, 69], action: .keyCombo("cmd+space")),
-            ChordMappingRule(notes: [64, 67, 71], action: .keyCombo("cmd+k"))
+            ChordMappingRule(notes: [60, 63, 67], output: keyStroke("4", modifiers: [.command, .shift])),
+            ChordMappingRule(notes: [62, 65, 69], output: KeyStroke(keyCode: 49, modifiers: [.command])),
+            ChordMappingRule(notes: [64, 67, 71], output: keyStroke("k", modifiers: [.command]))
         ]
 
         let melodyRules: [MelodyMappingRule] = [
-            MelodyMappingRule(notes: [67, 69, 71], maxIntervalMilliseconds: 450, action: .text("func ")),
-            MelodyMappingRule(notes: [71, 69, 67], maxIntervalMilliseconds: 450, action: .text("return "))
+            MelodyMappingRule(notes: [67, 69, 71], maxIntervalMilliseconds: 450, output: keyStroke("f")),
+            MelodyMappingRule(notes: [71, 69, 67], maxIntervalMilliseconds: 450, output: keyStroke("r"))
         ]
 
         return MappingProfile(
@@ -88,5 +87,10 @@ enum DefaultProfileFactory {
                 melodyRules: melodyRules
             )
         )
+    }
+
+    private static func keyStroke(_ character: Character, modifiers: KeyStrokeModifiers = []) -> KeyStroke {
+        let keyCode = KeyStroke.keyCode(for: character) ?? 0
+        return KeyStroke(keyCode: keyCode, modifiers: modifiers)
     }
 }

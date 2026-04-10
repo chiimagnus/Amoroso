@@ -1,6 +1,6 @@
 import Foundation
 
-struct ResolvedMappingAction: Sendable {
+struct ResolvedKeyStroke: Sendable {
     enum TriggerType: Sendable {
         case singleKey
         case chord
@@ -8,11 +8,11 @@ struct ResolvedMappingAction: Sendable {
     }
 
     let triggerType: TriggerType
-    let action: MappingAction
+    let keyStroke: KeyStroke
     let sourceDescription: String
 }
 
 protocol MappingEngineProtocol: AnyObject {
     func reset()
-    func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedMappingAction]
+    func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedKeyStroke]
 }

@@ -179,7 +179,7 @@ final class MIDIPlaybackServiceMock: RoutableMIDIPlaybackServiceProtocol {
 
 @MainActor
 final class MappingEngineMock: MappingEngineProtocol {
-    func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedMappingAction] {
+    func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedKeyStroke] {
         []
     }
 
