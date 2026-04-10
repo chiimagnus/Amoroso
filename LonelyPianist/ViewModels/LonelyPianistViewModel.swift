@@ -28,13 +28,6 @@ final class LonelyPianistViewModel {
         }
     }
 
-    enum EditorTab: String, CaseIterable, Identifiable {
-        case singleKey = "Single Key"
-        case chord = "Chord"
-
-        var id: String { rawValue }
-    }
-
     enum RecorderMode: Equatable {
         case idle
         case recording
@@ -58,7 +51,6 @@ final class LonelyPianistViewModel {
     var activeConfig: MappingConfig?
 
     var selectedMainWindowSection: MainWindowSection = .runtime
-    var selectedTab: EditorTab = .singleKey
     var recorderMode: RecorderMode = .idle
     var takes: [RecordingTake] = []
     var selectedTakeID: UUID?
@@ -582,6 +574,13 @@ final class LonelyPianistViewModel {
                     )
                 )
             }
+        }
+    }
+
+    func clearSingleKeyMapping(note: Int) {
+        let clampedNote = max(0, min(127, note))
+        mutateActiveConfig { config in
+            config.payload.singleKeyRules.removeAll { $0.note == clampedNote }
         }
     }
 

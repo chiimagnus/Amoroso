@@ -6,30 +6,44 @@ struct PianoMappingsEditorView: View {
     @Bindable var viewModel: LonelyPianistViewModel
     @State private var bindingTargetNote: Int?
     @State private var bindingMessage = "点击琴键进入绑定态；按 Esc 可取消。"
+    @State private var selectedSingleNote: Int?
     @State private var selectedChordRuleID: UUID?
     @State private var chordSelectedNotes: Set<Int> = []
     @State private var chordDraftOutput: KeyStroke = KeyStroke(keyCode: 8, modifiers: [.command])
+    @State private var chordMultiSelectEnabled = false
+    @State private var isInspectorPresented = false
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            pianoArea
-                .frame(maxWidth: .infinity, minHeight: 320, alignment: .top)
-
-            sidebar
-                .frame(width: 320)
-        }
-        .padding(16)
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
-            cancelBindingOnFocusLoss()
-        }
-        .onChange(of: viewModel.activeConfig?.id) { _, _ in
-            resetChordEditor()
-        }
-        .onChange(of: viewModel.selectedTab) { _, _ in
-            if viewModel.selectedTab != .singleKey {
-                bindingTargetNote = nil
+        pianoArea
+            .padding(16)
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+                cancelBindingOnFocusLoss()
             }
-        }
+            .onChange(of: viewModel.activeConfig?.id) { _, _ in
+                resetEditorState()
+            }
+            .onChange(of: chordMultiSelectEnabled) { _, isEnabled in
+                bindingTargetNote = nil
+                if isEnabled {
+                    bindingMessage = "Chord 多选已开启：点击琴键可加入/移除和弦。"
+                } else {
+                    chordSelectedNotes.removeAll()
+                    selectedChordRuleID = nil
+                    bindingMessage = "Chord 多选已关闭：点击琴键将进入 Single 绑定态。"
+                }
+            }
+            .toolbar {
+                ToolbarItem {
+                    Button {
+                        isInspectorPresented.toggle()
+                    } label: {
+                        Label(isInspectorPresented ? "Hide Inspector" : "Show Inspector", systemImage: "sidebar.right")
+                    }
+                }
+            }
+            .inspector(isPresented: $isInspectorPresented) {
+                inspectorPanel
+            }
     }
 
     private var pianoArea: some View {
@@ -38,7 +52,7 @@ struct PianoMappingsEditorView: View {
                 PianoKeyboardView(
                     noteRange: 48...83,
                     highlightedNotes: Set(viewModel.pressedNotes),
-                    selectedNotes: selectedNotesForCurrentMode,
+                    selectedNotes: selectedNotes,
                     labelsForNote: labelsForNote,
                     onTapNote: handlePianoTap
                 )
@@ -59,83 +73,100 @@ struct PianoMappingsEditorView: View {
         }
     }
 
-    private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            modeAndInspectorPanel
-            velocityPanel
+    private var inspectorPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Toggle("Chord Multi-Select", isOn: $chordMultiSelectEnabled)
+
+                Divider()
+
+                singleInspector
+
+                Divider()
+
+                chordInspector
+
+                Divider()
+
+                velocityPanel
+            }
+            .padding(14)
         }
+        .frame(minWidth: 300)
     }
 
-    private var modeAndInspectorPanel: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
-                Picker("Mode", selection: $viewModel.selectedTab) {
-                    ForEach(LonelyPianistViewModel.EditorTab.allCases) { tab in
-                        Text(tab.rawValue).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
+    private var singleInspector: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Single")
+                .font(.headline)
 
-                switch viewModel.selectedTab {
-                case .singleKey:
-                    Text("Single Key：点击琴键后输入一个按键即可绑定。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                case .chord:
-                    chordInspector
+            if let note = selectedSingleNote {
+                let rule = singleRuleByNote[note]
+                Text("Note: \(MIDINote(note).name)")
+                    .font(.subheadline)
+                Text("Normal: \(rule?.output.displayLabel ?? "-")")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text("High Velocity: \(highVelocityLabel(for: rule))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    Button("Bind") {
+                        beginBinding(note: note)
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button("Clear") {
+                        clearSingleRule(note: note)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(rule == nil)
                 }
+            } else {
+                Text("点击钢琴键后可绑定单键输出。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-        } label: {
-            Text("Rule Inspector")
         }
     }
 
     private var chordInspector: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("Chord Rules")
-                    .font(.subheadline.weight(.semibold))
-                Spacer()
-                Button("New") {
-                    startNewChordRule()
-                }
-                .buttonStyle(.bordered)
-            }
+            Text("Chord")
+                .font(.headline)
 
             if chordRules.isEmpty {
                 Text("暂无 Chord 规则")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(chordRules) { rule in
-                            Button {
-                                selectChordRule(rule)
-                            } label: {
-                                HStack(alignment: .top) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(MIDINoteParser.stringify(notes: rule.notes, separator: " "))
-                                            .font(.caption.weight(.semibold))
-                                            .foregroundStyle(.primary)
-                                        Text("Out: \(rule.output.displayLabel)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(chordRules) { rule in
+                        Button {
+                            selectChordRule(rule)
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(MIDINoteParser.stringify(notes: rule.notes, separator: " "))
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.primary)
+                                    Text("Out: \(rule.output.displayLabel)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
                                 }
-                                .padding(8)
-                                .frame(maxWidth: .infinity)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(rule.id == selectedChordRuleID ? Color.accentColor.opacity(0.18) : Color(nsColor: .textBackgroundColor))
-                                )
+                                Spacer()
                             }
-                            .buttonStyle(.plain)
+                            .padding(8)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(rule.id == selectedChordRuleID ? Color.accentColor.opacity(0.18) : Color(nsColor: .textBackgroundColor))
+                            )
                         }
+                        .buttonStyle(.plain)
                     }
                 }
-                .frame(maxHeight: 140)
             }
 
             Text("Selected: \(MIDINoteParser.stringify(notes: chordSelectedNotes.sorted(), separator: " "))")
@@ -158,50 +189,64 @@ struct PianoMappingsEditorView: View {
                 .disabled(selectedChordRuleID == nil)
             }
 
-            Text("Chord 触发采用严格相等：当前按下 notes 必须与规则 notes 完全一致。")
+            Text("Trigger: 严格相等（当前按下集合必须与规则集合完全一致）")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
     }
 
     private var velocityPanel: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle(
-                    "Enable Velocity",
-                    isOn: Binding(
-                        get: { viewModel.activeConfig?.payload.velocityEnabled ?? false },
-                        set: { viewModel.setVelocityEnabled($0) }
-                    )
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Velocity")
+                .font(.headline)
+
+            Toggle(
+                "Enable Velocity",
+                isOn: Binding(
+                    get: { viewModel.activeConfig?.payload.velocityEnabled ?? false },
+                    set: { viewModel.setVelocityEnabled($0) }
+                )
+            )
+
+            HStack {
+                Text("Threshold")
+
+                Slider(
+                    value: Binding(
+                        get: { Double(viewModel.activeConfig?.payload.defaultVelocityThreshold ?? 100) },
+                        set: { viewModel.setVelocityThreshold(Int($0.rounded())) }
+                    ),
+                    in: 1...127,
+                    step: 1
                 )
 
-                HStack {
-                    Text("Default Threshold")
-
-                    Slider(
-                        value: Binding(
-                            get: { Double(viewModel.activeConfig?.payload.defaultVelocityThreshold ?? 100) },
-                            set: { viewModel.setVelocityThreshold(Int($0.rounded())) }
-                        ),
-                        in: 1...127,
-                        step: 1
-                    )
-
-                    Text("\(viewModel.activeConfig?.payload.defaultVelocityThreshold ?? 100)")
-                        .frame(width: 30)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                Text("\(viewModel.activeConfig?.payload.defaultVelocityThreshold ?? 100)")
+                    .frame(width: 30)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-        } label: {
-            Text("Velocity")
+        }
+    }
+
+    private var selectedNotes: Set<Int> {
+        if chordMultiSelectEnabled {
+            return chordSelectedNotes
+        }
+
+        guard let selectedSingleNote else { return [] }
+        return [selectedSingleNote]
+    }
+
+    private var singleRuleByNote: [Int: SingleKeyMappingRule] {
+        guard let config = viewModel.activeConfig else { return [:] }
+        return config.payload.singleKeyRules.reduce(into: [:]) { partialResult, rule in
+            partialResult[rule.note] = rule
         }
     }
 
     private var singleRuleOutputByNote: [Int: String] {
-        guard let config = viewModel.activeConfig else { return [:] }
-        return config.payload.singleKeyRules.reduce(into: [:]) { partialResult, rule in
-            partialResult[rule.note] = rule.output.displayLabel
+        singleRuleByNote.reduce(into: [:]) { partialResult, pair in
+            partialResult[pair.key] = pair.value.output.displayLabel
         }
     }
 
@@ -214,15 +259,6 @@ struct PianoMappingsEditorView: View {
         }
     }
 
-    private var selectedNotesForCurrentMode: Set<Int> {
-        switch viewModel.selectedTab {
-        case .singleKey:
-            return []
-        case .chord:
-            return chordSelectedNotes
-        }
-    }
-
     private func labelsForNote(_ note: Int) -> PianoKeyLabels {
         PianoKeyLabels(
             noteName: MIDINote(note).name,
@@ -231,22 +267,23 @@ struct PianoMappingsEditorView: View {
     }
 
     private func beginBinding(note: Int) {
-        guard viewModel.selectedTab == .singleKey else {
-            bindingMessage = "请先切换到 Single Key 模式再绑定。"
-            return
-        }
-
+        selectedSingleNote = note
         bindingTargetNote = note
         bindingMessage = "正在绑定 \(MIDINote(note).name)：请输入 1 个按键（Esc 取消）。"
     }
 
+    private func clearSingleRule(note: Int) {
+        viewModel.clearSingleKeyMapping(note: note)
+        bindingMessage = "已清除 \(MIDINote(note).name) 的 Single 绑定。"
+    }
+
     private func handlePianoTap(note: Int) {
-        switch viewModel.selectedTab {
-        case .singleKey:
-            beginBinding(note: note)
-        case .chord:
+        if chordMultiSelectEnabled {
             toggleChordNoteSelection(note: note)
+            return
         }
+
+        beginBinding(note: note)
     }
 
     @ViewBuilder
@@ -297,6 +334,12 @@ struct PianoMappingsEditorView: View {
         bindingMessage = "已绑定 \(MIDINote(note).name)：Out=\(normal.displayLabel) / High=\(high.displayLabel)"
     }
 
+    private func highVelocityLabel(for rule: SingleKeyMappingRule?) -> String {
+        guard let rule else { return "-" }
+        let high = KeyStroke(keyCode: rule.output.keyCode, modifiers: [.shift])
+        return high.displayLabel
+    }
+
     private func isEscapeEvent(_ event: NSEvent) -> Bool {
         event.keyCode == 53 || event.characters == "\u{1B}"
     }
@@ -326,13 +369,6 @@ struct PianoMappingsEditorView: View {
         bindingMessage = "已选中 Chord 规则：\(MIDINoteParser.stringify(notes: rule.notes, separator: " "))"
     }
 
-    private func startNewChordRule() {
-        selectedChordRuleID = nil
-        chordSelectedNotes.removeAll()
-        chordDraftOutput = KeyStroke(keyCode: 8, modifiers: [.command])
-        bindingMessage = "已进入新建 Chord 规则模式。"
-    }
-
     private func saveChordRule() {
         let notes = chordSelectedNotes.sorted()
         guard !notes.isEmpty else {
@@ -347,7 +383,8 @@ struct PianoMappingsEditorView: View {
             bindingMessage = "Chord 规则已更新。"
         } else {
             viewModel.createChordRule(notes: notes, output: chordDraftOutput)
-            startNewChordRule()
+            selectedChordRuleID = nil
+            chordSelectedNotes.removeAll()
             bindingMessage = "Chord 规则已创建，并已清空编辑态。"
         }
     }
@@ -355,14 +392,19 @@ struct PianoMappingsEditorView: View {
     private func deleteSelectedChordRule() {
         guard let selectedChordRuleID else { return }
         viewModel.deleteChordRule(id: selectedChordRuleID)
-        startNewChordRule()
+        self.selectedChordRuleID = nil
+        chordSelectedNotes.removeAll()
         bindingMessage = "Chord 规则已删除。"
     }
 
-    private func resetChordEditor() {
+    private func resetEditorState() {
+        bindingTargetNote = nil
+        selectedSingleNote = nil
         selectedChordRuleID = nil
         chordSelectedNotes.removeAll()
         chordDraftOutput = KeyStroke(keyCode: 8, modifiers: [.command])
+        chordMultiSelectEnabled = false
+        bindingMessage = "点击琴键进入绑定态；按 Esc 可取消。"
     }
 
     @ViewBuilder
