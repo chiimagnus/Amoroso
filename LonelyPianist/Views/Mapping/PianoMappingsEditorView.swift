@@ -18,10 +18,14 @@ struct PianoMappingsEditorView: View {
     private var pianoArea: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
-                PianoKeyboardView(noteRange: 48...83)
+                PianoKeyboardView(
+                    noteRange: 48...83,
+                    highlightedNotes: Set(viewModel.pressedNotes),
+                    labelsForNote: labelsForNote
+                )
                     .frame(height: 220)
 
-                Text("P1 骨架：后续将接入 MIDI 高亮与点击绑定")
+                Text("已显示音名与单键映射；键盘高亮实时跟随 MIDI pressed notes。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -89,5 +93,19 @@ struct PianoMappingsEditorView: View {
         } label: {
             Text("Velocity")
         }
+    }
+
+    private var singleRuleOutputByNote: [Int: String] {
+        guard let profile = viewModel.activeProfile else { return [:] }
+        return profile.payload.singleKeyRules.reduce(into: [:]) { partialResult, rule in
+            partialResult[rule.note] = rule.normalOutput
+        }
+    }
+
+    private func labelsForNote(_ note: Int) -> PianoKeyLabels {
+        PianoKeyLabels(
+            noteName: MIDINote(note).name,
+            mappingLabel: singleRuleOutputByNote[note]
+        )
     }
 }
