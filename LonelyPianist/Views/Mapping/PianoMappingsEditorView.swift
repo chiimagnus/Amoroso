@@ -10,6 +10,7 @@ struct PianoMappingsEditorView: View {
     @State private var selectedChordRuleID: UUID?
     @State private var chordSelectedNotes: Set<Int> = []
     @State private var chordDraftOutput: KeyStroke = KeyStroke(keyCode: 8, modifiers: [.command])
+    @State private var chordOutputCaptureArmed = false
     @State private var chordMultiSelectEnabled = false
     @State private var isInspectorPresented = false
 
@@ -24,6 +25,7 @@ struct PianoMappingsEditorView: View {
             }
             .onChange(of: chordMultiSelectEnabled) { _, isEnabled in
                 bindingTargetNote = nil
+                chordOutputCaptureArmed = false
                 if isEnabled {
                     bindingMessage = "Chord 多选已开启：点击琴键可加入/移除和弦。"
                 } else {
@@ -173,7 +175,32 @@ struct PianoMappingsEditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            keyStrokeEditor(title: "Output", keyStroke: $chordDraftOutput)
+            Text("Output: \(chordDraftOutput.displayLabel)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Button("Bind Output") {
+                startChordOutputCapture()
+            }
+            .buttonStyle(.bordered)
+
+            if chordOutputCaptureArmed {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("等待下一次键盘输入（可带 ⌘⌥⌃⇧，Esc 取消）")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+
+                    OneShotKeyCaptureView { event in
+                        handleChordOutputCapture(event)
+                    }
+                    .frame(width: 1, height: 1)
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(nsColor: .textBackgroundColor))
+                )
+            }
 
             HStack(spacing: 8) {
                 Button("Save") {
@@ -360,6 +387,7 @@ struct PianoMappingsEditorView: View {
         selectedChordRuleID = rule.id
         chordSelectedNotes = Set(rule.notes)
         chordDraftOutput = rule.output
+        chordOutputCaptureArmed = false
         bindingMessage = "已选中 Chord 规则：\(MIDINoteParser.stringify(notes: rule.notes, separator: " "))"
     }
 
@@ -381,6 +409,8 @@ struct PianoMappingsEditorView: View {
             chordSelectedNotes.removeAll()
             bindingMessage = "Chord 规则已创建，并已清空编辑态。"
         }
+
+        chordOutputCaptureArmed = false
     }
 
     private func deleteSelectedChordRule() {
@@ -388,6 +418,7 @@ struct PianoMappingsEditorView: View {
         viewModel.deleteChordRule(id: selectedChordRuleID)
         self.selectedChordRuleID = nil
         chordSelectedNotes.removeAll()
+        chordOutputCaptureArmed = false
         bindingMessage = "Chord 规则已删除。"
     }
 
@@ -397,61 +428,31 @@ struct PianoMappingsEditorView: View {
         selectedChordRuleID = nil
         chordSelectedNotes.removeAll()
         chordDraftOutput = KeyStroke(keyCode: 8, modifiers: [.command])
+        chordOutputCaptureArmed = false
         chordMultiSelectEnabled = false
         bindingMessage = "点击琴键进入绑定态；按 Esc 可取消。"
     }
 
-    @ViewBuilder
-    private func keyStrokeEditor(title: String, keyStroke: Binding<KeyStroke>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("\(title): \(keyStroke.wrappedValue.displayLabel)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private func startChordOutputCapture() {
+        chordOutputCaptureArmed = true
+        bindingMessage = "Chord 输出绑定中：请按下一个键位（支持修饰键）。"
+    }
 
-            HStack {
-                Text("KeyCode")
-                    .font(.caption)
-                TextField(
-                    "0",
-                    value: keyCodeBinding(for: keyStroke),
-                    format: .number
-                )
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 90)
-            }
-
-            HStack(spacing: 10) {
-                Toggle("\u{2318}", isOn: modifierBinding(for: keyStroke, modifier: .command))
-                Toggle("\u{2325}", isOn: modifierBinding(for: keyStroke, modifier: .option))
-                Toggle("\u{2303}", isOn: modifierBinding(for: keyStroke, modifier: .control))
-                Toggle("\u{21E7}", isOn: modifierBinding(for: keyStroke, modifier: .shift))
-            }
-            .toggleStyle(.checkbox)
-            .font(.caption)
+    private func handleChordOutputCapture(_ event: NSEvent) {
+        if isEscapeEvent(event) {
+            chordOutputCaptureArmed = false
+            bindingMessage = "已取消 Chord 输出绑定。"
+            return
         }
-    }
 
-    private func keyCodeBinding(for keyStroke: Binding<KeyStroke>) -> Binding<Int> {
-        Binding(
-            get: { Int(keyStroke.wrappedValue.keyCode) },
-            set: { rawValue in
-                let clamped = max(0, min(rawValue, Int(UInt16.max)))
-                keyStroke.wrappedValue.keyCode = UInt16(clamped)
-            }
-        )
-    }
+        if Self.modifierOnlyKeyCodes.contains(event.keyCode) {
+            bindingMessage = "已忽略纯修饰键，请输入普通按键。"
+            return
+        }
 
-    private func modifierBinding(for keyStroke: Binding<KeyStroke>, modifier: KeyStrokeModifiers) -> Binding<Bool> {
-        Binding(
-            get: { keyStroke.wrappedValue.modifiers.contains(modifier) },
-            set: { isEnabled in
-                if isEnabled {
-                    keyStroke.wrappedValue.modifiers.insert(modifier)
-                } else {
-                    keyStroke.wrappedValue.modifiers.remove(modifier)
-                }
-            }
-        )
+        chordDraftOutput = KeyStroke(event: event).normalized()
+        chordOutputCaptureArmed = false
+        bindingMessage = "Chord 输出已绑定：\(chordDraftOutput.displayLabel)"
     }
 
     private static let modifierOnlyKeyCodes: Set<UInt16> = [
