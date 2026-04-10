@@ -584,14 +584,6 @@ final class LonelyPianistViewModel {
         }
     }
 
-    func setSingleKeyMapping(note: Int, output: String) {
-        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count == 1, let token = trimmed.first, let keyCode = KeyStroke.keyCode(for: token) else {
-            return
-        }
-        setSingleKeyMapping(note: note, keyCode: keyCode)
-    }
-
     func createChordRule(notes: [Int], output: KeyStroke) {
         let normalizedNotes = Self.normalizeRuleNotes(notes)
         guard !normalizedNotes.isEmpty else { return }

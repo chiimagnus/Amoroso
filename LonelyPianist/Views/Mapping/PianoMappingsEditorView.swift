@@ -321,12 +321,6 @@ struct PianoMappingsEditorView: View {
             return
         }
 
-        let blockedModifiers: NSEvent.ModifierFlags = [.command, .control, .option]
-        if !event.modifierFlags.intersection(blockedModifiers).isEmpty {
-            bindingMessage = "请勿使用 Command/Control/Option 组合键。"
-            return
-        }
-
         viewModel.setSingleKeyMapping(note: note, keyCode: event.keyCode)
         bindingTargetNote = nil
         let normal = KeyStroke(keyCode: event.keyCode)
