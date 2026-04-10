@@ -95,12 +95,42 @@ func playSelectedTakeFailureUpdatesStatusMessage() {
 }
 
 @MainActor
+@Test
+func requestAccessibilityPermissionUpdatesStateWhenGranted() {
+    let context = makeContext()
+    context.permission.permissionGranted = true
+
+    context.viewModel.requestAccessibilityPermission()
+
+    #expect(context.viewModel.hasAccessibilityPermission == true)
+    #expect(context.viewModel.statusMessage == "Accessibility enabled")
+}
+
+@MainActor
+@Test
+func midiEventsUpdatePressedNotesFromServiceCallback() async {
+    let context = makeContext()
+    context.viewModel.startListening()
+
+    let now = Date(timeIntervalSince1970: 100)
+    context.midi.onEvent?(MIDIEvent(type: .noteOn(note: 60, velocity: 100), channel: 1, timestamp: now))
+    await Task.yield()
+    #expect(context.viewModel.pressedNotes == [60])
+
+    context.midi.onEvent?(MIDIEvent(type: .noteOff(note: 60, velocity: 0), channel: 1, timestamp: now.addingTimeInterval(0.1)))
+    await Task.yield()
+    #expect(context.viewModel.pressedNotes.isEmpty)
+}
+
+@MainActor
 private func makeContext() -> (
     viewModel: LonelyPianistViewModel,
     repository: RecordingTakeRepositoryMock,
     recordingService: RecordingServiceMock,
     playback: MIDIPlaybackServiceMock,
-    keyboard: KeyboardEventServiceMock
+    keyboard: KeyboardEventServiceMock,
+    midi: MIDIInputServiceMock,
+    permission: PermissionServiceMock
 ) {
     let midi = MIDIInputServiceMock()
     let keyboard = KeyboardEventServiceMock()
@@ -135,5 +165,5 @@ private func makeContext() -> (
         dialogueManager: dialogueManager
     )
 
-    return (viewModel, recordingRepository, recordingService, playback, keyboard)
+    return (viewModel, recordingRepository, recordingService, playback, keyboard, midi, permission)
 }

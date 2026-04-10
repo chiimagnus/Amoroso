@@ -137,6 +137,31 @@ func melodyCrudPersistsSequenceAndInterval() {
 }
 
 @MainActor
+@Test
+func mappingEditsPersistAfterRebootstrap() {
+    var payload = MappingProfilePayload.empty
+    payload.defaultVelocityThreshold = 92
+
+    let context = makeContext(payload: payload)
+
+    context.viewModel.setSingleKeyMapping(note: 60, output: "a")
+    context.viewModel.createChordRule(notes: [67, 60, 64], action: .text("copy"))
+    context.viewModel.createMelodyRule(notes: [60, 62, 64], maxIntervalMilliseconds: 300, action: .text("mel"))
+
+    let reloadedViewModel = makeViewModel(profileRepository: context.profileRepository)
+    reloadedViewModel.bootstrap()
+
+    guard let activeProfile = reloadedViewModel.activeProfile else {
+        Issue.record("Expected active profile after rebootstrap")
+        return
+    }
+
+    #expect(activeProfile.payload.singleKeyRules.contains(where: { $0.note == 60 && $0.normalOutput == "a" }))
+    #expect(activeProfile.payload.chordRules.contains(where: { $0.notes == [60, 64, 67] && $0.action == .text("copy") }))
+    #expect(activeProfile.payload.melodyRules.contains(where: { $0.notes == [60, 62, 64] && $0.maxIntervalMilliseconds == 300 }))
+}
+
+@MainActor
 private func makeContext(payload: MappingProfilePayload) -> (
     viewModel: LonelyPianistViewModel,
     profileRepository: MappingProfileRepositoryTestDouble
@@ -151,10 +176,19 @@ private func makeContext(payload: MappingProfilePayload) -> (
         payload: payload
     )
 
+    let profileRepository = MappingProfileRepositoryTestDouble(profiles: [profile])
+    let viewModel = makeViewModel(profileRepository: profileRepository)
+
+    viewModel.bootstrap()
+
+    return (viewModel, profileRepository)
+}
+
+@MainActor
+private func makeViewModel(profileRepository: MappingProfileRepositoryTestDouble) -> LonelyPianistViewModel {
     let midi = MIDIInputServiceMock()
     let keyboard = KeyboardEventServiceMock()
     let permission = PermissionServiceMock()
-    let profileRepository = MappingProfileRepositoryTestDouble(profiles: [profile])
     let recordingRepository = RecordingTakeRepositoryMock()
     let recordingService = RecordingServiceMock()
     let playback = MIDIPlaybackServiceMock()
@@ -171,7 +205,7 @@ private func makeContext(payload: MappingProfilePayload) -> (
         playbackService: playback
     )
 
-    let viewModel = LonelyPianistViewModel(
+    return LonelyPianistViewModel(
         midiInputService: midi,
         keyboardEventService: keyboard,
         permissionService: permission,
@@ -183,8 +217,4 @@ private func makeContext(payload: MappingProfilePayload) -> (
         shortcutService: shortcut,
         dialogueManager: dialogueManager
     )
-
-    viewModel.bootstrap()
-
-    return (viewModel, profileRepository)
 }
