@@ -5,14 +5,12 @@ struct MappingProfilePayload: Codable, Hashable, Sendable {
     var defaultVelocityThreshold: Int
     var singleKeyRules: [SingleKeyMappingRule]
     var chordRules: [ChordMappingRule]
-    var melodyRules: [MelodyMappingRule]
 
     static let empty = MappingProfilePayload(
         velocityEnabled: false,
         defaultVelocityThreshold: 90,
         singleKeyRules: [],
-        chordRules: [],
-        melodyRules: []
+        chordRules: []
     )
 }
 

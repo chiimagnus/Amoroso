@@ -4,7 +4,6 @@ struct ResolvedKeyStroke: Sendable {
     enum TriggerType: Sendable {
         case singleKey
         case chord
-        case melody
     }
 
     let triggerType: TriggerType

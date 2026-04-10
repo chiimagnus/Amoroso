@@ -30,22 +30,3 @@ struct ChordMappingRule: Codable, Identifiable, Hashable, Sendable {
         self.output = output.normalized()
     }
 }
-
-struct MelodyMappingRule: Codable, Identifiable, Hashable, Sendable {
-    var id: UUID
-    var notes: [Int]
-    var maxIntervalMilliseconds: Int
-    var output: KeyStroke
-
-    init(
-        id: UUID = UUID(),
-        notes: [Int],
-        maxIntervalMilliseconds: Int,
-        output: KeyStroke
-    ) {
-        self.id = id
-        self.notes = notes
-        self.maxIntervalMilliseconds = maxIntervalMilliseconds
-        self.output = output.normalized()
-    }
-}

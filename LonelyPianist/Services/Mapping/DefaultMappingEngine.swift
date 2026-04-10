@@ -3,23 +3,16 @@ import Foundation
 final class DefaultMappingEngine: MappingEngineProtocol {
     private var pressedNotes: Set<Int> = []
     private var triggeredChordRuleIDs: Set<UUID> = []
-    private var melodyHistory: [(note: Int, timestamp: Date)] = []
-    private var lastMelodyTriggerAt: [UUID: Date] = [:]
-
-    private let melodyCooldownSeconds: TimeInterval = 0.15
-    private let historyWindowSeconds: TimeInterval = 12
 
     func reset() {
         pressedNotes.removeAll(keepingCapacity: false)
         triggeredChordRuleIDs.removeAll(keepingCapacity: false)
-        melodyHistory.removeAll(keepingCapacity: false)
-        lastMelodyTriggerAt.removeAll(keepingCapacity: false)
     }
 
     func process(event: MIDIEvent, profile: MappingProfile) -> [ResolvedKeyStroke] {
         switch event.type {
         case .noteOn(let note, let velocity):
-            return processNoteOn(note: note, velocity: velocity, timestamp: event.timestamp, profile: profile)
+            return processNoteOn(note: note, velocity: velocity, profile: profile)
         case .noteOff(let note, _):
             processNoteOff(note: note, profile: profile)
             return []
@@ -31,7 +24,6 @@ final class DefaultMappingEngine: MappingEngineProtocol {
     private func processNoteOn(
         note: Int,
         velocity: Int,
-        timestamp: Date,
         profile: MappingProfile
     ) -> [ResolvedKeyStroke] {
         pressedNotes.insert(note)
@@ -49,8 +41,6 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         }
 
         resolved.append(contentsOf: resolveChordActions(profile: profile))
-        resolved.append(contentsOf: resolveMelodyActions(note: note, timestamp: timestamp, profile: profile))
-
         return resolved
     }
 
@@ -107,75 +97,5 @@ final class DefaultMappingEngine: MappingEngineProtocol {
         }
 
         return actions
-    }
-
-    private func resolveMelodyActions(
-        note: Int,
-        timestamp: Date,
-        profile: MappingProfile
-    ) -> [ResolvedKeyStroke] {
-        melodyHistory.append((note: note, timestamp: timestamp))
-        trimMelodyHistory(reference: timestamp)
-
-        var actions: [ResolvedKeyStroke] = []
-
-        for rule in profile.payload.melodyRules {
-            guard matches(rule: rule, timestamp: timestamp) else { continue }
-
-            if let last = lastMelodyTriggerAt[rule.id],
-               timestamp.timeIntervalSince(last) < melodyCooldownSeconds {
-                continue
-            }
-
-            lastMelodyTriggerAt[rule.id] = timestamp
-            let label = rule.notes.map { MIDINote($0).name }.joined(separator: " ")
-
-            actions.append(
-                ResolvedKeyStroke(
-                    triggerType: .melody,
-                    keyStroke: rule.output,
-                    sourceDescription: label
-                )
-            )
-        }
-
-        return actions
-    }
-
-    private func trimMelodyHistory(reference: Date) {
-        melodyHistory.removeAll { reference.timeIntervalSince($0.timestamp) > historyWindowSeconds }
-
-        let maxCount = 64
-        if melodyHistory.count > maxCount {
-            melodyHistory.removeFirst(melodyHistory.count - maxCount)
-        }
-    }
-
-    private func matches(rule: MelodyMappingRule, timestamp: Date) -> Bool {
-        let ruleNotes = rule.notes
-        guard !ruleNotes.isEmpty else { return false }
-        guard melodyHistory.count >= ruleNotes.count else { return false }
-
-        let recentSlice = melodyHistory.suffix(ruleNotes.count)
-        let recent = Array(recentSlice)
-
-        for index in recent.indices {
-            guard recent[index].note == ruleNotes[index] else {
-                return false
-            }
-
-            if index > 0 {
-                let delta = recent[index].timestamp.timeIntervalSince(recent[index - 1].timestamp)
-                let maxInterval = TimeInterval(rule.maxIntervalMilliseconds) / 1000
-                guard delta <= maxInterval else {
-                    return false
-                }
-            }
-        }
-
-        guard let first = recent.first else { return false }
-        let totalDuration = timestamp.timeIntervalSince(first.timestamp)
-        let maxTotalDuration = TimeInterval(rule.maxIntervalMilliseconds * max(1, ruleNotes.count - 1)) / 1000
-        return totalDuration <= maxTotalDuration
     }
 }
