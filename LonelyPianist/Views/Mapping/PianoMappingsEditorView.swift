@@ -9,6 +9,11 @@ struct PianoMappingsEditorView: View {
     @State private var selectedChordRuleID: UUID?
     @State private var chordSelectedNotes: Set<Int> = []
     @State private var chordDraftAction: MappingAction = .keyCombo("cmd+c")
+    @State private var selectedMelodyRuleID: UUID?
+    @State private var melodyDraftNotes: [Int] = []
+    @State private var melodyDraftAction: MappingAction = .text("hello ")
+    @State private var melodyMaxIntervalMilliseconds: Int = 500
+    @State private var isMelodyRecording = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
@@ -22,13 +27,26 @@ struct PianoMappingsEditorView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
             cancelBindingOnFocusLoss()
         }
-        .onChange(of: viewModel.activeProfileID) { _ in
+        .onChange(of: viewModel.activeProfileID) { _, _ in
             resetChordEditor()
+            resetMelodyEditor()
         }
-        .onChange(of: viewModel.selectedTab) { _ in
+        .onChange(of: viewModel.selectedTab) { _, _ in
             if viewModel.selectedTab != .singleKey {
                 bindingTargetNote = nil
             }
+            if viewModel.selectedTab != .melody {
+                isMelodyRecording = false
+            }
+        }
+        .onChange(of: viewModel.latestNoteOnSequence) { _, _ in
+            guard viewModel.selectedTab == .melody,
+                  isMelodyRecording,
+                  let note = viewModel.latestNoteOn else {
+                return
+            }
+
+            appendMelodyNote(note: note, source: "MIDI")
         }
     }
 
@@ -38,7 +56,7 @@ struct PianoMappingsEditorView: View {
                 PianoKeyboardView(
                     noteRange: 48...83,
                     highlightedNotes: Set(viewModel.pressedNotes),
-                    selectedNotes: viewModel.selectedTab == .chord ? chordSelectedNotes : [],
+                    selectedNotes: selectedNotesForCurrentMode,
                     labelsForNote: labelsForNote,
                     onTapNote: handlePianoTap
                 )
@@ -85,9 +103,7 @@ struct PianoMappingsEditorView: View {
                 case .chord:
                     chordInspector
                 case .melody:
-                    Text("Melody 编辑将在 P2-T3 接入。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    melodyInspector
                 }
             }
         } label: {
@@ -169,6 +185,104 @@ struct PianoMappingsEditorView: View {
         }
     }
 
+    private var melodyInspector: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Melody Rules")
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Button("New") {
+                    startNewMelodyRule()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            if melodyRules.isEmpty {
+                Text("暂无 Melody 规则")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(melodyRules) { rule in
+                            Button {
+                                selectMelodyRule(rule)
+                            } label: {
+                                HStack(alignment: .top) {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(MIDINoteParser.stringify(notes: rule.notes, separator: " "))
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.primary)
+                                        Text("\(rule.maxIntervalMilliseconds)ms · \(rule.action.type.rawValue): \(rule.action.value)")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(8)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                        .fill(rule.id == selectedMelodyRuleID ? Color.accentColor.opacity(0.18) : Color(nsColor: .textBackgroundColor))
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxHeight: 130)
+            }
+
+            HStack(spacing: 8) {
+                if isMelodyRecording {
+                    Button("Stop Recording") {
+                        toggleMelodyRecording()
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Button("Start Recording") {
+                        toggleMelodyRecording()
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Button("Clear") {
+                    clearMelodyDraftNotes()
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Text("Sequence: \(MIDINoteParser.stringify(notes: melodyDraftNotes, separator: " "))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Stepper(value: $melodyMaxIntervalMilliseconds, in: 100...4000, step: 50) {
+                Text("Max Interval: \(melodyMaxIntervalMilliseconds)ms")
+                    .font(.caption)
+            }
+
+            MappingActionEditorView(action: $melodyDraftAction)
+
+            HStack(spacing: 8) {
+                Button("Save") {
+                    saveMelodyRule()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(melodyDraftNotes.isEmpty)
+
+                Button("Delete", role: .destructive) {
+                    deleteSelectedMelodyRule()
+                }
+                .buttonStyle(.bordered)
+                .disabled(selectedMelodyRuleID == nil)
+            }
+
+            Text("录制模式仅采集 MIDI noteOn；也可直接点击键盘点选序列。")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     private var velocityPanel: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 8) {
@@ -219,6 +333,26 @@ struct PianoMappingsEditorView: View {
         }
     }
 
+    private var melodyRules: [MelodyMappingRule] {
+        guard let rules = viewModel.activeProfile?.payload.melodyRules else { return [] }
+        return rules.sorted { lhs, rhs in
+            let lhsKey = MIDINoteParser.stringify(notes: lhs.notes, separator: " ")
+            let rhsKey = MIDINoteParser.stringify(notes: rhs.notes, separator: " ")
+            return lhsKey < rhsKey
+        }
+    }
+
+    private var selectedNotesForCurrentMode: Set<Int> {
+        switch viewModel.selectedTab {
+        case .singleKey:
+            return []
+        case .chord:
+            return chordSelectedNotes
+        case .melody:
+            return Set(melodyDraftNotes)
+        }
+    }
+
     private func labelsForNote(_ note: Int) -> PianoKeyLabels {
         PianoKeyLabels(
             noteName: MIDINote(note).name,
@@ -243,7 +377,7 @@ struct PianoMappingsEditorView: View {
         case .chord:
             toggleChordNoteSelection(note: note)
         case .melody:
-            bindingMessage = "Melody 点选将在 P2-T3 接入。"
+            appendMelodyNote(note: note, source: "点选")
         }
     }
 
@@ -377,6 +511,87 @@ struct PianoMappingsEditorView: View {
         selectedChordRuleID = nil
         chordSelectedNotes.removeAll()
         chordDraftAction = .keyCombo("cmd+c")
+    }
+
+    private func toggleMelodyRecording() {
+        isMelodyRecording.toggle()
+        if isMelodyRecording {
+            bindingMessage = "Melody 录制已开始：请按 MIDI 键。"
+        } else {
+            bindingMessage = "Melody 录制已停止。"
+        }
+    }
+
+    private func appendMelodyNote(note: Int, source: String) {
+        let clamped = max(0, min(127, note))
+        melodyDraftNotes.append(clamped)
+        bindingMessage = "\(source) 追加 \(MIDINote(clamped).name)。"
+    }
+
+    private func clearMelodyDraftNotes() {
+        melodyDraftNotes.removeAll()
+        bindingMessage = "Melody 序列已清空。"
+    }
+
+    private func selectMelodyRule(_ rule: MelodyMappingRule) {
+        selectedMelodyRuleID = rule.id
+        melodyDraftNotes = rule.notes
+        melodyMaxIntervalMilliseconds = rule.maxIntervalMilliseconds
+        melodyDraftAction = rule.action
+        isMelodyRecording = false
+        bindingMessage = "已选中 Melody 规则。"
+    }
+
+    private func startNewMelodyRule() {
+        selectedMelodyRuleID = nil
+        melodyDraftNotes.removeAll()
+        melodyMaxIntervalMilliseconds = 500
+        melodyDraftAction = .text("hello ")
+        isMelodyRecording = false
+        bindingMessage = "已进入新建 Melody 规则模式。"
+    }
+
+    private func saveMelodyRule() {
+        let notes = melodyDraftNotes.map { max(0, min(127, $0)) }
+        guard !notes.isEmpty else {
+            bindingMessage = "请先录制或点选 Melody 序列。"
+            return
+        }
+
+        if let selectedMelodyRuleID {
+            viewModel.updateMelodyRule(
+                MelodyMappingRule(
+                    id: selectedMelodyRuleID,
+                    notes: notes,
+                    maxIntervalMilliseconds: melodyMaxIntervalMilliseconds,
+                    action: melodyDraftAction
+                )
+            )
+            bindingMessage = "Melody 规则已更新。"
+        } else {
+            viewModel.createMelodyRule(
+                notes: notes,
+                maxIntervalMilliseconds: melodyMaxIntervalMilliseconds,
+                action: melodyDraftAction
+            )
+            selectedMelodyRuleID = viewModel.activeProfile?.payload.melodyRules.last?.id
+            bindingMessage = "Melody 规则已创建。"
+        }
+    }
+
+    private func deleteSelectedMelodyRule() {
+        guard let selectedMelodyRuleID else { return }
+        viewModel.deleteMelodyRule(id: selectedMelodyRuleID)
+        startNewMelodyRule()
+        bindingMessage = "Melody 规则已删除。"
+    }
+
+    private func resetMelodyEditor() {
+        selectedMelodyRuleID = nil
+        melodyDraftNotes.removeAll()
+        melodyDraftAction = .text("hello ")
+        melodyMaxIntervalMilliseconds = 500
+        isMelodyRecording = false
     }
 
     private static let modifierOnlyKeyCodes: Set<UInt16> = [

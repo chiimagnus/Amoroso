@@ -70,6 +70,8 @@ final class LonelyPianistViewModel {
     var selectedPlaybackOutputID: String = MIDIPlaybackOutputOption.builtInSamplerID
     var previewText = ""
     var pressedNotes: [Int] = []
+    var latestNoteOn: Int?
+    var latestNoteOnSequence: Int = 0
     var recentLogs: [EventLogItem] = []
 
     var dialogueStatus: DialogueManager.Status = .idle
@@ -722,10 +724,28 @@ final class LonelyPianistViewModel {
         }
     }
 
+    func createMelodyRule(notes: [Int], maxIntervalMilliseconds: Int, action: MappingAction) {
+        let normalizedNotes = Self.normalizeMelodyNotes(notes)
+        guard !normalizedNotes.isEmpty else { return }
+
+        mutateActiveProfile { profile in
+            profile.payload.melodyRules.append(
+                MelodyMappingRule(
+                    notes: normalizedNotes,
+                    maxIntervalMilliseconds: max(100, maxIntervalMilliseconds),
+                    action: action
+                )
+            )
+        }
+    }
+
     func updateMelodyRule(_ rule: MelodyMappingRule) {
         mutateActiveProfile { profile in
             guard let index = profile.payload.melodyRules.firstIndex(where: { $0.id == rule.id }) else { return }
-            profile.payload.melodyRules[index] = rule
+            var normalizedRule = rule
+            normalizedRule.notes = Self.normalizeMelodyNotes(rule.notes)
+            normalizedRule.maxIntervalMilliseconds = max(100, rule.maxIntervalMilliseconds)
+            profile.payload.melodyRules[index] = normalizedRule
         }
     }
 
@@ -733,6 +753,10 @@ final class LonelyPianistViewModel {
         mutateActiveProfile { profile in
             profile.payload.melodyRules.removeAll { $0.id == ruleID }
         }
+    }
+
+    func deleteMelodyRule(id: UUID) {
+        removeMelodyRule(id)
     }
 
     private func bindServiceCallbacks() {
@@ -874,6 +898,10 @@ final class LonelyPianistViewModel {
                 pressedNotes.append(note)
                 pressedNotes.sort()
             }
+            if velocity > 0 {
+                latestNoteOn = note
+                latestNoteOnSequence += 1
+            }
         case .noteOff(let note, _):
             pressedNotes.removeAll { $0 == note }
         case .controlChange:
@@ -980,5 +1008,9 @@ final class LonelyPianistViewModel {
         Array(
             Set(notes.map { max(0, min(127, $0)) })
         ).sorted()
+    }
+
+    nonisolated private static func normalizeMelodyNotes(_ notes: [Int]) -> [Int] {
+        notes.map { max(0, min(127, $0)) }
     }
 }
