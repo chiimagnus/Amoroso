@@ -30,12 +30,13 @@ final class PracticeSessionViewModel {
     private let chordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     private var feedbackResetTask: Task<Void, Never>?
 
-    init(
-        pressDetectionService: PressDetectionServiceProtocol = PressDetectionService(),
-        chordAttemptAccumulator: ChordAttemptAccumulatorProtocol = ChordAttemptAccumulator()
-    ) {
+    init(pressDetectionService: PressDetectionServiceProtocol, chordAttemptAccumulator: ChordAttemptAccumulatorProtocol) {
         self.pressDetectionService = pressDetectionService
         self.chordAttemptAccumulator = chordAttemptAccumulator
+    }
+
+    convenience init() {
+        self.init(pressDetectionService: PressDetectionService(), chordAttemptAccumulator: ChordAttemptAccumulator())
     }
 
     var currentStepIndex: Int = 0 {
