@@ -1,17 +1,5 @@
 # 🎹 LonelyPianist
 
-<p align="center">
-  <img src="https://img.shields.io/badge/platform-macOS_14%2B-blue?style=for-the-badge&logo=apple&logoColor=white" alt="Platform">
-  <img src="https://img.shields.io/badge/Swift-5.9%2B-orange?style=for-the-badge&logo=swift&logoColor=white" alt="Swift">
-  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="License">
-</p>
-
----
-
-## 一句话介绍
-
-LonelyPianist 是一个“练琴辅助”工具集合：
-
 - `LonelyPianist/`：macOS 主应用（MIDI 监听与映射、对话模式入口等）
 - `LonelyPianistAVP/`：visionOS（Apple Vision Pro）端 AR Guide 原型（手部追踪 + 校准 + 指引）
 - `piano_dialogue_server/`：本机 Python 工作区（Piano Dialogue 后端 + OMR：PDF/图片→MusicXML）
