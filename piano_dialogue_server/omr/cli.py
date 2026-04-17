@@ -16,7 +16,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Root directory for conversion jobs",
     )
     parser.add_argument("--pdf-dpi", type=int, default=300, help="PDF render DPI (default: 300)")
-    parser.add_argument("--page", type=int, default=1, help="1-based page index to process")
+    parser.add_argument(
+        "--page",
+        type=int,
+        default=1,
+        help="1-based page index to process. MVP supports only page 1 for multi-page PDFs.",
+    )
     parser.add_argument(
         "--normalize-photo",
         action="store_true",

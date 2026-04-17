@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+import warnings
 
 from oemer import ete
 
@@ -69,6 +70,13 @@ def convert_to_musicxml(
 
     if page > len(rendered_pages):
         raise OMRConvertError(f"requested page {page} exceeds rendered pages: {len(rendered_pages)}")
+    if len(rendered_pages) > 1 and page != 1:
+        raise OMRConvertError("MVP currently supports only the first page of multi-page PDFs (use --page 1)")
+    if len(rendered_pages) > 1:
+        warnings.warn(
+            "multi-page PDF detected; MVP policy processes only page 1. Merge-pages support will be added later.",
+            stacklevel=2,
+        )
 
     selected_page = rendered_pages[page - 1]
     args = SimpleNamespace(
