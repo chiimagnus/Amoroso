@@ -4,10 +4,6 @@
 
 **把你的 MIDI 键盘，同时变成一台「快捷控制台」、一个「AI 即兴伙伴」，和一块「AR 练习助教」。**
 
-macOS · visionOS · Python · 本地优先 · 开源
-
-顶部徽章（粘到 README 时用 `...` 包住即可居中）：
-
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20visionOS-lightgrey)
 ![Swift](https://img.shields.io/badge/Swift-6-orange)
