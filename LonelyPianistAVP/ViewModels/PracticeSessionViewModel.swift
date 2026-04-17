@@ -26,15 +26,15 @@ final class PracticeSessionViewModel {
     var noteMatchTolerance: Int = 1
 
     private let pressDetectionService: PressDetectionServiceProtocol
-    private let stepMatcher: StepMatcherProtocol
+    private let chordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     private var feedbackResetTask: Task<Void, Never>?
 
     init(
         pressDetectionService: PressDetectionServiceProtocol = PressDetectionService(),
-        stepMatcher: StepMatcherProtocol = StepMatcher()
+        chordAttemptAccumulator: ChordAttemptAccumulatorProtocol = ChordAttemptAccumulator()
     ) {
         self.pressDetectionService = pressDetectionService
-        self.stepMatcher = stepMatcher
+        self.chordAttemptAccumulator = chordAttemptAccumulator
     }
 
     var currentStepIndex: Int = 0 {
@@ -85,10 +85,11 @@ final class PracticeSessionViewModel {
             pressedNotes = detected
             if let currentStep {
                 let expected = currentStep.notes.map(\.midiNote)
-                let isMatched = stepMatcher.matches(
-                    expectedNotes: expected,
+                let isMatched = chordAttemptAccumulator.register(
                     pressedNotes: detected,
-                    tolerance: noteMatchTolerance
+                    expectedNotes: expected,
+                    tolerance: noteMatchTolerance,
+                    at: timestamp
                 )
                 if isMatched {
                     setFeedback(.correct)
@@ -111,6 +112,7 @@ final class PracticeSessionViewModel {
             state = .idle
             return
         }
+        chordAttemptAccumulator.reset()
         if currentStepIndex + 1 < steps.count {
             currentStepIndex += 1
             state = .guiding(stepIndex: currentStepIndex)
