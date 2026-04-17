@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .convert import OMRConvertError, convert_to_musicxml
+try:
+    from .convert import OMRConvertError, convert_to_musicxml
+except ImportError:  # pragma: no cover - fallback for bundled/script execution
+    from omr.convert import OMRConvertError, convert_to_musicxml
 
 
 def build_parser() -> argparse.ArgumentParser:
