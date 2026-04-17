@@ -33,9 +33,20 @@ final class HandTrackingService {
                     self.state = .running
                 }
                 for await update in provider.anchorUpdates {
-                    guard update.anchor.isTracked else { continue }
+                    let chiralityPrefix = "\(update.anchor.chirality)-"
+                    guard update.anchor.isTracked else {
+                        await MainActor.run {
+                            self.fingerTipPositions = self.fingerTipPositions.filter { key, _ in
+                                key.hasPrefix(chiralityPrefix) == false
+                            }
+                        }
+                        continue
+                    }
                     let tips = extractFingerTips(from: update.anchor)
                     await MainActor.run {
+                        self.fingerTipPositions = self.fingerTipPositions.filter { key, _ in
+                            key.hasPrefix(chiralityPrefix) == false
+                        }
                         self.fingerTipPositions.merge(tips, uniquingKeysWith: { _, new in new })
                     }
                 }

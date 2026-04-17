@@ -15,6 +15,7 @@ final class PracticeSessionViewModel {
         case idle
         case ready
         case guiding(stepIndex: Int)
+        case completed
     }
 
     private(set) var state: PracticeState = .idle
@@ -48,6 +49,7 @@ final class PracticeSessionViewModel {
     }
 
     var currentStep: PracticeStep? {
+        guard state != .completed else { return nil }
         guard steps.indices.contains(currentStepIndex) else { return nil }
         return steps[currentStepIndex]
     }
@@ -117,8 +119,9 @@ final class PracticeSessionViewModel {
             currentStepIndex += 1
             state = .guiding(stepIndex: currentStepIndex)
         } else {
-            currentStepIndex = steps.count - 1
-            state = .ready
+            currentStepIndex = steps.count
+            pressedNotes.removeAll()
+            state = .completed
         }
     }
 

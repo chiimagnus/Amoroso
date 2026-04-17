@@ -10,14 +10,27 @@ struct StepMatcher: StepMatcherProtocol {
         guard pressedNotes.isEmpty == false else { return false }
 
         let sortedExpected = expectedNotes.sorted()
-        var remainingPressed = pressedNotes
+        let sortedPressed = pressedNotes.sorted()
+        var usedPressed = Array(repeating: false, count: sortedPressed.count)
 
-        for expected in sortedExpected {
-            guard let matched = remainingPressed.first(where: { abs($0 - expected) <= tolerance }) else {
-                return false
+        func dfs(expectedIndex: Int) -> Bool {
+            if expectedIndex == sortedExpected.count {
+                return true
             }
-            remainingPressed.remove(matched)
+
+            let expected = sortedExpected[expectedIndex]
+            for pressedIndex in sortedPressed.indices where usedPressed[pressedIndex] == false {
+                let pressed = sortedPressed[pressedIndex]
+                guard abs(pressed - expected) <= tolerance else { continue }
+                usedPressed[pressedIndex] = true
+                if dfs(expectedIndex: expectedIndex + 1) {
+                    return true
+                }
+                usedPressed[pressedIndex] = false
+            }
+            return false
         }
-        return true
+
+        return dfs(expectedIndex: 0)
     }
 }

@@ -13,6 +13,7 @@ func matcherAllowsTolerancePlusMinusOne() {
     let matcher = StepMatcher()
     #expect(matcher.matches(expectedNotes: [60, 64], pressedNotes: [59, 65], tolerance: 1) == true)
     #expect(matcher.matches(expectedNotes: [60, 64], pressedNotes: [58, 66], tolerance: 1) == false)
+    #expect(matcher.matches(expectedNotes: [55, 57], pressedNotes: [55, 56], tolerance: 1) == true)
 }
 
 @Test
