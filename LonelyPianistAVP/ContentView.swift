@@ -28,23 +28,11 @@ struct ContentView: View {
 
     var body: some View {
         RealityView { content in
-            let tapTarget = ModelEntity(
-                mesh: .generateBox(size: SIMD3<Float>(10, 10, 10)),
-                materials: [SimpleMaterial(color: .init(white: 1, alpha: 0), isMetallic: false)]
-            )
-            tapTarget.name = "TapTarget"
-            tapTarget.components.set(InputTargetComponent())
-            var collision = CollisionComponent(shapes: [.generateBox(size: SIMD3<Float>(10, 10, 10))])
-            collision.filter = CollisionFilter(group: [], mask: [])
-            tapTarget.components.set(collision)
-
-            let anchor = AnchorEntity(world: SIMD3<Float>(0, 0, 0))
-            anchor.addChild(tapTarget)
-            content.add(anchor)
+            _ = content
         } update: { content in
             _ = content
         }
-        .gesture(SpatialTapGesture(coordinateSpace3D: .worldReference).targetedToAnyEntity().onEnded { value in
+        .gesture(SpatialTapGesture(coordinateSpace3D: .worldReference).onEnded { value in
             let point3D = value.location3D
             let point = SIMD3<Float>(Float(point3D.x), Float(point3D.y), Float(point3D.z))
             calibrationCaptureService.updateReticleEstimate(point)
