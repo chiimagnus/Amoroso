@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import simd
 
 @MainActor
 @Observable
@@ -14,6 +15,13 @@ final class PracticeSessionViewModel {
     private(set) var steps: [PracticeStep] = []
     private(set) var calibration: PianoCalibration?
     private(set) var keyRegions: [PianoKeyRegion] = []
+    private(set) var pressedNotes: Set<Int> = []
+
+    private let pressDetectionService: PressDetectionServiceProtocol
+
+    init(pressDetectionService: PressDetectionServiceProtocol = PressDetectionService()) {
+        self.pressDetectionService = pressDetectionService
+    }
 
     var currentStepIndex: Int = 0 {
         didSet {
@@ -50,6 +58,18 @@ final class PracticeSessionViewModel {
 
     func markCorrect() {
         advanceToNextStep()
+    }
+
+    func handleFingerTipPositions(_ fingerTips: [String: SIMD3<Float>], at timestamp: Date = .now) -> Set<Int> {
+        let detected = pressDetectionService.detectPressedNotes(
+            fingerTips: fingerTips,
+            keyRegions: keyRegions,
+            at: timestamp
+        )
+        if detected.isEmpty == false {
+            pressedNotes = detected
+        }
+        return detected
     }
 
     private func advanceToNextStep() {
