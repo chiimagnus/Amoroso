@@ -85,41 +85,6 @@
 
 ---
 
-## 🧑‍💻 开发与启动（从源码）
-
-环境要求：
-
-- macOS 14+
-- Xcode 16+（推荐用最新稳定版）
-
-启动方式二选一：
-
-1) 用 Xcode 打开工程：
-
-```bash
-open LonelyPianist.xcodeproj
-```
-
-2) 用脚本一键 build + open（推荐）：
-
-```bash
-.github/scripts/build-open.sh
-```
-
-验证构建（Debug）：
-
-```bash
-xcodebuild -project LonelyPianist.xcodeproj -scheme LonelyPianist -configuration Debug build
-```
-
-运行单测：
-
-```bash
-xcodebuild -project LonelyPianist.xcodeproj -scheme LonelyPianist -configuration Debug test
-```
-
----
-
 ## 🤖 Piano Dialogue（AI 钢琴对话模式）
 
 > Turn-based：你弹一段 → 停顿 → AI 回一段（AI 音符会用橙色显示，并保存到 Recorder 的同一个 take 内）。
