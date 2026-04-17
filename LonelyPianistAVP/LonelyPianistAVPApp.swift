@@ -17,7 +17,7 @@ struct LonelyPianistAVPApp: App {
             ContentView()
                 .environment(appModel)
         }
-        .windowStyle(.volumetric)
+        .windowStyle(.automatic)
 
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveView()
