@@ -1,0 +1,82 @@
+import ARKit
+import Foundation
+import Observation
+import simd
+
+@MainActor
+@Observable
+final class HandTrackingService {
+    enum TrackingState: Equatable {
+        case idle
+        case running
+        case unavailable(reason: String)
+    }
+
+    private(set) var state: TrackingState = .idle
+    private(set) var fingerTipPositions: [String: SIMD3<Float>] = [:]
+
+    private let session = ARKitSession()
+    private let provider = HandTrackingProvider()
+    private var updateTask: Task<Void, Never>?
+
+    func start() {
+        guard updateTask == nil else { return }
+        guard HandTrackingProvider.isSupported else {
+            state = .unavailable(reason: "Hand tracking is not supported on this device.")
+            return
+        }
+
+        updateTask = Task {
+            do {
+                try await session.run([provider])
+                await MainActor.run {
+                    self.state = .running
+                }
+                for await update in provider.anchorUpdates {
+                    guard update.anchor.isTracked else { continue }
+                    let tips = extractFingerTips(from: update.anchor)
+                    await MainActor.run {
+                        self.fingerTipPositions.merge(tips, uniquingKeysWith: { _, new in new })
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.state = .unavailable(reason: error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func stop() {
+        updateTask?.cancel()
+        updateTask = nil
+        fingerTipPositions.removeAll()
+        if case .running = state {
+            state = .idle
+        }
+    }
+
+    private func extractFingerTips(from anchor: HandAnchor) -> [String: SIMD3<Float>] {
+        guard let handSkeleton = anchor.handSkeleton else { return [:] }
+        let jointNames: [HandSkeleton.JointName] = [
+            .thumbTip,
+            .indexFingerTip,
+            .middleFingerTip,
+            .ringFingerTip,
+            .littleFingerTip
+        ]
+
+        var tips: [String: SIMD3<Float>] = [:]
+        for jointName in jointNames {
+            let joint = handSkeleton.joint(jointName)
+            guard joint.isTracked else { continue }
+            let worldTransform = anchor.originFromAnchorTransform * joint.anchorFromJointTransform
+            tips["\(anchor.chirality)-\(jointName)"] = SIMD3<Float>(
+                worldTransform.columns.3.x,
+                worldTransform.columns.3.y,
+                worldTransform.columns.3.z
+            )
+        }
+        return tips
+    }
+}

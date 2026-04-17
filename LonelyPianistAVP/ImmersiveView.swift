@@ -36,6 +36,8 @@ struct ImmersiveView: View {
 
             VStack(spacing: 12) {
                 Text(currentStepSummary)
+                Text(handTrackingSummary)
+                    .font(.caption)
                 HStack(spacing: 16) {
                     Button("Skip") {
                         appModel.practiceSessionViewModel.skip()
@@ -48,6 +50,12 @@ struct ImmersiveView: View {
             .padding()
             .glassBackgroundEffect()
         }
+        .onAppear {
+            appModel.handTrackingService.start()
+        }
+        .onDisappear {
+            appModel.handTrackingService.stop()
+        }
     }
 
     private var currentStepSummary: String {
@@ -56,6 +64,17 @@ struct ImmersiveView: View {
         }
         let summary = step.notes.map { midiToName($0.midiNote) }.joined(separator: " + ")
         return "Current Step: \(summary)"
+    }
+
+    private var handTrackingSummary: String {
+        switch appModel.handTrackingService.state {
+        case .idle:
+            return "Hand tracking: idle"
+        case .running:
+            return "Hand tracking: running (\(appModel.handTrackingService.fingerTipPositions.count) tips)"
+        case .unavailable(let reason):
+            return "Hand tracking unavailable: \(reason). Use Mark Correct fallback."
+        }
     }
 
     private func midiToName(_ midi: Int) -> String {

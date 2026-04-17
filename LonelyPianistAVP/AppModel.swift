@@ -19,4 +19,5 @@ class AppModel {
     }
     var immersiveSpaceState = ImmersiveSpaceState.closed
     var practiceSessionViewModel = PracticeSessionViewModel()
+    var handTrackingService = HandTrackingService()
 }
