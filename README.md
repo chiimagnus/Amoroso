@@ -1,5 +1,3 @@
-<div align="center">
-
 # 🎹 LonelyPianist
 
 **把你的 MIDI 键盘，同时变成一台「快捷控制台」、一个「AI 即兴伙伴」，和一块「AR 练习助教」。**
@@ -10,8 +8,6 @@
 ![Python](https://img.shields.io/badge/Python-3.12-blue)
 ![Status](https://img.shields.io/badge/status-active%20development-brightgreen)
 
-</div>
-
 ## ✨ LonelyPianist 是什么
 
 一个**本地优先**的三端钢琴交互系统。你弹下的每一个音符，可以同时变成三件事：
@@ -19,8 +15,6 @@
 - 🎛 **控制信号** —— 把单音/和弦映射成 macOS 系统按键事件，让钢琴成为你的生产力快捷面板。
 - 🎭 **音乐对话** —— 你弹一句，AI 回一句，轮转式即兴（基于 [Anticipatory Music Transformer](https://crfm.stanford.edu/2023/06/16/anticipatory-music-transformer.html)）。
 - 🥽 **空间引导** —— 在 Apple Vision Pro 上，把 PDF/图片谱转成 MusicXML，空间高亮下一步该按的键。
-
----
 
 ## 🧭 架构总览
 
@@ -49,8 +43,6 @@ flowchart LR
     P4 -->|score.musicxml| V1
 ```
 
----
-
 ## 🎯 核心功能
 
 | 能力 | 你能做什么 | 运行面 |
@@ -60,8 +52,6 @@ flowchart LR
 | 🎭 **Piano Dialogue** | 静默触发 → WS 推理 → AI 回放，支持 `ignore / interrupt / queue` 三种打断策略 | macOS ↔ Python |
 | 📄 **OMR 转谱** | PDF/JPG/PNG → MusicXML，CLI + HTTP 两种入口，每次转换产出完整 job 目录用于调试 | Python |
 | 🥽 **AR Guide** | AVP 内导入 MusicXML，完成 A0/C8 两点校准，手部追踪判定按键，错了变红、对了推进 | visionOS |
-
----
 
 ## 🚀 Quick Start
 
@@ -126,8 +116,6 @@ curl -F "file=@score.pdf" -F "inline_xml=true" \
      http://127.0.0.1:8765/omr/convert
 ```
 
----
-
 ## 🧱 仓库结构
 
 ```
@@ -149,8 +137,6 @@ LonelyPianist/
 
 内部架构细节见 `.github/deepwiki/` 每个模块页。
 
----
-
 ## 🛠 技术栈
 
 | 层 | 技术 |
@@ -163,8 +149,6 @@ LonelyPianist/
 | 推理 | PyTorch · Transformers · [Anticipation](https://github.com/jthickstun/anticipation) |
 | OMR | [oemer](https://github.com/BreezeWhite/oemer) · PyMuPDF · Pillow |
 | 测试 | Swift Testing（macOS + AVP 双套） |
-
----
 
 ## ⚙️ 常用配置
 
@@ -180,29 +164,6 @@ LonelyPianist/
 | `AMT_DEVICE` | env | 自动 | `mps` / `cuda` / `cpu` |
 | `DIALOGUE_DEBUG` | env | `0` | 写 `out/dialogue_debug/` 调试包 |
 
----
-
-## 🧪 测试
-
-```bash
-# macOS 单元测试
-xcodebuild test -project LonelyPianist.xcodeproj \
-  -scheme LonelyPianist -destination 'platform=macOS'
-
-# visionOS 单元测试
-xcodebuild test -project LonelyPianist.xcodeproj \
-  -scheme LonelyPianistAVP \
-  -destination 'platform=visionOS Simulator,name=Apple Vision Pro'
-
-# Python 端到端
-cd piano_dialogue_server/server
-../.venv/bin/python test_client.py      # → out/server_reply.mid
-```
-
-覆盖的关键算法：MIDI 映射严格集合匹配、静默检测状态机、MusicXML 解析（含 backup/forward/chord）、PracticeStepBuilder、StepMatcher、ChordAttemptAccumulator。
-
----
-
 ## 🆘 Troubleshooting
 
 | 症状 | 先查这里 |
@@ -214,21 +175,6 @@ cd piano_dialogue_server/server
 | 回放无声 | Recorder Output 切回 Built-in Sampler 排除外部 MIDI 目的地 |
 
 更详细的症状表见 `.github/deepwiki/troubleshooting.md`。
-
----
-
-## 🗺 Roadmap
-
-- [x]  macOS MIDI 映射 / 录音 / 回放
-- [x]  Piano Dialogue（WebSocket + Anticipatory MT）
-- [x]  OMR 单页 PDF / 图片 → MusicXML
-- [x]  AVP A0/C8 校准 + 手部追踪 AR Guide
-- [ ]  OMR 多页 PDF merge
-- [ ]  黑白键真实几何建模（当前按 88 键等间距近似）
-- [ ]  Dialogue session-level 记忆
-- [ ]  CI / Release workflow
-
----
 
 ## 🙏 Acknowledgements
 
