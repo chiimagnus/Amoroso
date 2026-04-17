@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
@@ -25,13 +26,21 @@ async def convert_score(
     normalize_photo: bool = Form(False),
 ) -> dict[str, str]:
     filename = file.filename or "score.pdf"
+    safe_name = Path(filename).name
+    if safe_name != filename:
+        raise HTTPException(status_code=400, detail="invalid upload filename")
+    if safe_name in {"", ".", ".."}:
+        raise HTTPException(status_code=400, detail="invalid upload filename")
+
     suffix = Path(filename).suffix.lower()
     if suffix not in {".pdf", ".png", ".jpg", ".jpeg"}:
         raise HTTPException(status_code=400, detail=f"unsupported file extension: {suffix}")
 
     upload_dir = ROOT_DIR / "out" / "omr" / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
-    upload_path = upload_dir / filename
+    upload_path = (upload_dir / f"{uuid4().hex}-{safe_name}").resolve()
+    if not upload_path.is_relative_to(upload_dir.resolve()):
+        raise HTTPException(status_code=400, detail="invalid upload filename")
 
     try:
         with upload_path.open("wb") as destination:

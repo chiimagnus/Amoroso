@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 import warnings
+from uuid import uuid4
 
 from oemer import ete
 
@@ -26,9 +27,9 @@ class OMRJobPaths:
 
 def build_job_paths(input_path: Path, output_root: Path | None = None) -> OMRJobPaths:
     root = (output_root or Path(__file__).resolve().parents[1] / "out" / "omr").resolve()
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
     basename = input_path.stem or "score"
-    job_root = root / f"{basename}-{timestamp}"
+    job_root = root / f"{basename}-{timestamp}-{uuid4().hex[:8]}"
     input_dir = job_root / "input"
     debug_dir = job_root / "debug"
     output_dir = job_root / "output"
@@ -57,7 +58,10 @@ def convert_to_musicxml(
     if page < 1:
         raise OMRConvertError("page must be >= 1")
 
-    job = build_job_paths(source, output_root=output_root)
+    try:
+        job = build_job_paths(source, output_root=output_root)
+    except OSError as error:
+        raise OMRConvertError(f"failed to create output job directory under {output_root or 'default root'}") from error
     try:
         rendered_pages = preprocess_input(
             source,

@@ -44,6 +44,9 @@ def main() -> int:
     except OMRConvertError as error:
         print(f"OMR conversion failed: {error}")
         return 1
+    except OSError as error:
+        print(f"OMR conversion failed: filesystem error ({error})")
+        return 1
 
     print(f"job_dir={job.root}")
     print(f"musicxml_path={job.musicxml_path}")
