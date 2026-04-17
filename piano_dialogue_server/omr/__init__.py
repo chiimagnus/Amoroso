@@ -1,0 +1,1 @@
+"""Local OMR pipeline package."""

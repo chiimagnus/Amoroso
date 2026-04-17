@@ -8,5 +8,7 @@ xcuserdata/
 .derivedData
 .derivedData-avp
 .github/features/
+.github/archived_features/
+.github/docs
 
 .xcodebuildmcp/

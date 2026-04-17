@@ -46,6 +46,10 @@ struct MainWindowView: View {
             case .dialogue:
                 DialogueControlView(viewModel: viewModel)
                     .navigationTitle("Dialogue")
+
+            case .omr:
+                OMRPanelView()
+                    .navigationTitle("OMR")
             }
         }
     }
