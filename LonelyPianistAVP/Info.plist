@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSHandsTrackingUsageDescription</key>
+	<string>LonelyPianist uses hand tracking to detect which piano keys you press and to advance practice steps.</string>
+	<key>NSWorldSensingUsageDescription</key>
+	<string>LonelyPianist uses world sensing to align AR guidance with your piano.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationPreferredDefaultSceneSessionRole</key>
