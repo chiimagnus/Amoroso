@@ -16,8 +16,11 @@ struct ContentView: View {
     @State private var isImporterPresented = false
     @State private var importedFile: ImportedMusicXMLFile?
     @State private var importErrorMessage: String?
+    @State private var calibrationCaptureService = CalibrationPointCaptureService()
+    @State private var calibrationStatusMessage: String?
 
     private let importService: MusicXMLImportServiceProtocol = MusicXMLImportService()
+    private let calibrationStore: PianoCalibrationStoreProtocol = PianoCalibrationStore()
 
     var body: some View {
         RealityView { content in
@@ -62,6 +65,47 @@ struct ContentView: View {
                             .font(.caption)
                             .foregroundStyle(.red)
                     }
+
+                    Text("Calibration mode: \(calibrationCaptureService.mode == .raycast ? "Raycast" : "Manual Fallback")")
+                        .font(.caption)
+
+                    HStack(spacing: 8) {
+                        Button("Capture A0") {
+                            calibrationCaptureService.capture(.a0)
+                        }
+                        Button("Capture C8") {
+                            calibrationCaptureService.capture(.c8)
+                        }
+                        Button("Save Calibration") {
+                            saveCalibration()
+                        }
+                    }
+
+                    Button("Use Manual Fallback") {
+                        calibrationCaptureService.updateReticleEstimate(nil)
+                    }
+
+                    if calibrationCaptureService.mode == .manualFallback {
+                        HStack(spacing: 8) {
+                            Button("A0 ◀︎") {
+                                calibrationCaptureService.adjust(anchor: .a0, delta: SIMD3<Float>(-0.01, 0, 0))
+                            }
+                            Button("A0 ▶︎") {
+                                calibrationCaptureService.adjust(anchor: .a0, delta: SIMD3<Float>(0.01, 0, 0))
+                            }
+                            Button("C8 ◀︎") {
+                                calibrationCaptureService.adjust(anchor: .c8, delta: SIMD3<Float>(-0.01, 0, 0))
+                            }
+                            Button("C8 ▶︎") {
+                                calibrationCaptureService.adjust(anchor: .c8, delta: SIMD3<Float>(0.01, 0, 0))
+                            }
+                        }
+                    }
+
+                    if let calibrationStatusMessage {
+                        Text(calibrationStatusMessage)
+                            .font(.caption)
+                    }
                 }
             }
         }
@@ -71,6 +115,9 @@ struct ContentView: View {
             allowsMultipleSelection: false
         ) { result in
             handleImportResult(result)
+        }
+        .onAppear {
+            calibrationCaptureService.updateReticleEstimate(SIMD3<Float>(0, 0.8, -1.0))
         }
     }
 
@@ -83,6 +130,19 @@ struct ContentView: View {
             importErrorMessage = nil
         } catch {
             importErrorMessage = "Import failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveCalibration() {
+        do {
+            guard let calibration = calibrationCaptureService.buildCalibration() else {
+                calibrationStatusMessage = "Capture A0 and C8 first."
+                return
+            }
+            try calibrationStore.save(calibration)
+            calibrationStatusMessage = "Calibration saved."
+        } catch {
+            calibrationStatusMessage = "Failed to save calibration: \(error.localizedDescription)"
         }
     }
 }
