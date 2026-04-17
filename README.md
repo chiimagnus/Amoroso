@@ -144,11 +144,12 @@ export PYTORCH_ENABLE_MPS_FALLBACK=1
 
 ### 2) 启动后端服务（保持运行）
 
-在一个独立终端（或 tmux）里启动：
+在一个独立终端（或 tmux）里启动（从 `piano_dialogue_server/` 目录）：
 
 ```bash
-cd piano_dialogue_server/server
-../.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8765
+cd piano_dialogue_server
+source .venv/bin/activate
+python -m uvicorn server.main:app --host 127.0.0.1 --port 8765
 ```
 
 （可选）开启后端调试包落地（默认关闭；会把每次 generate 的 request/response + prompt/reply MIDI 写到 `piano_dialogue_server/out/dialogue_debug/`）：
@@ -214,6 +215,15 @@ export LONELY_PIANIST_OMR_CONVERTER_BIN=/absolute/path/to/lp-omr-convert
 转换输出默认写入 `~/Library/Application Support/LonelyPianist/omr-jobs/`。
 
 ---
+
+## 🙏 致谢
+
+本项目的部分能力依赖以下开源项目/标准（排名不分先后）：
+
+- `oemer`：用于 OMR（乐谱 PDF/图片 → MusicXML）的核心推理组件（Python）。
+- `PyMuPDF`：用于 PDF 渲染与页面提取（Python）。
+- `FastAPI` / `Uvicorn`：用于本机 Python 服务与 HTTP 接口。
+- MusicXML：乐谱交换格式标准（AVP 导入以 MusicXML 为主）。
 
 ## 🎹 没有实体 MIDI 键盘？
 

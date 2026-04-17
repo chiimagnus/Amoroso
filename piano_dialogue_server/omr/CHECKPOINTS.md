@@ -1,33 +1,33 @@
-# oemer checkpoints strategy
+# oemer checkpoints 策略
 
-## Source and download URLs
+## 来源与下载链接
 
-The runtime uses `oemer` checkpoints published in the upstream release assets:
+运行时使用 `oemer` 上游仓库 Release 里发布的 checkpoint 文件：
 
 - `1st_model.onnx` — <https://github.com/BreezeWhite/oemer/releases/download/checkpoints/1st_model.onnx>
 - `1st_weights.h5` — <https://github.com/BreezeWhite/oemer/releases/download/checkpoints/1st_weights.h5>
 - `2nd_model.onnx` — <https://github.com/BreezeWhite/oemer/releases/download/checkpoints/2nd_model.onnx>
 - `2nd_weights.h5` — <https://github.com/BreezeWhite/oemer/releases/download/checkpoints/2nd_weights.h5>
 
-## Cache and installation path
+## 缓存与安装路径
 
-Current MVP uses the package-default checkpoint location inside the active virtual environment:
+当前 MVP 使用 Python 虚拟环境内的默认目录（`oemer` 包内的 checkpoints 目录）：
 
 - `<venv>/lib/python3.12/site-packages/oemer/checkpoints/unet_big/`
 - `<venv>/lib/python3.12/site-packages/oemer/checkpoints/seg_net/`
 
-`oemer` auto-downloads missing files on first run. For offline use, pre-populate these directories manually.
+`oemer` 首次运行如果缺文件会自动下载；要完全离线，请手动预置这些文件。
 
-## Offline install checklist
+## 离线预置清单
 
-1. Create the two checkpoint subdirectories if missing.
-2. Download all four files from the URLs above.
-3. Place files into the exact folders expected by `oemer`.
-4. Run `python -m omr.cli --input <path-to-score>` to verify startup.
+1. 如果目录不存在，先创建上述两个子目录
+2. 从上面的链接下载 4 个文件
+3. 把文件放到 `oemer` 期望的准确目录中
+4. 运行 `python -m omr.cli --input <path-to-score>` 验证
 
-## Licensing and redistribution notes
+## 许可证与再分发说明
 
-- `oemer` code license: MIT (from `pip show oemer` metadata, version 0.1.5).
-- Checkpoint files are hosted by the `oemer` upstream repository release assets.
-- Checkpoint redistribution terms are not explicitly stated in this repository; mark as **unknown / requires confirmation** before bundling checkpoints into a distributable product.
-- Productization default: keep checkpoints as first-run download unless legal review confirms redistribution rights.
+- `oemer` 代码许可证：MIT（来自 `pip show oemer` 元数据，版本 0.1.5）。
+- checkpoint 文件由 `oemer` 上游仓库的 Release assets 提供。
+- 本仓库未声明 checkpoint 的再分发条款；如果要把 checkpoint 打进产品安装包，请先做合规确认（默认视为“未知/需确认”）。
+- 产品化默认策略：checkpoint 采用首次运行下载（除非法律/合规确认允许随包再分发）。

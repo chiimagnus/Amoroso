@@ -1,13 +1,13 @@
-# OMR Packaging PoC (PyInstaller)
+# OMR 打包 PoC（PyInstaller）
 
-This folder contains the packaging proof-of-concept for shipping the OMR converter without requiring a user-managed Python environment.
+本目录用于验证：把 OMR 转换器打包成一个可分发的命令行工具，让用户不必手动管理 Python 环境。
 
-## Decision
+## 决策
 
-- Packaging route: **PyInstaller one-folder app/CLI bundle**
-- Runtime checkpoints strategy: **first-run download** (do not redistribute checkpoints inside package until license confirmation)
+- 打包路线：**PyInstaller one-folder（目录式）CLI**
+- checkpoints 策略：**首次运行下载**（在未确认再分发条款前，不把 checkpoint 随包分发）
 
-## Build steps
+## 构建步骤
 
 ```bash
 cd piano_dialogue_server
@@ -15,19 +15,19 @@ cd piano_dialogue_server
 ./omr/packaging/build_pyinstaller.sh
 ```
 
-Expected artifact:
+期望产物：
 
 - `piano_dialogue_server/omr/packaging/dist/lp-omr-convert`
 
-## Smoke run (packaged binary)
+## 冒烟运行（已打包二进制）
 
 ```bash
 cd piano_dialogue_server/omr/packaging/dist/lp-omr-convert
 ./lp-omr-convert --help
 ```
 
-## Notes
+## 备注
 
-- First conversion may take longer due to checkpoint download.
-- If network is unavailable, conversion fails with a clear runtime error; users can pre-seed checkpoints manually according to `omr/CHECKPOINTS.md`.
-- Productization target cache path: `~/Library/Application Support/LonelyPianistOMR/checkpoints/` (to be wired in runtime adapter after legal/license confirmation).
+- 首次转换可能会因为下载 checkpoint 而更慢。
+- 如果网络不可用，会报清晰的运行时错误；可以按 `omr/CHECKPOINTS.md` 预置 checkpoint 实现离线。
+- 产品化目标缓存目录：`~/Library/Application Support/LonelyPianistOMR/checkpoints/`（等合规确认后再决定是否接入/是否可随包分发）。
