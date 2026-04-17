@@ -191,6 +191,20 @@ cd piano_dialogue_server/server
 - B Interrupt：你一按键就打断 AI，立刻开始收集下一句（默认）
 - C Queue：排队，AI 播完后再生成下一句
 
+### 4) OMR 入口（PDF/图片 → MusicXML）
+
+主 App 现在提供 `OMR` 面板（侧边栏）：
+
+1. 点击 `Select Score…` 选择 PDF 或图片
+2. 点击 `Convert`
+3. 成功后点击 `Reveal in Finder` 打开生成的 `score.musicxml`
+
+默认调用本地转换器工作区 `piano_dialogue_server`。若目录不在当前工作路径，可设置：
+
+```bash
+export LONELY_PIANIST_OMR_SERVER_DIR=/absolute/path/to/piano_dialogue_server
+```
+
 ---
 
 ## 🎹 没有实体 MIDI 键盘？
