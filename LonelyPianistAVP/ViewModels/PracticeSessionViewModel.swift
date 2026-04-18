@@ -143,7 +143,7 @@ final class PracticeSessionViewModel {
         feedbackState = state
         feedbackResetTask?.cancel()
         feedbackResetTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+            try? await Task.sleep(for: .seconds(duration))
             guard Task.isCancelled == false else { return }
             await MainActor.run {
                 self?.feedbackState = .none
