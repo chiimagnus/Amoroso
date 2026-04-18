@@ -1,6 +1,5 @@
 import RealityKit
 import SwiftUI
-import UIKit
 
 @MainActor
 final class HandDebugOverlayController {
