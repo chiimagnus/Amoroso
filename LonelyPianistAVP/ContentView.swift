@@ -33,9 +33,6 @@ struct ContentView: View {
             ARGuideSheetView()
                 .environment(appModel)
         }
-        .onAppear {
-            appModel.loadStoredCalibrationIfPossible()
-        }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
             HomeOrnamentBar(isImporterPresented: $isImporterPresented)
                 .environment(appModel)
@@ -303,6 +300,9 @@ private struct CalibrationSectionView: View {
                     Text("步骤：")
                         .font(.callout)
                         .fontWeight(.semibold)
+                    Text("（提示：每次进入 AR 引导都会要求重新校准。）")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text("1) 点“设置 A0”，然后在空间轻点一次，把点放到 A0 键中心上方。")
                     Text("2) 点“设置 C8”，同样捕获 C8 键中心上方。")
                     Text("3) 点“保存”。重启后仍能加载即为通过。")

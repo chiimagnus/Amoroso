@@ -44,6 +44,14 @@ class AppModel {
         self.keyGeometryService = keyGeometryService
     }
 
+    func beginNewARGuideSession() {
+        pendingCalibrationCaptureAnchor = nil
+        calibrationStatusMessage = "请重新校准"
+        calibration = nil
+        calibrationCaptureService.reset()
+        practiceSessionViewModel.resetSession()
+    }
+
     func setImportedSteps(_ steps: [PracticeStep], file: ImportedMusicXMLFile?) {
         importedSteps = steps
         importedFile = file

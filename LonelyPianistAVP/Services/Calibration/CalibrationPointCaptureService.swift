@@ -20,6 +20,13 @@ final class CalibrationPointCaptureService {
     var a0Point: SIMD3<Float>?
     var c8Point: SIMD3<Float>?
 
+    func reset() {
+        mode = .raycast
+        reticlePoint = SIMD3<Float>(0, 0.8, -1.0)
+        a0Point = nil
+        c8Point = nil
+    }
+
     func updateReticleEstimate(_ point: SIMD3<Float>?) {
         guard let point else {
             mode = .manualFallback
