@@ -34,7 +34,7 @@ final class PracticeSessionViewModel {
     init(
         pressDetectionService: PressDetectionServiceProtocol,
         chordAttemptAccumulator: ChordAttemptAccumulatorProtocol,
-        sleeper: SleeperProtocol = TaskSleeper()
+        sleeper: SleeperProtocol
     ) {
         self.pressDetectionService = pressDetectionService
         self.chordAttemptAccumulator = chordAttemptAccumulator
