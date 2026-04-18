@@ -86,7 +86,20 @@ struct ContentView: View {
             ARGuideSheetView(viewModel: arGuideViewModel)
         }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            HomeOrnamentBar(viewModel: homeViewModel)
+            HStack(spacing: 12) {
+                ToggleImmersiveSpaceButton(viewModel: homeViewModel)
+
+                Button("导入 MusicXML…") {
+                    homeViewModel.isImporterPresented = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(homeViewModel.canImportScore == false)
+                .hoverEffect()
+            }
+            .controlSize(.large)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .glassBackgroundEffect()
         }
     }
 
