@@ -7,10 +7,6 @@ struct ContentView: View {
 
     @State private var isImporterPresented = false
 
-    private let importService: MusicXMLImportServiceProtocol = MusicXMLImportService()
-    private let parser: MusicXMLParserProtocol = MusicXMLParser()
-    private let stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
-
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -58,13 +54,7 @@ struct ContentView: View {
             guard let selectedURL = try result.get().first else {
                 return
             }
-            let importedFile = try importService.importFile(from: selectedURL)
-            let score = try parser.parse(fileURL: importedFile.storedURL)
-            let buildResult = stepBuilder.buildSteps(from: score)
-            if buildResult.unsupportedNoteCount > 0 {
-                appModel.importErrorMessage = "已导入（忽略了 \(buildResult.unsupportedNoteCount) 个不支持的音符）。"
-            }
-            appModel.setImportedSteps(buildResult.steps, file: importedFile)
+            appModel.importMusicXML(from: selectedURL)
         } catch {
             appModel.importErrorMessage = "导入失败：\(error.localizedDescription)"
         }

@@ -35,13 +35,22 @@ class AppModel {
 
     private let calibrationStore: PianoCalibrationStoreProtocol
     private let keyGeometryService: PianoKeyGeometryServiceProtocol
+    private let importService: MusicXMLImportServiceProtocol
+    private let parser: MusicXMLParserProtocol
+    private let stepBuilder: PracticeStepBuilderProtocol
 
     init(
         calibrationStore: PianoCalibrationStoreProtocol = PianoCalibrationStore(),
-        keyGeometryService: PianoKeyGeometryServiceProtocol = PianoKeyGeometryService()
+        keyGeometryService: PianoKeyGeometryServiceProtocol = PianoKeyGeometryService(),
+        importService: MusicXMLImportServiceProtocol = MusicXMLImportService(),
+        parser: MusicXMLParserProtocol = MusicXMLParser(),
+        stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
     ) {
         self.calibrationStore = calibrationStore
         self.keyGeometryService = keyGeometryService
+        self.importService = importService
+        self.parser = parser
+        self.stepBuilder = stepBuilder
     }
 
     func beginNewARGuideSession() {
@@ -57,6 +66,22 @@ class AppModel {
         importedFile = file
         importErrorMessage = nil
         applySessionIfPossible()
+    }
+
+    func importMusicXML(from selectedURL: URL) {
+        do {
+            let importedFile = try importService.importFile(from: selectedURL)
+            let score = try parser.parse(fileURL: importedFile.storedURL)
+            let buildResult = stepBuilder.buildSteps(from: score)
+            if buildResult.unsupportedNoteCount > 0 {
+                importErrorMessage = "已导入（忽略了 \(buildResult.unsupportedNoteCount) 个不支持的音符）。"
+            } else {
+                importErrorMessage = nil
+            }
+            setImportedSteps(buildResult.steps, file: importedFile)
+        } catch {
+            importErrorMessage = "导入失败：\(error.localizedDescription)"
+        }
     }
 
     func loadStoredCalibrationIfPossible() {
