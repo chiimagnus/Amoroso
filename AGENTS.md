@@ -129,3 +129,4 @@
 
 - `LonelyPianistAVP/` 的新增代码同样遵守本仓库 MVVM + Services 分层与命名规范（尽量按 `Models/`、`Services/`、`ViewModels/`、`Views/` 组织；不要把业务逻辑堆在 View 里）。
 - 事件处理与 Observation 体系同样适用：优先 `@Observable/@Bindable`，并优先使用 `.onChange(of:) {}` 的无参数重载。
+- visionOS 平台细则：优先参考本机 skill `visionos-dev`（`/Users/chii_magnus/.codex/skills/swift-dev/visionos-dev/SKILL.md`）与其指向的文档。
