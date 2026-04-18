@@ -5,6 +5,7 @@ struct ContentView: View {
     @Environment(AppModel.self) private var appModel
 
     @State private var isImporterPresented = false
+    @State private var isARGuideSheetPresented = false
 
     private let importService: MusicXMLImportServiceProtocol = MusicXMLImportService()
     private let parser: MusicXMLParserProtocol = MusicXMLParser()
@@ -115,6 +116,27 @@ struct ContentView: View {
         ) { result in
             handleImportResult(result)
         }
+        .sheet(isPresented: $isARGuideSheetPresented) {
+            ARGuideSheetView()
+                .environment(appModel)
+        }
+        .onChange(of: appModel.immersiveSpaceState) { oldValue, newValue in
+            if oldValue == .closed, newValue == .inTransition {
+                isARGuideSheetPresented = true
+                return
+            }
+            if oldValue == .open, newValue == .inTransition {
+                isARGuideSheetPresented = false
+                return
+            }
+            if newValue == .closed {
+                isARGuideSheetPresented = false
+                return
+            }
+            if newValue == .open {
+                isARGuideSheetPresented = true
+            }
+        }
         .onAppear {
             appModel.loadStoredCalibrationIfPossible()
         }
@@ -164,4 +186,126 @@ struct ContentView: View {
 #Preview {
     ContentView()
         .environment(AppModel())
+}
+
+private struct ARGuideSheetView: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 12) {
+                Text("AR Guide")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Spacer()
+                Button("Stop") {
+                    Task { @MainActor in
+                        await dismissImmersiveSpace()
+                    }
+                }
+                .fontWeight(.semibold)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(handTrackingStatusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Text(practiceStatusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if appModel.calibration == nil {
+                calibrationControls
+            } else if appModel.importedSteps.isEmpty {
+                Text("Import MusicXML in the main window to start guiding.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                practiceControls
+            }
+
+            if let message = appModel.calibrationStatusMessage {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(20)
+        .presentationDetents([.medium, .large])
+    }
+
+    private var calibrationControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Calibration")
+                .font(.headline)
+
+            Text(appModel.pendingCalibrationCaptureAnchor == nil ? "Tap in space to preview the reticle." : "Tap in space to capture the selected anchor.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Button("Set A0") { appModel.pendingCalibrationCaptureAnchor = .a0 }
+                Button("Set C8") { appModel.pendingCalibrationCaptureAnchor = .c8 }
+                Button("Save") { appModel.saveCalibrationIfPossible() }
+                    .fontWeight(.semibold)
+            }
+
+            Button("Manual Fallback") {
+                appModel.calibrationCaptureService.updateReticleEstimate(nil)
+            }
+
+            if appModel.calibrationCaptureService.mode == .manualFallback {
+                HStack(spacing: 8) {
+                    Button("A0 ◀︎") {
+                        appModel.calibrationCaptureService.adjust(anchor: .a0, delta: SIMD3<Float>(-0.01, 0, 0))
+                    }
+                    Button("A0 ▶︎") {
+                        appModel.calibrationCaptureService.adjust(anchor: .a0, delta: SIMD3<Float>(0.01, 0, 0))
+                    }
+                    Button("C8 ◀︎") {
+                        appModel.calibrationCaptureService.adjust(anchor: .c8, delta: SIMD3<Float>(-0.01, 0, 0))
+                    }
+                    Button("C8 ▶︎") {
+                        appModel.calibrationCaptureService.adjust(anchor: .c8, delta: SIMD3<Float>(0.01, 0, 0))
+                    }
+                }
+            }
+        }
+    }
+
+    private var practiceControls: some View {
+        HStack(spacing: 12) {
+            Button("Skip") { appModel.practiceSessionViewModel.skip() }
+            Button("Mark Correct") { appModel.practiceSessionViewModel.markCorrect() }
+        }
+    }
+
+    private var handTrackingStatusText: String {
+        switch appModel.handTrackingService.state {
+        case .idle:
+            return "Hands: idle"
+        case .running:
+            return "Hands: running (\(appModel.handTrackingService.fingerTipPositions.count) tips)"
+        case .unavailable(let reason):
+            return "Hands: unavailable (\(reason))"
+        }
+    }
+
+    private var practiceStatusText: String {
+        switch appModel.practiceSessionViewModel.state {
+        case .idle:
+            return "Practice: idle"
+        case .ready:
+            return "Practice: ready"
+        case .guiding(let index):
+            return "Practice: guiding (step \(index + 1))"
+        case .completed:
+            return "Practice: completed"
+        }
+    }
 }
