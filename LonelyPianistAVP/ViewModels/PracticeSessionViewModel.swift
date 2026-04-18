@@ -55,6 +55,19 @@ final class PracticeSessionViewModel {
         return steps[currentStepIndex]
     }
 
+    func resetSession() {
+        feedbackResetTask?.cancel()
+        feedbackResetTask = nil
+        chordAttemptAccumulator.reset()
+        steps = []
+        calibration = nil
+        keyRegions = []
+        pressedNotes.removeAll()
+        feedbackState = .none
+        currentStepIndex = 0
+        state = .idle
+    }
+
     func configure(steps: [PracticeStep], calibration: PianoCalibration, keyRegions: [PianoKeyRegion]) {
         self.steps = steps
         self.calibration = calibration

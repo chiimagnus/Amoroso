@@ -27,6 +27,7 @@ struct ToggleImmersiveSpaceButton: View {
 
                     case .closed:
                         appModel.immersiveSpaceState = .inTransition
+                        appModel.beginNewARGuideSession()
                         switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
                             case .opened:
                                 // Don't set immersiveSpaceState to .open because there
@@ -49,10 +50,16 @@ struct ToggleImmersiveSpaceButton: View {
                 }
             }
         } label: {
-            Text(appModel.immersiveSpaceState == .open ? "Stop AR Guide" : "Start AR Guide")
+            Label(
+                appModel.immersiveSpaceState == .open ? "结束 AR 引导" : "开始 AR 引导",
+                systemImage: appModel.immersiveSpaceState == .open ? "stop.fill" : "play.fill"
+            )
         }
         .disabled(appModel.immersiveSpaceState == .inTransition)
         .animation(.none, value: 0)
+        .buttonStyle(.borderedProminent)
+        .tint(appModel.immersiveSpaceState == .open ? .red : .accentColor)
         .fontWeight(.semibold)
+        .hoverEffect()
     }
 }

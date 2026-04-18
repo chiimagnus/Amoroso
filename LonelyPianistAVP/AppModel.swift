@@ -35,13 +35,30 @@ class AppModel {
 
     private let calibrationStore: PianoCalibrationStoreProtocol
     private let keyGeometryService: PianoKeyGeometryServiceProtocol
+    private let importService: MusicXMLImportServiceProtocol
+    private let parser: MusicXMLParserProtocol
+    private let stepBuilder: PracticeStepBuilderProtocol
 
     init(
         calibrationStore: PianoCalibrationStoreProtocol = PianoCalibrationStore(),
-        keyGeometryService: PianoKeyGeometryServiceProtocol = PianoKeyGeometryService()
+        keyGeometryService: PianoKeyGeometryServiceProtocol = PianoKeyGeometryService(),
+        importService: MusicXMLImportServiceProtocol = MusicXMLImportService(),
+        parser: MusicXMLParserProtocol = MusicXMLParser(),
+        stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
     ) {
         self.calibrationStore = calibrationStore
         self.keyGeometryService = keyGeometryService
+        self.importService = importService
+        self.parser = parser
+        self.stepBuilder = stepBuilder
+    }
+
+    func beginNewARGuideSession() {
+        pendingCalibrationCaptureAnchor = nil
+        calibrationStatusMessage = "请重新校准"
+        calibration = nil
+        calibrationCaptureService.reset()
+        practiceSessionViewModel.resetSession()
     }
 
     func setImportedSteps(_ steps: [PracticeStep], file: ImportedMusicXMLFile?) {
@@ -51,6 +68,22 @@ class AppModel {
         applySessionIfPossible()
     }
 
+    func importMusicXML(from selectedURL: URL) {
+        do {
+            let importedFile = try importService.importFile(from: selectedURL)
+            let score = try parser.parse(fileURL: importedFile.storedURL)
+            let buildResult = stepBuilder.buildSteps(from: score)
+            if buildResult.unsupportedNoteCount > 0 {
+                importErrorMessage = "已导入（忽略了 \(buildResult.unsupportedNoteCount) 个不支持的音符）。"
+            } else {
+                importErrorMessage = nil
+            }
+            setImportedSteps(buildResult.steps, file: importedFile)
+        } catch {
+            importErrorMessage = "导入失败：\(error.localizedDescription)"
+        }
+    }
+
     func loadStoredCalibrationIfPossible() {
         do {
             guard let stored = try calibrationStore.load() else { return }
@@ -58,23 +91,23 @@ class AppModel {
             calibrationCaptureService.a0Point = stored.a0.simdValue
             calibrationCaptureService.c8Point = stored.c8.simdValue
             calibrationCaptureService.updateReticleEstimate(stored.a0.simdValue)
-            calibrationStatusMessage = "Calibration loaded"
+            calibrationStatusMessage = "已加载校准"
         } catch {
-            calibrationStatusMessage = "Failed to load calibration: \(error.localizedDescription)"
+            calibrationStatusMessage = "加载校准失败：\(error.localizedDescription)"
         }
     }
 
     func saveCalibrationIfPossible() {
         guard let built = calibrationCaptureService.buildCalibration() else {
-            calibrationStatusMessage = "Calibration is incomplete"
+            calibrationStatusMessage = "校准信息不完整"
             return
         }
         do {
             try calibrationStore.save(built)
             calibration = built
-            calibrationStatusMessage = "Calibration saved"
+            calibrationStatusMessage = "已保存校准"
         } catch {
-            calibrationStatusMessage = "Failed to save calibration: \(error.localizedDescription)"
+            calibrationStatusMessage = "保存校准失败：\(error.localizedDescription)"
         }
     }
 
