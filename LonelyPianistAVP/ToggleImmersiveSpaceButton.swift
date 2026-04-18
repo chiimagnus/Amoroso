@@ -49,10 +49,16 @@ struct ToggleImmersiveSpaceButton: View {
                 }
             }
         } label: {
-            Text(appModel.immersiveSpaceState == .open ? "结束 AR 引导" : "开始 AR 引导")
+            Label(
+                appModel.immersiveSpaceState == .open ? "结束 AR 引导" : "开始 AR 引导",
+                systemImage: appModel.immersiveSpaceState == .open ? "stop.fill" : "play.fill"
+            )
         }
         .disabled(appModel.immersiveSpaceState == .inTransition)
         .animation(.none, value: 0)
+        .buttonStyle(.borderedProminent)
+        .tint(appModel.immersiveSpaceState == .open ? .red : .accentColor)
         .fontWeight(.semibold)
+        .hoverEffect()
     }
 }
