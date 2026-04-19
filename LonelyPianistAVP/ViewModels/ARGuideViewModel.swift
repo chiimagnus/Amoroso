@@ -48,6 +48,10 @@ final class ARGuideViewModel {
         appModel.saveCalibrationIfPossible()
     }
 
+    func beginCalibrationRecapture() {
+        appModel.beginCalibrationRecapture()
+    }
+
     func enterManualAdjustMode() {
         calibrationCaptureService.updateReticleEstimate(nil)
     }

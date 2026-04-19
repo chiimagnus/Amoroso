@@ -88,7 +88,7 @@ struct ContentView: View {
             .navigationDestination(for: MainFlowRoute.self) { route in
                 switch route {
                 case .calibration:
-                    ARGuideSheetView(viewModel: arGuideViewModel)
+                    CalibrationStepView(viewModel: arGuideViewModel)
                         .navigationTitle("Step 1 · 校准")
                 case .practice:
                     ARGuideSheetView(viewModel: arGuideViewModel)
