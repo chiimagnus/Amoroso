@@ -6,73 +6,103 @@ struct ContentView: View {
     @Bindable var homeViewModel: HomeViewModel
     @Bindable var arGuideViewModel: ARGuideViewModel
 
-    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @State private var navigationPath: [MainFlowRoute] = []
+
+    private enum MainFlowRoute: Hashable {
+        case calibration
+        case practice
+    }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text("按步骤完成：校准 → 导入谱子 → AR 引导练习。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+        NavigationStack(path: $navigationPath) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    GroupBox("流程入口") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            NavigationLink(value: MainFlowRoute.calibration) {
+                                stepEntry(
+                                    title: "Step 1 · 校准",
+                                    subtitle: "捕获 A0 / C8 并保存钢琴几何。"
+                                )
+                            }
 
-                Section {
-                    LabeledContent("AR 引导") {
-                        Text(homeViewModel.immersiveStatusText)
-                            .foregroundStyle(.secondary)
-                    }
+                            NavigationLink(value: MainFlowRoute.practice) {
+                                stepEntry(
+                                    title: "Step 2 · 开始练习",
+                                    subtitle: "按高亮键位弹奏并推进练习步骤。"
+                                )
+                            }
 
-                    LabeledContent("校准") {
-                        Text(homeViewModel.calibrationStatusText)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    LabeledContent("谱子") {
-                        Text(homeViewModel.scoreStatusText)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let stepCountText = homeViewModel.stepCountText {
-                        LabeledContent("步骤") {
-                            Text(stepCountText)
+                            Text("导入 MusicXML 后会生成可练习步骤。")
+                                .font(.caption)
                                 .foregroundStyle(.secondary)
+                                .padding(.top, 4)
                         }
                     }
-                } header: {
-                    Text("状态")
-                } footer: {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(homeViewModel.nextActionHint)
-                        if let message = homeViewModel.calibrationStatusMessage {
-                            Text(message)
-                        }
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
 
-                Section("谱子") {
-                    Text("导入 MusicXML 后会生成练习步骤。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    GroupBox("状态") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            LabeledContent("校准") {
+                                Text(homeViewModel.calibrationStatusText)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            LabeledContent("谱子") {
+                                Text(homeViewModel.scoreStatusText)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if let stepCountText = homeViewModel.stepCountText {
+                                LabeledContent("步骤") {
+                                    Text(stepCountText)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(homeViewModel.nextActionHint)
+                                if let message = homeViewModel.calibrationStatusMessage {
+                                    Text(message)
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        }
+                    }
 
                     if let importErrorMessage = homeViewModel.importErrorMessage {
-                        Text(importErrorMessage)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+                        GroupBox("导入错误") {
+                            Text(importErrorMessage)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
                     }
-
-                    Button("导入 MusicXML…") {
-                        homeViewModel.isImporterPresented = true
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(homeViewModel.canImportScore == false)
-                    .hoverEffect()
                 }
+                .padding(16)
             }
             .navigationTitle("孤独钢琴家")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: MainFlowRoute.self) { route in
+                switch route {
+                case .calibration:
+                    ARGuideSheetView(viewModel: arGuideViewModel)
+                        .navigationTitle("Step 1 · 校准")
+                case .practice:
+                    ARGuideSheetView(viewModel: arGuideViewModel)
+                        .navigationTitle("Step 2 · 开始练习")
+                }
+            }
+            .toolbar {
+                if navigationPath.isEmpty, homeViewModel.canImportScore {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("导入 MusicXML…") {
+                            homeViewModel.isImporterPresented = true
+                        }
+                        .hoverEffect()
+                    }
+                }
+            }
         }
         .buttonBorderShape(.roundedRectangle)
         .fileImporter(
@@ -82,35 +112,17 @@ struct ContentView: View {
         ) { result in
             homeViewModel.handleImportResult(result)
         }
-        .sheet(isPresented: arGuideSheetIsPresented) {
-            ARGuideSheetView(viewModel: arGuideViewModel)
-        }
-        .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            HStack(spacing: 12) {
-                ToggleImmersiveSpaceButton(viewModel: homeViewModel)
-
-                Button("导入 MusicXML…") {
-                    homeViewModel.isImporterPresented = true
-                }
-                .buttonStyle(.bordered)
-                .disabled(homeViewModel.canImportScore == false)
-                .hoverEffect()
-            }
-            .controlSize(.large)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .glassBackgroundEffect()
-        }
     }
 
-    private var arGuideSheetIsPresented: Binding<Bool> {
-        Binding(
-            get: { homeViewModel.immersiveSpaceState != .closed },
-            set: { isPresented in
-                guard isPresented == false else { return }
-                homeViewModel.stopARGuide(using: dismissImmersiveSpace)
-            }
-        )
+    private func stepEntry(title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.headline)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 }
 
