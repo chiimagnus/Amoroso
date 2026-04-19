@@ -1,0 +1,273 @@
+import ARKit
+import Foundation
+import Observation
+import simd
+
+@MainActor
+protocol ARTrackingServiceProtocol: AnyObject {
+    var fingerTipPositions: [String: SIMD3<Float>] { get }
+    var leftIndexFingerTipPosition: SIMD3<Float>? { get }
+    var rightIndexFingerTipPosition: SIMD3<Float>? { get }
+    var rightThumbTipPosition: SIMD3<Float>? { get }
+    var worldAnchorsByID: [UUID: WorldAnchor] { get }
+    var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] { get }
+    var providerStateByName: [String: DataProviderState] { get }
+    var isWorldTrackingSupported: Bool { get }
+    var worldTrackingProvider: WorldTrackingProvider { get }
+
+    func fingerTipUpdatesStream() -> AsyncStream<[String: SIMD3<Float>]>
+    func start()
+    func stop()
+}
+
+enum DataProviderState: Equatable {
+    case idle
+    case running
+    case unsupported
+    case unauthorized
+    case stopped
+    case failed(reason: String)
+
+    var description: String {
+        switch self {
+        case .idle:
+            return "idle"
+        case .running:
+            return "running"
+        case .unsupported:
+            return "unsupported"
+        case .unauthorized:
+            return "unauthorized"
+        case .stopped:
+            return "stopped"
+        case .failed(let reason):
+            return "failed(\(reason))"
+        }
+    }
+}
+
+@MainActor
+@Observable
+final class ARTrackingService: ARTrackingServiceProtocol {
+    private(set) var fingerTipPositions: [String: SIMD3<Float>] = [:]
+    private(set) var leftIndexFingerTipPosition: SIMD3<Float>?
+    private(set) var rightIndexFingerTipPosition: SIMD3<Float>?
+    private(set) var rightThumbTipPosition: SIMD3<Float>?
+    private(set) var worldAnchorsByID: [UUID: WorldAnchor] = [:]
+    private(set) var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] = [:]
+    private(set) var providerStateByName: [String: DataProviderState] = [
+        "hand": .idle,
+        "world": .idle
+    ]
+
+    var isWorldTrackingSupported: Bool {
+        WorldTrackingProvider.isSupported
+    }
+
+    let worldTrackingProvider = WorldTrackingProvider()
+
+    private let session = ARKitSession()
+    private let handTrackingProvider = HandTrackingProvider()
+
+    private var sessionTask: Task<Void, Never>?
+    private var handUpdatesTask: Task<Void, Never>?
+    private var worldAnchorUpdatesTask: Task<Void, Never>?
+
+    private var fingerTipUpdatesContinuation: AsyncStream<[String: SIMD3<Float>]>.Continuation?
+
+    func fingerTipUpdatesStream() -> AsyncStream<[String: SIMD3<Float>]> {
+        AsyncStream { continuation in
+            fingerTipUpdatesContinuation?.finish()
+            fingerTipUpdatesContinuation = continuation
+            continuation.yield(fingerTipPositions)
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.fingerTipUpdatesContinuation = nil
+                }
+            }
+        }
+    }
+
+    func start() {
+        guard sessionTask == nil else { return }
+
+        guard HandTrackingProvider.isSupported else {
+            providerStateByName["hand"] = .unsupported
+            return
+        }
+
+        guard WorldTrackingProvider.isSupported else {
+            providerStateByName["world"] = .unsupported
+            return
+        }
+
+        sessionTask = Task { [weak self] in
+            guard let self else { return }
+
+            let requiredAuthorizations = deduplicatedRequiredAuthorizations()
+            let statuses = await session.requestAuthorization(for: requiredAuthorizations)
+            authorizationStatusByType = statuses
+
+            if statuses[.handTracking] != .allowed {
+                providerStateByName["hand"] = .unauthorized
+                sessionTask = nil
+                return
+            }
+            if statuses[.worldSensing] != .allowed {
+                providerStateByName["world"] = .unauthorized
+                sessionTask = nil
+                return
+            }
+
+            do {
+                try await session.run([handTrackingProvider, worldTrackingProvider])
+                providerStateByName["hand"] = .running
+                providerStateByName["world"] = .running
+                startUpdateTasks()
+            } catch {
+                if error is CancellationError {
+                    if case .running = providerStateByName["hand"] {
+                        providerStateByName["hand"] = .stopped
+                    }
+                    if case .running = providerStateByName["world"] {
+                        providerStateByName["world"] = .stopped
+                    }
+                } else {
+                    providerStateByName["hand"] = .failed(reason: error.localizedDescription)
+                    providerStateByName["world"] = .failed(reason: error.localizedDescription)
+                }
+            }
+
+            sessionTask = nil
+        }
+    }
+
+    func stop() {
+        handUpdatesTask?.cancel()
+        worldAnchorUpdatesTask?.cancel()
+        sessionTask?.cancel()
+
+        handUpdatesTask = nil
+        worldAnchorUpdatesTask = nil
+        sessionTask = nil
+
+        fingerTipUpdatesContinuation?.finish()
+        fingerTipUpdatesContinuation = nil
+
+        fingerTipPositions.removeAll()
+        leftIndexFingerTipPosition = nil
+        rightIndexFingerTipPosition = nil
+        rightThumbTipPosition = nil
+
+        if case .running = providerStateByName["hand"] {
+            providerStateByName["hand"] = .stopped
+        }
+        if case .running = providerStateByName["world"] {
+            providerStateByName["world"] = .stopped
+        }
+    }
+
+    private func startUpdateTasks() {
+        guard handUpdatesTask == nil else { return }
+        guard worldAnchorUpdatesTask == nil else { return }
+
+        handUpdatesTask = Task { [weak self] in
+            guard let self else { return }
+            for await update in handTrackingProvider.anchorUpdates {
+                guard Task.isCancelled == false else { return }
+
+                let chiralityPrefix = "\(update.anchor.chirality)-"
+                guard update.anchor.isTracked else {
+                    fingerTipPositions = fingerTipPositions.filter { key, _ in
+                        key.hasPrefix(chiralityPrefix) == false
+                    }
+                    switch update.anchor.chirality {
+                    case .left:
+                        leftIndexFingerTipPosition = nil
+                    case .right:
+                        rightIndexFingerTipPosition = nil
+                        rightThumbTipPosition = nil
+                    @unknown default:
+                        break
+                    }
+                    fingerTipUpdatesContinuation?.yield(fingerTipPositions)
+                    continue
+                }
+
+                let extracted = extractFingerTips(from: update.anchor)
+                fingerTipPositions = fingerTipPositions.filter { key, _ in
+                    key.hasPrefix(chiralityPrefix) == false
+                }
+                fingerTipPositions.merge(extracted.tips, uniquingKeysWith: { _, new in new })
+
+                switch update.anchor.chirality {
+                case .left:
+                    leftIndexFingerTipPosition = extracted.indexFingerTip
+                case .right:
+                    rightIndexFingerTipPosition = extracted.indexFingerTip
+                    rightThumbTipPosition = extracted.thumbTip
+                @unknown default:
+                    break
+                }
+                fingerTipUpdatesContinuation?.yield(fingerTipPositions)
+            }
+        }
+
+        worldAnchorUpdatesTask = Task { [weak self] in
+            guard let self else { return }
+            for await update in worldTrackingProvider.anchorUpdates {
+                guard Task.isCancelled == false else { return }
+                worldAnchorsByID[update.anchor.id] = update.anchor
+            }
+        }
+    }
+
+    private func deduplicatedRequiredAuthorizations() -> [ARKitSession.AuthorizationType] {
+        var seen: Set<ARKitSession.AuthorizationType> = []
+        var ordered: [ARKitSession.AuthorizationType] = []
+
+        for type in HandTrackingProvider.requiredAuthorizations + WorldTrackingProvider.requiredAuthorizations {
+            if seen.insert(type).inserted {
+                ordered.append(type)
+            }
+        }
+        return ordered
+    }
+
+    private func extractFingerTips(
+        from anchor: HandAnchor
+    ) -> (tips: [String: SIMD3<Float>], indexFingerTip: SIMD3<Float>?, thumbTip: SIMD3<Float>?) {
+        guard let handSkeleton = anchor.handSkeleton else { return ([:], nil, nil) }
+        let jointNames: [HandSkeleton.JointName] = [
+            .thumbTip,
+            .indexFingerTip,
+            .middleFingerTip,
+            .ringFingerTip,
+            .littleFingerTip
+        ]
+
+        var tips: [String: SIMD3<Float>] = [:]
+        var indexFingerTip: SIMD3<Float>?
+        var thumbTip: SIMD3<Float>?
+        for jointName in jointNames {
+            let joint = handSkeleton.joint(jointName)
+            guard joint.isTracked else { continue }
+            let worldTransform = anchor.originFromAnchorTransform * joint.anchorFromJointTransform
+            let point = SIMD3<Float>(
+                worldTransform.columns.3.x,
+                worldTransform.columns.3.y,
+                worldTransform.columns.3.z
+            )
+            tips["\(anchor.chirality)-\(jointName)"] = point
+            switch jointName {
+            case .indexFingerTip:
+                indexFingerTip = point
+            case .thumbTip:
+                thumbTip = point
+            default:
+                break
+            }
+        }
+        return (tips, indexFingerTip, thumbTip)
+    }
+}

@@ -17,7 +17,7 @@ struct ImmersiveView: View {
                 content: content
             )
             handDebugOverlayController.update(
-                fingerTipPositions: viewModel.handTrackingService.fingerTipPositions,
+                fingerTipPositions: viewModel.arTrackingService.fingerTipPositions,
                 content: content
             )
             overlayController.updateHighlights(
@@ -35,7 +35,7 @@ struct ImmersiveView: View {
                 content: content
             )
             handDebugOverlayController.update(
-                fingerTipPositions: viewModel.handTrackingService.fingerTipPositions,
+                fingerTipPositions: viewModel.arTrackingService.fingerTipPositions,
                 content: content
             )
             overlayController.updateHighlights(

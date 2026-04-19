@@ -21,7 +21,7 @@ class AppModel {
     var immersiveMode: ImmersiveMode = .practice
 
     let practiceSessionViewModel: PracticeSessionViewModel
-    let handTrackingService: HandTrackingService
+    let arTrackingService: ARTrackingServiceProtocol
 
     var importedFile: ImportedMusicXMLFile?
     var importedSteps: [PracticeStep] = []
@@ -47,7 +47,7 @@ class AppModel {
         parser: MusicXMLParserProtocol? = nil,
         stepBuilder: PracticeStepBuilderProtocol? = nil,
         practiceSessionViewModel: PracticeSessionViewModel? = nil,
-        handTrackingService: HandTrackingService? = nil,
+        arTrackingService: ARTrackingServiceProtocol? = nil,
         calibrationCaptureService: CalibrationPointCaptureService? = nil
     ) {
         self.calibrationStore = calibrationStore ?? PianoCalibrationStore()
@@ -56,7 +56,7 @@ class AppModel {
         self.parser = parser ?? MusicXMLParser()
         self.stepBuilder = stepBuilder ?? PracticeStepBuilder()
         self.practiceSessionViewModel = practiceSessionViewModel ?? PracticeSessionViewModel()
-        self.handTrackingService = handTrackingService ?? HandTrackingService()
+        self.arTrackingService = arTrackingService ?? ARTrackingService()
         self.calibrationCaptureService = calibrationCaptureService ?? CalibrationPointCaptureService()
     }
 

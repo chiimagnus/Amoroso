@@ -37,8 +37,8 @@ final class ARGuideViewModel {
         appModel.practiceSessionViewModel
     }
 
-    var handTrackingService: HandTrackingService {
-        appModel.handTrackingService
+    var arTrackingService: ARTrackingServiceProtocol {
+        appModel.arTrackingService
     }
 
     var hasImportedSteps: Bool {
@@ -142,8 +142,9 @@ final class ARGuideViewModel {
             hasStartedGuidingInCurrentImmersiveSession = false
             wasRightHandPinching = false
             startHandTrackingIfNeeded()
-            if calibrationStatusMessage == nil, case .unavailable(let reason) = handTrackingService.state {
-                calibrationStatusMessage = "手部追踪不可用：\(reason)"
+            if calibrationStatusMessage == nil,
+               arTrackingService.providerStateByName["hand"] == .unsupported {
+                calibrationStatusMessage = "手部追踪不可用：此设备不支持手部追踪。"
             }
 
         case .practice:
@@ -162,8 +163,8 @@ final class ARGuideViewModel {
 
     func startHandTrackingIfNeeded() {
         guard handTrackingConsumerTask == nil else { return }
-        handTrackingService.start()
-        let updates = handTrackingService.fingerTipUpdatesStream()
+        arTrackingService.start()
+        let updates = arTrackingService.fingerTipUpdatesStream()
         handTrackingConsumerTask = Task { @MainActor [weak self] in
             guard let self else { return }
             for await fingerTips in updates {
@@ -181,14 +182,14 @@ final class ARGuideViewModel {
     private func handleCalibrationHandUpdates() {
         let nowUptime = ProcessInfo.processInfo.systemUptime
         calibrationCaptureService.updateReticleFromHandTracking(
-            handTrackingService.leftIndexFingerTipPosition,
+            arTrackingService.leftIndexFingerTipPosition,
             nowUptime: nowUptime
         )
 
         let isRightHandPinching: Bool = {
             guard
-                let rightIndex = handTrackingService.rightIndexFingerTipPosition,
-                let rightThumb = handTrackingService.rightThumbTipPosition
+                let rightIndex = arTrackingService.rightIndexFingerTipPosition,
+                let rightThumb = arTrackingService.rightThumbTipPosition
             else {
                 return false
             }
@@ -216,7 +217,7 @@ final class ARGuideViewModel {
     func stopHandTracking() {
         handTrackingConsumerTask?.cancel()
         handTrackingConsumerTask = nil
-        handTrackingService.stop()
+        arTrackingService.stop()
     }
 
     var practiceStatusText: String {
