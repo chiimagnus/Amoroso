@@ -146,38 +146,37 @@ private struct StepOrbLink: View {
     }
 }
 
-#Preview("主页 - 初始") {
+#Preview("主页 - 未校准") {
     let appModel = AppModel()
-    appModel.calibrationStatusMessage = "请重新校准"
+    ContentView(
+        homeViewModel: HomeViewModel(appModel: appModel),
+        arGuideViewModel: ARGuideViewModel(appModel: appModel)
+    )
+}
+
+#Preview("主页 - 沉浸空间打开") {
+    let appModel = AppModel()
+    appModel.immersiveSpaceState = .open
     return ContentView(
         homeViewModel: HomeViewModel(appModel: appModel),
         arGuideViewModel: ARGuideViewModel(appModel: appModel)
     )
 }
 
-#Preview("主页 - 默认") {
-    let appModel = AppModel()
-    return ContentView(
-        homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
-    )
-}
-
-#Preview("主页 - 已校准") {
+#Preview("主页 - 已校准未导入") {
     let appModel = AppModel()
     appModel.calibration = PianoCalibration(
         a0: SIMD3<Float>(-0.7, 0.8, -1.0),
         c8: SIMD3<Float>(0.7, 0.8, -1.0),
         planeHeight: 0.8
     )
-    appModel.calibrationStatusMessage = "已加载校准"
     return ContentView(
         homeViewModel: HomeViewModel(appModel: appModel),
         arGuideViewModel: ARGuideViewModel(appModel: appModel)
     )
 }
 
-#Preview("主页 - 已导入谱子") {
+#Preview("主页 - 可开始练习") {
     let appModel = AppModel()
     appModel.calibration = PianoCalibration(
         a0: SIMD3<Float>(-0.7, 0.8, -1.0),
