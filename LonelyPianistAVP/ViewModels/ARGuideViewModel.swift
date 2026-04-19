@@ -48,6 +48,10 @@ final class ARGuideViewModel {
         appModel.immersiveMode
     }
 
+    var immersiveSpaceState: AppModel.ImmersiveSpaceState {
+        appModel.immersiveSpaceState
+    }
+
     func saveCalibration() {
         appModel.saveCalibrationIfPossible()
     }
@@ -88,7 +92,20 @@ final class ARGuideViewModel {
         appModel.immersiveMode = mode
 
         switch appModel.immersiveSpaceState {
-        case .open, .inTransition:
+        case .open:
+            return nil
+
+        case .inTransition:
+            for _ in 0..<40 {
+                await Task.yield()
+                if appModel.immersiveSpaceState != .inTransition {
+                    break
+                }
+            }
+
+            if appModel.immersiveSpaceState == .closed {
+                return await openImmersiveForStep(mode: mode, using: openImmersiveSpace)
+            }
             return nil
 
         case .closed:
@@ -115,11 +132,24 @@ final class ARGuideViewModel {
     }
 
     func closeImmersiveForStep(using dismissImmersiveSpace: DismissImmersiveSpaceAction) async {
-        guard appModel.immersiveSpaceState == .open else { return }
-        appModel.immersiveSpaceState = .inTransition
+        guard appModel.immersiveSpaceState != .closed else { return }
+        if appModel.immersiveSpaceState == .open {
+            appModel.immersiveSpaceState = .inTransition
+        }
         await dismissImmersiveSpace()
         // Don't set immersiveSpaceState to .closed here.
         // ImmersiveView.onDisappear is the single source of truth.
+    }
+
+    func recoverImmersiveStateIfStuck() async {
+        guard appModel.immersiveSpaceState == .inTransition else { return }
+        for _ in 0..<40 {
+            await Task.yield()
+            if appModel.immersiveSpaceState != .inTransition {
+                return
+            }
+        }
+        appModel.immersiveSpaceState = .closed
     }
 
     func onImmersiveAppear() {
