@@ -97,7 +97,6 @@ class AppModel {
             calibration = stored
             calibrationCaptureService.a0Point = stored.a0.simdValue
             calibrationCaptureService.c8Point = stored.c8.simdValue
-            calibrationCaptureService.updateReticleEstimate(stored.a0.simdValue)
             calibrationStatusMessage = "已加载校准"
         } catch {
             calibrationStatusMessage = "加载校准失败：\(error.localizedDescription)"

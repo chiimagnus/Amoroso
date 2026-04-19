@@ -14,6 +14,9 @@ final class HandTrackingService {
 
     private(set) var state: TrackingState = .idle
     private(set) var fingerTipPositions: [String: SIMD3<Float>] = [:]
+    private(set) var leftIndexFingerTipPosition: SIMD3<Float>?
+    private(set) var rightIndexFingerTipPosition: SIMD3<Float>?
+    private(set) var rightThumbTipPosition: SIMD3<Float>?
 
     private let session = ARKitSession()
     private let provider = HandTrackingProvider()
@@ -53,16 +56,34 @@ final class HandTrackingService {
                             self.fingerTipPositions = self.fingerTipPositions.filter { key, _ in
                                 key.hasPrefix(chiralityPrefix) == false
                             }
+                            switch update.anchor.chirality {
+                            case .left:
+                                self.leftIndexFingerTipPosition = nil
+                            case .right:
+                                self.rightIndexFingerTipPosition = nil
+                                self.rightThumbTipPosition = nil
+                            @unknown default:
+                                break
+                            }
                             self.fingerTipUpdatesContinuation?.yield(self.fingerTipPositions)
                         }
                         continue
                     }
-                    let tips = extractFingerTips(from: update.anchor)
+                    let extracted = extractFingerTips(from: update.anchor)
                     await MainActor.run {
                         self.fingerTipPositions = self.fingerTipPositions.filter { key, _ in
                             key.hasPrefix(chiralityPrefix) == false
                         }
-                        self.fingerTipPositions.merge(tips, uniquingKeysWith: { _, new in new })
+                        self.fingerTipPositions.merge(extracted.tips, uniquingKeysWith: { _, new in new })
+                        switch update.anchor.chirality {
+                        case .left:
+                            self.leftIndexFingerTipPosition = extracted.indexFingerTip
+                        case .right:
+                            self.rightIndexFingerTipPosition = extracted.indexFingerTip
+                            self.rightThumbTipPosition = extracted.thumbTip
+                        @unknown default:
+                            break
+                        }
                         self.fingerTipUpdatesContinuation?.yield(self.fingerTipPositions)
                     }
                 }
@@ -91,13 +112,18 @@ final class HandTrackingService {
         fingerTipUpdatesContinuation?.finish()
         fingerTipUpdatesContinuation = nil
         fingerTipPositions.removeAll()
+        leftIndexFingerTipPosition = nil
+        rightIndexFingerTipPosition = nil
+        rightThumbTipPosition = nil
         if case .running = state {
             state = .idle
         }
     }
 
-    private func extractFingerTips(from anchor: HandAnchor) -> [String: SIMD3<Float>] {
-        guard let handSkeleton = anchor.handSkeleton else { return [:] }
+    private func extractFingerTips(
+        from anchor: HandAnchor
+    ) -> (tips: [String: SIMD3<Float>], indexFingerTip: SIMD3<Float>?, thumbTip: SIMD3<Float>?) {
+        guard let handSkeleton = anchor.handSkeleton else { return ([:], nil, nil) }
         let jointNames: [HandSkeleton.JointName] = [
             .thumbTip,
             .indexFingerTip,
@@ -107,16 +133,27 @@ final class HandTrackingService {
         ]
 
         var tips: [String: SIMD3<Float>] = [:]
+        var indexFingerTip: SIMD3<Float>?
+        var thumbTip: SIMD3<Float>?
         for jointName in jointNames {
             let joint = handSkeleton.joint(jointName)
             guard joint.isTracked else { continue }
             let worldTransform = anchor.originFromAnchorTransform * joint.anchorFromJointTransform
-            tips["\(anchor.chirality)-\(jointName)"] = SIMD3<Float>(
+            let point = SIMD3<Float>(
                 worldTransform.columns.3.x,
                 worldTransform.columns.3.y,
                 worldTransform.columns.3.z
             )
+            tips["\(anchor.chirality)-\(jointName)"] = point
+            switch jointName {
+            case .indexFingerTip:
+                indexFingerTip = point
+            case .thumbTip:
+                thumbTip = point
+            default:
+                break
+            }
         }
-        return tips
+        return (tips, indexFingerTip, thumbTip)
     }
 }

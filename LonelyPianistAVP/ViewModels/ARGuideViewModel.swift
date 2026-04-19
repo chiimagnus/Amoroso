@@ -9,6 +9,7 @@ final class ARGuideViewModel {
     private let appModel: AppModel
     private var handTrackingConsumerTask: Task<Void, Never>?
     private var hasStartedGuidingInCurrentImmersiveSession = false
+    private var wasRightHandPinching = false
 
     init(appModel: AppModel) {
         self.appModel = appModel
@@ -58,23 +59,6 @@ final class ARGuideViewModel {
 
     func beginCalibrationRecapture() {
         appModel.beginCalibrationRecapture()
-    }
-
-    func enterManualAdjustMode() {
-        calibrationCaptureService.updateReticleEstimate(nil)
-    }
-
-    func adjust(anchor: CalibrationAnchorPoint, x: Float) {
-        calibrationCaptureService.adjust(anchor: anchor, delta: SIMD3<Float>(x, 0, 0))
-    }
-
-    func handleSpatialTap(worldPoint: SIMD3<Float>) {
-        calibrationCaptureService.updateReticleEstimate(worldPoint)
-        if let pendingAnchor = pendingCalibrationCaptureAnchor {
-            calibrationCaptureService.capture(pendingAnchor)
-            calibrationStatusMessage = "已捕获 \(pendingAnchor == .a0 ? "A0" : "C8")"
-            pendingCalibrationCaptureAnchor = nil
-        }
     }
 
     func skipStep() {
@@ -156,7 +140,11 @@ final class ARGuideViewModel {
         switch appModel.immersiveMode {
         case .calibration:
             hasStartedGuidingInCurrentImmersiveSession = false
-            stopHandTracking()
+            wasRightHandPinching = false
+            startHandTrackingIfNeeded()
+            if calibrationStatusMessage == nil, case .unavailable(let reason) = handTrackingService.state {
+                calibrationStatusMessage = "手部追踪不可用：\(reason)"
+            }
 
         case .practice:
             if hasStartedGuidingInCurrentImmersiveSession == false {
@@ -180,9 +168,49 @@ final class ARGuideViewModel {
             guard let self else { return }
             for await fingerTips in updates {
                 guard Task.isCancelled == false else { return }
-                _ = self.practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                switch self.appModel.immersiveMode {
+                case .calibration:
+                    self.handleCalibrationHandUpdates()
+                case .practice:
+                    _ = self.practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                }
             }
         }
+    }
+
+    private func handleCalibrationHandUpdates() {
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        calibrationCaptureService.updateReticleFromHandTracking(
+            handTrackingService.leftIndexFingerTipPosition,
+            nowUptime: nowUptime
+        )
+
+        let isRightHandPinching: Bool = {
+            guard
+                let rightIndex = handTrackingService.rightIndexFingerTipPosition,
+                let rightThumb = handTrackingService.rightThumbTipPosition
+            else {
+                return false
+            }
+            let pinchDistanceThresholdMeters: Float = 0.018
+            return simd_length(rightIndex - rightThumb) < pinchDistanceThresholdMeters
+        }()
+
+        if isRightHandPinching, wasRightHandPinching == false {
+            confirmPendingCalibrationAnchorIfReady()
+        }
+        wasRightHandPinching = isRightHandPinching
+    }
+
+    private func confirmPendingCalibrationAnchorIfReady() {
+        guard let pendingAnchor = pendingCalibrationCaptureAnchor else { return }
+        guard calibrationCaptureService.isReticleReadyToConfirm else {
+            calibrationStatusMessage = "请先将左手食指放稳在 \(pendingAnchor == .a0 ? "A0" : "C8") 键上（等待准星变绿），再用右手捏合确认。"
+            return
+        }
+        calibrationCaptureService.capture(pendingAnchor)
+        calibrationStatusMessage = "已锁定 \(pendingAnchor == .a0 ? "A0" : "C8")"
+        pendingCalibrationCaptureAnchor = nil
     }
 
     func stopHandTracking() {

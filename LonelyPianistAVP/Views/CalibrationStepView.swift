@@ -1,5 +1,4 @@
 import SwiftUI
-import simd
 
 struct CalibrationStepView: View {
     @Bindable var viewModel: ARGuideViewModel
@@ -34,33 +33,6 @@ struct CalibrationStepView: View {
                         }
                     }
 
-                    Button("手动微调") {
-                        viewModel.enterManualAdjustMode()
-                    }
-                    .buttonStyle(.bordered)
-                    .hoverEffect()
-
-                    if viewModel.calibrationCaptureService.mode == .manualFallback {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("微调（手动模式）")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            HStack(spacing: 8) {
-                                Button("A0 左移") { viewModel.adjust(anchor: .a0, x: -0.01) }
-                                    .buttonStyle(.bordered)
-                                    .hoverEffect()
-                                Button("A0 右移") { viewModel.adjust(anchor: .a0, x: 0.01) }
-                                    .buttonStyle(.bordered)
-                                    .hoverEffect()
-                                Button("C8 左移") { viewModel.adjust(anchor: .c8, x: -0.01) }
-                                    .buttonStyle(.bordered)
-                                    .hoverEffect()
-                                Button("C8 右移") { viewModel.adjust(anchor: .c8, x: 0.01) }
-                                    .buttonStyle(.bordered)
-                                    .hoverEffect()
-                            }
-                        }
-                    }
                 }
             } else {
                 Section("当前校准") {
@@ -136,9 +108,9 @@ struct CalibrationStepView: View {
 
     private var captureHintText: String {
         guard let pending = viewModel.pendingCalibrationCaptureAnchor else {
-            return "提示：先在空间轻点一次更新准星位置；选择“设置 A0/C8”后再轻点一次完成捕获。"
+            return "提示：先点“设置 A0 / 设置 C8”。把左手食指按在对应琴键上，等待准星变绿（稳定）后，用右手捏合一次确认。"
         }
-        return "待捕获：\(pending == .a0 ? "A0" : "C8")（现在在空间轻点一次完成捕获）"
+        return "待锁定：\(pending == .a0 ? "A0" : "C8")（左手食指放稳，准星变绿后右手捏合确认）"
     }
 }
 

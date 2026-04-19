@@ -12,6 +12,7 @@ final class CalibrationOverlayController {
 
     func update(
         reticlePoint: SIMD3<Float>,
+        isReticleReadyToConfirm: Bool,
         a0Point: SIMD3<Float>?,
         c8Point: SIMD3<Float>?,
         content: RealityViewContent
@@ -21,7 +22,8 @@ final class CalibrationOverlayController {
             hasAttachedRoot = true
         }
 
-        let reticle = ensureSphere(&reticleEntity, color: AVPOverlayPalette.reticleColor, radius: 0.012)
+        let reticleColor = isReticleReadyToConfirm ? AVPOverlayPalette.reticleReadyColor : AVPOverlayPalette.reticleColor
+        let reticle = ensureSphere(&reticleEntity, color: reticleColor, radius: 0.012)
         reticle.position = reticlePoint
 
         if let a0Point {
@@ -47,6 +49,7 @@ final class CalibrationOverlayController {
         radius: Float
     ) -> ModelEntity {
         if let entity {
+            entity.model?.materials = [UnlitMaterial(color: color)]
             return entity
         }
 

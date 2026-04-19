@@ -11,6 +11,7 @@ struct ImmersiveView: View {
         RealityView { content in
             calibrationOverlayController.update(
                 reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
+                isReticleReadyToConfirm: viewModel.calibrationCaptureService.isReticleReadyToConfirm,
                 a0Point: viewModel.calibrationCaptureService.a0Point,
                 c8Point: viewModel.calibrationCaptureService.c8Point,
                 content: content
@@ -28,6 +29,7 @@ struct ImmersiveView: View {
         } update: { content in
             calibrationOverlayController.update(
                 reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
+                isReticleReadyToConfirm: viewModel.calibrationCaptureService.isReticleReadyToConfirm,
                 a0Point: viewModel.calibrationCaptureService.a0Point,
                 c8Point: viewModel.calibrationCaptureService.c8Point,
                 content: content
@@ -43,11 +45,6 @@ struct ImmersiveView: View {
                 content: content
             )
         }
-        .gesture(SpatialTapGesture(coordinateSpace3D: .worldReference).onEnded { value in
-            let point3D = value.location3D
-            let point = SIMD3<Float>(Float(point3D.x), Float(point3D.y), Float(point3D.z))
-            viewModel.handleSpatialTap(worldPoint: point)
-            })
         .onAppear {
             viewModel.onImmersiveAppear()
         }
