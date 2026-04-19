@@ -16,6 +16,7 @@ final class ARGuideViewModel {
         case providerNotRunning(state: String)
         case anchorMissing(id: UUID)
         case anchorNotTracked(id: UUID, waitedSeconds: Int)
+        case anchorsTooClose(distanceMeters: Float)
         case immersiveOpenFailed(message: String)
 
         var message: String {
@@ -36,6 +37,8 @@ final class ARGuideViewModel {
                 return "无法定位：未在当前环境恢复已保存的锚点（id=\(id.uuidString)）。"
             case .anchorNotTracked(let id, let waitedSeconds):
                 return "无法定位：锚点存在但尚未追踪（id=\(id.uuidString)，已等待 \(waitedSeconds) 秒）。"
+            case .anchorsTooClose(let distanceMeters):
+                return "校准数据异常：A0 与 C8 距离过近（\(String(format: "%.3f", distanceMeters))m）。请返回 Step 1 重新校准。"
             case .immersiveOpenFailed(let message):
                 return message
             }
@@ -170,7 +173,7 @@ final class ARGuideViewModel {
         }
 
         switch reason {
-        case .missingStoredCalibration, .anchorMissing, .anchorNotTracked:
+        case .missingStoredCalibration, .anchorMissing, .anchorNotTracked, .anchorsTooClose:
             return true
         default:
             return false
@@ -488,6 +491,13 @@ final class ARGuideViewModel {
 
             case .anchorNotTracked(let id):
                 lastRecoverableResolution = .anchorNotTracked(id: id)
+
+            case .anchorsTooClose(let distanceMeters):
+                await handlePracticeLocalizationFailure(
+                    .anchorsTooClose(distanceMeters: distanceMeters),
+                    dismissImmersiveSpace: dismissImmersiveSpace
+                )
+                return
             }
 
             if elapsed >= Double(practiceLocalizationTimeoutSeconds) {
@@ -521,6 +531,8 @@ final class ARGuideViewModel {
                 id: id,
                 waitedSeconds: practiceLocalizationTimeoutSeconds
             )
+        case .anchorsTooClose(let distanceMeters):
+            return .anchorsTooClose(distanceMeters: distanceMeters)
         case .resolved:
             return .providerNotRunning(state: currentProviderStateSummary())
         case .missingStoredCalibration:

@@ -91,3 +91,11 @@ func timeoutFailureFallsBackToProviderStateSummary() {
         #expect(Bool(false), "Expected providerNotRunning, got \(failure)")
     }
 }
+
+@Test
+@MainActor
+func anchorsTooCloseFailureHasActionableMessage() {
+    let failure = ARGuideViewModel.PracticeLocalizationFailure.anchorsTooClose(distanceMeters: 0.0123)
+    #expect(failure.message.contains("距离过近"))
+    #expect(failure.message.contains("Step 1"))
+}

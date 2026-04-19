@@ -11,6 +11,7 @@ class AppModel {
         case missingStoredCalibration
         case anchorMissing(id: UUID)
         case anchorNotTracked(id: UUID)
+        case anchorsTooClose(distanceMeters: Float)
     }
 
     let immersiveSpaceID = "ImmersiveSpace"
@@ -193,8 +194,9 @@ class AppModel {
         let a0Point = worldAnchorPoint(from: a0Anchor)
         let c8Point = worldAnchorPoint(from: c8Anchor)
 
-        guard simd_length(c8Point - a0Point) > 0.05 else {
-            return .anchorNotTracked(id: storedCalibration.c8AnchorID)
+        let distanceMeters = simd_length(c8Point - a0Point)
+        guard distanceMeters > 0.05 else {
+            return .anchorsTooClose(distanceMeters: distanceMeters)
         }
 
         calibration = PianoCalibration(
