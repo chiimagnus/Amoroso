@@ -67,8 +67,16 @@ final class HandTrackingService {
                     }
                 }
             } catch {
-                await MainActor.run {
-                    self.state = .unavailable(reason: error.localizedDescription)
+                if error is CancellationError {
+                    await MainActor.run {
+                        if case .running = self.state {
+                            self.state = .idle
+                        }
+                    }
+                } else {
+                    await MainActor.run {
+                        self.state = .unavailable(reason: error.localizedDescription)
+                    }
                 }
             }
             await MainActor.run {
