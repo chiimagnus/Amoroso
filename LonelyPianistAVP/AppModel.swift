@@ -1,10 +1,18 @@
 import ARKit
 import SwiftUI
+import simd
 
 /// Maintains app-wide state
 @MainActor
 @Observable
 class AppModel {
+    enum PracticeCalibrationResolutionResult: Equatable {
+        case resolved
+        case missingStoredCalibration
+        case anchorMissing(id: UUID)
+        case anchorNotTracked(id: UUID)
+    }
+
     let immersiveSpaceID = "ImmersiveSpace"
 
     enum ImmersiveSpaceState {
@@ -156,6 +164,49 @@ class AppModel {
         }
     }
 
+    func clearRuntimeCalibrationForPracticeRelocation() {
+        calibration = nil
+        practiceSessionViewModel.resetSession()
+    }
+
+    func resolveRuntimeCalibrationFromTrackedAnchors() -> PracticeCalibrationResolutionResult {
+        guard let storedCalibration else {
+            return .missingStoredCalibration
+        }
+
+        guard let a0Anchor = arTrackingService.worldAnchorsByID[storedCalibration.a0AnchorID] else {
+            return .anchorMissing(id: storedCalibration.a0AnchorID)
+        }
+
+        guard let c8Anchor = arTrackingService.worldAnchorsByID[storedCalibration.c8AnchorID] else {
+            return .anchorMissing(id: storedCalibration.c8AnchorID)
+        }
+
+        guard a0Anchor.isTracked else {
+            return .anchorNotTracked(id: storedCalibration.a0AnchorID)
+        }
+
+        guard c8Anchor.isTracked else {
+            return .anchorNotTracked(id: storedCalibration.c8AnchorID)
+        }
+
+        let a0Point = worldAnchorPoint(from: a0Anchor)
+        let c8Point = worldAnchorPoint(from: c8Anchor)
+
+        guard simd_length(c8Point - a0Point) > 0.05 else {
+            return .anchorNotTracked(id: storedCalibration.c8AnchorID)
+        }
+
+        calibration = PianoCalibration(
+            a0: a0Point,
+            c8: c8Point,
+            planeHeight: (a0Point.y + c8Point.y) / 2,
+            whiteKeyWidth: storedCalibration.whiteKeyWidth
+        )
+
+        return .resolved
+    }
+
     private func removeOldAnchorsIfPossible(
         previous: StoredWorldAnchorCalibration,
         current: StoredWorldAnchorCalibration
@@ -203,5 +254,14 @@ class AppModel {
         guard let calibration, importedSteps.isEmpty == false else { return }
         let keyRegions = keyGeometryService.generateKeyRegions(from: calibration)
         practiceSessionViewModel.configure(steps: importedSteps, calibration: calibration, keyRegions: keyRegions)
+    }
+
+    private func worldAnchorPoint(from anchor: WorldAnchor) -> SIMD3<Float> {
+        let transform = anchor.originFromAnchorTransform
+        return SIMD3<Float>(
+            transform.columns.3.x,
+            transform.columns.3.y,
+            transform.columns.3.z
+        )
     }
 }

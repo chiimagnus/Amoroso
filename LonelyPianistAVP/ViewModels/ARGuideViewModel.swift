@@ -7,11 +7,62 @@ import simd
 @MainActor
 @Observable
 final class ARGuideViewModel {
+    enum PracticeLocalizationFailure: Equatable {
+        case missingImportedSteps
+        case missingStoredCalibration
+        case worldSensingDenied
+        case handTrackingDenied
+        case worldTrackingUnsupported
+        case providerNotRunning(state: String)
+        case anchorMissing(id: UUID)
+        case anchorNotTracked(id: UUID, waitedSeconds: Int)
+        case immersiveOpenFailed(message: String)
+
+        var message: String {
+            switch self {
+            case .missingImportedSteps:
+                return "请先导入 MusicXML。"
+            case .missingStoredCalibration:
+                return "未发现校准数据，请先 Step 1 校准。"
+            case .worldSensingDenied:
+                return "无法定位：World Sensing 权限未授权（请在系统设置中允许本 App 访问）。"
+            case .handTrackingDenied:
+                return "无法定位：Hand Tracking 权限未授权（请在系统设置中允许本 App 访问）。"
+            case .worldTrackingUnsupported:
+                return "无法定位：此环境不支持 World Tracking。"
+            case .providerNotRunning(let state):
+                return "无法定位：WorldTrackingProvider 未运行（state=\(state)）。"
+            case .anchorMissing(let id):
+                return "无法定位：未在当前环境恢复已保存的锚点（id=\(id.uuidString)）。"
+            case .anchorNotTracked(let id, let waitedSeconds):
+                return "无法定位：锚点存在但尚未追踪（id=\(id.uuidString)，已等待 \(waitedSeconds) 秒）。"
+            case .immersiveOpenFailed(let message):
+                return message
+            }
+        }
+    }
+
+    enum PracticeLocalizationState: Equatable {
+        case idle
+        case blocked(reason: PracticeLocalizationFailure)
+        case openingImmersive
+        case waitingForProviders
+        case locating(elapsedSeconds: Int, totalSeconds: Int)
+        case failed(reason: PracticeLocalizationFailure)
+        case ready
+    }
+
     private let appModel: AppModel
     private var handTrackingConsumerTask: Task<Void, Never>?
     private var calibrationAnchorCaptureTask: Task<Void, Never>?
+    private var practiceLocalizationTask: Task<Void, Never>?
     private var hasStartedGuidingInCurrentImmersiveSession = false
     private var wasRightHandPinching = false
+    private let providerStartupTimeoutSeconds = 5
+    private let practiceLocalizationTimeoutSeconds = 5
+    private let practiceLocalizationPollingIntervalNanoseconds: UInt64 = 250_000_000
+
+    private(set) var practiceLocalizationState: PracticeLocalizationState = .idle
 
     init(appModel: AppModel) {
         self.appModel = appModel
@@ -83,6 +134,73 @@ final class ARGuideViewModel {
 
     func markCorrect() {
         practiceSessionViewModel.markCorrect()
+    }
+
+    var practiceLocalizationStatusText: String? {
+        switch practiceLocalizationState {
+        case .idle:
+            return nil
+        case .blocked(let reason), .failed(let reason):
+            return reason.message
+        case .openingImmersive:
+            return "正在打开沉浸空间…"
+        case .waitingForProviders:
+            return "正在启动追踪服务…"
+        case .locating(let elapsedSeconds, let totalSeconds):
+            return "正在定位钢琴…（\(elapsedSeconds)/\(totalSeconds)s）"
+        case .ready:
+            return "定位成功，已开始引导。"
+        }
+    }
+
+    var canRetryPracticeLocalization: Bool {
+        if case .failed = practiceLocalizationState {
+            return true
+        }
+        return false
+    }
+
+    var shouldSuggestCalibrationStep: Bool {
+        let reason: PracticeLocalizationFailure = {
+            switch practiceLocalizationState {
+            case .blocked(let reason), .failed(let reason):
+                return reason
+            default:
+                return .immersiveOpenFailed(message: "")
+            }
+        }()
+
+        switch reason {
+        case .missingStoredCalibration, .anchorMissing, .anchorNotTracked:
+            return true
+        default:
+            return false
+        }
+    }
+
+    func enterPracticeStep(
+        using openImmersiveSpace: OpenImmersiveSpaceAction,
+        dismissImmersiveSpace: DismissImmersiveSpaceAction
+    ) async {
+        await beginPracticeLocalization(
+            using: openImmersiveSpace,
+            dismissImmersiveSpace: dismissImmersiveSpace
+        )
+    }
+
+    func retryPracticeLocalization(
+        using openImmersiveSpace: OpenImmersiveSpaceAction,
+        dismissImmersiveSpace: DismissImmersiveSpaceAction
+    ) async {
+        await beginPracticeLocalization(
+            using: openImmersiveSpace,
+            dismissImmersiveSpace: dismissImmersiveSpace
+        )
+    }
+
+    func resetPracticeLocalizationState() {
+        cancelPracticeLocalizationTask()
+        practiceLocalizationState = .idle
     }
 
     func openImmersiveForStep(
@@ -164,15 +282,12 @@ final class ARGuideViewModel {
             }
 
         case .practice:
-            if hasStartedGuidingInCurrentImmersiveSession == false {
-                practiceSessionViewModel.startGuidingIfReady()
-                hasStartedGuidingInCurrentImmersiveSession = true
-            }
             startHandTrackingIfNeeded()
         }
     }
 
     func onImmersiveDisappear() {
+        cancelPracticeLocalizationTask()
         hasStartedGuidingInCurrentImmersiveSession = false
         stopHandTracking()
     }
@@ -284,7 +399,213 @@ final class ARGuideViewModel {
     }
 
     var canControlPractice: Bool {
-        hasImportedSteps
+        guard hasStartedGuidingInCurrentImmersiveSession else { return false }
+
+        switch practiceSessionViewModel.state {
+        case .guiding:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func beginPracticeLocalization(
+        using openImmersiveSpace: OpenImmersiveSpaceAction,
+        dismissImmersiveSpace: DismissImmersiveSpaceAction
+    ) async {
+        cancelPracticeLocalizationTask()
+        hasStartedGuidingInCurrentImmersiveSession = false
+        appModel.clearRuntimeCalibrationForPracticeRelocation()
+
+        guard hasImportedSteps else {
+            practiceLocalizationState = .blocked(reason: .missingImportedSteps)
+            return
+        }
+
+        guard storedCalibration != nil else {
+            practiceLocalizationState = .blocked(reason: .missingStoredCalibration)
+            return
+        }
+
+        practiceLocalizationState = .openingImmersive
+        if let openError = await openImmersiveForStep(mode: .practice, using: openImmersiveSpace) {
+            practiceLocalizationState = .failed(reason: .immersiveOpenFailed(message: openError))
+            return
+        }
+
+        practiceLocalizationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.runPracticeLocalization(dismissImmersiveSpace: dismissImmersiveSpace)
+            self.practiceLocalizationTask = nil
+        }
+    }
+
+    private func runPracticeLocalization(
+        dismissImmersiveSpace: DismissImmersiveSpaceAction
+    ) async {
+        practiceLocalizationState = .waitingForProviders
+
+        if let startupFailure = await waitForProvidersToRunOrFail() {
+            guard Task.isCancelled == false else { return }
+            await handlePracticeLocalizationFailure(startupFailure, dismissImmersiveSpace: dismissImmersiveSpace)
+            return
+        }
+
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        var lastRecoverableResolution: AppModel.PracticeCalibrationResolutionResult?
+
+        while Task.isCancelled == false {
+            if let hardFailure = immediatePracticeFailureReason() {
+                await handlePracticeLocalizationFailure(hardFailure, dismissImmersiveSpace: dismissImmersiveSpace)
+                return
+            }
+
+            let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
+            let elapsedSeconds = min(practiceLocalizationTimeoutSeconds, Int(elapsed.rounded(.down)))
+            practiceLocalizationState = .locating(
+                elapsedSeconds: elapsedSeconds,
+                totalSeconds: practiceLocalizationTimeoutSeconds
+            )
+
+            switch appModel.resolveRuntimeCalibrationFromTrackedAnchors() {
+            case .resolved:
+                practiceLocalizationState = .ready
+                practiceSessionViewModel.startGuidingIfReady()
+                hasStartedGuidingInCurrentImmersiveSession = true
+                return
+
+            case .missingStoredCalibration:
+                await handlePracticeLocalizationFailure(.missingStoredCalibration, dismissImmersiveSpace: dismissImmersiveSpace)
+                return
+
+            case .anchorMissing(let id):
+                lastRecoverableResolution = .anchorMissing(id: id)
+
+            case .anchorNotTracked(let id):
+                lastRecoverableResolution = .anchorNotTracked(id: id)
+            }
+
+            if elapsed >= Double(practiceLocalizationTimeoutSeconds) {
+                break
+            }
+
+            try? await Task.sleep(nanoseconds: practiceLocalizationPollingIntervalNanoseconds)
+        }
+
+        guard Task.isCancelled == false else { return }
+
+        let timeoutFailure: PracticeLocalizationFailure
+        if let lastRecoverableResolution {
+            switch lastRecoverableResolution {
+            case .anchorMissing(let id):
+                timeoutFailure = .anchorMissing(id: id)
+            case .anchorNotTracked(let id):
+                timeoutFailure = .anchorNotTracked(
+                    id: id,
+                    waitedSeconds: practiceLocalizationTimeoutSeconds
+                )
+            case .resolved:
+                timeoutFailure = .providerNotRunning(state: currentProviderStateSummary())
+            case .missingStoredCalibration:
+                timeoutFailure = .missingStoredCalibration
+            }
+        } else {
+            timeoutFailure = .providerNotRunning(state: currentProviderStateSummary())
+        }
+
+        await handlePracticeLocalizationFailure(timeoutFailure, dismissImmersiveSpace: dismissImmersiveSpace)
+    }
+
+    private func waitForProvidersToRunOrFail() async -> PracticeLocalizationFailure? {
+        let startedAt = ProcessInfo.processInfo.systemUptime
+
+        while Task.isCancelled == false {
+            if let hardFailure = immediatePracticeFailureReason() {
+                return hardFailure
+            }
+
+            let worldState = arTrackingService.providerStateByName["world"] ?? .idle
+            let handState = arTrackingService.providerStateByName["hand"] ?? .idle
+
+            if worldState == .running, handState == .running {
+                return nil
+            }
+
+            if ProcessInfo.processInfo.systemUptime - startedAt >= Double(providerStartupTimeoutSeconds) {
+                return .providerNotRunning(state: currentProviderStateSummary())
+            }
+
+            try? await Task.sleep(nanoseconds: practiceLocalizationPollingIntervalNanoseconds)
+        }
+
+        return nil
+    }
+
+    private func immediatePracticeFailureReason() -> PracticeLocalizationFailure? {
+        if arTrackingService.isWorldTrackingSupported == false {
+            return .worldTrackingUnsupported
+        }
+
+        if let worldAuthorizationStatus = arTrackingService.authorizationStatusByType[.worldSensing],
+           worldAuthorizationStatus != .allowed {
+            return .worldSensingDenied
+        }
+
+        if let handAuthorizationStatus = arTrackingService.authorizationStatusByType[.handTracking],
+           handAuthorizationStatus != .allowed {
+            return .handTrackingDenied
+        }
+
+        if let worldState = arTrackingService.providerStateByName["world"] {
+            switch worldState {
+            case .unsupported:
+                return .worldTrackingUnsupported
+            case .unauthorized:
+                return .worldSensingDenied
+            case .failed(let reason):
+                return .providerNotRunning(state: "world=failed(\(reason))")
+            default:
+                break
+            }
+        }
+
+        if let handState = arTrackingService.providerStateByName["hand"] {
+            switch handState {
+            case .unauthorized:
+                return .handTrackingDenied
+            case .failed(let reason):
+                return .providerNotRunning(state: "hand=failed(\(reason))")
+            default:
+                break
+            }
+        }
+
+        return nil
+    }
+
+    private func currentProviderStateSummary() -> String {
+        let worldState = arTrackingService.providerStateByName["world"]?.description ?? "unknown"
+        let handState = arTrackingService.providerStateByName["hand"]?.description ?? "unknown"
+        return "world=\(worldState), hand=\(handState)"
+    }
+
+    private func handlePracticeLocalizationFailure(
+        _ failure: PracticeLocalizationFailure,
+        dismissImmersiveSpace: DismissImmersiveSpaceAction
+    ) async {
+        guard Task.isCancelled == false else { return }
+
+        practiceLocalizationState = .failed(reason: failure)
+        hasStartedGuidingInCurrentImmersiveSession = false
+        appModel.clearRuntimeCalibrationForPracticeRelocation()
+
+        await closeImmersiveForStep(using: dismissImmersiveSpace)
+        await recoverImmersiveStateIfStuck()
+    }
+
+    private func cancelPracticeLocalizationTask() {
+        practiceLocalizationTask?.cancel()
+        practiceLocalizationTask = nil
     }
 
     private func resolvedTrackedWorldAnchorPoint(anchorID: UUID?) -> SIMD3<Float>? {
