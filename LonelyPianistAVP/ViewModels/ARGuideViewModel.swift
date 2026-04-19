@@ -21,6 +21,10 @@ final class ARGuideViewModel {
         appModel.calibration
     }
 
+    var storedCalibration: StoredWorldAnchorCalibration? {
+        appModel.storedCalibration
+    }
+
     var pendingCalibrationCaptureAnchor: CalibrationAnchorPoint? {
         get { appModel.pendingCalibrationCaptureAnchor }
         set { appModel.pendingCalibrationCaptureAnchor = newValue }

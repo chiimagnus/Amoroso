@@ -1,3 +1,4 @@
+import ARKit
 import SwiftUI
 
 /// Maintains app-wide state
@@ -27,6 +28,8 @@ class AppModel {
     var importedSteps: [PracticeStep] = []
     var importErrorMessage: String?
 
+    var storedCalibration: StoredWorldAnchorCalibration?
+
     var calibration: PianoCalibration? {
         didSet { applySessionIfPossible() }
     }
@@ -34,14 +37,14 @@ class AppModel {
     var pendingCalibrationCaptureAnchor: CalibrationAnchorPoint?
     var calibrationStatusMessage: String?
 
-    private let calibrationStore: PianoCalibrationStoreProtocol
+    private let worldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol
     private let keyGeometryService: PianoKeyGeometryServiceProtocol
     private let importService: MusicXMLImportServiceProtocol
     private let parser: MusicXMLParserProtocol
     private let stepBuilder: PracticeStepBuilderProtocol
 
     init(
-        calibrationStore: PianoCalibrationStoreProtocol? = nil,
+        worldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol? = nil,
         keyGeometryService: PianoKeyGeometryServiceProtocol? = nil,
         importService: MusicXMLImportServiceProtocol? = nil,
         parser: MusicXMLParserProtocol? = nil,
@@ -50,7 +53,7 @@ class AppModel {
         arTrackingService: ARTrackingServiceProtocol? = nil,
         calibrationCaptureService: CalibrationPointCaptureService? = nil
     ) {
-        self.calibrationStore = calibrationStore ?? PianoCalibrationStore()
+        self.worldAnchorCalibrationStore = worldAnchorCalibrationStore ?? WorldAnchorCalibrationStore()
         self.keyGeometryService = keyGeometryService ?? PianoKeyGeometryService()
         self.importService = importService ?? MusicXMLImportService()
         self.parser = parser ?? MusicXMLParser()
@@ -93,27 +96,68 @@ class AppModel {
 
     func loadStoredCalibrationIfPossible() {
         do {
-            guard let stored = try calibrationStore.load() else { return }
-            calibration = stored
-            calibrationCaptureService.a0Point = stored.a0.simdValue
-            calibrationCaptureService.c8Point = stored.c8.simdValue
-            calibrationStatusMessage = "已加载校准"
+            guard let stored = try worldAnchorCalibrationStore.load() else { return }
+            storedCalibration = stored
+            calibrationStatusMessage = "已加载校准（待定位）"
         } catch {
             calibrationStatusMessage = "加载校准失败：\(error.localizedDescription)"
         }
     }
 
     func saveCalibrationIfPossible() {
-        guard let built = calibrationCaptureService.buildCalibration() else {
+        guard
+            let a0AnchorID = calibrationCaptureService.a0AnchorID,
+            let c8AnchorID = calibrationCaptureService.c8AnchorID,
+            a0AnchorID != c8AnchorID
+        else {
             calibrationStatusMessage = "校准信息不完整"
             return
         }
+
+        let savedCalibration = StoredWorldAnchorCalibration(
+            a0AnchorID: a0AnchorID,
+            c8AnchorID: c8AnchorID,
+            whiteKeyWidth: calibration?.whiteKeyWidth ?? storedCalibration?.whiteKeyWidth ?? 0.0235
+        )
+        let previousStoredCalibration = storedCalibration
+
         do {
-            try calibrationStore.save(built)
-            calibration = built
-            calibrationStatusMessage = "已保存校准"
+            try worldAnchorCalibrationStore.save(savedCalibration)
+            storedCalibration = savedCalibration
+            calibration = nil
+            calibrationStatusMessage = "已保存校准（待定位）"
+
+            if let previousStoredCalibration {
+                Task { @MainActor [weak self] in
+                    await self?.removeOldAnchorsIfPossible(
+                        previous: previousStoredCalibration,
+                        current: savedCalibration
+                    )
+                }
+            }
         } catch {
             calibrationStatusMessage = "保存校准失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func removeOldAnchorsIfPossible(
+        previous: StoredWorldAnchorCalibration,
+        current: StoredWorldAnchorCalibration
+    ) async {
+        let oldIDs = Set([previous.a0AnchorID, previous.c8AnchorID])
+        let currentIDs = Set([current.a0AnchorID, current.c8AnchorID])
+
+        for oldID in oldIDs where currentIDs.contains(oldID) == false {
+            guard let oldAnchor = arTrackingService.worldAnchorsByID[oldID] else {
+                print("未在当前环境恢复该锚点，无法删除（UUID=\(oldID.uuidString)）")
+                continue
+            }
+
+            do {
+                try await arTrackingService.worldTrackingProvider.removeAnchor(oldAnchor)
+            } catch {
+                print("删除旧锚点失败（UUID=\(oldID.uuidString)）：\(error.localizedDescription)")
+            }
         }
     }
 
