@@ -32,6 +32,8 @@ struct ContentView: View {
                                     subtitle: "按高亮键位弹奏并推进练习步骤。"
                                 )
                             }
+                            .disabled(homeViewModel.canEnterPractice == false)
+                            .opacity(homeViewModel.canEnterPractice ? 1.0 : 0.45)
 
                             Text("导入 MusicXML 后会生成可练习步骤。")
                                 .font(.caption)
