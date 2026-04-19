@@ -64,10 +64,14 @@ class AppModel {
     }
 
     func beginCalibrationRecapture() {
+        let persistedAnchorIDs = Set([
+            storedCalibration?.a0AnchorID,
+            storedCalibration?.c8AnchorID
+        ].compactMap { $0 })
         let capturedAnchorIDs = Set([
             calibrationCaptureService.a0AnchorID,
             calibrationCaptureService.c8AnchorID
-        ].compactMap { $0 })
+        ].compactMap { $0 }).subtracting(persistedAnchorIDs)
 
         guard capturedAnchorIDs.isEmpty == false else {
             resetCalibrationCaptureState()
@@ -135,6 +139,8 @@ class AppModel {
             try worldAnchorCalibrationStore.save(savedCalibration)
             storedCalibration = savedCalibration
             calibration = nil
+            pendingCalibrationCaptureAnchor = nil
+            calibrationCaptureService.reset()
             calibrationStatusMessage = "已保存校准（待定位）"
 
             if let previousStoredCalibration {

@@ -158,6 +158,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         leftIndexFingerTipPosition = nil
         rightIndexFingerTipPosition = nil
         rightThumbTipPosition = nil
+        worldAnchorsByID.removeAll()
 
         if case .running = providerStateByName["hand"] {
             providerStateByName["hand"] = .stopped
@@ -217,7 +218,14 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             guard let self else { return }
             for await update in worldTrackingProvider.anchorUpdates {
                 guard Task.isCancelled == false else { return }
-                worldAnchorsByID[update.anchor.id] = update.anchor
+                switch update.event {
+                case .removed:
+                    worldAnchorsByID.removeValue(forKey: update.anchor.id)
+                case .added, .updated:
+                    worldAnchorsByID[update.anchor.id] = update.anchor
+                @unknown default:
+                    worldAnchorsByID[update.anchor.id] = update.anchor
+                }
             }
         }
     }
