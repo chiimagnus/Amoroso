@@ -7,6 +7,7 @@ struct ContentView: View {
     @Bindable var arGuideViewModel: ARGuideViewModel
 
     @State private var navigationPath: [MainFlowRoute] = []
+    @ScaledMetric(relativeTo: .title) private var stepOrbSize: CGFloat = 150
 
     private enum MainFlowRoute: Hashable {
         case calibration
@@ -15,74 +16,8 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    GroupBox("流程入口") {
-                        VStack(alignment: .leading, spacing: 8) {
-                            NavigationLink(value: MainFlowRoute.calibration) {
-                                stepEntry(
-                                    title: "Step 1 · 校准",
-                                    subtitle: "捕获 A0 / C8 并保存钢琴几何。"
-                                )
-                            }
-
-                            NavigationLink(value: MainFlowRoute.practice) {
-                                stepEntry(
-                                    title: "Step 2 · 开始练习",
-                                    subtitle: "按高亮键位弹奏并推进练习步骤。"
-                                )
-                            }
-                            .disabled(homeViewModel.canEnterPractice == false)
-                            .opacity(homeViewModel.canEnterPractice ? 1.0 : 0.45)
-
-                            Text("导入 MusicXML 后会生成可练习步骤。")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 4)
-                        }
-                    }
-
-                    GroupBox("状态") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            LabeledContent("校准") {
-                                Text(homeViewModel.calibrationStatusText)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            LabeledContent("谱子") {
-                                Text(homeViewModel.scoreStatusText)
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if let stepCountText = homeViewModel.stepCountText {
-                                LabeledContent("步骤") {
-                                    Text(stepCountText)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(homeViewModel.nextActionHint)
-                                if let message = homeViewModel.calibrationStatusMessage {
-                                    Text(message)
-                                }
-                            }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if let importErrorMessage = homeViewModel.importErrorMessage {
-                        GroupBox("导入错误") {
-                            Text(importErrorMessage)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-                .padding(16)
-            }
+            mainFlowPanel
+                .padding(18)
             .navigationTitle("孤独钢琴家")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: MainFlowRoute.self) { route in
@@ -114,17 +49,111 @@ struct ContentView: View {
         ) { result in
             homeViewModel.handleImportResult(result)
         }
+        .alert(
+            "导入失败",
+            isPresented: Binding(
+                get: { homeViewModel.importErrorMessage != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        homeViewModel.clearImportError()
+                    }
+                }
+            )
+        ) {
+            Button("好") {
+                homeViewModel.clearImportError()
+            }
+        } message: {
+            Text(homeViewModel.importErrorMessage ?? "未知错误")
+        }
     }
 
-    private func stepEntry(title: String, subtitle: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.headline)
-            Text(subtitle)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private var mainFlowPanel: some View {
+        VStack {
+            Spacer(minLength: 0)
+
+            HStack(spacing: 18) {
+                stepNode(
+                    title: "校准",
+                    stepLabel: "第一步",
+                    isEnabled: true,
+                    route: .calibration,
+                    accent: .blue,
+                    helpText: nil
+                )
+
+                Image(systemName: "arrow.right")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+
+                stepNode(
+                    title: "开始练习",
+                    stepLabel: "第二步",
+                    isEnabled: homeViewModel.canEnterPractice,
+                    route: .practice,
+                    accent: .green,
+                    helpText: homeViewModel.canEnterPractice ? nil : "需要先完成校准并导入 MusicXML"
+                )
+                .opacity(homeViewModel.canEnterPractice ? 1.0 : 0.45)
+            }
+            .frame(maxWidth: .infinity, alignment: .center)
+
+            Spacer(minLength: 0)
         }
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func stepNode(
+        title: String,
+        stepLabel: String,
+        isEnabled: Bool,
+        route: MainFlowRoute,
+        accent: Color,
+        helpText: String?
+    ) -> some View {
+        let base = NavigationLink(value: route) {
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(.thinMaterial)
+                        .overlay {
+                            Circle()
+                                .strokeBorder(accent.opacity(0.55), lineWidth: 2)
+                        }
+
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.primary)
+                        .padding(16)
+
+                    if isEnabled == false {
+                        VStack {
+                            Spacer()
+                            Image(systemName: "lock.fill")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.bottom, 14)
+                    }
+                }
+                .frame(width: stepOrbSize, height: stepOrbSize)
+
+                Text(stepLabel)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .buttonStyle(.plain)
+        .hoverEffect()
+        .disabled(isEnabled == false)
+
+        if let helpText {
+            base.help(helpText)
+        } else {
+            base
+        }
     }
 }
 

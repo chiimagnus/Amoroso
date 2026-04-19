@@ -47,6 +47,10 @@ final class HomeViewModel {
         appModel.calibrationStatusMessage
     }
 
+    func clearImportError() {
+        appModel.importErrorMessage = nil
+    }
+
     var canImportScore: Bool {
         immersiveSpaceState == .closed
     }
