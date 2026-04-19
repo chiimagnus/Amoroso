@@ -106,15 +106,19 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         sessionTask = Task { [weak self] in
             guard let self else { return }
 
+            let handRequiredAuthorizations = isHandSupported ? HandTrackingProvider.requiredAuthorizations : []
+            let worldRequiredAuthorizations = isWorldSupported ? WorldTrackingProvider.requiredAuthorizations : []
+
             let requiredAuthorizations = deduplicatedRequiredAuthorizations(
                 includeHand: isHandSupported,
                 includeWorld: isWorldSupported
             )
-            let statuses = await session.requestAuthorization(for: requiredAuthorizations)
+            let statuses: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] =
+                requiredAuthorizations.isEmpty ? [:] : await session.requestAuthorization(for: requiredAuthorizations)
             authorizationStatusByType = statuses
 
-            let isHandAllowed = isHandSupported && statuses[.handTracking] == .allowed
-            let isWorldAllowed = isWorldSupported && statuses[.worldSensing] == .allowed
+            let isHandAllowed = isHandSupported && isAuthorized(requiredAuthorizations: handRequiredAuthorizations, statuses: statuses)
+            let isWorldAllowed = isWorldSupported && isAuthorized(requiredAuthorizations: worldRequiredAuthorizations, statuses: statuses)
 
             if isHandSupported, isHandAllowed == false {
                 providerStateByName["hand"] = .unauthorized
@@ -269,6 +273,18 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             }
         }
         return ordered
+    }
+
+    private func isAuthorized(
+        requiredAuthorizations: [ARKitSession.AuthorizationType],
+        statuses: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus]
+    ) -> Bool {
+        for required in requiredAuthorizations {
+            if statuses[required] != .allowed {
+                return false
+            }
+        }
+        return true
     }
 
     private func extractFingerTips(

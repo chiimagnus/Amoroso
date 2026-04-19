@@ -10,7 +10,6 @@ final class ARGuideViewModel {
     enum PracticeLocalizationFailure: Equatable {
         case missingImportedSteps
         case missingStoredCalibration
-        case worldSensingDenied
         case handTrackingDenied
         case worldTrackingUnsupported
         case providerNotRunning(state: String)
@@ -25,8 +24,6 @@ final class ARGuideViewModel {
                 return "请先导入 MusicXML。"
             case .missingStoredCalibration:
                 return "未发现校准数据，请先 Step 1 校准。"
-            case .worldSensingDenied:
-                return "无法定位：World Sensing 权限未授权（请在系统设置中允许本 App 访问）。"
             case .handTrackingDenied:
                 return "无法定位：Hand Tracking 权限未授权（请在系统设置中允许本 App 访问）。"
             case .worldTrackingUnsupported:
@@ -369,7 +366,7 @@ final class ARGuideViewModel {
         case (_, .unsupported):
             calibrationStatusMessage = "世界追踪不可用：此环境不支持 World Tracking。"
         case (_, .unauthorized):
-            calibrationStatusMessage = "World Sensing 未授权：请在系统设置中允许本 App 访问。"
+            calibrationStatusMessage = "世界追踪不可用：WorldTrackingProvider 未能启动（请稍后重试）。"
         case (_, .failed(let reason)):
             calibrationStatusMessage = "世界追踪启动失败：\(reason)"
 
@@ -595,11 +592,6 @@ final class ARGuideViewModel {
             return .worldTrackingUnsupported
         }
 
-        if let worldAuthorizationStatus = arTrackingService.authorizationStatusByType[.worldSensing],
-           worldAuthorizationStatus != .allowed {
-            return .worldSensingDenied
-        }
-
         if let handAuthorizationStatus = arTrackingService.authorizationStatusByType[.handTracking],
            handAuthorizationStatus != .allowed {
             return .handTrackingDenied
@@ -610,7 +602,7 @@ final class ARGuideViewModel {
             case .unsupported:
                 return .worldTrackingUnsupported
             case .unauthorized:
-                return .worldSensingDenied
+                return .providerNotRunning(state: currentProviderStateSummary())
             case .failed(let reason):
                 return .providerNotRunning(state: "world=failed(\(reason))")
             default:
