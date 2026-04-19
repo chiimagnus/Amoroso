@@ -146,37 +146,15 @@ private struct StepOrbLink: View {
     }
 }
 
-#Preview("主页 - 未校准") {
+#Preview("主页 - Step2 未解锁") {
     let appModel = AppModel()
-    ContentView(
-        homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
-    )
-}
-
-#Preview("主页 - 沉浸空间打开") {
-    let appModel = AppModel()
-    appModel.immersiveSpaceState = .open
     return ContentView(
         homeViewModel: HomeViewModel(appModel: appModel),
         arGuideViewModel: ARGuideViewModel(appModel: appModel)
     )
 }
 
-#Preview("主页 - 已校准未导入") {
-    let appModel = AppModel()
-    appModel.calibration = PianoCalibration(
-        a0: SIMD3<Float>(-0.7, 0.8, -1.0),
-        c8: SIMD3<Float>(0.7, 0.8, -1.0),
-        planeHeight: 0.8
-    )
-    return ContentView(
-        homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
-    )
-}
-
-#Preview("主页 - 可开始练习") {
+#Preview("主页 - Step2 已解锁") {
     let appModel = AppModel()
     appModel.calibration = PianoCalibration(
         a0: SIMD3<Float>(-0.7, 0.8, -1.0),
@@ -190,6 +168,15 @@ private struct StepOrbLink: View {
         ],
         file: nil
     )
+    return ContentView(
+        homeViewModel: HomeViewModel(appModel: appModel),
+        arGuideViewModel: ARGuideViewModel(appModel: appModel)
+    )
+}
+
+#Preview("主页 - 导入失败 Alert") {
+    let appModel = AppModel()
+    appModel.importErrorMessage = "导入失败：预览用错误"
     return ContentView(
         homeViewModel: HomeViewModel(appModel: appModel),
         arGuideViewModel: ARGuideViewModel(appModel: appModel)
