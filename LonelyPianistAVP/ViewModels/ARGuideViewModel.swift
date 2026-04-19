@@ -191,17 +191,6 @@ final class ARGuideViewModel {
         handTrackingService.stop()
     }
 
-    var handTrackingStatusText: String {
-        switch handTrackingService.state {
-        case .idle:
-            return "手部：空闲"
-        case .running:
-            return "手部：运行中（\(handTrackingService.fingerTipPositions.count) 个点）"
-        case .unavailable(let reason):
-            return "手部：不可用（\(reason)）"
-        }
-    }
-
     var practiceStatusText: String {
         switch practiceSessionViewModel.state {
         case .idle:

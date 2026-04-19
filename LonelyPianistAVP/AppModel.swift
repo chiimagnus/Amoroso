@@ -60,14 +60,6 @@ class AppModel {
         self.calibrationCaptureService = calibrationCaptureService ?? CalibrationPointCaptureService()
     }
 
-    func beginNewARGuideSession() {
-        pendingCalibrationCaptureAnchor = nil
-        calibrationStatusMessage = "请重新校准"
-        calibration = nil
-        calibrationCaptureService.reset()
-        practiceSessionViewModel.resetSession()
-    }
-
     func beginCalibrationRecapture() {
         pendingCalibrationCaptureAnchor = nil
         calibrationStatusMessage = "请重新校准"

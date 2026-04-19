@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftUI
 
 @MainActor
 @Observable
@@ -15,14 +14,6 @@ final class HomeViewModel {
 
     var immersiveSpaceState: AppModel.ImmersiveSpaceState {
         appModel.immersiveSpaceState
-    }
-
-    var immersiveSpaceID: String {
-        appModel.immersiveSpaceID
-    }
-
-    var immersiveStatusText: String {
-        immersiveSpaceState == .open ? "运行中" : "已停止"
     }
 
     var calibrationStatusText: String {
