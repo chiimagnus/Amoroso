@@ -64,11 +64,21 @@ class AppModel {
     }
 
     func beginCalibrationRecapture() {
-        pendingCalibrationCaptureAnchor = nil
-        calibrationStatusMessage = "请重新校准"
-        calibration = nil
-        calibrationCaptureService.reset()
-        practiceSessionViewModel.resetSession()
+        let capturedAnchorIDs = Set([
+            calibrationCaptureService.a0AnchorID,
+            calibrationCaptureService.c8AnchorID
+        ].compactMap { $0 })
+
+        guard capturedAnchorIDs.isEmpty == false else {
+            resetCalibrationCaptureState()
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.removeCapturedAnchorsIfPossible(capturedAnchorIDs)
+            self.resetCalibrationCaptureState()
+        }
     }
 
     func setImportedSteps(_ steps: [PracticeStep], file: ImportedMusicXMLFile?) {
@@ -159,6 +169,28 @@ class AppModel {
                 print("删除旧锚点失败（UUID=\(oldID.uuidString)）：\(error.localizedDescription)")
             }
         }
+    }
+
+    private func removeCapturedAnchorsIfPossible(_ anchorIDs: Set<UUID>) async {
+        for anchorID in anchorIDs {
+            guard let anchor = arTrackingService.worldAnchorsByID[anchorID] else {
+                continue
+            }
+
+            do {
+                try await arTrackingService.worldTrackingProvider.removeAnchor(anchor)
+            } catch {
+                print("删除临时校准锚点失败（UUID=\(anchorID.uuidString)）：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func resetCalibrationCaptureState() {
+        pendingCalibrationCaptureAnchor = nil
+        calibrationStatusMessage = "请重新校准"
+        calibration = nil
+        calibrationCaptureService.reset()
+        practiceSessionViewModel.resetSession()
     }
 
     private func applySessionIfPossible() {
