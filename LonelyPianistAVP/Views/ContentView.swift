@@ -114,28 +114,32 @@ private struct StepOrbLink: View {
     let helpText: String?
     let orbSize: CGFloat
 
-    @State private var isHovering = false
-    private var isActive: Bool { isEnabled && isHovering }
-
     var body: some View {
         VStack(spacing: 10) {
             let base = NavigationLink(value: route) {
-                orb
-            }
-            .buttonStyle(.plain)
-            .buttonBorderShape(.circle)
-            .contentShape(Circle())
-            .containerShape(Circle())
-            .hoverEffect(.lift)
-            .disabled(isEnabled == false)
-            .onHover { hovering in
-                guard isEnabled else {
-                    isHovering = false
-                    return
+                ZStack {
+                    Text(title)
+                        .font(.title3.weight(.semibold))
+                        .multilineTextAlignment(.center)
+                        .frame(width: orbSize, height: orbSize)
+
+                    if isEnabled == false {
+                        VStack {
+                            Spacer()
+                            Image(systemName: "lock.fill")
+                                .font(.title3.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: orbSize, height: orbSize)
+                        .padding(.bottom, 14)
+                    }
                 }
-                isHovering = hovering
             }
-            .animation(.easeInOut(duration: 0.18), value: isHovering)
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.circle)
+            .tint(accent)
+            .controlSize(.extraLarge)
+            .disabled(isEnabled == false)
 
             if let helpText {
                 base.help(helpText)
@@ -147,37 +151,6 @@ private struct StepOrbLink: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
         }
-    }
-
-    private var orb: some View {
-        ZStack {
-            Circle()
-                .fill(.thinMaterial)
-                .overlay {
-                    Circle()
-                        .strokeBorder(accent.opacity(isActive ? 0.95 : 0.55), lineWidth: isActive ? 4 : 2)
-                }
-                .shadow(color: accent.opacity(isActive ? 0.55 : 0.0), radius: isActive ? 28 : 0)
-
-            Text(title)
-                .font(.title3.weight(.semibold))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.primary)
-                .padding(16)
-
-            if isEnabled == false {
-                VStack {
-                    Spacer()
-                    Image(systemName: "lock.fill")
-                        .font(.title3.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.bottom, 14)
-            }
-        }
-        .frame(width: orbSize, height: orbSize)
-        .scaleEffect(isActive ? 1.10 : 1.0)
-        .contentShape(Circle())
     }
 }
 
