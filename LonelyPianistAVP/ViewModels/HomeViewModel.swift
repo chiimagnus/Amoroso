@@ -62,7 +62,26 @@ final class HomeViewModel {
     }
 
     var canEnterPractice: Bool {
-        appModel.calibration != nil && appModel.importedSteps.isEmpty == false
+        true
+    }
+
+    var practiceEntryHelpText: String? {
+        let hasImportedSteps = appModel.importedSteps.isEmpty == false
+        let hasStoredCalibration = appModel.storedCalibration != nil
+
+        if hasImportedSteps == false, hasStoredCalibration == false {
+            return "可进入 Step 2；开始练习前需先完成 Step 1 校准并导入 MusicXML。"
+        }
+        if hasImportedSteps == false {
+            return "可进入 Step 2；开始练习前需先导入 MusicXML。"
+        }
+        if hasStoredCalibration == false {
+            return "可进入 Step 2；开始练习前需先完成 Step 1 校准。"
+        }
+        if appModel.calibration == nil {
+            return "可进入 Step 2；进入后会先定位钢琴。"
+        }
+        return nil
     }
 
     func handleImportResult(_ result: Result<[URL], Error>) {
