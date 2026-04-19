@@ -115,6 +115,7 @@ private struct StepOrbLink: View {
     let orbSize: CGFloat
 
     @State private var isHovering = false
+    private var isActive: Bool { isEnabled && isHovering }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -125,7 +126,7 @@ private struct StepOrbLink: View {
             .buttonBorderShape(.circle)
             .contentShape(Circle())
             .containerShape(Circle())
-            .hoverEffectDisabled(true)
+            .hoverEffect(.lift)
             .disabled(isEnabled == false)
             .onHover { hovering in
                 guard isEnabled else {
@@ -154,9 +155,9 @@ private struct StepOrbLink: View {
                 .fill(.thinMaterial)
                 .overlay {
                     Circle()
-                        .strokeBorder(accent.opacity(isHovering ? 0.85 : 0.55), lineWidth: isHovering ? 3 : 2)
+                        .strokeBorder(accent.opacity(isActive ? 0.95 : 0.55), lineWidth: isActive ? 4 : 2)
                 }
-                .shadow(color: accent.opacity(isHovering ? 0.35 : 0.0), radius: isHovering ? 18 : 0)
+                .shadow(color: accent.opacity(isActive ? 0.55 : 0.0), radius: isActive ? 28 : 0)
 
             Text(title)
                 .font(.title3.weight(.semibold))
@@ -175,7 +176,7 @@ private struct StepOrbLink: View {
             }
         }
         .frame(width: orbSize, height: orbSize)
-        .scaleEffect(isHovering ? 1.06 : 1.0)
+        .scaleEffect(isActive ? 1.10 : 1.0)
         .contentShape(Circle())
     }
 }
