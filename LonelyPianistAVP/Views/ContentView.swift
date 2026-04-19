@@ -91,7 +91,7 @@ struct ContentView: View {
                     CalibrationStepView(viewModel: arGuideViewModel)
                         .navigationTitle("Step 1 · 校准")
                 case .practice:
-                    ARGuideSheetView(viewModel: arGuideViewModel)
+                    PracticeStepView(viewModel: arGuideViewModel)
                         .navigationTitle("Step 2 · 开始练习")
                 }
             }

@@ -139,4 +139,15 @@ final class ARGuideViewModel {
             return "练习：已完成"
         }
     }
+
+    var practiceProgressText: String {
+        guard appModel.importedSteps.isEmpty == false else { return "0 / 0" }
+        let total = appModel.importedSteps.count
+        let completedCount = min(practiceSessionViewModel.currentStepIndex, total)
+        return "\(completedCount) / \(total)"
+    }
+
+    var canControlPractice: Bool {
+        hasImportedSteps
+    }
 }
