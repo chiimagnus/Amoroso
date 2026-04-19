@@ -13,6 +13,8 @@ final class CalibrationPointCaptureService {
     var reticlePoint: SIMD3<Float> = SIMD3<Float>(0, 0.8, -1.0)
     var a0Point: SIMD3<Float>?
     var c8Point: SIMD3<Float>?
+    var a0AnchorID: UUID?
+    var c8AnchorID: UUID?
 
     var isReticleReadyToConfirm: Bool = false
 
@@ -23,6 +25,8 @@ final class CalibrationPointCaptureService {
         reticlePoint = SIMD3<Float>(0, 0.8, -1.0)
         a0Point = nil
         c8Point = nil
+        a0AnchorID = nil
+        c8AnchorID = nil
         isReticleReadyToConfirm = false
         stableStartUptime = nil
         lastReticlePointForStability = nil
@@ -71,6 +75,24 @@ final class CalibrationPointCaptureService {
             a0Point = reticlePoint
         case .c8:
             c8Point = reticlePoint
+        }
+    }
+
+    func anchorID(for anchor: CalibrationAnchorPoint) -> UUID? {
+        switch anchor {
+        case .a0:
+            return a0AnchorID
+        case .c8:
+            return c8AnchorID
+        }
+    }
+
+    func setAnchorID(_ anchorID: UUID, for anchor: CalibrationAnchorPoint) {
+        switch anchor {
+        case .a0:
+            a0AnchorID = anchorID
+        case .c8:
+            c8AnchorID = anchorID
         }
     }
 

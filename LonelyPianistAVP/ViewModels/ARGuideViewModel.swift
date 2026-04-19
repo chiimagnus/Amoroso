@@ -1,3 +1,4 @@
+import ARKit
 import Foundation
 import Observation
 import SwiftUI
@@ -8,6 +9,7 @@ import simd
 final class ARGuideViewModel {
     private let appModel: AppModel
     private var handTrackingConsumerTask: Task<Void, Never>?
+    private var calibrationAnchorCaptureTask: Task<Void, Never>?
     private var hasStartedGuidingInCurrentImmersiveSession = false
     private var wasRightHandPinching = false
 
@@ -198,23 +200,50 @@ final class ARGuideViewModel {
         }()
 
         if isRightHandPinching, wasRightHandPinching == false {
-            confirmPendingCalibrationAnchorIfReady()
+            calibrationAnchorCaptureTask?.cancel()
+            calibrationAnchorCaptureTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.confirmPendingCalibrationAnchorIfReady()
+                self.calibrationAnchorCaptureTask = nil
+            }
         }
         wasRightHandPinching = isRightHandPinching
     }
 
-    private func confirmPendingCalibrationAnchorIfReady() {
+    private func confirmPendingCalibrationAnchorIfReady() async {
         guard let pendingAnchor = pendingCalibrationCaptureAnchor else { return }
         guard calibrationCaptureService.isReticleReadyToConfirm else {
             calibrationStatusMessage = "请先将左手食指放稳在 \(pendingAnchor == .a0 ? "A0" : "C8") 键上（等待准星变绿），再用右手捏合确认。"
             return
         }
-        calibrationCaptureService.capture(pendingAnchor)
-        calibrationStatusMessage = "已锁定 \(pendingAnchor == .a0 ? "A0" : "C8")"
-        pendingCalibrationCaptureAnchor = nil
+
+        let oldAnchorID = calibrationCaptureService.anchorID(for: pendingAnchor)
+        let reticlePoint = calibrationCaptureService.reticlePoint
+
+        var anchorTransform = matrix_identity_float4x4
+        anchorTransform.columns.3 = SIMD4<Float>(reticlePoint.x, reticlePoint.y, reticlePoint.z, 1)
+        let worldAnchor = WorldAnchor(originFromAnchorTransform: anchorTransform)
+
+        do {
+            try await arTrackingService.worldTrackingProvider.addAnchor(worldAnchor)
+            calibrationCaptureService.capture(pendingAnchor)
+            calibrationCaptureService.setAnchorID(worldAnchor.id, for: pendingAnchor)
+            calibrationStatusMessage = "已锁定 \(pendingAnchor == .a0 ? "A0" : "C8")"
+            pendingCalibrationCaptureAnchor = nil
+
+            if let oldAnchorID,
+               oldAnchorID != worldAnchor.id,
+               let oldAnchor = arTrackingService.worldAnchorsByID[oldAnchorID] {
+                try? await arTrackingService.worldTrackingProvider.removeAnchor(oldAnchor)
+            }
+        } catch {
+            calibrationStatusMessage = "锁定失败：\(error.localizedDescription)"
+        }
     }
 
     func stopHandTracking() {
+        calibrationAnchorCaptureTask?.cancel()
+        calibrationAnchorCaptureTask = nil
         handTrackingConsumerTask?.cancel()
         handTrackingConsumerTask = nil
         arTrackingService.stop()
