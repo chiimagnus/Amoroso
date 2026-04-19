@@ -12,14 +12,13 @@ struct ContentView: View {
     @Bindable var arGuideViewModel: ARGuideViewModel
 
     @State private var navigationPath: [MainFlowRoute] = []
-    @ScaledMetric(relativeTo: .title) private var stepOrbSize: CGFloat = 200
+    @ScaledMetric(relativeTo: .title) private var stepOrbSize: CGFloat = 250
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
             mainFlowPanel
                 .padding(18)
             .navigationTitle("孤独钢琴家")
-            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: MainFlowRoute.self) { route in
                 switch route {
                 case .calibration:
@@ -36,7 +35,6 @@ struct ContentView: View {
                         Button("导入 MusicXML…") {
                             homeViewModel.isImporterPresented = true
                         }
-                        .hoverEffect()
                     }
                 }
             }
@@ -68,10 +66,9 @@ struct ContentView: View {
     }
 
     private var mainFlowPanel: some View {
-        VStack {
-            Spacer(minLength: 0)
+        ScrollView(.horizontal) {
 
-            HStack(spacing: 18) {
+            HStack {
                 StepOrbLink(
                     title: "校准",
                     stepLabel: "第一步",
@@ -81,9 +78,11 @@ struct ContentView: View {
                     orbSize: stepOrbSize
                 )
 
+                Spacer()
+
                 Image(systemName: "arrow.right")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
+
+                Spacer()
 
                 StepOrbLink(
                     title: "开始练习",
@@ -95,11 +94,7 @@ struct ContentView: View {
                 )
                 .opacity(homeViewModel.canEnterPractice ? 1.0 : 0.45)
             }
-            .frame(maxWidth: .infinity, alignment: .center)
-
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
