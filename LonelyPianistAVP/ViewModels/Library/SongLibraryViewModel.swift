@@ -6,16 +6,19 @@ import Observation
 final class SongLibraryViewModel {
     private let appModel: AppModel
     private let indexStore: SongLibraryIndexStoreProtocol
+    private let fileStore: SongFileStoreProtocol
 
     var index: SongLibraryIndex = .empty
     var errorMessage: String?
 
     init(
         appModel: AppModel,
-        indexStore: SongLibraryIndexStoreProtocol? = nil
+        indexStore: SongLibraryIndexStoreProtocol? = nil,
+        fileStore: SongFileStoreProtocol? = nil
     ) {
         self.appModel = appModel
         self.indexStore = indexStore ?? SongLibraryIndexStore()
+        self.fileStore = fileStore ?? SongFileStore()
         reload()
     }
 
@@ -36,7 +39,34 @@ final class SongLibraryViewModel {
     }
 
     func didTapImportMusicXML() {
-        errorMessage = "导入功能将在下一步接入。"
+        // 由 View 层触发 fileImporter
+    }
+
+    func importMusicXML(from selectedURLs: [URL]) {
+        guard selectedURLs.isEmpty == false else { return }
+
+        do {
+            var updatedIndex = try indexStore.load()
+
+            for url in selectedURLs {
+                let imported = try fileStore.importMusicXML(from: url)
+                let entry = SongLibraryEntry(
+                    id: UUID(),
+                    displayName: URL(fileURLWithPath: imported.sourceFileName)
+                        .deletingPathExtension()
+                        .lastPathComponent,
+                    musicXMLFileName: imported.storedFileName,
+                    importedAt: imported.importedAt,
+                    audioFileName: nil
+                )
+                updatedIndex.entries.append(entry)
+            }
+
+            try indexStore.save(updatedIndex)
+            index = updatedIndex
+        } catch {
+            errorMessage = "导入失败：\(error.localizedDescription)"
+        }
     }
 
     func didTapStartPractice(entryID: UUID) {

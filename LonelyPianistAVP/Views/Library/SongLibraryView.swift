@@ -1,7 +1,9 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SongLibraryView: View {
     @Bindable var viewModel: SongLibraryViewModel
+    @State private var isImporterPresented = false
 
     var body: some View {
         Group {
@@ -16,7 +18,20 @@ struct SongLibraryView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("导入 MusicXML") {
                     viewModel.didTapImportMusicXML()
+                    isImporterPresented = true
                 }
+            }
+        }
+        .fileImporter(
+            isPresented: $isImporterPresented,
+            allowedContentTypes: [.xml, .musicXML],
+            allowsMultipleSelection: true
+        ) { result in
+            do {
+                let urls = try result.get()
+                viewModel.importMusicXML(from: urls)
+            } catch {
+                viewModel.errorMessage = "导入失败：\(error.localizedDescription)"
             }
         }
         .onAppear {
@@ -49,6 +64,7 @@ struct SongLibraryView: View {
         } actions: {
             Button("导入 MusicXML") {
                 viewModel.didTapImportMusicXML()
+                isImporterPresented = true
             }
             .buttonStyle(.borderedProminent)
         }
