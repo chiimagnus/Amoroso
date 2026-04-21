@@ -113,4 +113,37 @@ final class SongLibraryViewModel {
             return false
         }
     }
+
+    func deleteEntry(entryID: UUID) {
+        guard let entryIndex = index.entries.firstIndex(where: { $0.id == entryID }) else {
+            return
+        }
+
+        let entry = index.entries[entryIndex]
+
+        do {
+            stopPlaybackIfNeeded(for: entry.id)
+
+            var updatedIndex = index
+            updatedIndex.entries.remove(at: entryIndex)
+
+            try fileStore.deleteScoreFile(named: entry.musicXMLFileName)
+            if let audioFileName = entry.audioFileName {
+                try fileStore.deleteAudioFile(named: audioFileName)
+            }
+
+            if updatedIndex.lastSelectedEntryID == entry.id {
+                updatedIndex.lastSelectedEntryID = updatedIndex.entries.last?.id
+            }
+
+            try indexStore.save(updatedIndex)
+            index = updatedIndex
+        } catch {
+            errorMessage = "删除失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func stopPlaybackIfNeeded(for entryID: UUID) {
+        // P3 将接入音频播放互斥逻辑；当前仅预留删除前停止播放 hook。
+    }
 }

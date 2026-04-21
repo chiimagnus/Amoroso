@@ -5,6 +5,7 @@ struct SongLibraryView: View {
     @Bindable var viewModel: SongLibraryViewModel
     let navigationPath: Binding<[MainFlowRoute]>
     @State private var isImporterPresented = false
+    @State private var pendingDeletionEntryID: UUID?
 
     init(
         viewModel: SongLibraryViewModel,
@@ -63,6 +64,29 @@ struct SongLibraryView: View {
         } message: {
             Text(viewModel.errorMessage ?? "未知错误")
         }
+        .confirmationDialog(
+            "确认删除该曲目？",
+            isPresented: Binding(
+                get: { pendingDeletionEntryID != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        pendingDeletionEntryID = nil
+                    }
+                }
+            )
+        ) {
+            if let entryID = pendingDeletionEntryID {
+                Button("删除", role: .destructive) {
+                    viewModel.deleteEntry(entryID: entryID)
+                    pendingDeletionEntryID = nil
+                }
+            }
+            Button("取消", role: .cancel) {
+                pendingDeletionEntryID = nil
+            }
+        } message: {
+            Text("删除后将移除曲谱文件及已绑定音频文件，且无法撤销。")
+        }
     }
 
     private var emptyState: some View {
@@ -100,6 +124,11 @@ struct SongLibraryView: View {
                 .buttonStyle(.bordered)
             }
             .padding(.vertical, 2)
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                Button("删除", role: .destructive) {
+                    pendingDeletionEntryID = entry.id
+                }
+            }
         }
     }
 }
