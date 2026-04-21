@@ -241,6 +241,8 @@ cd piano_dialogue_server/server
 - [oemer](https://github.com/BreezeWhite/oemer) by BreezeWhite · End-to-end OMR 引擎
 - Apple CoreMIDI / RealityKit / ARKit · 让这一切在本机跑得起来
 
+Third-party licenses/notices: see [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+
 ---
 
 ## 📄 License
