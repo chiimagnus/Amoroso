@@ -1,5 +1,5 @@
-import SwiftUI
 import RealityKit
+import SwiftUI
 
 struct ImmersiveView: View {
     @Bindable var viewModel: ARGuideViewModel

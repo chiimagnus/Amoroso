@@ -3,7 +3,7 @@ import OSLog
 
 @MainActor
 final class DialogueManager {
-    enum Status: String, Equatable, Sendable {
+    enum Status: String, Equatable {
         case idle
         case listening
         case thinking
@@ -138,34 +138,47 @@ final class DialogueManager {
         guard status != .idle else { return }
 
         switch status {
-        case .playing:
-            switch playbackInterruptionBehavior {
-            case .ignore:
-                return
-            case .interrupt:
-                if case .noteOn = event.type {
-                    stopAIPlaybackAndReturnToListening()
+            case .playing:
+                switch playbackInterruptionBehavior {
+                    case .ignore:
+                        return
+                    case .interrupt:
+                        if case .noteOn = event.type {
+                            stopAIPlaybackAndReturnToListening()
+                        }
+                    case .queue:
+                        break
                 }
-            case .queue:
+            case .thinking:
+                // Keep it simple for P3: ignore input while thinking.
+                return
+            default:
                 break
-            }
-        case .thinking:
-            // Keep it simple for P3: ignore input while thinking.
-            return
-        default:
-            break
         }
 
         silenceDetectionService.handle(event: event)
 
         switch event.type {
-        case .noteOn(let note, let velocity):
-            if phraseStartedAt == nil {
-                phraseStartedAt = event.timestamp
-            }
+            case let .noteOn(note, velocity):
+                if phraseStartedAt == nil {
+                    phraseStartedAt = event.timestamp
+                }
 
-            let key = NoteKey(note: note, channel: event.channel)
-            if let openNote = openNotes[key] {
+                let key = NoteKey(note: note, channel: event.channel)
+                if let openNote = openNotes[key] {
+                    appendHumanNote(
+                        note: note,
+                        velocity: openNote.velocity,
+                        channel: event.channel,
+                        startAt: openNote.startedAt,
+                        endAt: event.timestamp
+                    )
+                }
+                openNotes[key] = OpenNote(startedAt: event.timestamp, velocity: velocity)
+
+            case let .noteOff(note, _):
+                let key = NoteKey(note: note, channel: event.channel)
+                guard let openNote = openNotes.removeValue(forKey: key) else { return }
                 appendHumanNote(
                     note: note,
                     velocity: openNote.velocity,
@@ -173,22 +186,9 @@ final class DialogueManager {
                     startAt: openNote.startedAt,
                     endAt: event.timestamp
                 )
-            }
-            openNotes[key] = OpenNote(startedAt: event.timestamp, velocity: velocity)
 
-        case .noteOff(let note, _):
-            let key = NoteKey(note: note, channel: event.channel)
-            guard let openNote = openNotes.removeValue(forKey: key) else { return }
-            appendHumanNote(
-                note: note,
-                velocity: openNote.velocity,
-                channel: event.channel,
-                startAt: openNote.startedAt,
-                endAt: event.timestamp
-            )
-
-        case .controlChange:
-            return
+            case .controlChange:
+                return
         }
     }
 
@@ -203,7 +203,7 @@ final class DialogueManager {
             guard let self else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(80))
-                self.pollSilence()
+                pollSilence()
             }
         }
     }
@@ -221,7 +221,7 @@ final class DialogueManager {
             let phrase = phraseNotes.sorted(by: { $0.time < $1.time })
             resetPhraseCollection()
 
-            if status == .playing && playbackInterruptionBehavior == .queue {
+            if status == .playing, playbackInterruptionBehavior == .queue {
                 queuedPhrases.append(phrase)
                 return
             }
@@ -234,7 +234,7 @@ final class DialogueManager {
         generationTask?.cancel()
         generationTask = Task { [weak self] in
             guard let self else { return }
-            await self.runGeneration(for: phrase)
+            await runGeneration(for: phrase)
         }
     }
 

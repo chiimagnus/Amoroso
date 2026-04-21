@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 @MainActor
@@ -84,11 +84,11 @@ func timeoutFailureFallsBackToProviderStateSummary() {
     let failure = viewModel.practiceLocalizationTimeoutFailure(lastRecoverableResolution: nil)
 
     switch failure {
-    case .providerNotRunning(let state):
-        #expect(state.contains("world="))
-        #expect(state.contains("hand="))
-    default:
-        #expect(Bool(false), "Expected providerNotRunning, got \(failure)")
+        case let .providerNotRunning(state):
+            #expect(state.contains("world="))
+            #expect(state.contains("hand="))
+        default:
+            #expect(Bool(false), "Expected providerNotRunning, got \(failure)")
     }
 }
 

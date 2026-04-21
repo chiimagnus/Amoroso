@@ -1,6 +1,6 @@
 import Foundation
 
-struct RecordedNote: Identifiable, Hashable, Sendable {
+struct RecordedNote: Identifiable, Hashable {
     var id: UUID
     var note: Int
     var velocity: Int

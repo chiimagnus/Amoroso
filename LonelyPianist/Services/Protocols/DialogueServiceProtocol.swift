@@ -19,4 +19,3 @@ protocol DialogueServiceProtocol: AnyObject {
         sessionID: String?
     ) async throws -> (notes: [DialogueNote], latencyMs: Int?)
 }
-

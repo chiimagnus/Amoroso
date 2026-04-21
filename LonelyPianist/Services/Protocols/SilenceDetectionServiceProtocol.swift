@@ -7,4 +7,3 @@ protocol SilenceDetectionServiceProtocol {
     func handle(event: MIDIEvent)
     func pollSilenceDetected() -> Bool
 }
-

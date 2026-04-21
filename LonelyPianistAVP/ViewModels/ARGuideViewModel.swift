@@ -1,8 +1,8 @@
 import ARKit
 import Foundation
 import Observation
-import SwiftUI
 import simd
+import SwiftUI
 
 @MainActor
 @Observable
@@ -20,24 +20,24 @@ final class ARGuideViewModel {
 
         var message: String {
             switch self {
-            case .missingImportedSteps:
-                return "请先导入 MusicXML。"
-            case .missingStoredCalibration:
-                return "未发现校准数据，请先 Step 1 校准。"
-            case .handTrackingDenied:
-                return "无法定位：Hand Tracking 权限未授权（请在系统设置中允许本 App 访问）。"
-            case .worldTrackingUnsupported:
-                return "无法定位：此环境不支持 World Tracking。"
-            case .providerNotRunning(let state):
-                return "无法定位：WorldTrackingProvider 未运行（state=\(state)）。"
-            case .anchorMissing(let id):
-                return "无法定位：未在当前环境恢复已保存的锚点（id=\(id.uuidString)）。"
-            case .anchorNotTracked(let id, let waitedSeconds):
-                return "无法定位：锚点存在但尚未追踪（id=\(id.uuidString)，已等待 \(waitedSeconds) 秒）。"
-            case .anchorsTooClose(let distanceMeters):
-                return "校准数据异常：A0 与 C8 距离过近（\(String(format: "%.3f", distanceMeters))m）。请返回 Step 1 重新校准。"
-            case .immersiveOpenFailed(let message):
-                return message
+                case .missingImportedSteps:
+                    "请先导入 MusicXML。"
+                case .missingStoredCalibration:
+                    "未发现校准数据，请先 Step 1 校准。"
+                case .handTrackingDenied:
+                    "无法定位：Hand Tracking 权限未授权（请在系统设置中允许本 App 访问）。"
+                case .worldTrackingUnsupported:
+                    "无法定位：此环境不支持 World Tracking。"
+                case let .providerNotRunning(state):
+                    "无法定位：WorldTrackingProvider 未运行（state=\(state)）。"
+                case let .anchorMissing(id):
+                    "无法定位：未在当前环境恢复已保存的锚点（id=\(id.uuidString)）。"
+                case let .anchorNotTracked(id, waitedSeconds):
+                    "无法定位：锚点存在但尚未追踪（id=\(id.uuidString)，已等待 \(waitedSeconds) 秒）。"
+                case let .anchorsTooClose(distanceMeters):
+                    "校准数据异常：A0 与 C8 距离过近（\(String(format: "%.3f", distanceMeters))m）。请返回 Step 1 重新校准。"
+                case let .immersiveOpenFailed(message):
+                    message
             }
         }
     }
@@ -138,18 +138,18 @@ final class ARGuideViewModel {
 
     var practiceLocalizationStatusText: String? {
         switch practiceLocalizationState {
-        case .idle:
-            return nil
-        case .blocked(let reason), .failed(let reason):
-            return reason.message
-        case .openingImmersive:
-            return "正在打开沉浸空间…"
-        case .waitingForProviders:
-            return "正在启动追踪服务…"
-        case .locating(let elapsedSeconds, let totalSeconds):
-            return "正在定位钢琴…（\(elapsedSeconds)/\(totalSeconds)s）"
-        case .ready:
-            return "定位成功，已开始引导。"
+            case .idle:
+                nil
+            case let .blocked(reason), let .failed(reason):
+                reason.message
+            case .openingImmersive:
+                "正在打开沉浸空间…"
+            case .waitingForProviders:
+                "正在启动追踪服务…"
+            case let .locating(elapsedSeconds, totalSeconds):
+                "正在定位钢琴…（\(elapsedSeconds)/\(totalSeconds)s）"
+            case .ready:
+                "定位成功，已开始引导。"
         }
     }
 
@@ -163,17 +163,17 @@ final class ARGuideViewModel {
     var shouldSuggestCalibrationStep: Bool {
         let reason: PracticeLocalizationFailure
         switch practiceLocalizationState {
-        case .blocked(let blockingReason), .failed(let blockingReason):
-            reason = blockingReason
-        default:
-            return false
+            case let .blocked(blockingReason), let .failed(blockingReason):
+                reason = blockingReason
+            default:
+                return false
         }
 
         switch reason {
-        case .missingStoredCalibration, .anchorMissing, .anchorNotTracked, .anchorsTooClose:
-            return true
-        default:
-            return false
+            case .missingStoredCalibration, .anchorMissing, .anchorNotTracked, .anchorsTooClose:
+                return true
+            default:
+                return false
         }
     }
 
@@ -221,42 +221,42 @@ final class ARGuideViewModel {
         appModel.immersiveMode = mode
 
         switch appModel.immersiveSpaceState {
-        case .open:
-            return nil
-
-        case .inTransition:
-            for _ in 0..<40 {
-                await Task.yield()
-                if appModel.immersiveSpaceState != .inTransition {
-                    break
-                }
-            }
-
-            if appModel.immersiveSpaceState == .closed {
-                return await openImmersiveForStep(mode: mode, using: openImmersiveSpace)
-            }
-            return nil
-
-        case .closed:
-            appModel.immersiveSpaceState = .inTransition
-            switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-            case .opened:
-                // Don't set immersiveSpaceState to .open here.
-                // ImmersiveView.onAppear is the single source of truth.
+            case .open:
                 return nil
 
-            case .userCancelled:
-                appModel.immersiveSpaceState = .closed
-                return "已取消打开沉浸空间。"
+            case .inTransition:
+                for _ in 0 ..< 40 {
+                    await Task.yield()
+                    if appModel.immersiveSpaceState != .inTransition {
+                        break
+                    }
+                }
 
-            case .error:
-                appModel.immersiveSpaceState = .closed
-                return "打开沉浸空间失败，请重试。"
+                if appModel.immersiveSpaceState == .closed {
+                    return await openImmersiveForStep(mode: mode, using: openImmersiveSpace)
+                }
+                return nil
 
-            @unknown default:
-                appModel.immersiveSpaceState = .closed
-                return "沉浸空间返回未知状态，请重试。"
-            }
+            case .closed:
+                appModel.immersiveSpaceState = .inTransition
+                switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+                    case .opened:
+                        // Don't set immersiveSpaceState to .open here.
+                        // ImmersiveView.onAppear is the single source of truth.
+                        return nil
+
+                    case .userCancelled:
+                        appModel.immersiveSpaceState = .closed
+                        return "已取消打开沉浸空间。"
+
+                    case .error:
+                        appModel.immersiveSpaceState = .closed
+                        return "打开沉浸空间失败，请重试。"
+
+                    @unknown default:
+                        appModel.immersiveSpaceState = .closed
+                        return "沉浸空间返回未知状态，请重试。"
+                }
         }
     }
 
@@ -272,7 +272,7 @@ final class ARGuideViewModel {
 
     func recoverImmersiveStateIfStuck() async {
         guard appModel.immersiveSpaceState == .inTransition else { return }
-        for _ in 0..<40 {
+        for _ in 0 ..< 40 {
             await Task.yield()
             if appModel.immersiveSpaceState != .inTransition {
                 return
@@ -283,14 +283,14 @@ final class ARGuideViewModel {
 
     func onImmersiveAppear() {
         switch appModel.immersiveMode {
-        case .calibration:
-            hasStartedGuidingInCurrentImmersiveSession = false
-            wasRightHandPinching = false
-            startHandTrackingIfNeeded()
-            updateCalibrationTrackingStatusIfNeeded()
+            case .calibration:
+                hasStartedGuidingInCurrentImmersiveSession = false
+                wasRightHandPinching = false
+                startHandTrackingIfNeeded()
+                updateCalibrationTrackingStatusIfNeeded()
 
-        case .practice:
-            startHandTrackingIfNeeded()
+            case .practice:
+                startHandTrackingIfNeeded()
         }
     }
 
@@ -308,11 +308,11 @@ final class ARGuideViewModel {
             guard let self else { return }
             for await fingerTips in updates {
                 guard Task.isCancelled == false else { return }
-                switch self.appModel.immersiveMode {
-                case .calibration:
-                    self.handleCalibrationHandUpdates()
-                case .practice:
-                    _ = self.practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                switch appModel.immersiveMode {
+                    case .calibration:
+                        handleCalibrationHandUpdates()
+                    case .practice:
+                        _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
                 }
             }
         }
@@ -341,8 +341,8 @@ final class ARGuideViewModel {
             calibrationAnchorCaptureTask?.cancel()
             calibrationAnchorCaptureTask = Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.confirmPendingCalibrationAnchorIfReady()
-                self.calibrationAnchorCaptureTask = nil
+                await confirmPendingCalibrationAnchorIfReady()
+                calibrationAnchorCaptureTask = nil
             }
         }
         wasRightHandPinching = isRightHandPinching
@@ -356,22 +356,20 @@ final class ARGuideViewModel {
         let worldState = arTrackingService.providerStateByName["world"] ?? .idle
 
         switch (handState, worldState) {
-        case (.unsupported, _):
-            calibrationStatusMessage = "手部追踪不可用：此设备不支持手部追踪。"
-        case (.unauthorized, _):
-            calibrationStatusMessage = "手部追踪未授权：请在系统设置中允许本 App 使用 Hand Tracking。"
-        case (.failed(let reason), _):
-            calibrationStatusMessage = "手部追踪启动失败：\(reason)"
-
-        case (_, .unsupported):
-            calibrationStatusMessage = "世界追踪不可用：此环境不支持 World Tracking。"
-        case (_, .unauthorized):
-            calibrationStatusMessage = "世界追踪不可用：WorldTrackingProvider 未能启动（请稍后重试）。"
-        case (_, .failed(let reason)):
-            calibrationStatusMessage = "世界追踪启动失败：\(reason)"
-
-        default:
-            break
+            case (.unsupported, _):
+                calibrationStatusMessage = "手部追踪不可用：此设备不支持手部追踪。"
+            case (.unauthorized, _):
+                calibrationStatusMessage = "手部追踪未授权：请在系统设置中允许本 App 使用 Hand Tracking。"
+            case let (.failed(reason), _):
+                calibrationStatusMessage = "手部追踪启动失败：\(reason)"
+            case (_, .unsupported):
+                calibrationStatusMessage = "世界追踪不可用：此环境不支持 World Tracking。"
+            case (_, .unauthorized):
+                calibrationStatusMessage = "世界追踪不可用：WorldTrackingProvider 未能启动（请稍后重试）。"
+            case let (_, .failed(reason)):
+                calibrationStatusMessage = "世界追踪启动失败：\(reason)"
+            default:
+                break
         }
     }
 
@@ -397,7 +395,8 @@ final class ARGuideViewModel {
 
             if let oldAnchorID,
                oldAnchorID != worldAnchor.id,
-               let oldAnchor = arTrackingService.worldAnchorsByID[oldAnchorID] {
+               let oldAnchor = arTrackingService.worldAnchorsByID[oldAnchorID]
+            {
                 try? await arTrackingService.worldTrackingProvider.removeAnchor(oldAnchor)
             }
         } catch {
@@ -415,14 +414,14 @@ final class ARGuideViewModel {
 
     var practiceStatusText: String {
         switch practiceSessionViewModel.state {
-        case .idle:
-            return "练习：空闲"
-        case .ready:
-            return "练习：就绪"
-        case .guiding(let index):
-            return "练习：引导中（第 \(index + 1) 步）"
-        case .completed:
-            return "练习：已完成"
+            case .idle:
+                "练习：空闲"
+            case .ready:
+                "练习：就绪"
+            case let .guiding(index):
+                "练习：引导中（第 \(index + 1) 步）"
+            case .completed:
+                "练习：已完成"
         }
     }
 
@@ -437,10 +436,10 @@ final class ARGuideViewModel {
         guard hasStartedGuidingInCurrentImmersiveSession else { return false }
 
         switch practiceSessionViewModel.state {
-        case .guiding:
-            return true
-        default:
-            return false
+            case .guiding:
+                return true
+            default:
+                return false
         }
     }
 
@@ -461,8 +460,8 @@ final class ARGuideViewModel {
 
             practiceLocalizationTask = Task { @MainActor [weak self] in
                 guard let self else { return }
-                await self.runPracticeLocalization(dismissImmersiveSpace: dismissImmersiveSpace)
-                self.practiceLocalizationTask = nil
+                await runPracticeLocalization(dismissImmersiveSpace: dismissImmersiveSpace)
+                practiceLocalizationTask = nil
             }
             return
         }
@@ -498,28 +497,31 @@ final class ARGuideViewModel {
             )
 
             switch appModel.resolveRuntimeCalibrationFromTrackedAnchors() {
-            case .resolved:
-                practiceLocalizationState = .ready
-                practiceSessionViewModel.startGuidingIfReady()
-                hasStartedGuidingInCurrentImmersiveSession = true
-                return
+                case .resolved:
+                    practiceLocalizationState = .ready
+                    practiceSessionViewModel.startGuidingIfReady()
+                    hasStartedGuidingInCurrentImmersiveSession = true
+                    return
 
-            case .missingStoredCalibration:
-                await handlePracticeLocalizationFailure(.missingStoredCalibration, dismissImmersiveSpace: dismissImmersiveSpace)
-                return
+                case .missingStoredCalibration:
+                    await handlePracticeLocalizationFailure(
+                        .missingStoredCalibration,
+                        dismissImmersiveSpace: dismissImmersiveSpace
+                    )
+                    return
 
-            case .anchorMissing(let id):
-                lastRecoverableResolution = .anchorMissing(id: id)
+                case let .anchorMissing(id):
+                    lastRecoverableResolution = .anchorMissing(id: id)
 
-            case .anchorNotTracked(let id):
-                lastRecoverableResolution = .anchorNotTracked(id: id)
+                case let .anchorNotTracked(id):
+                    lastRecoverableResolution = .anchorNotTracked(id: id)
 
-            case .anchorsTooClose(let distanceMeters):
-                await handlePracticeLocalizationFailure(
-                    .anchorsTooClose(distanceMeters: distanceMeters),
-                    dismissImmersiveSpace: dismissImmersiveSpace
-                )
-                return
+                case let .anchorsTooClose(distanceMeters):
+                    await handlePracticeLocalizationFailure(
+                        .anchorsTooClose(distanceMeters: distanceMeters),
+                        dismissImmersiveSpace: dismissImmersiveSpace
+                    )
+                    return
             }
 
             if elapsed >= Double(practiceLocalizationTimeoutSeconds) {
@@ -546,19 +548,19 @@ final class ARGuideViewModel {
         }
 
         switch lastRecoverableResolution {
-        case .anchorMissing(let id):
-            return .anchorMissing(id: id)
-        case .anchorNotTracked(let id):
-            return .anchorNotTracked(
-                id: id,
-                waitedSeconds: practiceLocalizationTimeoutSeconds
-            )
-        case .anchorsTooClose(let distanceMeters):
-            return .anchorsTooClose(distanceMeters: distanceMeters)
-        case .resolved:
-            return .providerNotRunning(state: currentProviderStateSummary())
-        case .missingStoredCalibration:
-            return .missingStoredCalibration
+            case let .anchorMissing(id):
+                return .anchorMissing(id: id)
+            case let .anchorNotTracked(id):
+                return .anchorNotTracked(
+                    id: id,
+                    waitedSeconds: practiceLocalizationTimeoutSeconds
+                )
+            case let .anchorsTooClose(distanceMeters):
+                return .anchorsTooClose(distanceMeters: distanceMeters)
+            case .resolved:
+                return .providerNotRunning(state: currentProviderStateSummary())
+            case .missingStoredCalibration:
+                return .missingStoredCalibration
         }
     }
 
@@ -593,31 +595,32 @@ final class ARGuideViewModel {
         }
 
         if let handAuthorizationStatus = arTrackingService.authorizationStatusByType[.handTracking],
-           handAuthorizationStatus != .allowed {
+           handAuthorizationStatus != .allowed
+        {
             return .handTrackingDenied
         }
 
         if let worldState = arTrackingService.providerStateByName["world"] {
             switch worldState {
-            case .unsupported:
-                return .worldTrackingUnsupported
-            case .unauthorized:
-                return .providerNotRunning(state: currentProviderStateSummary())
-            case .failed(let reason):
-                return .providerNotRunning(state: "world=failed(\(reason))")
-            default:
-                break
+                case .unsupported:
+                    return .worldTrackingUnsupported
+                case .unauthorized:
+                    return .providerNotRunning(state: currentProviderStateSummary())
+                case let .failed(reason):
+                    return .providerNotRunning(state: "world=failed(\(reason))")
+                default:
+                    break
             }
         }
 
         if let handState = arTrackingService.providerStateByName["hand"] {
             switch handState {
-            case .unauthorized:
-                return .handTrackingDenied
-            case .failed(let reason):
-                return .providerNotRunning(state: "hand=failed(\(reason))")
-            default:
-                break
+                case .unauthorized:
+                    return .handTrackingDenied
+                case let .failed(reason):
+                    return .providerNotRunning(state: "hand=failed(\(reason))")
+                default:
+                    break
             }
         }
 

@@ -103,7 +103,7 @@ struct CalibrationStepView: View {
             .buttonStyle(.borderedProminent)
             .disabled(
                 viewModel.calibrationCaptureService.a0AnchorID == nil ||
-                viewModel.calibrationCaptureService.c8AnchorID == nil
+                    viewModel.calibrationCaptureService.c8AnchorID == nil
             )
             .hoverEffect()
     }

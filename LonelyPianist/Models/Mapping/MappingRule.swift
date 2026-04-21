@@ -1,6 +1,6 @@
 import Foundation
 
-struct SingleKeyMappingRule: Codable, Identifiable, Hashable, Sendable {
+struct SingleKeyMappingRule: Codable, Identifiable, Hashable {
     var id: UUID
     var note: Int
     var output: KeyStroke
@@ -19,7 +19,7 @@ struct SingleKeyMappingRule: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-struct ChordMappingRule: Codable, Identifiable, Hashable, Sendable {
+struct ChordMappingRule: Codable, Identifiable, Hashable {
     var id: UUID
     var notes: [Int]
     var output: KeyStroke

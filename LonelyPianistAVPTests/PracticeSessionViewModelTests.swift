@@ -1,7 +1,7 @@
 import Foundation
-import Testing
-import simd
 @testable import LonelyPianistAVP
+import simd
+import Testing
 
 @Test
 @MainActor
@@ -66,16 +66,16 @@ private func makePracticeSessionViewModel(sleeper: SleeperProtocol) -> PracticeS
 }
 
 private func settleTaskQueue(iterations: Int = 4) async {
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         await Task.yield()
     }
 }
 
 private struct NoopPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
-        fingerTips: [String : SIMD3<Float>],
-        keyRegions: [PianoKeyRegion],
-        at timestamp: Date
+        fingerTips _: [String: SIMD3<Float>],
+        keyRegions _: [PianoKeyRegion],
+        at _: Date
     ) -> Set<Int> {
         []
     }
@@ -83,10 +83,10 @@ private struct NoopPressDetectionService: PressDetectionServiceProtocol {
 
 private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
-        pressedNotes: Set<Int>,
-        expectedNotes: [Int],
-        tolerance: Int,
-        at timestamp: Date
+        pressedNotes _: Set<Int>,
+        expectedNotes _: [Int],
+        tolerance _: Int,
+        at _: Date
     ) -> Bool {
         false
     }

@@ -1,5 +1,5 @@
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func matcherRequiresAllExpectedNotesForChord() {

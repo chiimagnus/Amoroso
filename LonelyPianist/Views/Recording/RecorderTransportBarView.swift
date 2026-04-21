@@ -71,7 +71,7 @@ struct RecorderTransportBarView: View {
                         .foregroundStyle(.secondary)
                 ) {
                     if viewModel.takes.isEmpty {
-                        Text("No takes").tag(Optional<UUID>.none)
+                        Text("No takes").tag(UUID?.none)
                     } else {
                         ForEach(viewModel.takes) { take in
                             Text(take.name).tag(Optional(take.id))
@@ -126,7 +126,7 @@ struct RecorderTransportBarView: View {
 
             Slider(
                 value: playheadBinding,
-                in: 0...(viewModel.selectedTake?.durationSec ?? 0)
+                in: 0 ... (viewModel.selectedTake?.durationSec ?? 0)
             ) { isEditing in
                 isScrubbing = isEditing
             }
@@ -150,10 +150,10 @@ struct RecorderTransportBarView: View {
             allowedContentTypes: [.midi]
         ) { result in
             switch result {
-            case .success(let url):
-                viewModel.importMIDIFile(from: url, mode: importMode)
-            case .failure:
-                break
+                case let .success(url):
+                    viewModel.importMIDIFile(from: url, mode: importMode)
+                case .failure:
+                    break
             }
         }
     }
@@ -204,12 +204,12 @@ struct RecorderTransportBarView: View {
 
     private var modeText: String {
         switch viewModel.recorderMode {
-        case .idle:
-            return "Idle"
-        case .recording:
-            return "Recording"
-        case .playing:
-            return "Playing"
+            case .idle:
+                "Idle"
+            case .recording:
+                "Recording"
+            case .playing:
+                "Playing"
         }
     }
 

@@ -10,7 +10,8 @@ struct LonelyPianistApp: App {
 
     init() {
         UserDefaults.standard.register(defaults: [
-            DialoguePlaybackInterruptionBehavior.userDefaultsKey: DialoguePlaybackInterruptionBehavior.interrupt.rawValue
+            DialoguePlaybackInterruptionBehavior.userDefaultsKey: DialoguePlaybackInterruptionBehavior.interrupt
+                .rawValue,
         ])
 
         do {

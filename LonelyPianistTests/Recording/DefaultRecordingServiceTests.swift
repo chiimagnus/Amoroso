@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianist
+import Testing
 
 @Test
 func noteOnOffProducesSingleRecordedNote() {

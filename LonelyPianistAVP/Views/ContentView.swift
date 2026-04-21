@@ -1,67 +1,51 @@
-import SwiftUI
-import UniformTypeIdentifiers
 import simd
+import SwiftUI
 
-fileprivate enum MainFlowRoute: Hashable {
+enum MainFlowRoute: Hashable {
     case calibration
+    case library
     case practice
 }
 
 struct ContentView: View {
     @Bindable var homeViewModel: HomeViewModel
     @Bindable var arGuideViewModel: ARGuideViewModel
+    @Bindable var songLibraryViewModel: SongLibraryViewModel
 
     @State private var navigationPath: [MainFlowRoute] = []
     @ScaledMetric(relativeTo: .title) private var stepOrbSize: CGFloat = 250
+
+    init(
+        homeViewModel: HomeViewModel,
+        arGuideViewModel: ARGuideViewModel,
+        songLibraryViewModel: SongLibraryViewModel
+    ) {
+        self.homeViewModel = homeViewModel
+        self.arGuideViewModel = arGuideViewModel
+        self.songLibraryViewModel = songLibraryViewModel
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
             mainFlowPanel
                 .padding(18)
-            .navigationTitle("孤独钢琴家")
-            .navigationDestination(for: MainFlowRoute.self) { route in
-                switch route {
-                case .calibration:
-                    CalibrationStepView(viewModel: arGuideViewModel)
-                        .navigationTitle("Step 1 · 校准")
-                case .practice:
-                    PracticeStepView(viewModel: arGuideViewModel)
-                        .navigationTitle("Step 2 · 开始练习")
-                }
-            }
-            .toolbar {
-                if navigationPath.isEmpty, homeViewModel.canImportScore {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("导入 MusicXML…") {
-                            homeViewModel.isImporterPresented = true
-                        }
+                .navigationTitle("孤独钢琴家")
+                .navigationDestination(for: MainFlowRoute.self) { route in
+                    switch route {
+                        case .calibration:
+                            CalibrationStepView(viewModel: arGuideViewModel)
+                                .navigationTitle("Step 1 · 校准")
+                        case .library:
+                            SongLibraryView(
+                                viewModel: songLibraryViewModel,
+                                navigationPath: $navigationPath
+                            )
+                            .navigationTitle("Step 2 · 选曲")
+                        case .practice:
+                            PracticeStepView(viewModel: arGuideViewModel)
+                                .navigationTitle("Step 3 · 开始练习")
                     }
                 }
-            }
-        }
-        .fileImporter(
-            isPresented: $homeViewModel.isImporterPresented,
-            allowedContentTypes: [.xml, .musicXML],
-            allowsMultipleSelection: false
-        ) { result in
-            homeViewModel.handleImportResult(result)
-        }
-        .alert(
-            "导入失败",
-            isPresented: Binding(
-                get: { homeViewModel.importErrorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        homeViewModel.clearImportError()
-                    }
-                }
-            )
-        ) {
-            Button("好") {
-                homeViewModel.clearImportError()
-            }
-        } message: {
-            Text(homeViewModel.importErrorMessage ?? "未知错误")
         }
     }
 
@@ -85,10 +69,10 @@ struct ContentView: View {
             Spacer()
 
             StepOrbLink(
-                title: "开始练习",
+                title: "选曲",
                 stepLabel: "第二步",
                 isEnabled: true,
-                route: .practice,
+                route: .library,
                 helpText: homeViewModel.practiceEntryHelpText,
                 orbSize: stepOrbSize
             )
@@ -149,7 +133,8 @@ private struct StepOrbLink: View {
     let appModel = AppModel()
     return ContentView(
         homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
+        arGuideViewModel: ARGuideViewModel(appModel: appModel),
+        songLibraryViewModel: SongLibraryViewModel(appModel: appModel)
     )
 }
 
@@ -163,21 +148,13 @@ private struct StepOrbLink: View {
     appModel.setImportedSteps(
         [
             PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 64, staff: nil)])
+            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
         ],
         file: nil
     )
     return ContentView(
         homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
-    )
-}
-
-#Preview("主页 - 导入失败 Alert") {
-    let appModel = AppModel()
-    appModel.importErrorMessage = "导入失败：预览用错误"
-    return ContentView(
-        homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
+        arGuideViewModel: ARGuideViewModel(appModel: appModel),
+        songLibraryViewModel: SongLibraryViewModel(appModel: appModel)
     )
 }

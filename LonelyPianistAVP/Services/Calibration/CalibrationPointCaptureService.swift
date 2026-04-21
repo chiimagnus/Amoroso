@@ -10,7 +10,7 @@ enum CalibrationAnchorPoint {
 @MainActor
 @Observable
 final class CalibrationPointCaptureService {
-    var reticlePoint: SIMD3<Float> = SIMD3<Float>(0, 0.8, -1.0)
+    var reticlePoint: SIMD3<Float> = .init(0, 0.8, -1.0)
     var a0AnchorID: UUID?
     var c8AnchorID: UUID?
 
@@ -67,19 +67,19 @@ final class CalibrationPointCaptureService {
 
     func anchorID(for anchor: CalibrationAnchorPoint) -> UUID? {
         switch anchor {
-        case .a0:
-            return a0AnchorID
-        case .c8:
-            return c8AnchorID
+            case .a0:
+                a0AnchorID
+            case .c8:
+                c8AnchorID
         }
     }
 
     func setAnchorID(_ anchorID: UUID, for anchor: CalibrationAnchorPoint) {
         switch anchor {
-        case .a0:
-            a0AnchorID = anchorID
-        case .c8:
-            c8AnchorID = anchorID
+            case .a0:
+                a0AnchorID = anchorID
+            case .c8:
+                c8AnchorID = anchorID
         }
     }
 }

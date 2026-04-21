@@ -9,7 +9,7 @@ struct AccessibilityPermissionService: PermissionServiceProtocol {
 
     func requestAccessibilityPermission() -> Bool {
         let options = [
-            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: kCFBooleanTrue as Any
+            kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: kCFBooleanTrue as Any,
         ] as CFDictionary
         let axGranted = AXIsProcessTrustedWithOptions(options)
         let cgGranted = CGRequestPostEventAccess()
@@ -17,7 +17,8 @@ struct AccessibilityPermissionService: PermissionServiceProtocol {
     }
 
     func openAccessibilitySettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") else {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        else {
             return
         }
         NSWorkspace.shared.open(url)

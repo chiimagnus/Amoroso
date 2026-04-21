@@ -8,10 +8,10 @@ enum ShortcutServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidName:
-            return "Shortcut name is empty"
-        case .openFailed:
-            return "Failed to launch Shortcuts"
+            case .invalidName:
+                "Shortcut name is empty"
+            case .openFailed:
+                "Failed to launch Shortcuts"
         }
     }
 }
@@ -26,7 +26,8 @@ struct ShortcutExecutionService: ShortcutServiceProtocol {
         }
 
         guard let encoded = trimmed.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "shortcuts://run-shortcut?name=\(encoded)") else {
+              let url = URL(string: "shortcuts://run-shortcut?name=\(encoded)")
+        else {
             throw ShortcutServiceError.invalidName
         }
 

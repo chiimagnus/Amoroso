@@ -8,4 +8,3 @@ struct SheetMusicPreviewView: View {
             .frame(minWidth: 720, minHeight: 520)
     }
 }
-

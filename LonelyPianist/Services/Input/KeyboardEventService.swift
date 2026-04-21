@@ -8,10 +8,10 @@ enum KeyboardEventServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .createEventSource:
-            return "Failed to create keyboard event source"
-        case .createKeyEvent:
-            return "Failed to create keyboard event"
+            case .createEventSource:
+                "Failed to create keyboard event source"
+            case .createKeyEvent:
+                "Failed to create keyboard event"
         }
     }
 }
@@ -48,11 +48,12 @@ struct KeyboardEventService: KeyboardEventServiceProtocol {
             virtualKey: keyCode,
             keyDown: true
         ),
-        let keyUp = CGEvent(
-            keyboardEventSource: eventSource,
-            virtualKey: keyCode,
-            keyDown: false
-        ) else {
+            let keyUp = CGEvent(
+                keyboardEventSource: eventSource,
+                virtualKey: keyCode,
+                keyDown: false
+            )
+        else {
             throw KeyboardEventServiceError.createKeyEvent
         }
 
@@ -67,7 +68,8 @@ struct KeyboardEventService: KeyboardEventServiceProtocol {
         let units = Array(String(character).utf16)
 
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false) else {
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
+        else {
             throw KeyboardEventServiceError.createKeyEvent
         }
 

@@ -2,25 +2,35 @@ import SwiftUI
 
 @main
 struct LonelyPianistAVPApp: App {
-
     @State private var appModel: AppModel
     @State private var homeViewModel: HomeViewModel
     @State private var arGuideViewModel: ARGuideViewModel
+    @State private var songLibraryViewModel: SongLibraryViewModel
 
     init() {
         let appModel = AppModel()
         appModel.loadStoredCalibrationIfPossible()
-        Task { @MainActor in
-            appModel.loadBundledSampleScoreIfNeeded()
+
+        let songLibrarySeeder = SongLibrarySeeder()
+        do {
+            try songLibrarySeeder.seedAndMigrateIfNeeded()
+        } catch {
+            print("Song library seed failed: \(error.localizedDescription)")
         }
+
         _appModel = State(initialValue: appModel)
         _homeViewModel = State(initialValue: HomeViewModel(appModel: appModel))
         _arGuideViewModel = State(initialValue: ARGuideViewModel(appModel: appModel))
+        _songLibraryViewModel = State(initialValue: SongLibraryViewModel(appModel: appModel))
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(homeViewModel: homeViewModel, arGuideViewModel: arGuideViewModel)
+            ContentView(
+                homeViewModel: homeViewModel,
+                arGuideViewModel: arGuideViewModel,
+                songLibraryViewModel: songLibraryViewModel
+            )
         }
         .windowStyle(.automatic)
 

@@ -8,12 +8,12 @@ enum WebSocketDialogueServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notConnected:
-            return "Dialogue server is not connected"
-        case .invalidResponse:
-            return "Dialogue server returned an invalid response"
-        case .serverError(let message):
-            return message
+            case .notConnected:
+                "Dialogue server is not connected"
+            case .invalidResponse:
+                "Dialogue server returned an invalid response"
+            case let .serverError(message):
+                message
         }
     }
 }
@@ -107,26 +107,26 @@ final class WebSocketDialogueService: DialogueServiceProtocol {
         let message = try await task.receive()
         let payload: Data
         switch message {
-        case .data(let data):
-            payload = data
-        case .string(let string):
-            guard let data = string.data(using: .utf8) else {
+            case let .data(data):
+                payload = data
+            case let .string(string):
+                guard let data = string.data(using: .utf8) else {
+                    throw WebSocketDialogueServiceError.invalidResponse
+                }
+                payload = data
+            @unknown default:
                 throw WebSocketDialogueServiceError.invalidResponse
-            }
-            payload = data
-        @unknown default:
-            throw WebSocketDialogueServiceError.invalidResponse
         }
 
         let envelope = try decoder.decode(ServerEnvelope.self, from: payload)
 
         switch envelope.type {
-        case "result":
-            return (envelope.notes ?? [], envelope.latencyMs)
-        case "error":
-            throw WebSocketDialogueServiceError.serverError(envelope.message ?? "Unknown server error")
-        default:
-            throw WebSocketDialogueServiceError.invalidResponse
+            case "result":
+                return (envelope.notes ?? [], envelope.latencyMs)
+            case "error":
+                throw WebSocketDialogueServiceError.serverError(envelope.message ?? "Unknown server error")
+            default:
+                throw WebSocketDialogueServiceError.invalidResponse
         }
     }
 }

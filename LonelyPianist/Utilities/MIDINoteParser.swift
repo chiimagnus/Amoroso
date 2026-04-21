@@ -14,7 +14,7 @@ enum MIDINoteParser {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
-        if let directValue = Int(trimmed), (0...127).contains(directValue) {
+        if let directValue = Int(trimmed), (0 ... 127).contains(directValue) {
             return directValue
         }
 
@@ -24,7 +24,8 @@ enum MIDINoteParser {
               match.numberOfRanges == 4,
               let letterRange = Range(match.range(at: 1), in: trimmed),
               let accidentalRange = Range(match.range(at: 2), in: trimmed),
-              let octaveRange = Range(match.range(at: 3), in: trimmed) else {
+              let octaveRange = Range(match.range(at: 3), in: trimmed)
+        else {
             return nil
         }
 
@@ -36,25 +37,24 @@ enum MIDINoteParser {
 
         let baseSemitone: Int
         switch letter {
-        case "C": baseSemitone = 0
-        case "D": baseSemitone = 2
-        case "E": baseSemitone = 4
-        case "F": baseSemitone = 5
-        case "G": baseSemitone = 7
-        case "A": baseSemitone = 9
-        case "B": baseSemitone = 11
-        default: return nil
+            case "C": baseSemitone = 0
+            case "D": baseSemitone = 2
+            case "E": baseSemitone = 4
+            case "F": baseSemitone = 5
+            case "G": baseSemitone = 7
+            case "A": baseSemitone = 9
+            case "B": baseSemitone = 11
+            default: return nil
         }
 
-        let accidentalOffset: Int
-        switch accidental {
-        case "#": accidentalOffset = 1
-        case "b": accidentalOffset = -1
-        default: accidentalOffset = 0
+        let accidentalOffset: Int = switch accidental {
+            case "#": 1
+            case "b": -1
+            default: 0
         }
 
         let midi = (octave + 1) * 12 + baseSemitone + accidentalOffset
-        guard (0...127).contains(midi) else { return nil }
+        guard (0 ... 127).contains(midi) else { return nil }
 
         return midi
     }
@@ -63,7 +63,7 @@ enum MIDINoteParser {
         notes.map(noteName(for:)).joined(separator: separator)
     }
 
-    nonisolated private static func noteName(for note: Int) -> String {
+    private nonisolated static func noteName(for note: Int) -> String {
         let clamped = max(0, min(127, note))
         let noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
         let pitchClass = clamped % 12

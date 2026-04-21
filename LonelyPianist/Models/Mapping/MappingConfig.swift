@@ -1,6 +1,6 @@
 import Foundation
 
-struct MappingConfigPayload: Codable, Hashable, Sendable {
+struct MappingConfigPayload: Codable, Hashable {
     var velocityEnabled: Bool
     var defaultVelocityThreshold: Int
     var singleKeyRules: [SingleKeyMappingRule]
@@ -14,7 +14,7 @@ struct MappingConfigPayload: Codable, Hashable, Sendable {
     )
 }
 
-struct MappingConfig: Identifiable, Hashable, Sendable {
+struct MappingConfig: Identifiable, Hashable {
     var id: UUID
     var updatedAt: Date
     var payload: MappingConfigPayload

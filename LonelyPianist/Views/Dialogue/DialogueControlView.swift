@@ -47,15 +47,14 @@ struct DialogueControlView: View {
 
     private var statusText: String {
         switch viewModel.dialogueStatus {
-        case .idle:
-            return "Idle"
-        case .listening:
-            return "Listening"
-        case .thinking:
-            return "Thinking"
-        case .playing:
-            return "Playing"
+            case .idle:
+                "Idle"
+            case .listening:
+                "Listening"
+            case .thinking:
+                "Thinking"
+            case .playing:
+                "Playing"
         }
     }
 }
-

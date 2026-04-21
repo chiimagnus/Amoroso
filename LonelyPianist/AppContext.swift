@@ -6,4 +6,3 @@ final class AppContext {
 
     var viewModel: LonelyPianistViewModel?
 }
-

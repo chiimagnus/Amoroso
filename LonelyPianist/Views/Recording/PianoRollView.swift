@@ -57,7 +57,7 @@ struct PianoRollView: View {
         let background = Path(CGRect(origin: .zero, size: size))
         context.fill(background, with: .color(Color(nsColor: .textBackgroundColor)))
 
-        for second in 0...Int(ceil(max(1, take.durationSec))) {
+        for second in 0 ... Int(ceil(max(1, take.durationSec))) {
             let x = leftInset + (CGFloat(second) * secondWidth)
             var line = Path()
             line.move(to: CGPoint(x: x, y: topInset))
@@ -65,7 +65,7 @@ struct PianoRollView: View {
             context.stroke(line, with: .color(.gray.opacity(second % 4 == 0 ? 0.35 : 0.18)))
         }
 
-        for note in range.lowerBound...range.upperBound {
+        for note in range.lowerBound ... range.upperBound {
             let y = yPosition(for: note, range: range)
             var line = Path()
             line.move(to: CGPoint(x: leftInset, y: y))
@@ -98,13 +98,14 @@ struct PianoRollView: View {
 
     private func noteRange(for take: RecordingTake) -> ClosedRange<Int> {
         guard let minNote = take.notes.map(\.note).min(),
-              let maxNote = take.notes.map(\.note).max() else {
-            return 48...72
+              let maxNote = take.notes.map(\.note).max()
+        else {
+            return 48 ... 72
         }
 
         let lower = max(0, minNote - 2)
         let upper = min(127, maxNote + 2)
-        return lower...upper
+        return lower ... upper
     }
 
     private func canvasWidth(for take: RecordingTake) -> CGFloat {

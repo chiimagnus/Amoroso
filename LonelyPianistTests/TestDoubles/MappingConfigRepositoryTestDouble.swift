@@ -33,7 +33,7 @@ final class MappingConfigRepositoryTestDouble: MappingConfigRepositoryProtocol {
             updatedAt: .now,
             payload: .empty
         )
-        self.config = seeded
+        config = seeded
         return seeded
     }
 
