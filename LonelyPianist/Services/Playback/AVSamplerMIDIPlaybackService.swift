@@ -1,5 +1,5 @@
-import AVFoundation
 import AudioToolbox
+import AVFoundation
 import Foundation
 
 enum MIDIPlaybackError: LocalizedError {
@@ -8,10 +8,10 @@ enum MIDIPlaybackError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .soundBankNotFound:
-            return "Piano sound bank is unavailable on this macOS installation."
-        case .engineStartFailed(let error):
-            return "Audio engine failed to start: \(error.localizedDescription)"
+            case .soundBankNotFound:
+                "Piano sound bank is unavailable on this macOS installation."
+            case let .engineStartFailed(error):
+                "Audio engine failed to start: \(error.localizedDescription)"
         }
     }
 }
@@ -65,7 +65,7 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
 
         playbackTask = Task { [weak self] in
             guard let self else { return }
-            await self.performPlayback(events)
+            await performPlayback(events)
         }
     }
 
@@ -104,7 +104,7 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
     private func loadPianoSoundBank() throws {
         let candidatePaths = [
             "/System/Library/Components/CoreAudio.component/Contents/Resources/gs_instruments.dls",
-            "/System/Library/Components/DLSMusicDevice.component/Contents/Resources/DefaultBankGS.sf2"
+            "/System/Library/Components/DLSMusicDevice.component/Contents/Resources/DefaultBankGS.sf2",
         ]
 
         for path in candidatePaths {
@@ -156,14 +156,14 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
         let key = ActiveNoteKey(note: note, channel: channel)
 
         switch event.type {
-        case .noteOn(let velocity):
-            let clampedVelocity = UInt8(max(1, min(127, velocity)))
-            sampler.startNote(note, withVelocity: clampedVelocity, onChannel: channel)
-            activeNotes.insert(key)
+            case let .noteOn(velocity):
+                let clampedVelocity = UInt8(max(1, min(127, velocity)))
+                sampler.startNote(note, withVelocity: clampedVelocity, onChannel: channel)
+                activeNotes.insert(key)
 
-        case .noteOff:
-            sampler.stopNote(note, onChannel: channel)
-            activeNotes.remove(key)
+            case .noteOff:
+                sampler.stopNote(note, onChannel: channel)
+                activeNotes.remove(key)
         }
     }
 
@@ -222,12 +222,12 @@ final class AVSamplerMIDIPlaybackService: MIDIPlaybackServiceProtocol {
             }
 
             switch (lhs.type, rhs.type) {
-            case (.noteOff, .noteOn):
-                return true
-            case (.noteOn, .noteOff):
-                return false
-            default:
-                return lhs.note < rhs.note
+                case (.noteOff, .noteOn):
+                    return true
+                case (.noteOn, .noteOff):
+                    return false
+                default:
+                    return lhs.note < rhs.note
             }
         }
     }

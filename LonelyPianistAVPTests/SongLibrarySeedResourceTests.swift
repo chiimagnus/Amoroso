@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func songLibrarySeedResourceExistsAndCanBuildPracticeSteps() throws {

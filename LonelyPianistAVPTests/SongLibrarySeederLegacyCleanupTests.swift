@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func songLibrarySeederDeletesLegacyImportedScoresDirectory() throws {
@@ -55,4 +55,3 @@ private final class TestDocumentsFileManager: FileManager {
         return super.urls(for: directory, in: domainMask)
     }
 }
-

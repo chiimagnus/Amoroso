@@ -23,7 +23,7 @@ struct PianoKeyGeometryService: PianoKeyGeometryServiceProtocol {
         let height: Float = 0.03
         let planeY = calibration.planeHeight
 
-        return (0..<keyCount).map { index in
+        return (0 ..< keyCount).map { index in
             let midi = firstMIDINote + index
             let center = a0 + axis * (Float(index) * keySpacing)
             let correctedCenter = SIMD3<Float>(center.x, planeY, center.z)

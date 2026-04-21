@@ -10,14 +10,14 @@ enum MIDIOutputServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .clientCreate(let status):
-            return "Failed to create MIDI client: \(status)"
-        case .outputPortCreate(let status):
-            return "Failed to create MIDI output port: \(status)"
-        case .destinationNotFound(let id):
-            return "MIDI destination not found: \(id)"
-        case .send(let status):
-            return "Failed to send MIDI message: \(status)"
+            case let .clientCreate(status):
+                "Failed to create MIDI client: \(status)"
+            case let .outputPortCreate(status):
+                "Failed to create MIDI output port: \(status)"
+            case let .destinationNotFound(id):
+                "MIDI destination not found: \(id)"
+            case let .send(status):
+                "Failed to send MIDI message: \(status)"
         }
     }
 }
@@ -55,7 +55,7 @@ final class CoreMIDIOutputService: MIDIOutputServiceProtocol {
         var results: [MIDIDestinationInfo] = []
         results.reserveCapacity(count)
 
-        for index in 0..<count {
+        for index in 0 ..< count {
             let endpoint = MIDIGetDestination(index)
             guard endpoint != 0 else { continue }
 
@@ -102,7 +102,8 @@ final class CoreMIDIOutputService: MIDIOutputServiceProtocol {
         // Slow-path resolve: enumerate destinations again.
         let destinations = listDestinations()
         if let match = destinations.first(where: { $0.id == destinationID }),
-           let endpoint = destinationCache[match.id] {
+           let endpoint = destinationCache[match.id]
+        {
             return endpoint
         }
 

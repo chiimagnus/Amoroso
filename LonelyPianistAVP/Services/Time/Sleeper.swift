@@ -4,7 +4,7 @@ protocol SleeperProtocol: Sendable {
     func sleep(for duration: Duration) async throws
 }
 
-struct TaskSleeper: SleeperProtocol, Sendable {
+struct TaskSleeper: SleeperProtocol {
     func sleep(for duration: Duration) async throws {
         try await Task.sleep(for: duration)
     }

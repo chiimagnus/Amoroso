@@ -2,7 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 
-struct KeyStrokeModifiers: OptionSet, Hashable, Sendable, Codable {
+struct KeyStrokeModifiers: OptionSet, Hashable, Codable {
     let rawValue: UInt8
 
     static let shift = KeyStrokeModifiers(rawValue: 1 << 0)
@@ -39,7 +39,7 @@ struct KeyStrokeModifiers: OptionSet, Hashable, Sendable, Codable {
     }
 }
 
-struct KeyStroke: Codable, Hashable, Sendable {
+struct KeyStroke: Codable, Hashable {
     var keyCode: UInt16
     var modifiers: KeyStrokeModifiers
 
@@ -143,7 +143,7 @@ struct KeyStroke: Codable, Hashable, Sendable {
         123: "\u{2190}",
         124: "\u{2192}",
         125: "\u{2193}",
-        126: "\u{2191}"
+        126: "\u{2191}",
     ]
 
     private static let keyCodeByCharacter: [Character: UInt16] = [
@@ -193,6 +193,6 @@ struct KeyStroke: Codable, Hashable, Sendable {
         "n": 45,
         "m": 46,
         ".": 47,
-        "`": 50
+        "`": 50,
     ]
 }

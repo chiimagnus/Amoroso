@@ -10,21 +10,21 @@ enum MIDIFileImporterError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .openFailed(let status):
-            return "Failed to open MIDI sequence (OSStatus=\(status))."
-        case .loadFailed(let status):
-            return "Failed to load MIDI file (OSStatus=\(status))."
-        case .secondsConversionFailed(let status):
-            return "Failed to convert beats to seconds (OSStatus=\(status))."
-        case .empty:
-            return "No notes found in MIDI file."
-        case .emptyAfterFiltering:
-            return "No notes left after applying import filters."
+            case let .openFailed(status):
+                "Failed to open MIDI sequence (OSStatus=\(status))."
+            case let .loadFailed(status):
+                "Failed to load MIDI file (OSStatus=\(status))."
+            case let .secondsConversionFailed(status):
+                "Failed to convert beats to seconds (OSStatus=\(status))."
+            case .empty:
+                "No notes found in MIDI file."
+            case .emptyAfterFiltering:
+                "No notes left after applying import filters."
         }
     }
 }
 
-struct MIDIFileImportOptions: Sendable, Equatable {
+struct MIDIFileImportOptions: Equatable {
     var excludedChannels: Set<Int>
     var remapAllChannelsTo: Int?
     var clampNoteRange: ClosedRange<Int>?
@@ -42,13 +42,13 @@ struct MIDIFileImportOptions: Sendable, Equatable {
     static let pianoOnly = MIDIFileImportOptions(
         excludedChannels: [10],
         remapAllChannelsTo: 1,
-        clampNoteRange: 21...108,
+        clampNoteRange: 21 ... 108,
         minimumVelocity: 8,
         minimumDurationSec: 0.04
     )
 }
 
-struct MIDIFileImporter {
+enum MIDIFileImporter {
     static func importNotes(
         from url: URL,
         options: MIDIFileImportOptions = .default
@@ -75,7 +75,7 @@ struct MIDIFileImporter {
         var notes: [RecordedNote] = []
         notes.reserveCapacity(1024)
 
-        for index in 0..<trackCount {
+        for index in 0 ..< trackCount {
             var track: MusicTrack?
             MusicSequenceGetIndTrack(sequence, index, &track)
             guard let track else { continue }

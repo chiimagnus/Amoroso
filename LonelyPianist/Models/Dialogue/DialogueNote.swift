@@ -1,13 +1,13 @@
 import Foundation
 
-struct DialogueNote: Codable, Equatable, Sendable {
+struct DialogueNote: Codable, Equatable {
     let note: Int
     let velocity: Int
     let time: TimeInterval
     let duration: TimeInterval
 }
 
-struct DialogueGenerateParams: Codable, Equatable, Sendable {
+struct DialogueGenerateParams: Codable, Equatable {
     var topP: Double = 0.95
     var maxTokens: Int = 256
 
@@ -16,4 +16,3 @@ struct DialogueGenerateParams: Codable, Equatable, Sendable {
         case maxTokens = "max_tokens"
     }
 }
-

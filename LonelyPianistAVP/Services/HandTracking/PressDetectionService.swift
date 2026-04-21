@@ -19,7 +19,7 @@ final class PressDetectionService: PressDetectionServiceProtocol {
     }
 
     func detectPressedNotes(
-        fingerTips: [String : SIMD3<Float>],
+        fingerTips: [String: SIMD3<Float>],
         keyRegions: [PianoKeyRegion],
         at timestamp: Date
     ) -> Set<Int> {

@@ -28,26 +28,26 @@ final class DefaultSilenceDetectionService: SilenceDetectionServiceProtocol {
 
     func handle(event: MIDIEvent) {
         switch event.type {
-        case .noteOn(let note, _):
-            openNotes.insert(NoteKey(note: note, channel: event.channel))
-            lastActivityAt = event.timestamp
-            hasTriggeredSilence = false
-
-        case .noteOff(let note, _):
-            openNotes.remove(NoteKey(note: note, channel: event.channel))
-            lastActivityAt = event.timestamp
-            hasTriggeredSilence = false
-
-        case .controlChange(let controller, let value):
-            guard controller == 64 else { return }
-            let wasDown = sustainIsDown
-            sustainIsDown = value >= 64
-
-            if wasDown, !sustainIsDown {
-                // Pedal released: restart the timeout gate.
+            case let .noteOn(note, _):
+                openNotes.insert(NoteKey(note: note, channel: event.channel))
                 lastActivityAt = event.timestamp
                 hasTriggeredSilence = false
-            }
+
+            case let .noteOff(note, _):
+                openNotes.remove(NoteKey(note: note, channel: event.channel))
+                lastActivityAt = event.timestamp
+                hasTriggeredSilence = false
+
+            case let .controlChange(controller, value):
+                guard controller == 64 else { return }
+                let wasDown = sustainIsDown
+                sustainIsDown = value >= 64
+
+                if wasDown, !sustainIsDown {
+                    // Pedal released: restart the timeout gate.
+                    lastActivityAt = event.timestamp
+                    hasTriggeredSilence = false
+                }
         }
     }
 
@@ -66,4 +66,3 @@ final class DefaultSilenceDetectionService: SilenceDetectionServiceProtocol {
         return true
     }
 }
-

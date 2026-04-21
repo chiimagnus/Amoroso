@@ -154,9 +154,9 @@ final class PracticeSessionViewModel {
         feedbackResetTask?.cancel()
         feedbackResetTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            try? await self.sleeper.sleep(for: .seconds(duration))
+            try? await sleeper.sleep(for: .seconds(duration))
             guard Task.isCancelled == false else { return }
-            self.feedbackState = .none
+            feedbackState = .none
         }
     }
 }

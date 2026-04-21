@@ -3,7 +3,9 @@ import Foundation
 struct MIDINote: Hashable, Identifiable, Codable {
     let number: Int
 
-    var id: Int { number }
+    var id: Int {
+        number
+    }
 
     var name: String {
         let noteNames = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]

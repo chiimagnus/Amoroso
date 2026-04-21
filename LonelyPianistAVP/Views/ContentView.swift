@@ -1,5 +1,5 @@
-import SwiftUI
 import simd
+import SwiftUI
 
 enum MainFlowRoute: Hashable {
     case calibration
@@ -29,23 +29,23 @@ struct ContentView: View {
         NavigationStack(path: $navigationPath) {
             mainFlowPanel
                 .padding(18)
-            .navigationTitle("孤独钢琴家")
-            .navigationDestination(for: MainFlowRoute.self) { route in
-                switch route {
-                case .calibration:
-                    CalibrationStepView(viewModel: arGuideViewModel)
-                        .navigationTitle("Step 1 · 校准")
-                case .library:
-                    SongLibraryView(
-                        viewModel: songLibraryViewModel,
-                        navigationPath: $navigationPath
-                    )
-                        .navigationTitle("Step 2 · 选曲")
-                case .practice:
-                    PracticeStepView(viewModel: arGuideViewModel)
-                        .navigationTitle("Step 3 · 开始练习")
+                .navigationTitle("孤独钢琴家")
+                .navigationDestination(for: MainFlowRoute.self) { route in
+                    switch route {
+                        case .calibration:
+                            CalibrationStepView(viewModel: arGuideViewModel)
+                                .navigationTitle("Step 1 · 校准")
+                        case .library:
+                            SongLibraryView(
+                                viewModel: songLibraryViewModel,
+                                navigationPath: $navigationPath
+                            )
+                            .navigationTitle("Step 2 · 选曲")
+                        case .practice:
+                            PracticeStepView(viewModel: arGuideViewModel)
+                                .navigationTitle("Step 3 · 开始练习")
+                    }
                 }
-            }
         }
     }
 
@@ -148,7 +148,7 @@ private struct StepOrbLink: View {
     appModel.setImportedSteps(
         [
             PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 64, staff: nil)])
+            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
         ],
         file: nil
     )
@@ -158,4 +158,3 @@ private struct StepOrbLink: View {
         songLibraryViewModel: SongLibraryViewModel(appModel: appModel)
     )
 }
-

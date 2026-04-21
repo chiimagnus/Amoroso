@@ -17,39 +17,39 @@ struct MainWindowView: View {
             .listStyle(.sidebar)
         } detail: {
             switch viewModel.selectedMainWindowSection {
-            case .runtime:
-                RuntimePanelView(viewModel: viewModel)
-                    .navigationTitle("Runtime")
+                case .runtime:
+                    RuntimePanelView(viewModel: viewModel)
+                        .navigationTitle("Runtime")
 
-            case .mappings:
-                PianoMappingsEditorView(viewModel: viewModel, isInspectorPresented: $isMappingsInspectorPresented)
-                    .background(Color(nsColor: .windowBackgroundColor))
-                    .navigationTitle("Mappings")
-                    .toolbar {
-                        ToolbarItemGroup(placement: .automatic) {
-                            Spacer()
-                            Button {
-                                isMappingsInspectorPresented.toggle()
-                            } label: {
-                                Label(
-                                    isMappingsInspectorPresented ? "Hide Inspector" : "Show Inspector",
-                                    systemImage: "sidebar.right"
-                                )
+                case .mappings:
+                    PianoMappingsEditorView(viewModel: viewModel, isInspectorPresented: $isMappingsInspectorPresented)
+                        .background(Color(nsColor: .windowBackgroundColor))
+                        .navigationTitle("Mappings")
+                        .toolbar {
+                            ToolbarItemGroup(placement: .automatic) {
+                                Spacer()
+                                Button {
+                                    isMappingsInspectorPresented.toggle()
+                                } label: {
+                                    Label(
+                                        isMappingsInspectorPresented ? "Hide Inspector" : "Show Inspector",
+                                        systemImage: "sidebar.right"
+                                    )
+                                }
                             }
                         }
-                    }
 
-            case .recorder:
-                RecorderPanelView(viewModel: viewModel)
-                    .navigationTitle("Recorder")
+                case .recorder:
+                    RecorderPanelView(viewModel: viewModel)
+                        .navigationTitle("Recorder")
 
-            case .dialogue:
-                DialogueControlView(viewModel: viewModel)
-                    .navigationTitle("Dialogue")
+                case .dialogue:
+                    DialogueControlView(viewModel: viewModel)
+                        .navigationTitle("Dialogue")
 
-            case .sheet:
-                SheetMusicPanelView()
-                    .navigationTitle("Sheet")
+                case .sheet:
+                    SheetMusicPanelView()
+                        .navigationTitle("Sheet")
             }
         }
     }

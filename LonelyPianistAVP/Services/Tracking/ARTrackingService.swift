@@ -30,18 +30,18 @@ enum DataProviderState: Equatable {
 
     var description: String {
         switch self {
-        case .idle:
-            return "idle"
-        case .running:
-            return "running"
-        case .unsupported:
-            return "unsupported"
-        case .unauthorized:
-            return "unauthorized"
-        case .stopped:
-            return "stopped"
-        case .failed(let reason):
-            return "failed(\(reason))"
+            case .idle:
+                "idle"
+            case .running:
+                "running"
+            case .unsupported:
+                "unsupported"
+            case .unauthorized:
+                "unauthorized"
+            case .stopped:
+                "stopped"
+            case let .failed(reason):
+                "failed(\(reason))"
         }
     }
 }
@@ -57,7 +57,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
     private(set) var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] = [:]
     private(set) var providerStateByName: [String: DataProviderState] = [
         "hand": .idle,
-        "world": .idle
+        "world": .idle,
     ]
 
     var isWorldTrackingSupported: Bool {
@@ -117,8 +117,14 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 requiredAuthorizations.isEmpty ? [:] : await session.requestAuthorization(for: requiredAuthorizations)
             authorizationStatusByType = statuses
 
-            let isHandAllowed = isHandSupported && isAuthorized(requiredAuthorizations: handRequiredAuthorizations, statuses: statuses)
-            let isWorldAllowed = isWorldSupported && isAuthorized(requiredAuthorizations: worldRequiredAuthorizations, statuses: statuses)
+            let isHandAllowed = isHandSupported && isAuthorized(
+                requiredAuthorizations: handRequiredAuthorizations,
+                statuses: statuses
+            )
+            let isWorldAllowed = isWorldSupported && isAuthorized(
+                requiredAuthorizations: worldRequiredAuthorizations,
+                statuses: statuses
+            )
 
             if isHandSupported, isHandAllowed == false {
                 providerStateByName["hand"] = .unauthorized
@@ -202,13 +208,13 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                             key.hasPrefix(chiralityPrefix) == false
                         }
                         switch update.anchor.chirality {
-                        case .left:
-                            leftIndexFingerTipPosition = nil
-                        case .right:
-                            rightIndexFingerTipPosition = nil
-                            rightThumbTipPosition = nil
-                        @unknown default:
-                            break
+                            case .left:
+                                leftIndexFingerTipPosition = nil
+                            case .right:
+                                rightIndexFingerTipPosition = nil
+                                rightThumbTipPosition = nil
+                            @unknown default:
+                                break
                         }
                         fingerTipUpdatesContinuation?.yield(fingerTipPositions)
                         continue
@@ -221,13 +227,13 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                     fingerTipPositions.merge(extracted.tips, uniquingKeysWith: { _, new in new })
 
                     switch update.anchor.chirality {
-                    case .left:
-                        leftIndexFingerTipPosition = extracted.indexFingerTip
-                    case .right:
-                        rightIndexFingerTipPosition = extracted.indexFingerTip
-                        rightThumbTipPosition = extracted.thumbTip
-                    @unknown default:
-                        break
+                        case .left:
+                            leftIndexFingerTipPosition = extracted.indexFingerTip
+                        case .right:
+                            rightIndexFingerTipPosition = extracted.indexFingerTip
+                            rightThumbTipPosition = extracted.thumbTip
+                        @unknown default:
+                            break
                     }
                     fingerTipUpdatesContinuation?.yield(fingerTipPositions)
                 }
@@ -240,12 +246,12 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 for await update in worldTrackingProvider.anchorUpdates {
                     guard Task.isCancelled == false else { return }
                     switch update.event {
-                    case .removed:
-                        worldAnchorsByID.removeValue(forKey: update.anchor.id)
-                    case .added, .updated:
-                        worldAnchorsByID[update.anchor.id] = update.anchor
-                    @unknown default:
-                        worldAnchorsByID[update.anchor.id] = update.anchor
+                        case .removed:
+                            worldAnchorsByID.removeValue(forKey: update.anchor.id)
+                        case .added, .updated:
+                            worldAnchorsByID[update.anchor.id] = update.anchor
+                        @unknown default:
+                            worldAnchorsByID[update.anchor.id] = update.anchor
                     }
                 }
             }
@@ -296,7 +302,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             .indexFingerTip,
             .middleFingerTip,
             .ringFingerTip,
-            .littleFingerTip
+            .littleFingerTip,
         ]
 
         var tips: [String: SIMD3<Float>] = [:]
@@ -313,12 +319,12 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             )
             tips["\(anchor.chirality)-\(jointName)"] = point
             switch jointName {
-            case .indexFingerTip:
-                indexFingerTip = point
-            case .thumbTip:
-                thumbTip = point
-            default:
-                break
+                case .indexFingerTip:
+                    indexFingerTip = point
+                case .thumbTip:
+                    thumbTip = point
+                default:
+                    break
             }
         }
         return (tips, indexFingerTip, thumbTip)

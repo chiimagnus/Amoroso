@@ -4,13 +4,13 @@ import WebKit
 struct SVGWebView: NSViewRepresentable {
     let svg: String
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context _: Context) -> WKWebView {
         let webView = WKWebView()
         webView.setValue(false, forKey: "drawsBackground")
         return webView
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
+    func updateNSView(_ webView: WKWebView, context _: Context) {
         let html = """
         <!doctype html>
         <html>
@@ -29,4 +29,3 @@ struct SVGWebView: NSViewRepresentable {
         webView.loadHTMLString(html, baseURL: nil)
     }
 }
-

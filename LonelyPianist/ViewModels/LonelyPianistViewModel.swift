@@ -13,20 +13,22 @@ final class LonelyPianistViewModel {
         case dialogue = "Dialogue"
         case sheet = "Sheet"
 
-        var id: String { rawValue }
+        var id: String {
+            rawValue
+        }
 
         var systemImage: String {
             switch self {
-            case .runtime:
-                return "gauge"
-            case .mappings:
-                return "slider.horizontal.3"
-            case .recorder:
-                return "waveform"
-            case .dialogue:
-                return "bubble.left.and.bubble.right"
-            case .sheet:
-                return "music.quarternote.3"
+                case .runtime:
+                    "gauge"
+                case .mappings:
+                    "slider.horizontal.3"
+                case .recorder:
+                    "waveform"
+                case .dialogue:
+                    "bubble.left.and.bubble.right"
+                case .sheet:
+                    "music.quarternote.3"
             }
         }
     }
@@ -69,7 +71,10 @@ final class LonelyPianistViewModel {
     var dialogueLatencyMs: Int?
     var dialoguePlaybackInterruptionBehavior: DialoguePlaybackInterruptionBehavior = .interrupt {
         didSet {
-            UserDefaults.standard.set(dialoguePlaybackInterruptionBehavior.rawValue, forKey: DialoguePlaybackInterruptionBehavior.userDefaultsKey)
+            UserDefaults.standard.set(
+                dialoguePlaybackInterruptionBehavior.rawValue,
+                forKey: DialoguePlaybackInterruptionBehavior.userDefaultsKey
+            )
             dialogueManager.playbackInterruptionBehavior = dialoguePlaybackInterruptionBehavior
         }
     }
@@ -120,7 +125,8 @@ final class LonelyPianistViewModel {
         bindAppLifecycleCallbacks()
 
         let behaviorRaw = UserDefaults.standard.string(forKey: DialoguePlaybackInterruptionBehavior.userDefaultsKey)
-        dialoguePlaybackInterruptionBehavior = DialoguePlaybackInterruptionBehavior(rawValue: behaviorRaw ?? "") ?? .interrupt
+        dialoguePlaybackInterruptionBehavior = DialoguePlaybackInterruptionBehavior(rawValue: behaviorRaw ?? "") ??
+            .interrupt
 
         dialogueStatus = dialogueManager.status
         dialogueManager.onStatusChange = { [weak self] status in
@@ -166,12 +172,12 @@ final class LonelyPianistViewModel {
 
     var connectionDescription: String {
         switch connectionState {
-        case .idle:
-            return "Not Listening"
-        case .connected(let sourceCount):
-            return sourceCount > 0 ? "Connected (\(sourceCount) source)" : "Listening (no source)"
-        case .failed(let message):
-            return "Error: \(message)"
+            case .idle:
+                "Not Listening"
+            case let .connected(sourceCount):
+                sourceCount > 0 ? "Connected (\(sourceCount) source)" : "Listening (no source)"
+            case let .failed(message):
+                "Error: \(message)"
         }
     }
 
@@ -298,7 +304,7 @@ final class LonelyPianistViewModel {
             guard let self else { return }
             var openedSettings = false
 
-            for attempt in 0..<120 {
+            for attempt in 0 ..< 120 {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard !Task.isCancelled else { return }
 
@@ -388,7 +394,7 @@ final class LonelyPianistViewModel {
     }
 
     func deleteTake(_ id: UUID) {
-        if recorderMode == .playing && selectedTakeID == id {
+        if recorderMode == .playing, selectedTakeID == id {
             stopTransport()
         }
 
@@ -404,7 +410,7 @@ final class LonelyPianistViewModel {
         }
     }
 
-    enum MIDIImportMode: Sendable, Equatable {
+    enum MIDIImportMode: Equatable {
         case all
         case pianoOnly
     }
@@ -498,48 +504,48 @@ final class LonelyPianistViewModel {
 
     func stopTransport() {
         switch recorderMode {
-        case .idle:
-            return
+            case .idle:
+                return
 
-        case .recording:
-            let now = Date()
-            let take = recordingService.stopRecording(
-                at: now,
-                takeID: UUID(),
-                name: defaultTakeName(at: now)
-            )
+            case .recording:
+                let now = Date()
+                let take = recordingService.stopRecording(
+                    at: now,
+                    takeID: UUID(),
+                    name: defaultTakeName(at: now)
+                )
 
-            do {
-                if let take {
-                    try recordingRepository.saveTake(take)
-                    try reloadTakes(preserveSelectedID: take.id)
-                    recorderStatusMessage = "Saved \(take.name)"
-                    statusMessage = "Recording saved"
-                    log(title: "Recorder", detail: "Recording saved: \(take.name)")
-                } else {
-                    recorderStatusMessage = "Recording cancelled"
-                    statusMessage = "Recording cancelled"
-                    log(title: "Recorder", detail: "Recording cancelled")
+                do {
+                    if let take {
+                        try recordingRepository.saveTake(take)
+                        try reloadTakes(preserveSelectedID: take.id)
+                        recorderStatusMessage = "Saved \(take.name)"
+                        statusMessage = "Recording saved"
+                        log(title: "Recorder", detail: "Recording saved: \(take.name)")
+                    } else {
+                        recorderStatusMessage = "Recording cancelled"
+                        statusMessage = "Recording cancelled"
+                        log(title: "Recorder", detail: "Recording cancelled")
+                    }
+                } catch {
+                    recorderStatusMessage = "Save failed: \(error.localizedDescription)"
+                    statusMessage = "Save failed"
+                    log(title: "Recorder Save Failed", detail: error.localizedDescription)
                 }
-            } catch {
-                recorderStatusMessage = "Save failed: \(error.localizedDescription)"
-                statusMessage = "Save failed"
-                log(title: "Recorder Save Failed", detail: error.localizedDescription)
-            }
 
-            recorderMode = .idle
+                recorderMode = .idle
 
-        case .playing:
-            playbackService.stop()
-            pendingSeekTask?.cancel()
-            pendingSeekTask = nil
-            playbackClockTask?.cancel()
-            playbackClockTask = nil
-            playbackStartedAt = nil
-            recorderMode = .idle
-            recorderStatusMessage = "Playback stopped"
-            statusMessage = "Playback stopped"
-            log(title: "Recorder", detail: "Playback stopped")
+            case .playing:
+                playbackService.stop()
+                pendingSeekTask?.cancel()
+                pendingSeekTask = nil
+                playbackClockTask?.cancel()
+                playbackClockTask = nil
+                playbackStartedAt = nil
+                recorderMode = .idle
+                recorderStatusMessage = "Playback stopped"
+                statusMessage = "Playback stopped"
+                log(title: "Recorder", detail: "Playback stopped")
         }
     }
 
@@ -718,14 +724,14 @@ final class LonelyPianistViewModel {
 
         if resolvedActions.isEmpty {
             switch event.type {
-            case .noteOn(let note, let velocity):
-                let noteName = MIDINote(note).name
-                log(title: "MIDI", detail: "noteOn \(noteName) velocity \(velocity)")
-            case .noteOff(let note, let velocity):
-                let noteName = MIDINote(note).name
-                log(title: "MIDI", detail: "noteOff \(noteName) velocity \(velocity)")
-            case .controlChange(let controller, let value):
-                log(title: "MIDI", detail: "cc \(controller) value \(value)")
+                case let .noteOn(note, velocity):
+                    let noteName = MIDINote(note).name
+                    log(title: "MIDI", detail: "noteOn \(noteName) velocity \(velocity)")
+                case let .noteOff(note, velocity):
+                    let noteName = MIDINote(note).name
+                    log(title: "MIDI", detail: "noteOff \(noteName) velocity \(velocity)")
+                case let .controlChange(controller, value):
+                    log(title: "MIDI", detail: "cc \(controller) value \(value)")
             }
         }
     }
@@ -736,17 +742,17 @@ final class LonelyPianistViewModel {
 
     private func updatePressedNotes(for event: MIDIEvent) {
         switch event.type {
-        case .noteOn(let note, let velocity):
-            if velocity == 0 {
+            case let .noteOn(note, velocity):
+                if velocity == 0 {
+                    pressedNotes.removeAll { $0 == note }
+                } else if !pressedNotes.contains(note) {
+                    pressedNotes.append(note)
+                    pressedNotes.sort()
+                }
+            case let .noteOff(note, _):
                 pressedNotes.removeAll { $0 == note }
-            } else if !pressedNotes.contains(note) {
-                pressedNotes.append(note)
-                pressedNotes.sort()
-            }
-        case .noteOff(let note, _):
-            pressedNotes.removeAll { $0 == note }
-        case .controlChange:
-            return
+            case .controlChange:
+                return
         }
     }
 
@@ -831,7 +837,7 @@ final class LonelyPianistViewModel {
         return "Take \(formatter.string(from: date))"
     }
 
-    nonisolated private static func normalizeRuleNotes(_ notes: [Int]) -> [Int] {
+    private nonisolated static func normalizeRuleNotes(_ notes: [Int]) -> [Int] {
         Array(
             Set(notes.map { max(0, min(127, $0)) })
         ).sorted()

@@ -35,9 +35,9 @@ final class SongLibraryViewModel {
         self.paths = paths ?? SongLibraryPaths()
         self.parser = parser ?? MusicXMLParser()
         self.stepBuilder = stepBuilder ?? PracticeStepBuilder()
-        self.audioPlaybackController = SongAudioPlaybackStateController(player: audioPlayer ?? SongAudioPlayer())
+        audioPlaybackController = SongAudioPlaybackStateController(player: audioPlayer ?? SongAudioPlayer())
 
-        self.audioPlaybackController.onStateChanged = { [weak self] _ in
+        audioPlaybackController.onStateChanged = { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
                 self.syncListeningState()

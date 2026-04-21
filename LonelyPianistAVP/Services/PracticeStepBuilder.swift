@@ -5,7 +5,7 @@ protocol PracticeStepBuilderProtocol {
 }
 
 struct PracticeStepBuilder: PracticeStepBuilderProtocol {
-    private let playableRange = 21...108
+    private let playableRange = 21 ... 108
 
     func buildSteps(from score: MusicXMLScore) -> PracticeStepBuildResult {
         var grouped: [Int: [Int: Int?]] = [:] // tick -> midi -> staff

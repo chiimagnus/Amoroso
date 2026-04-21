@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func audioImportServiceCopiesFileIntoAudioDirectory() throws {
@@ -51,4 +51,3 @@ private final class TestDocumentsFileManager: FileManager {
         return super.urls(for: directory, in: domainMask)
     }
 }
-

@@ -10,7 +10,7 @@ struct PianoMappingsEditorView: View {
     @State private var selectedSingleNote: Int?
     @State private var selectedChordRuleID: UUID?
     @State private var chordSelectedNotes: Set<Int> = []
-    @State private var chordDraftOutput: KeyStroke = KeyStroke(keyCode: 8, modifiers: [.command])
+    @State private var chordDraftOutput: KeyStroke = .init(keyCode: 8, modifiers: [.command])
     @State private var chordOutputCaptureArmed = false
     @State private var chordMultiSelectEnabled = false
 
@@ -50,7 +50,7 @@ struct PianoMappingsEditorView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 PianoKeyboardView(
-                    noteRange: 48...83,
+                    noteRange: 48 ... 83,
                     highlightedNotes: Set(viewModel.pressedNotes),
                     selectedNotes: selectedNotes,
                     labelsForNote: labelsForNote,
@@ -207,7 +207,7 @@ struct PianoMappingsEditorView: View {
                                 get: { Double(viewModel.activeConfig?.payload.defaultVelocityThreshold ?? 100) },
                                 set: { viewModel.setVelocityThreshold(Int($0.rounded())) }
                             ),
-                            in: 1...127,
+                            in: 1 ... 127,
                             step: 1
                         )
                         .frame(maxWidth: 160)
@@ -287,7 +287,6 @@ struct PianoMappingsEditorView: View {
         beginBinding(note: note)
     }
 
-    @ViewBuilder
     private func bindingOverlay(note: Int) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("绑定 \(MIDINote(note).name)")
@@ -442,21 +441,21 @@ struct PianoMappingsEditorView: View {
         57, // caps lock
         58, 61, // option
         59, 62, // control
-        63 // function
+        63, // function
     ]
 }
 
 private struct OneShotKeyCaptureView: NSViewRepresentable {
     let onKeyDown: (NSEvent) -> Void
 
-    func makeNSView(context: Context) -> KeyCaptureNSView {
+    func makeNSView(context _: Context) -> KeyCaptureNSView {
         let view = KeyCaptureNSView()
         view.onKeyDown = onKeyDown
         view.promoteToFirstResponder()
         return view
     }
 
-    func updateNSView(_ nsView: KeyCaptureNSView, context: Context) {
+    func updateNSView(_ nsView: KeyCaptureNSView, context _: Context) {
         nsView.onKeyDown = onKeyDown
         nsView.promoteToFirstResponder()
     }
@@ -464,7 +463,9 @@ private struct OneShotKeyCaptureView: NSViewRepresentable {
     final class KeyCaptureNSView: NSView {
         var onKeyDown: ((NSEvent) -> Void)?
 
-        override var acceptsFirstResponder: Bool { true }
+        override var acceptsFirstResponder: Bool {
+            true
+        }
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()

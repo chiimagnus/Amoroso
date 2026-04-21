@@ -22,7 +22,8 @@ final class CalibrationOverlayController {
             hasAttachedRoot = true
         }
 
-        let reticleColor = isReticleReadyToConfirm ? AVPOverlayPalette.reticleReadyColor : AVPOverlayPalette.reticleColor
+        let reticleColor = isReticleReadyToConfirm ? AVPOverlayPalette.reticleReadyColor : AVPOverlayPalette
+            .reticleColor
         let reticle = ensureSphere(&reticleEntity, color: reticleColor, radius: 0.012)
         reticle.position = reticlePoint
 

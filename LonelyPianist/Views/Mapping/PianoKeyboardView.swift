@@ -70,14 +70,14 @@ struct PianoKeyboardView: View {
         let isSelected = selectedNotes.contains(note)
 
         switch (isHighlighted, isSelected) {
-        case (true, true):
-            return .highlightedAndSelected
-        case (true, false):
-            return .highlighted
-        case (false, true):
-            return .selected
-        case (false, false):
-            return .normal
+            case (true, true):
+                return .highlightedAndSelected
+            case (true, false):
+                return .highlighted
+            case (false, true):
+                return .selected
+            case (false, false):
+                return .normal
         }
     }
 }
@@ -122,10 +122,10 @@ private struct PianoLayout {
 
     nonisolated static func isBlackNote(_ note: Int) -> Bool {
         switch note % 12 {
-        case 1, 3, 6, 8, 10:
-            return true
-        default:
-            return false
+            case 1, 3, 6, 8, 10:
+                true
+            default:
+                false
         }
     }
 }
@@ -166,27 +166,27 @@ private struct PianoWhiteKeyView: View {
 
     private var background: some ShapeStyle {
         switch state {
-        case .normal:
-            return AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
-        case .highlighted:
-            return AnyShapeStyle(Color.accentColor.opacity(0.22))
-        case .selected:
-            return AnyShapeStyle(Color.orange.opacity(0.2))
-        case .highlightedAndSelected:
-            return AnyShapeStyle(Color.accentColor.opacity(0.35))
+            case .normal:
+                AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+            case .highlighted:
+                AnyShapeStyle(Color.accentColor.opacity(0.22))
+            case .selected:
+                AnyShapeStyle(Color.orange.opacity(0.2))
+            case .highlightedAndSelected:
+                AnyShapeStyle(Color.accentColor.opacity(0.35))
         }
     }
 
     private var borderColor: Color {
         switch state {
-        case .normal:
-            return Color(nsColor: .separatorColor)
-        case .highlighted:
-            return Color.accentColor.opacity(0.75)
-        case .selected:
-            return Color.orange.opacity(0.8)
-        case .highlightedAndSelected:
-            return Color.accentColor
+            case .normal:
+                Color(nsColor: .separatorColor)
+            case .highlighted:
+                Color.accentColor.opacity(0.75)
+            case .selected:
+                Color.orange.opacity(0.8)
+            case .highlightedAndSelected:
+                Color.accentColor
         }
     }
 
@@ -231,25 +231,25 @@ private struct PianoBlackKeyView: View {
 
     private var background: some ShapeStyle {
         switch state {
-        case .normal:
-            return AnyShapeStyle(Color(nsColor: .labelColor).opacity(0.86))
-        case .highlighted:
-            return AnyShapeStyle(Color.accentColor.opacity(0.78))
-        case .selected:
-            return AnyShapeStyle(Color.orange.opacity(0.75))
-        case .highlightedAndSelected:
-            return AnyShapeStyle(Color.accentColor)
+            case .normal:
+                AnyShapeStyle(Color(nsColor: .labelColor).opacity(0.86))
+            case .highlighted:
+                AnyShapeStyle(Color.accentColor.opacity(0.78))
+            case .selected:
+                AnyShapeStyle(Color.orange.opacity(0.75))
+            case .highlightedAndSelected:
+                AnyShapeStyle(Color.accentColor)
         }
     }
 
     private var borderColor: Color {
         switch state {
-        case .normal:
-            return Color.black.opacity(0.45)
-        case .highlighted, .highlightedAndSelected:
-            return Color.accentColor.opacity(0.95)
-        case .selected:
-            return Color.orange.opacity(0.95)
+            case .normal:
+                Color.black.opacity(0.45)
+            case .highlighted, .highlightedAndSelected:
+                Color.accentColor.opacity(0.95)
+            case .selected:
+                Color.orange.opacity(0.95)
         }
     }
 
@@ -260,7 +260,7 @@ private struct PianoBlackKeyView: View {
 
 #Preview {
     PianoKeyboardView(
-        noteRange: 48...83,
+        noteRange: 48 ... 83,
         highlightedNotes: [60, 64, 67],
         selectedNotes: [61, 63],
         labelsForNote: { note in
@@ -268,6 +268,6 @@ private struct PianoBlackKeyView: View {
             return PianoKeyLabels(noteName: MIDINote(note).name, mappingLabel: map[note])
         }
     ) { _ in }
-    .padding()
-    .frame(width: 980, height: 230)
+        .padding()
+        .frame(width: 980, height: 230)
 }

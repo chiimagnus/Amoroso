@@ -1,27 +1,37 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func playbackControllerTogglesPlayAndPauseForSameEntry() throws {
     let player = FakeSongAudioPlayer()
     let controller = SongAudioPlaybackStateController(player: player)
 
-    try controller.toggle(entryID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, url: URL(fileURLWithPath: "/tmp/a.mp3"))
+    try controller.toggle(
+        entryID: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001")),
+        url: URL(fileURLWithPath: "/tmp/a.mp3")
+    )
     #expect(player.playCalls.count == 1)
     #expect(player.pauseCalls == 0)
     #expect(controller.currentEntryID == UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
-    #expect(controller.isPlaying(entryID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!))
+    #expect(try controller.isPlaying(entryID: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))))
 
-    try controller.toggle(entryID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, url: URL(fileURLWithPath: "/tmp/a.mp3"))
+    try controller.toggle(
+        entryID: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001")),
+        url: URL(fileURLWithPath: "/tmp/a.mp3")
+    )
     #expect(player.pauseCalls == 1)
     #expect(controller.currentEntryID == UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
-    #expect(controller.isPlaying(entryID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!) == false)
+    #expect(try controller
+        .isPlaying(entryID: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))) == false)
 
-    try controller.toggle(entryID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!, url: URL(fileURLWithPath: "/tmp/a.mp3"))
+    try controller.toggle(
+        entryID: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001")),
+        url: URL(fileURLWithPath: "/tmp/a.mp3")
+    )
     #expect(player.playCalls.count == 2)
     #expect(controller.currentEntryID == UUID(uuidString: "00000000-0000-0000-0000-000000000001")!)
-    #expect(controller.isPlaying(entryID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!))
+    #expect(try controller.isPlaying(entryID: #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))))
 }
 
 @Test
@@ -29,8 +39,8 @@ func playbackControllerStopsPreviousSongWhenSwitchingEntries() throws {
     let player = FakeSongAudioPlayer()
     let controller = SongAudioPlaybackStateController(player: player)
 
-    let entryA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-    let entryB = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+    let entryA = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+    let entryB = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000002"))
 
     try controller.toggle(entryID: entryA, url: URL(fileURLWithPath: "/tmp/a.mp3"))
     try controller.toggle(entryID: entryB, url: URL(fileURLWithPath: "/tmp/b.mp3"))
@@ -47,7 +57,7 @@ func playbackControllerClearsStateWhenPlaybackFinishes() throws {
     let player = FakeSongAudioPlayer()
     let controller = SongAudioPlaybackStateController(player: player)
 
-    let entryA = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+    let entryA = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
     try controller.toggle(entryID: entryA, url: URL(fileURLWithPath: "/tmp/a.mp3"))
 
     #expect(controller.currentEntryID == entryA)
@@ -92,4 +102,3 @@ private final class FakeSongAudioPlayer: SongAudioPlayerProtocol {
         onPlaybackFinished?(entryID)
     }
 }
-

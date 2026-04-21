@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianist
+import Testing
 
 @MainActor
 @Test
@@ -58,7 +58,7 @@ func playSelectedTakeDoesNotTriggerKeyboardInjection() {
         updatedAt: Date(),
         durationSec: 1.0,
         notes: [
-            RecordedNote(id: UUID(), note: 67, velocity: 88, channel: 1, startOffsetSec: 0.0, durationSec: 0.5)
+            RecordedNote(id: UUID(), note: 67, velocity: 88, channel: 1, startOffsetSec: 0.0, durationSec: 0.5),
         ]
     )
     context.viewModel.takes = [take]
@@ -116,7 +116,11 @@ func midiEventsUpdatePressedNotesFromServiceCallback() async {
     context.midi.onEvent?(MIDIEvent(type: .noteOn(note: 60, velocity: 100), channel: 1, timestamp: now))
     #expect(await waitForCondition { context.viewModel.pressedNotes == [60] })
 
-    context.midi.onEvent?(MIDIEvent(type: .noteOff(note: 60, velocity: 0), channel: 1, timestamp: now.addingTimeInterval(0.1)))
+    context.midi.onEvent?(MIDIEvent(
+        type: .noteOff(note: 60, velocity: 0),
+        channel: 1,
+        timestamp: now.addingTimeInterval(0.1)
+    ))
     #expect(await waitForCondition { context.viewModel.pressedNotes.isEmpty })
 }
 
@@ -129,7 +133,7 @@ private func waitForCondition(
     let effectivePoll = max(1, pollMilliseconds)
     let iterations = max(1, Int(timeoutMilliseconds / effectivePoll))
 
-    for _ in 0..<iterations {
+    for _ in 0 ..< iterations {
         if condition() {
             return true
         }

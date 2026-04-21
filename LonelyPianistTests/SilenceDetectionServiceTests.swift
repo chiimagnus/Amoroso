@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianist
+import Testing
 
 private final class MutableClock: ClockProtocol {
     var value: Date
@@ -73,4 +73,3 @@ func openNotePreventsSilenceTrigger() {
     clock.value = offAt.addingTimeInterval(2.1)
     #expect(service.pollSilenceDetected() == true)
 }
-

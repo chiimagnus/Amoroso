@@ -1,6 +1,6 @@
 import Foundation
 
-struct RecordingTake: Identifiable, Hashable, Sendable {
+struct RecordingTake: Identifiable, Hashable {
     var id: UUID
     var name: String
     var createdAt: Date

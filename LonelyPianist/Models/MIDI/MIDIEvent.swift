@@ -1,7 +1,7 @@
 import Foundation
 
-struct MIDIEvent: Sendable, Equatable {
-    enum EventType: Sendable, Equatable {
+struct MIDIEvent: Equatable {
+    enum EventType: Equatable {
         case noteOn(note: Int, velocity: Int)
         case noteOff(note: Int, velocity: Int)
         case controlChange(controller: Int, value: Int)

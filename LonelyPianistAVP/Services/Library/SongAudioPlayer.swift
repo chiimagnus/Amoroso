@@ -57,7 +57,7 @@ final class SongAudioPlayer: NSObject, SongAudioPlayerProtocol, AVAudioPlayerDel
         currentEntryID == entryID && (audioPlayer?.isPlaying ?? false)
     }
 
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+    func audioPlayerDidFinishPlaying(_: AVAudioPlayer, successfully _: Bool) {
         let finishedEntryID = currentEntryID
         audioPlayer = nil
         currentEntryID = nil
@@ -72,12 +72,12 @@ final class SongAudioPlaybackStateController {
 
     init(player: SongAudioPlayerProtocol) {
         self.player = player
-        self.currentEntryID = nil
+        currentEntryID = nil
         self.player.onPlaybackFinished = { [weak self] finishedEntryID in
             guard let self else { return }
-            if self.currentEntryID == finishedEntryID {
-                self.currentEntryID = nil
-                self.onStateChanged?(nil)
+            if currentEntryID == finishedEntryID {
+                currentEntryID = nil
+                onStateChanged?(nil)
             }
         }
     }

@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func songLibraryIndexStoreLoadReturnsEmptyWhenFileMissing() throws {
@@ -25,7 +25,7 @@ func songLibraryIndexStoreSaveAndLoadRoundTrip() throws {
     let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
 
     let importedAt = Date(timeIntervalSince1970: 1_700_000_000)
-    let entryID = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+    let entryID = try #require(UUID(uuidString: "11111111-2222-3333-4444-555555555555"))
 
     let index = SongLibraryIndex(
         entries: [
@@ -35,7 +35,7 @@ func songLibraryIndexStoreSaveAndLoadRoundTrip() throws {
                 musicXMLFileName: "2026-04-21T21-00-00Z-Opus.musicxml",
                 importedAt: importedAt,
                 audioFileName: "2026-04-21T21-00-00Z-Opus.m4a"
-            )
+            ),
         ],
         lastSelectedEntryID: entryID
     )

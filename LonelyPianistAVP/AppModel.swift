@@ -1,6 +1,6 @@
 import ARKit
-import SwiftUI
 import simd
+import SwiftUI
 
 /// Maintains app-wide state
 @MainActor
@@ -42,6 +42,7 @@ class AppModel {
     var calibration: PianoCalibration? {
         didSet { applySessionIfPossible() }
     }
+
     let calibrationCaptureService: CalibrationPointCaptureService
     var pendingCalibrationCaptureAnchor: CalibrationAnchorPoint?
     var calibrationStatusMessage: String?
@@ -75,12 +76,12 @@ class AppModel {
     func beginCalibrationRecapture() {
         let persistedAnchorIDs = Set([
             storedCalibration?.a0AnchorID,
-            storedCalibration?.c8AnchorID
-        ].compactMap { $0 })
+            storedCalibration?.c8AnchorID,
+        ].compactMap(\.self))
         let capturedAnchorIDs = Set([
             calibrationCaptureService.a0AnchorID,
-            calibrationCaptureService.c8AnchorID
-        ].compactMap { $0 }).subtracting(persistedAnchorIDs)
+            calibrationCaptureService.c8AnchorID,
+        ].compactMap(\.self)).subtracting(persistedAnchorIDs)
 
         guard capturedAnchorIDs.isEmpty == false else {
             resetCalibrationCaptureState()
@@ -89,8 +90,8 @@ class AppModel {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            await self.removeCapturedAnchorsIfPossible(capturedAnchorIDs)
-            self.resetCalibrationCaptureState()
+            await removeCapturedAnchorsIfPossible(capturedAnchorIDs)
+            resetCalibrationCaptureState()
         }
     }
 

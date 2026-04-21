@@ -2,7 +2,6 @@ import SwiftUI
 
 @main
 struct LonelyPianistAVPApp: App {
-
     @State private var appModel: AppModel
     @State private var homeViewModel: HomeViewModel
     @State private var arGuideViewModel: ARGuideViewModel

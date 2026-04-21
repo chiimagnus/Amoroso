@@ -33,7 +33,7 @@ final class SwiftDataMappingConfigRepository: MappingConfigRepositoryProtocol {
         guard existing.isEmpty else { return }
 
         let config = DefaultConfigFactory.makeDefaultConfig()
-        context.insert(try makeEntity(from: config))
+        try context.insert(makeEntity(from: config))
         try context.save()
         logger.info("Seeded default mapping config")
     }

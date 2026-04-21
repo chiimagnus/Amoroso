@@ -1,7 +1,7 @@
 import Foundation
 
-struct ResolvedKeyStroke: Sendable {
-    enum TriggerType: Sendable {
+struct ResolvedKeyStroke {
+    enum TriggerType {
         case singleKey
         case chord
     }

@@ -16,7 +16,7 @@ struct MusicXMLImportService: MusicXMLImportServiceProtocol {
 
     init(fileManager: FileManager = .default) {
         let paths = SongLibraryPaths(fileManager: fileManager)
-        self.fileStore = SongFileStore(fileManager: fileManager, paths: paths)
+        fileStore = SongFileStore(fileManager: fileManager, paths: paths)
     }
 
     func importFile(from sourceURL: URL) throws -> ImportedMusicXMLFile {

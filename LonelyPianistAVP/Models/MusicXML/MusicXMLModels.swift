@@ -5,7 +5,10 @@ struct MusicXMLScore: Equatable {
 }
 
 struct MusicXMLNoteEvent: Equatable, Identifiable {
-    var id: String { "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)" }
+    var id: String {
+        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)"
+    }
+
     let partID: String
     let measureNumber: Int
     let tick: Int

@@ -1,7 +1,7 @@
 import Foundation
 
-struct MIDIPlaybackOutputOption: Identifiable, Equatable, Sendable {
-    enum Kind: Equatable, Sendable {
+struct MIDIPlaybackOutputOption: Identifiable, Equatable {
+    enum Kind: Equatable {
         case builtInSampler
         case midiDestination(uniqueID: Int32)
     }

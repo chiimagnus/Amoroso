@@ -1,6 +1,6 @@
 import Foundation
-import Testing
 @testable import LonelyPianist
+import Testing
 
 @MainActor
 @Test
@@ -28,7 +28,7 @@ func mappingEngineAppliesVelocityShiftDerivation() {
         velocityEnabled: true,
         defaultVelocityThreshold: 100,
         singleKeyRules: [
-            SingleKeyMappingRule(note: 60, output: KeyStroke(keyCode: 40), velocityThreshold: 100)
+            SingleKeyMappingRule(note: 60, output: KeyStroke(keyCode: 40), velocityThreshold: 100),
         ],
         chordRules: []
     )
@@ -61,7 +61,7 @@ func mappingEngineUsesNormalOutputWhenVelocityDisabled() {
         velocityEnabled: false,
         defaultVelocityThreshold: 20,
         singleKeyRules: [
-            SingleKeyMappingRule(note: 60, output: KeyStroke(keyCode: 40), velocityThreshold: 1)
+            SingleKeyMappingRule(note: 60, output: KeyStroke(keyCode: 40), velocityThreshold: 1),
         ],
         chordRules: []
     )
@@ -84,7 +84,7 @@ func mappingEngineChordUsesStrictEquality() {
         defaultVelocityThreshold: 100,
         singleKeyRules: [],
         chordRules: [
-            ChordMappingRule(notes: [60, 64, 67], output: KeyStroke(keyCode: 8, modifiers: [.command]))
+            ChordMappingRule(notes: [60, 64, 67], output: KeyStroke(keyCode: 8, modifiers: [.command])),
         ]
     )
 
@@ -120,10 +120,10 @@ func mappingConfigPayloadCodableRoundTrip() throws {
         velocityEnabled: true,
         defaultVelocityThreshold: 77,
         singleKeyRules: [
-            SingleKeyMappingRule(note: 60, output: KeyStroke(keyCode: 0), velocityThreshold: 77)
+            SingleKeyMappingRule(note: 60, output: KeyStroke(keyCode: 0), velocityThreshold: 77),
         ],
         chordRules: [
-            ChordMappingRule(notes: [60, 64, 67], output: KeyStroke(keyCode: 8, modifiers: [.command]))
+            ChordMappingRule(notes: [60, 64, 67], output: KeyStroke(keyCode: 8, modifiers: [.command])),
         ]
     )
 
@@ -143,7 +143,8 @@ func setSingleKeyMappingWritesKeyStrokeAndClampsNote() {
     context.viewModel.setSingleKeyMapping(note: 188, keyCode: 40)
 
     guard let activeConfig = context.viewModel.activeConfig,
-          let rule = activeConfig.payload.singleKeyRules.first(where: { $0.note == 127 }) else {
+          let rule = activeConfig.payload.singleKeyRules.first(where: { $0.note == 127 })
+    else {
         Issue.record("Expected a single-key rule at note 127")
         return
     }
@@ -165,7 +166,7 @@ func setSingleKeyMappingKeepsOnlyOneRulePerNote() {
             note: 60,
             output: KeyStroke(keyCode: 8),
             velocityThreshold: 111
-        )
+        ),
     ]
 
     let payload = MappingConfigPayload(
@@ -211,7 +212,8 @@ func chordCrudNormalizesNotesAndPersists() {
     updated.output = KeyStroke(keyCode: 35, modifiers: [.command, .shift])
     context.viewModel.updateChordRule(updated)
 
-    guard let updatedRule = context.viewModel.activeConfig?.payload.chordRules.first(where: { $0.id == created.id }) else {
+    guard let updatedRule = context.viewModel.activeConfig?.payload.chordRules.first(where: { $0.id == created.id })
+    else {
         Issue.record("Expected updated chord rule")
         return
     }
@@ -252,8 +254,12 @@ func mappingEditsPersistAfterRebootstrap() {
         return
     }
 
-    #expect(activeConfig.payload.singleKeyRules.contains(where: { $0.note == 60 && $0.output == KeyStroke(keyCode: 0) }))
-    #expect(activeConfig.payload.chordRules.contains(where: { $0.notes == [60, 64, 67] && $0.output == KeyStroke(keyCode: 8, modifiers: [.command]) }))
+    #expect(activeConfig.payload.singleKeyRules
+        .contains(where: { $0.note == 60 && $0.output == KeyStroke(keyCode: 0) }))
+    #expect(activeConfig.payload.chordRules.contains(where: { $0.notes == [60, 64, 67] && $0.output == KeyStroke(
+        keyCode: 8,
+        modifiers: [.command]
+    ) }))
 }
 
 @MainActor

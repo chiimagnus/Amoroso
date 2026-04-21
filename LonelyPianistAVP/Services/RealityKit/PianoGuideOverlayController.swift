@@ -22,14 +22,13 @@ final class PianoGuideOverlayController {
         clearMarkers()
         guard let currentStep else { return }
 
-        let tintColor: UIColor
-        switch feedbackState {
-        case .none:
-            tintColor = AVPOverlayPalette.feedbackNoneColor
-        case .correct:
-            tintColor = AVPOverlayPalette.feedbackCorrectColor
-        case .wrong:
-            tintColor = AVPOverlayPalette.feedbackWrongColor
+        let tintColor: UIColor = switch feedbackState {
+            case .none:
+                AVPOverlayPalette.feedbackNoneColor
+            case .correct:
+                AVPOverlayPalette.feedbackCorrectColor
+            case .wrong:
+                AVPOverlayPalette.feedbackWrongColor
         }
 
         let regionByNote = Dictionary(uniqueKeysWithValues: keyRegions.map { ($0.midiNote, $0) })

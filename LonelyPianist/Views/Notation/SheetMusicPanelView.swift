@@ -97,4 +97,3 @@ extension UTType {
         UTType(importedAs: "com.recordare.musicxml")
     }
 }
-

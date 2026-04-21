@@ -46,7 +46,7 @@ final class PermissionServiceMock: PermissionServiceProtocol {
 
 @MainActor
 final class MappingConfigRepositoryMock: MappingConfigRepositoryProtocol {
-    var config: MappingConfig = MappingConfig(
+    var config: MappingConfig = .init(
         id: UUID(),
         updatedAt: .now,
         payload: .empty
@@ -144,7 +144,7 @@ final class MIDIPlaybackServiceMock: RoutableMIDIPlaybackServiceProtocol {
             id: MIDIPlaybackOutputOption.builtInSamplerID,
             title: "Built-in Sampler",
             kind: .builtInSampler
-        )
+        ),
     ]
     var selectedOutputID: String = MIDIPlaybackOutputOption.builtInSamplerID
 
@@ -171,7 +171,7 @@ final class MIDIPlaybackServiceMock: RoutableMIDIPlaybackServiceProtocol {
 
 @MainActor
 final class MappingEngineMock: MappingEngineProtocol {
-    func process(event: MIDIEvent, payload: MappingConfigPayload) -> [ResolvedKeyStroke] {
+    func process(event _: MIDIEvent, payload _: MappingConfigPayload) -> [ResolvedKeyStroke] {
         []
     }
 
@@ -180,7 +180,7 @@ final class MappingEngineMock: MappingEngineProtocol {
 
 @MainActor
 final class ShortcutServiceMock: ShortcutServiceProtocol {
-    func runShortcut(named: String) throws {}
+    func runShortcut(named _: String) throws {}
 }
 
 @MainActor
@@ -188,9 +188,10 @@ final class DialogueServiceMock: DialogueServiceProtocol {
     var connectionState: DialogueServiceConnectionState = .disconnected {
         didSet { onConnectionStateChange?(connectionState) }
     }
+
     var onConnectionStateChange: (@Sendable (DialogueServiceConnectionState) -> Void)?
 
-    func connect(url: URL) {
+    func connect(url _: URL) {
         connectionState = .connected
     }
 
@@ -199,9 +200,9 @@ final class DialogueServiceMock: DialogueServiceProtocol {
     }
 
     func generate(
-        notes: [DialogueNote],
-        params: DialogueGenerateParams,
-        sessionID: String?
+        notes _: [DialogueNote],
+        params _: DialogueGenerateParams,
+        sessionID _: String?
     ) async throws -> (notes: [DialogueNote], latencyMs: Int?) {
         ([], nil)
     }

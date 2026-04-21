@@ -11,13 +11,13 @@ final class DefaultMappingEngine: MappingEngineProtocol {
 
     func process(event: MIDIEvent, payload: MappingConfigPayload) -> [ResolvedKeyStroke] {
         switch event.type {
-        case .noteOn(let note, let velocity):
-            return processNoteOn(note: note, velocity: velocity, payload: payload)
-        case .noteOff(let note, _):
-            processNoteOff(note: note, payload: payload)
-            return []
-        case .controlChange:
-            return []
+            case let .noteOn(note, velocity):
+                return processNoteOn(note: note, velocity: velocity, payload: payload)
+            case let .noteOff(note, _):
+                processNoteOff(note: note, payload: payload)
+                return []
+            case .controlChange:
+                return []
         }
     }
 

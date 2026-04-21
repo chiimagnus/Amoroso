@@ -1,7 +1,7 @@
 import Foundation
-import Testing
-import simd
 @testable import LonelyPianistAVP
+import simd
+import Testing
 
 @Test
 @MainActor

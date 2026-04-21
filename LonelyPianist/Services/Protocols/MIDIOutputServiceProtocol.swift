@@ -1,6 +1,6 @@
 import Foundation
 
-struct MIDIDestinationInfo: Identifiable, Equatable, Sendable {
+struct MIDIDestinationInfo: Identifiable, Equatable {
     let id: Int32
     let name: String
 }
@@ -11,4 +11,3 @@ protocol MIDIOutputServiceProtocol: AnyObject {
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationID: Int32) throws
     func sendNoteOff(note: UInt8, channel: UInt8, destinationID: Int32) throws
 }
-

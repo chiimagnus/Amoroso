@@ -61,7 +61,10 @@ final class SongLibrarySeeder: SongLibrarySeederProtocol {
             return
         }
 
-        let legacyDirectoryURL = documentsURL.appendingPathComponent(Self.legacyImportedScoresDirectoryName, isDirectory: true)
+        let legacyDirectoryURL = documentsURL.appendingPathComponent(
+            Self.legacyImportedScoresDirectoryName,
+            isDirectory: true
+        )
         guard fileManager.fileExists(atPath: legacyDirectoryURL.path()) else {
             return
         }

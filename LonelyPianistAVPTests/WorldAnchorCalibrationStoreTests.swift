@@ -1,12 +1,12 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 @Test
 func storedWorldAnchorCalibrationSupportsCodableRoundTrip() throws {
-    let calibration = StoredWorldAnchorCalibration(
-        a0AnchorID: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!,
-        c8AnchorID: UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")!,
+    let calibration = try StoredWorldAnchorCalibration(
+        a0AnchorID: #require(UUID(uuidString: "11111111-2222-3333-4444-555555555555")),
+        c8AnchorID: #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")),
         whiteKeyWidth: 0.031,
         generatedAt: Date(timeIntervalSince1970: 1_735_689_600)
     )
@@ -43,9 +43,9 @@ func worldAnchorCalibrationStoreCanSaveAndLoadRoundTrip() throws {
         fileName: "world-anchor-calibration.json"
     )
 
-    let calibration = StoredWorldAnchorCalibration(
-        a0AnchorID: UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")!,
-        c8AnchorID: UUID(uuidString: "FEDCBA98-7654-3210-FEDC-BA9876543210")!,
+    let calibration = try StoredWorldAnchorCalibration(
+        a0AnchorID: #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")),
+        c8AnchorID: #require(UUID(uuidString: "FEDCBA98-7654-3210-FEDC-BA9876543210")),
         whiteKeyWidth: 0.027,
         generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
