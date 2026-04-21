@@ -1,20 +1,10 @@
-<div align="center">
-
 # 🎹 LonelyPianist
 
 **把你的 MIDI 键盘，同时变成一台「快捷控制台」、一个「AI 即兴伙伴」，和一块「AR 练习助教」。**
 
-macOS · visionOS · Python · 本地优先 · 开源
-
-顶部徽章（粘到 README 时用 `...` 包住即可居中）：
-
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20visionOS-lightgrey)
 ![Swift](https://img.shields.io/badge/Swift-6-orange)
-![Python](https://img.shields.io/badge/Python-3.12-blue)
-![Status](https://img.shields.io/badge/status-active%20development-brightgreen)
-
-</div>
 
 ## ✨ LonelyPianist 是什么
 
@@ -24,34 +14,6 @@ macOS · visionOS · Python · 本地优先 · 开源
 - 🎭 **音乐对话** —— 你弹一句，AI 回一句，轮转式即兴（基于 [Anticipatory Music Transformer](https://crfm.stanford.edu/2023/06/16/anticipatory-music-transformer.html)）。
 - 🥽 **空间引导** —— 在 Apple Vision Pro 上导入外部准备好的 MusicXML，空间高亮下一步该按的键。
 
----
-
-## 🧭 架构总览
-
-```mermaid
-flowchart LR
-    subgraph macOS[LonelyPianist · macOS]
-        A1[CoreMIDI Input] --> A2[ViewModel]
-        A2 --> A3[Mapping Engine]
-        A2 --> A4[Dialogue Manager]
-        A2 --> A5[SwiftData · Takes & Mappings]
-        A4 --> A6[Playback · Sampler/MIDI Out]
-    end
-    subgraph PY[piano_dialogue_server · Python]
-        P1[FastAPI] --> P2["Inference<br/>Anticipatory MT"]
-    end
-    subgraph AVP[LonelyPianistAVP · visionOS]
-        V1[MusicXML Parser] --> V2[Practice Session]
-        V3[HandTracking · ARKit] --> V2
-        V4[A0/C8 Calibration] --> V2
-        V2 --> V5[RealityKit Overlay]
-    end
-    A4 <-->|WebSocket /ws| P1
-    E1[External MusicXML File] --> V1
-```
-
----
-
 ## 🎯 核心功能
 
 | 能力 | 你能做什么 | 运行面 |
@@ -60,8 +22,6 @@ flowchart LR
 | 🎤 **录音 & 回放** | 录 take，用内建 Sampler 或任意 MIDI 目的地回放，SwiftData 持久化 | macOS |
 | 🎭 **Piano Dialogue** | 静默触发 → WS 推理 → AI 回放，支持 `ignore / interrupt / queue` 三种打断策略 | macOS ↔ Python |
 | 🥽 **AR Guide** | AVP 导入外部 MusicXML，完成 A0/C8 两点校准，手部追踪判定按键，错了变红、对了推进 | visionOS |
-
----
 
 ## 🚀 Quick Start
 
@@ -113,8 +73,6 @@ open LonelyPianist.xcodeproj
 
 > 说明：本仓库不再提供 PDF/图片转 MusicXML 的本地链路；请先在其他地方准备好 MusicXML 文件再导入。
 
----
-
 ## 🧱 仓库结构
 
 ```
@@ -135,8 +93,6 @@ LonelyPianist/
 
 内部架构细节见 `.github/deepwiki/` 每个模块页。
 
----
-
 ## 🛠 技术栈
 
 | 层 | 技术 |
@@ -148,8 +104,6 @@ LonelyPianist/
 | 服务层 | FastAPI · Uvicorn · WebSocket (`protocol_version=1`) |
 | 推理 | PyTorch · Transformers · [Anticipation](https://github.com/jthickstun/anticipation) |
 | 测试 | Swift Testing（macOS + AVP 双套） |
-
----
 
 ## ⚙️ 常用配置
 
@@ -165,29 +119,6 @@ LonelyPianist/
 | `AMT_DEVICE` | env | 自动 | `mps` / `cuda` / `cpu` |
 | `DIALOGUE_DEBUG` | env | `0` | 写 `out/dialogue_debug/` 调试包 |
 
----
-
-## 🧪 测试
-
-```bash
-# macOS 单元测试
-xcodebuild test -project LonelyPianist.xcodeproj \
-  -scheme LonelyPianist -destination 'platform=macOS'
-
-# visionOS 单元测试
-xcodebuild test -project LonelyPianist.xcodeproj \
-  -scheme LonelyPianistAVP \
-  -destination 'platform=visionOS Simulator,name=Apple Vision Pro'
-
-# Python 端到端
-cd piano_dialogue_server/server
-../.venv/bin/python test_client.py      # → out/server_reply.mid
-```
-
-覆盖的关键算法：MIDI 映射严格集合匹配、静默检测状态机、MusicXML 解析（含 backup/forward/chord）、PracticeStepBuilder、StepMatcher、ChordAttemptAccumulator。
-
----
-
 ## 🆘 Troubleshooting
 
 | 症状 | 先查这里 |
@@ -199,20 +130,6 @@ cd piano_dialogue_server/server
 | 回放无声 | Recorder Output 切回 Built-in Sampler 排除外部 MIDI 目的地 |
 
 更详细的症状表见 `.github/deepwiki/troubleshooting.md`。
-
----
-
-## 🗺 Roadmap
-
-- [x]  macOS MIDI 映射 / 录音 / 回放
-- [x]  Piano Dialogue（WebSocket + Anticipatory MT）
-- [x]  AVP A0/C8 校准 + 手部追踪 AR Guide
-- [ ]  AVP 导入与练习体验打磨
-- [ ]  黑白键真实几何建模（当前按 88 键等间距近似）
-- [ ]  Dialogue session-level 记忆
-- [ ]  CI / Release workflow
-
----
 
 ## 🙏 Acknowledgements
 
