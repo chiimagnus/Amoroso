@@ -68,10 +68,18 @@ final class SongLibraryViewModel {
                     importedAt: imported.importedAt,
                     audioFileName: nil
                 )
-                updatedIndex.entries.append(entry)
-            }
 
-            try indexStore.save(updatedIndex)
+                var nextIndex = updatedIndex
+                nextIndex.entries.append(entry)
+
+                do {
+                    try indexStore.save(nextIndex)
+                    updatedIndex = nextIndex
+                } catch {
+                    try? fileStore.deleteScoreFile(named: imported.storedFileName)
+                    throw error
+                }
+            }
             index = updatedIndex
         } catch {
             errorMessage = "导入失败：\(error.localizedDescription)"
@@ -127,17 +135,21 @@ final class SongLibraryViewModel {
             var updatedIndex = index
             updatedIndex.entries.remove(at: entryIndex)
 
-            try fileStore.deleteScoreFile(named: entry.musicXMLFileName)
-            if let audioFileName = entry.audioFileName {
-                try fileStore.deleteAudioFile(named: audioFileName)
-            }
-
             if updatedIndex.lastSelectedEntryID == entry.id {
                 updatedIndex.lastSelectedEntryID = updatedIndex.entries.last?.id
             }
 
             try indexStore.save(updatedIndex)
             index = updatedIndex
+
+            do {
+                try fileStore.deleteScoreFile(named: entry.musicXMLFileName)
+                if let audioFileName = entry.audioFileName {
+                    try fileStore.deleteAudioFile(named: audioFileName)
+                }
+            } catch {
+                errorMessage = "曲目已从索引移除，但文件删除失败：\(error.localizedDescription)"
+            }
         } catch {
             errorMessage = "删除失败：\(error.localizedDescription)"
         }
