@@ -94,8 +94,10 @@ final class SongAudioPlaybackStateController {
             return
         }
 
-        player.stop()
-        currentEntryID = nil
+        if currentEntryID != nil {
+            player.stop()
+            currentEntryID = nil
+        }
         try player.play(entryID: entryID, url: url)
         currentEntryID = entryID
         onStateChanged?(currentEntryID)
