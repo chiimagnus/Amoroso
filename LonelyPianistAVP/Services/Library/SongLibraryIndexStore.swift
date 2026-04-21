@@ -23,6 +23,15 @@ struct SongLibraryIndexStore: SongLibraryIndexStoreProtocol {
         }
 
         let data = try Data(contentsOf: indexFileURL)
+        if data.isEmpty {
+            return .empty
+        }
+
+        if let text = String(data: data, encoding: .utf8),
+            text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .empty
+        }
+
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(SongLibraryIndex.self, from: data)

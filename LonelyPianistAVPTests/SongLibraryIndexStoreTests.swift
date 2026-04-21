@@ -46,6 +46,23 @@ func songLibraryIndexStoreSaveAndLoadRoundTrip() throws {
     #expect(loaded == index)
 }
 
+@Test
+func songLibraryIndexStoreLoadReturnsEmptyWhenFileIsEmpty() throws {
+    let documentsURL = try makeTemporaryDirectory(prefix: "SongLibraryIndexStoreTests")
+    defer { try? FileManager.default.removeItem(at: documentsURL) }
+
+    let fileManager = TestDocumentsFileManager(documentsURL: documentsURL)
+    let paths = SongLibraryPaths(fileManager: fileManager)
+    let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
+
+    try paths.ensureDirectoriesExist()
+    let indexFileURL = try paths.indexFileURL()
+    try Data().write(to: indexFileURL)
+
+    let index = try store.load()
+    #expect(index == .empty)
+}
+
 private func makeTemporaryDirectory(prefix: String) throws -> URL {
     let directoryURL = FileManager.default.temporaryDirectory
         .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)

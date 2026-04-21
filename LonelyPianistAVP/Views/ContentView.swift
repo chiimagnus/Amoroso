@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import simd
 
 fileprivate enum MainFlowRoute: Hashable {
@@ -29,39 +28,6 @@ struct ContentView: View {
                         .navigationTitle("Step 2 · 开始练习")
                 }
             }
-            .toolbar {
-                if navigationPath.isEmpty, homeViewModel.canImportScore {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("导入 MusicXML…") {
-                            homeViewModel.isImporterPresented = true
-                        }
-                    }
-                }
-            }
-        }
-        .fileImporter(
-            isPresented: $homeViewModel.isImporterPresented,
-            allowedContentTypes: [.xml, .musicXML],
-            allowsMultipleSelection: false
-        ) { result in
-            homeViewModel.handleImportResult(result)
-        }
-        .alert(
-            "导入失败",
-            isPresented: Binding(
-                get: { homeViewModel.importErrorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        homeViewModel.clearImportError()
-                    }
-                }
-            )
-        ) {
-            Button("好") {
-                homeViewModel.clearImportError()
-            }
-        } message: {
-            Text(homeViewModel.importErrorMessage ?? "未知错误")
         }
     }
 
@@ -173,11 +139,3 @@ private struct StepOrbLink: View {
     )
 }
 
-#Preview("主页 - 导入失败 Alert") {
-    let appModel = AppModel()
-    appModel.importErrorMessage = "导入失败：预览用错误"
-    return ContentView(
-        homeViewModel: HomeViewModel(appModel: appModel),
-        arGuideViewModel: ARGuideViewModel(appModel: appModel)
-    )
-}
