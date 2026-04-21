@@ -117,37 +117,6 @@ class AppModel {
         }
     }
 
-    func loadBundledSampleScoreIfNeeded() {
-        guard importedFile == nil, importedSteps.isEmpty else { return }
-
-        let sampleSubdirectory = "Resources/SampleScores/坂本龙一"
-        let sampleMusicXMLFileName = "Opus – Ryuichi Sakamoto (Piano Transcription).musicxml"
-
-        let bundle = Bundle(for: AppModel.self)
-        guard let musicXMLURL = bundle.url(
-            forResource: sampleMusicXMLFileName,
-            withExtension: nil,
-            subdirectory: sampleSubdirectory
-        ) ?? bundle.url(forResource: sampleMusicXMLFileName, withExtension: nil) else {
-            return
-        }
-
-        do {
-            let score = try parser.parse(fileURL: musicXMLURL)
-            let buildResult = stepBuilder.buildSteps(from: score)
-            setImportedSteps(
-                buildResult.steps,
-                file: ImportedMusicXMLFile(
-                    fileName: sampleMusicXMLFileName,
-                    storedURL: musicXMLURL,
-                    importedAt: Date()
-                )
-            )
-        } catch {
-            return
-        }
-    }
-
     func loadStoredCalibrationIfPossible() {
         do {
             guard let stored = try worldAnchorCalibrationStore.load() else { return }
