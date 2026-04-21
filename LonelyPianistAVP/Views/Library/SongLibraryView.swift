@@ -168,15 +168,20 @@ struct SongLibraryView: View {
 
                 HStack(spacing: 8) {
                     if entry.audioFileName == nil {
+                        Text("(无音频)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
                         Button("导入音频") {
                             pendingAudioBindingEntryID = entry.id
                             isAudioImporterPresented = true
                         }
                         .buttonStyle(.bordered)
                     } else {
-                        Text("已绑定音频")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Button("聆听") {
+                            viewModel.didTapListen(entryID: entry.id)
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
             }

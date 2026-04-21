@@ -183,4 +183,8 @@ final class SongLibraryViewModel {
             errorMessage = "导入音频失败：\(error.localizedDescription)"
         }
     }
+
+    func didTapListen(entryID: UUID) {
+        // P3-T3 将接入真实播放/暂停逻辑；此处先保留 UI action hook。
+    }
 }
