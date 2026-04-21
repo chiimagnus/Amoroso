@@ -1,0 +1,24 @@
+# .swiftformat
+
+--swiftversion 6.0
+
+# 规则
+--enable sortImports
+--enable blankLinesBetweenScopes
+--enable trailingCommas
+--enable redundantSelf
+--enable consecutiveSpaces
+--enable emptyBraces
+
+# 缩进
+--indent 4
+--indentcase true
+
+# 换行
+--maxwidth 120
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+
+# 排除
+--exclude .build,DerivedData,Pods,Packages/RealityKitContent,.xcodebuildmcp,piano_dialogue_server
