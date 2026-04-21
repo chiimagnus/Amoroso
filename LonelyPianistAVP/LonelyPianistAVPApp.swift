@@ -10,6 +10,9 @@ struct LonelyPianistAVPApp: App {
     init() {
         let appModel = AppModel()
         appModel.loadStoredCalibrationIfPossible()
+        Task { @MainActor in
+            appModel.loadBundledSampleScoreIfNeeded()
+        }
         _appModel = State(initialValue: appModel)
         _homeViewModel = State(initialValue: HomeViewModel(appModel: appModel))
         _arGuideViewModel = State(initialValue: ARGuideViewModel(appModel: appModel))
