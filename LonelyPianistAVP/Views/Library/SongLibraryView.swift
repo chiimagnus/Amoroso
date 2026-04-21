@@ -88,6 +88,9 @@ struct SongLibraryView: View {
         .onAppear {
             viewModel.reload()
         }
+        .onDisappear {
+            viewModel.stopListening()
+        }
         .alert(
             "提示",
             isPresented: Binding(
@@ -178,7 +181,7 @@ struct SongLibraryView: View {
                         }
                         .buttonStyle(.bordered)
                     } else {
-                        Button("聆听") {
+                        Button(viewModel.isListeningPlaying(entryID: entry.id) ? "暂停" : "聆听") {
                             viewModel.didTapListen(entryID: entry.id)
                         }
                         .buttonStyle(.bordered)

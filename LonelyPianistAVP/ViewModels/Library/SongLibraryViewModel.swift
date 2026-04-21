@@ -11,9 +11,12 @@ final class SongLibraryViewModel {
     private let paths: SongLibraryPaths
     private let parser: MusicXMLParserProtocol
     private let stepBuilder: PracticeStepBuilderProtocol
+    private let audioPlaybackController: SongAudioPlaybackStateController
 
     var index: SongLibraryIndex = .empty
     var errorMessage: String?
+    var currentListeningEntryID: UUID?
+    var isCurrentListeningPlaying = false
 
     init(
         appModel: AppModel,
@@ -22,7 +25,8 @@ final class SongLibraryViewModel {
         audioImportService: AudioImportServiceProtocol? = nil,
         paths: SongLibraryPaths? = nil,
         parser: MusicXMLParserProtocol? = nil,
-        stepBuilder: PracticeStepBuilderProtocol? = nil
+        stepBuilder: PracticeStepBuilderProtocol? = nil,
+        audioPlayer: SongAudioPlayerProtocol? = nil
     ) {
         self.appModel = appModel
         self.indexStore = indexStore ?? SongLibraryIndexStore()
@@ -31,6 +35,14 @@ final class SongLibraryViewModel {
         self.paths = paths ?? SongLibraryPaths()
         self.parser = parser ?? MusicXMLParser()
         self.stepBuilder = stepBuilder ?? PracticeStepBuilder()
+        self.audioPlaybackController = SongAudioPlaybackStateController(player: audioPlayer ?? SongAudioPlayer())
+
+        self.audioPlaybackController.onStateChanged = { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.syncListeningState()
+            }
+        }
 
         reload()
     }
@@ -132,6 +144,9 @@ final class SongLibraryViewModel {
         }
 
         let entry = index.entries[entryIndex]
+        if currentListeningEntryID == entry.id {
+            stopListening()
+        }
 
         do {
             var updatedIndex = index
@@ -185,6 +200,38 @@ final class SongLibraryViewModel {
     }
 
     func didTapListen(entryID: UUID) {
-        // P3-T3 将接入真实播放/暂停逻辑；此处先保留 UI action hook。
+        guard let entry = index.entries.first(where: { $0.id == entryID }) else {
+            return
+        }
+        guard let audioFileName = entry.audioFileName else {
+            errorMessage = "此曲目未绑定音频文件，可再次导入音频。"
+            return
+        }
+
+        do {
+            let audioURL = try fileStore.audioFileURL(fileName: audioFileName)
+            try audioPlaybackController.toggle(entryID: entryID, url: audioURL)
+            syncListeningState()
+        } catch {
+            errorMessage = "播放失败：\(error.localizedDescription)"
+        }
+    }
+
+    func stopListening() {
+        audioPlaybackController.stop()
+        syncListeningState()
+    }
+
+    func isListeningPlaying(entryID: UUID) -> Bool {
+        audioPlaybackController.isPlaying(entryID: entryID)
+    }
+
+    private func syncListeningState() {
+        currentListeningEntryID = audioPlaybackController.currentEntryID
+        if let currentListeningEntryID {
+            isCurrentListeningPlaying = audioPlaybackController.isPlaying(entryID: currentListeningEntryID)
+        } else {
+            isCurrentListeningPlaying = false
+        }
     }
 }
