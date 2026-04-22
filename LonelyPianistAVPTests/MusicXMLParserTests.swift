@@ -288,3 +288,57 @@ func parserFallsBackToOtherPartsWhenP1HasNoTempo() throws {
     #expect(score.tempoEvents.count == 1)
     #expect(score.tempoEvents[0].quarterBPM == 140)
 }
+
+@Test
+func parserParsesNoteTieElement() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <note>
+            <tie type="start"/>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.notes.count == 1)
+    #expect(score.notes[0].tieStart == true)
+    #expect(score.notes[0].tieStop == false)
+}
+
+@Test
+func parserParsesNotationsTiedElement() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <note>
+            <notations><tied type="stop"/></notations>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.notes.count == 1)
+    #expect(score.notes[0].tieStart == false)
+    #expect(score.notes[0].tieStop == true)
+}

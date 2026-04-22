@@ -129,3 +129,40 @@ func buildStepsFiltersRestAndOutOfRangeNotes() {
     #expect(result.steps[0].tick == 1)
     #expect(result.steps[0].notes.map(\.midiNote) == [72])
 }
+
+@Test
+func buildStepsSkipsTieStopEvents() {
+    let score = MusicXMLScore(notes: [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: true,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        ),
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 480,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: true,
+            staff: 1,
+            voice: 1
+        ),
+    ])
+
+    let result = PracticeStepBuilder().buildSteps(from: score)
+    #expect(result.steps.count == 1)
+    #expect(result.steps[0].tick == 0)
+    #expect(result.steps[0].notes.map(\.midiNote) == [60])
+}
