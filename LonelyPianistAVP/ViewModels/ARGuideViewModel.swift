@@ -131,6 +131,10 @@ final class ARGuideViewModel {
         practiceSessionViewModel.skip()
     }
 
+    func playCurrentPracticeStepSound() {
+        practiceSessionViewModel.playCurrentStepSound()
+    }
+
     var practiceLocalizationStatusText: String? {
         switch practiceLocalizationState {
             case .idle:

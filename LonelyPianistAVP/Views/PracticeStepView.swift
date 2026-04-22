@@ -38,6 +38,14 @@ struct PracticeStepView: View {
                     .hoverEffect()
                     .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel.state == .completed)
 
+                    Button("播放琴声", systemImage: "speaker.wave.2.fill") {
+                        viewModel.playCurrentPracticeStepSound()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.roundedRectangle)
+                    .hoverEffect()
+                    .disabled(viewModel.practiceSessionViewModel.currentStep == nil)
+
                     Text("进度 \(viewModel.practiceProgressText)")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
