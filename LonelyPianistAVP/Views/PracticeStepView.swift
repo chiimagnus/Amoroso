@@ -9,63 +9,38 @@ struct PracticeStepView: View {
 
     @State private var hasRequestedImmersiveOpen = false
     @State private var isStepVisible = false
+    @State private var isLocalizationPopoverPresented = false
 
     var body: some View {
-        Form {
-            Section("状态") {
-                LabeledContent("练习") {
-                    Text(viewModel.practiceStatusText)
-                        .foregroundStyle(.secondary)
+        GeometryReader { proxy in
+            PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes)
+                .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
+                .frame(width: proxy.size.width * 0.9)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 18)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .bottomOrnament) {
+                Button("跳过", systemImage: "forward.fill") {
+                    viewModel.skipStep()
                 }
-                LabeledContent("进度") {
-                    Text(viewModel.practiceProgressText)
-                        .foregroundStyle(.secondary)
-                }
-            }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
+                .disabled(viewModel.canControlPractice == false)
 
-            Section("控制") {
-                Text("定位成功后按键位高亮弹奏；也可以使用下方按钮推进步骤。")
-                    .font(.caption)
+                Text("进度 \(viewModel.practiceProgressText)")
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                ViewThatFits {
-                    AnyLayout(HStackLayout(spacing: 10)) {
-                        practiceButtons
-                    }
-                    AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) {
-                        practiceButtons
-                    }
+                Button("定位", systemImage: "scope") {
+                    isLocalizationPopoverPresented.toggle()
                 }
-            }
-
-            Section("定位") {
-                Text(viewModel.practiceLocalizationStatusText ?? "进入后会自动定位钢琴。")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                if viewModel.canRetryPracticeLocalization {
-                    Button("重试定位") {
-                        Task { @MainActor in
-                            await viewModel.retryPracticeLocalization(
-                                using: openImmersiveSpace,
-                                dismissImmersiveSpace: dismissImmersiveSpace
-                            )
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .hoverEffect()
-                }
-
-                if viewModel.shouldSuggestCalibrationStep {
-                    Text("若持续失败，请返回主页进入 Step 1 重新校准。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Button("返回主页") {
-                        dismiss()
-                    }
-                    .buttonStyle(.bordered)
-                    .hoverEffect()
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
+                .popover(isPresented: $isLocalizationPopoverPresented) {
+                    localizationPopover
                 }
             }
         }
@@ -98,15 +73,52 @@ struct PracticeStepView: View {
         }
     }
 
+    private var highlightedMIDINotes: Set<Int> {
+        guard let currentStep = viewModel.practiceSessionViewModel.currentStep else {
+            return []
+        }
+        return Set(currentStep.notes.map(\.midiNote))
+    }
+
     @ViewBuilder
-    private var practiceButtons: some View {
-        Button("跳过") { viewModel.skipStep() }
-            .buttonStyle(.bordered)
-            .hoverEffect()
-            .disabled(viewModel.canControlPractice == false)
+    private var localizationPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(viewModel.practiceLocalizationStatusText ?? "进入后会自动定位钢琴。")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            if viewModel.canRetryPracticeLocalization {
+                Button("重试定位", systemImage: "arrow.clockwise") {
+                    Task { @MainActor in
+                        await viewModel.retryPracticeLocalization(
+                            using: openImmersiveSpace,
+                            dismissImmersiveSpace: dismissImmersiveSpace
+                        )
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
+            }
+
+            if viewModel.shouldSuggestCalibrationStep {
+                Text("若持续失败，请返回主页进入 Step 1 重新校准。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("返回主页", systemImage: "house") {
+                    dismiss()
+                }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 320)
     }
 }
 
-#Preview("Step 2") {
+#Preview("Step 3") {
     PracticeStepView(viewModel: ARGuideViewModel(appModel: AppModel()))
 }
