@@ -67,6 +67,11 @@ struct PracticeStepView: View {
                         PracticeSettingsView()
                     }
 
+                    if isAutoplayEnabled {
+                        Text("Pedal ↑")
+                            .foregroundStyle(.secondary)
+                    }
+
                     Text("进度 \(viewModel.practiceProgressText)")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
