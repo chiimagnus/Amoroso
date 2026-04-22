@@ -135,11 +135,13 @@ struct MusicXMLStructureExpander {
         var outputNotes: [MusicXMLNoteEvent] = []
         var outputTempoEvents: [MusicXMLTempoEvent] = []
         var outputSoundDirectives: [MusicXMLSoundDirective] = []
+        var outputPedalEvents: [MusicXMLPedalEvent] = []
         var outputMeasures: [MusicXMLMeasureSpan] = []
 
         outputNotes.reserveCapacity(original.notes.count)
         outputTempoEvents.reserveCapacity(original.tempoEvents.count)
         outputSoundDirectives.reserveCapacity(original.soundDirectives.count)
+        outputPedalEvents.reserveCapacity(original.pedalEvents.count)
         outputMeasures.reserveCapacity(sequence.count)
 
         var outputTick = 0
@@ -202,6 +204,22 @@ struct MusicXMLStructureExpander {
                 }
             }
 
+            let pedalsInMeasure = original.pedalEvents.filter { event in
+                event.partID == primaryPartID && event.measureNumber == span.measureNumber
+            }
+            for event in pedalsInMeasure {
+                let shiftedTick = currentMeasureStartTick + (event.tick - span.startTick)
+                outputPedalEvents.append(
+                    MusicXMLPedalEvent(
+                        partID: primaryPartID,
+                        measureNumber: outputMeasureNumber,
+                        tick: shiftedTick,
+                        kind: event.kind,
+                        isDown: event.isDown
+                    )
+                )
+            }
+
             outputMeasures.append(
                 MusicXMLMeasureSpan(
                     partID: primaryPartID,
@@ -221,11 +239,18 @@ struct MusicXMLStructureExpander {
         }
         outputTempoEvents.sort { $0.tick < $1.tick }
         outputSoundDirectives.sort { $0.tick < $1.tick }
+        outputPedalEvents.sort { lhs, rhs in
+            if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+            let lhsKey = lhs.isDown.map { $0 ? 1 : 0 } ?? 2
+            let rhsKey = rhs.isDown.map { $0 ? 1 : 0 } ?? 2
+            return lhsKey < rhsKey
+        }
 
         return MusicXMLScore(
             notes: outputNotes,
             tempoEvents: outputTempoEvents,
             soundDirectives: outputSoundDirectives,
+            pedalEvents: outputPedalEvents,
             measures: outputMeasures,
             repeatDirectives: [],
             endingDirectives: []
