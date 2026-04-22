@@ -2,36 +2,49 @@
 
 ## 项目结构与模块组织
 
-本仓库是一个 macOS 桌面应用（SwiftUI + CoreMIDI + SwiftData）。
+本仓库包含一个 macOS 主应用与一个 visionOS（Apple Vision Pro）原型应用，并带有本机 Python 后端工作区。
 
-- 主工程：`LonelyPianist.xcodeproj`
-- App 代码：`LonelyPianist/`（按 MVVM + Services 分层：`Models/`、`Services/`、`ViewModels/`、`Views/`、`Utilities/`）
-- 单元测试：`LonelyPianistTests/`（Swift Testing）
-- visionOS 相关：`LonelyPianistAVP/`、`LonelyPianistAVPTests/`（scheme：`LonelyPianistAVP`）
-- AI 后端工作区：`piano_dialogue_server/`（本机 Python 环境）
+- Xcode 工程：`LonelyPianist.xcodeproj`
+- macOS App：`LonelyPianist/`（`Models/`、`Services/`、`ViewModels/`、`Views/`、`Utilities/`）
+- macOS 测试：`LonelyPianistTests/`（Swift Testing）
+- visionOS App：`LonelyPianistAVP/`
+- visionOS 测试：`LonelyPianistAVPTests/`（Swift Testing）
+- SwiftPM 包：`Packages/RealityKitContent/`
+- Python 后端：`piano_dialogue_server/`
+- 规划/知识库：`.github/features/`、`.github/deepwiki/`
 
 ## 代码风格与命名规范
 
-- 命名：类型 `PascalCase`；变量/函数 `camelCase`；协议以 `Protocol` 结尾；实现以 `Service` 结尾。
-- View 只负责展示；状态编排与业务流程放 `ViewModels/`；跨模块能力下沉到 `Services/`，依赖通过注入传递。
-- SwiftUI 事件：不需要旧/新值时优先 `.onChange(of:) { ... }` 无参数重载，避免 `(_, _)` 形式的冗余闭包签名。
+- 命名：类型 `PascalCase`；变量/函数 `camelCase`；协议以 `Protocol` 结尾；实现类型以 `Service` 结尾。
+- 分层：View 只负责展示与交互绑定；状态与业务编排放 `ViewModels/`；副作用与基础设施放 `Services/`；依赖通过注入传递。
+- SwiftUI 事件：不需要旧/新值时优先 `.onChange(of:) { ... }` 的无参数重载，避免 `(_, _)` 形式的冗余闭包签名。
 
 ## 测试指南
 
-- 测试框架：Swift Testing（`import Testing` + `@Test` + `#expect`），新增文件放 `LonelyPianistTests/`，命名 `*Tests.swift`。
-- visionOS 测试同样使用 Swift Testing；测试文件放 `LonelyPianistAVPTests/`，并用 `xcodebuild test -scheme LonelyPianistAVP -destination "platform=visionOS Simulator,name=Apple Vision Pro"` 跑（不要写 XCTest）。
-- 新增 Service Protocol 时提供最少 1 个测试替身（成功/失败各覆盖）；涉及时间窗口/节流时把时间源做成可注入依赖，避免真实等待。
-- 提交前手测：权限请求与状态刷新、Start Listening 后 Sources/MIDI Events 更新、Single/Chord/Melody 映射各验证一次、Profile 持久化（重启仍保留）。
+- 测试框架：Swift Testing（`import Testing` + `@Test` + `#expect`）。
+- 新增测试文件放在对应目录：`LonelyPianistTests/` 或 `LonelyPianistAVPTests/`，命名 `*Tests.swift`。
+- 除非项目中已有明确先例，否则不要新增 XCTest 测试文件。
 
 ## 开发规范（详细）
 
-来源：从 `swift-dev` 的 Apple/SwiftUI 开发规范整理而来，并按本仓库（macOS + SwiftUI + Swift Testing）做了少量对齐。
+对齐说明（与下方“真源规范全文”冲突时，以本仓库为准）：
+- 本仓库使用 SwiftUI + MVVM + Services 分层；状态管理优先 Observation（`@Observable` / `@Bindable`）。
+- 本仓库的单元测试使用 Swift Testing（不是 XCTest）。
+- visionOS / RealityKit 补充规范全文位于 `LonelyPianistAVP/AGENTS.md`，并仅对该目录树生效。
+
+### Apple / Swift 规范（真源全文）
+
+```md
+# Apple App 开发规范 for AI（Swift/SwiftUI 基线，唯一源）
+
+本文件是本机 Apple/Swift “开发规范”的**唯一真源**（single source of truth）。
 
 使用方式：
-- 本规范优先级低于本仓库代码与工程实际约束（例如测试框架、可用平台）。
-- 用于补齐“默认假设”和“常见决策边界”（尤其是 MVVM、依赖注入、Observation、测试策略与日志规范）。
+- **先看 repo 自己的规范**（例如 `AGENTS.md` / `CONTRIBUTING.md` / `README` 中的架构约定）；项目内规范优先级更高。
+- 本文用于补齐“默认假设”和“常见决策边界”（尤其是 MVVM、依赖注入、Observation、测试策略与日志规范）。
+- 若项目涉及 visionOS / RealityKit / spatial computing，另参考 `/Users/chii_magnus/.codex/skills/init/references/visionos-dev.md`。该文件是平台补充规范，不覆盖本文的架构、测试与工具约束。
 
-### 核心技术栈
+## 核心技术栈
 
 - 架构模式：MVVM (Model-View-ViewModel)
 - 编程范式：Protocol-Oriented Programming（面向协议）
@@ -41,9 +54,9 @@
 - Swift：Swift 6.0+
 
 平台支持（按项目选择）：
-- macOS 26.0+、visionOS 26.0+
+- iOS 17.0+、iPadOS 17.0+、macOS 14.0+、visionOS 2.0+
 
-### 设计原则
+## 设计原则
 
 - 组合优于继承：优先依赖注入
 - 接口优于单例：利于测试与替换
@@ -55,7 +68,7 @@
 - YAGNI：不为不确定未来预埋
 - DRY + WET：避免重复，但别过早抽象（通常重复 2–3 次后再抽）
 
-### MVVM 架构规范
+## MVVM 架构规范
 
 职责划分：
 - **Model**：纯数据结构；不放 UI 逻辑（避免引用 SwiftUI/Observation/Combine）
@@ -63,7 +76,7 @@
 - **View**：渲染与交互绑定；不写业务逻辑；不直接访问数据库/网络
 - **Service/Repository**：网络、持久化、文件 IO 等副作用；优先协议抽象 + 注入
 
-#### 模块化建议（可选，不是硬性要求）
+### 模块化建议（可选，不是硬性要求）
 
 当项目允许时，可把“逻辑层”下沉到 SwiftPM，以便：
 - 更快的单元测试（测试执行方式按项目工具链约束选择）
@@ -78,40 +91,41 @@
 
 注意：若项目本身不采用 SwiftPM 拆分（例如以 Xcode 项目为主），仍然可以遵循上述“职责划分 + 依赖注入 + 单向依赖”的原则。
 
-#### ViewModel 规范（Observation 优先）
+### ViewModel 规范（Observation 优先）
 
 - iOS 17+ / macOS 14+：优先 `@Observable` / `@Bindable`
 - 避免单例：不要用 `static let shared`
 - 依赖注入优先：初始化参数或 `.environment(...)`
 - 不使用 `ObservableObject` / `@Published` / `@StateObject` / `@ObservedObject` / `@EnvironmentObject`（统一用 Observation 体系）。
 
-#### SwiftUI 事件处理
+### SwiftUI 事件处理
 
 - 优先使用 `.onChange(of:) {}` 的无参数重载。
 - 只有确实需要 `oldValue` / `newValue` 时，才使用带两个参数的重载；不要默认写 `.onChange(of:) { _, _ in }`。
 
-### 协议驱动开发
+## 协议驱动开发
 
 原则：
 1. 先定义协议，再实现类型
 2. 用协议消除类型分支（减少 `switch` 的维护成本）
 3. 新增能力优先“增加实现”而不是“修改中心分发器”
 
-### 测试与调试
+## 测试与调试
 
-工具约束（`swift-dev` 默认）：
+工具约束（本机 Apple/Swift 技能默认）：
 - 本目录下涉及 build/test/run 的操作，统一使用原生 `xcodebuild`。
 - 涉及 Simulator/Device 与日志相关的操作，按需使用原生 `xcrun simctl` / `log stream` 等系统工具。
 
 单元测试优先级建议：
-- **逻辑层 / ViewModel / UI 层**：优先用单元测试覆盖（本仓库采用 Swift Testing；通过 `xcodebuild test` 跑）
+- **逻辑层 / ViewModel / UI 层**：统一用 XCTest（通过 `xcodebuild test` 跑）
 
 调试与日志：
 - 日志用 `os.Logger`，明确 `subsystem` 与 `category`，便于过滤与定位
+```
 
-### visionOS（LonelyPianistAVP）工程规范对齐
+## 参考资料
 
-- `LonelyPianistAVP/` 的新增代码同样遵守本仓库 MVVM + Services 分层与命名规范（尽量按 `Models/`、`Services/`、`ViewModels/`、`Views/` 组织；不要把业务逻辑堆在 View 里）。
-- 事件处理与 Observation 体系同样适用：优先 `@Observable/@Bindable`，并优先使用 `.onChange(of:) {}` 的无参数重载。
-- visionOS 平台细则：优先参考本机 `/Users/chii_magnus/.codex/skills/swift-dev/swiftui-pro/references/visionos-dev.md` 与其指向的文档。
-- UIKit 使用策略：允许使用 UIKit（含 RealityKit/ARKit 相关代码）；但仍需遵守 MVVM 分层与可测试性要求，避免为了“省事”把业务逻辑塞回 View。
+- visionOS 目录规范：`LonelyPianistAVP/AGENTS.md`
+- macOS App 目录说明：`LonelyPianist/README.md`
+- visionOS App 目录说明：`LonelyPianistAVP/README.md`
+- Python 后端说明：`piano_dialogue_server/README.md`
