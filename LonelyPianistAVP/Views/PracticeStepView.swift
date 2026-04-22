@@ -33,21 +33,23 @@ struct PracticeStepView: View {
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
 
-                    Button("下一步", systemImage: "forward.fill") {
-                        viewModel.skipStep()
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-                    .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel.state == .completed)
+                    if isAutoplayEnabled == false {
+                        Button("下一步", systemImage: "forward.fill") {
+                            viewModel.skipStep()
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel.state == .completed)
 
-                    Button("播放琴声", systemImage: "speaker.wave.2.fill") {
-                        viewModel.playCurrentPracticeStepSound()
+                        Button("播放琴声", systemImage: "speaker.wave.2.fill") {
+                            viewModel.playCurrentPracticeStepSound()
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .disabled(viewModel.practiceSessionViewModel.currentStep == nil)
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-                    .disabled(viewModel.practiceSessionViewModel.currentStep == nil)
 
                     Toggle("自动播放", isOn: $isAutoplayEnabled)
                         .toggleStyle(.button)
@@ -69,14 +71,16 @@ struct PracticeStepView: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
 
-                    Button("定位", systemImage: "scope") {
-                        isLocalizationPopoverPresented.toggle()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-                    .popover(isPresented: $isLocalizationPopoverPresented) {
-                        localizationPopover
+                    if isAutoplayEnabled == false {
+                        Button("定位", systemImage: "scope") {
+                            isLocalizationPopoverPresented.toggle()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .popover(isPresented: $isLocalizationPopoverPresented) {
+                            localizationPopover
+                        }
                     }
                 }
             }
