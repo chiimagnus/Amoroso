@@ -12,13 +12,11 @@ struct PracticeStepView: View {
     @State private var isLocalizationPopoverPresented = false
 
     var body: some View {
-        GeometryReader { proxy in
-            PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes)
-                .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
-                .frame(width: proxy.size.width * 0.9)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 18)
-        }
+        PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes)
+            .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
+            .containerRelativeFrame(.horizontal, count: 10, span: 9, spacing: 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, 18)
         .toolbar {
             ToolbarItemGroup(placement: .bottomOrnament) {
                 Button("跳过", systemImage: "forward.fill") {
