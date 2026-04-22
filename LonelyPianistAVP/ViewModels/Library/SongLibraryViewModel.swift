@@ -138,6 +138,23 @@ final class SongLibraryViewModel {
         }
     }
 
+    func loadSheetPreviewSVG(entryID: UUID) async -> String? {
+        guard let entry = index.entries.first(where: { $0.id == entryID }) else {
+            return nil
+        }
+
+        do {
+            let scoreURL = try paths.scoresDirectoryURL().appendingPathComponent(entry.musicXMLFileName)
+            let svg = try await Task.detached {
+                try await VerovioMusicXMLRenderService().renderSVG(fileURL: scoreURL, page: 1)
+            }.value
+            return svg
+        } catch {
+            errorMessage = "五线谱预览失败：\(error.localizedDescription)"
+            return nil
+        }
+    }
+
     func deleteEntry(entryID: UUID) {
         guard let entryIndex = index.entries.firstIndex(where: { $0.id == entryID }) else {
             return
