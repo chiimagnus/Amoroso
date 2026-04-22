@@ -265,6 +265,7 @@ func autoplaySchedulesAndAdvancesStepsUsingTempoMap() async {
 
     viewModel.setAutoplayEnabled(false)
     await settleTaskQueue()
+    #expect(await sleeper.cancellationCount() == 1)
 }
 
 @Test

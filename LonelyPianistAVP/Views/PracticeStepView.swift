@@ -105,6 +105,7 @@ struct PracticeStepView: View {
             .onDisappear {
                 isStepVisible = false
                 hasRequestedImmersiveOpen = false
+                viewModel.setPracticeAutoplayEnabled(false)
                 viewModel.resetPracticeLocalizationState()
                 Task { @MainActor in
                     await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
