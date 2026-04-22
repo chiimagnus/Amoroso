@@ -189,6 +189,7 @@ final class ARGuideViewModel {
         using openImmersiveSpace: OpenImmersiveSpaceAction,
         dismissImmersiveSpace: DismissImmersiveSpaceAction
     ) async {
+        practiceSessionViewModel.startGuidingIfReady()
         await beginPracticeLocalization(
             using: openImmersiveSpace,
             dismissImmersiveSpace: dismissImmersiveSpace
