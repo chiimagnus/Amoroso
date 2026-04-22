@@ -6,7 +6,17 @@ protocol PracticeNoteAudioPlayerProtocol: AnyObject {
     func play(midiNotes: [Int])
 }
 
-final class SoundFontPracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol {
+protocol PracticeMIDINoteOutputProtocol: AnyObject {
+    func noteOn(midi: Int, velocity: UInt8)
+    func noteOff(midi: Int)
+    func allNotesOff()
+}
+
+enum PracticeMIDINoteOutputConstants {
+    static let releaseSeconds: TimeInterval = 0.12
+}
+
+final class SoundFontPracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol, PracticeMIDINoteOutputProtocol {
     private let engine: AVAudioEngine
     private let sampler: AVAudioUnitSampler
     private let fallback: PracticeNoteAudioPlayerProtocol
@@ -51,10 +61,7 @@ final class SoundFontPracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol {
         stopTask?.cancel()
         stopTask = nil
 
-        for note in playingNotes {
-            sampler.stopNote(note, onChannel: channel)
-        }
-        playingNotes.removeAll()
+        allNotesOff()
 
         for note in notes {
             sampler.startNote(note, withVelocity: velocity, onChannel: channel)
@@ -65,11 +72,37 @@ final class SoundFontPracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol {
             guard let self else { return }
             try? await Task.sleep(nanoseconds: 350_000_000)
             guard Task.isCancelled == false else { return }
-            for note in playingNotes {
-                sampler.stopNote(note, onChannel: channel)
-            }
-            playingNotes.removeAll()
+            allNotesOff()
         }
+    }
+
+    func noteOn(midi: Int, velocity: UInt8) {
+        guard let note = UInt8(exactly: midi) else { return }
+
+        guard ensureReady() else {
+            fallback.play(midiNotes: [midi])
+            return
+        }
+
+        sampler.startNote(note, withVelocity: velocity, onChannel: channel)
+        playingNotes.insert(note)
+    }
+
+    func noteOff(midi: Int) {
+        guard let note = UInt8(exactly: midi) else { return }
+        guard ensureReady() else { return }
+
+        sampler.stopNote(note, onChannel: channel)
+        playingNotes.remove(note)
+    }
+
+    func allNotesOff() {
+        guard ensureReady() else { return }
+
+        for note in playingNotes {
+            sampler.stopNote(note, onChannel: channel)
+        }
+        playingNotes.removeAll()
     }
 
     private func ensureReady() -> Bool {
@@ -96,7 +129,7 @@ final class SoundFontPracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol {
     }
 }
 
-final class SinePracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol {
+final class SinePracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol, PracticeMIDINoteOutputProtocol {
     private let engine: AVAudioEngine
     private let player: AVAudioPlayerNode
     private let format: AVAudioFormat
@@ -121,6 +154,18 @@ final class SinePracticeNoteAudioPlayer: PracticeNoteAudioPlayerProtocol {
         player.reset()
         player.scheduleBuffer(buffer, at: nil, options: .interrupts, completionHandler: nil)
         player.play()
+    }
+
+    func noteOn(midi: Int, velocity _: UInt8) {
+        play(midiNotes: [midi])
+    }
+
+    func noteOff(midi _: Int) {}
+
+    func allNotesOff() {
+        ensureStarted()
+        player.stop()
+        player.reset()
     }
 
     private func ensureStarted() {
