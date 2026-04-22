@@ -46,7 +46,7 @@ struct ContentView: View {
                             .navigationTitle("Step 2 · 选曲")
                         case .practice:
                             PracticeStepView(viewModel: arGuideViewModel)
-                                .frame(minWidth: 920, idealWidth: 1200)
+                                .frame(minWidth: 920, idealWidth: 1200, minHeight: 320, idealHeight: 360)
                                 .navigationTitle("Step 3 · 开始练习")
                     }
                 }
