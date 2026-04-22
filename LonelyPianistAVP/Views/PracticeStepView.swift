@@ -30,13 +30,13 @@ struct PracticeStepView: View {
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
 
-                    Button("跳过", systemImage: "forward.fill") {
+                    Button("下一步", systemImage: "forward.fill") {
                         viewModel.skipStep()
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
-                    .disabled(viewModel.canControlPractice == false)
+                    .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel.state == .completed)
 
                     Text("进度 \(viewModel.practiceProgressText)")
                         .monospacedDigit()
@@ -93,6 +93,10 @@ struct PracticeStepView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(viewModel.practiceLocalizationStatusText ?? "进入后会自动定位钢琴。")
                 .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Text("提示：即使定位失败或环境不支持，你也可以直接使用下方 2D 键盘的“下一步”继续练习。")
+                .font(.caption)
                 .foregroundStyle(.secondary)
 
             if viewModel.canRetryPracticeLocalization {
