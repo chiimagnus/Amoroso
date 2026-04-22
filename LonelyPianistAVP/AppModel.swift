@@ -95,11 +95,11 @@ class AppModel {
         }
     }
 
-    func setImportedSteps(_ steps: [PracticeStep], file: ImportedMusicXMLFile?) {
+    func setImportedSteps(_ steps: [PracticeStep], file: ImportedMusicXMLFile?, tempoMap: MusicXMLTempoMap? = nil) {
         importedSteps = steps
         importedFile = file
         importErrorMessage = nil
-        practiceSessionViewModel.setSteps(steps)
+        practiceSessionViewModel.setSteps(steps, tempoMap: tempoMap)
         applySessionIfPossible()
     }
 
@@ -108,12 +108,13 @@ class AppModel {
             let importedFile = try importService.importFile(from: selectedURL)
             let score = try parser.parse(fileURL: importedFile.storedURL)
             let buildResult = stepBuilder.buildSteps(from: score)
+            let tempoMap = MusicXMLTempoMap(tempoEvents: score.tempoEvents)
             if buildResult.unsupportedNoteCount > 0 {
                 importErrorMessage = "已导入（忽略了 \(buildResult.unsupportedNoteCount) 个不支持的音符）。"
             } else {
                 importErrorMessage = nil
             }
-            setImportedSteps(buildResult.steps, file: importedFile)
+            setImportedSteps(buildResult.steps, file: importedFile, tempoMap: tempoMap)
         } catch {
             importErrorMessage = "导入失败：\(error.localizedDescription)"
         }

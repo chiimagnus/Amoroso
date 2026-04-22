@@ -111,6 +111,7 @@ final class SongLibraryViewModel {
             let scoreURL = try paths.scoresDirectoryURL().appendingPathComponent(entry.musicXMLFileName)
             let score = try parser.parse(fileURL: scoreURL)
             let buildResult = stepBuilder.buildSteps(from: score)
+            let tempoMap = MusicXMLTempoMap(tempoEvents: score.tempoEvents)
 
             guard buildResult.steps.isEmpty == false else {
                 errorMessage = "该曲目未生成可练习步骤。"
@@ -123,7 +124,8 @@ final class SongLibraryViewModel {
                     fileName: entry.displayName,
                     storedURL: scoreURL,
                     importedAt: entry.importedAt
-                )
+                ),
+                tempoMap: tempoMap
             )
 
             var updatedIndex = index
