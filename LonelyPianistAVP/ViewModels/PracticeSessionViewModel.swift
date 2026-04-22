@@ -117,14 +117,6 @@ final class PracticeSessionViewModel {
         state = .idle
     }
 
-    func configure(steps: [PracticeStep], calibration: PianoCalibration, keyRegions: [PianoKeyRegion]) {
-        self.steps = steps
-        self.calibration = calibration
-        self.keyRegions = keyRegions
-        currentStepIndex = 0
-        state = (steps.isEmpty || keyRegions.isEmpty) ? .idle : .ready
-    }
-
     func startGuidingIfReady() {
         guard state == .ready, steps.isEmpty == false else { return }
         currentStepIndex = 0

@@ -56,7 +56,6 @@ final class ARGuideViewModel {
     private var handTrackingConsumerTask: Task<Void, Never>?
     private var calibrationAnchorCaptureTask: Task<Void, Never>?
     private var practiceLocalizationTask: Task<Void, Never>?
-    private var hasStartedGuidingInCurrentImmersiveSession = false
     private var wasRightHandPinching = false
     private let providerStartupTimeoutSeconds = 5
     private let practiceLocalizationTimeoutSeconds = 5
@@ -281,7 +280,6 @@ final class ARGuideViewModel {
     func onImmersiveAppear() {
         switch appModel.immersiveMode {
             case .calibration:
-                hasStartedGuidingInCurrentImmersiveSession = false
                 wasRightHandPinching = false
                 startHandTrackingIfNeeded()
                 updateCalibrationTrackingStatusIfNeeded()
@@ -293,7 +291,6 @@ final class ARGuideViewModel {
 
     func onImmersiveDisappear() {
         cancelPracticeLocalizationTask()
-        hasStartedGuidingInCurrentImmersiveSession = false
         stopHandTracking()
     }
 
@@ -429,23 +426,11 @@ final class ARGuideViewModel {
         return "\(completedCount) / \(total)"
     }
 
-    var canControlPractice: Bool {
-        guard hasStartedGuidingInCurrentImmersiveSession else { return false }
-
-        switch practiceSessionViewModel.state {
-            case .guiding:
-                return true
-            default:
-                return false
-        }
-    }
-
     private func beginPracticeLocalization(
         using openImmersiveSpace: OpenImmersiveSpaceAction,
         dismissImmersiveSpace: DismissImmersiveSpaceAction
     ) async {
         cancelPracticeLocalizationTask()
-        hasStartedGuidingInCurrentImmersiveSession = false
         appModel.clearRuntimeCalibrationForPracticeRelocation()
 
         guard let blockingReason = practiceEntryBlockingReason() else {
@@ -497,7 +482,6 @@ final class ARGuideViewModel {
                 case .resolved:
                     practiceLocalizationState = .ready
                     practiceSessionViewModel.startGuidingIfReady()
-                    hasStartedGuidingInCurrentImmersiveSession = true
                     return
 
                 case .missingStoredCalibration:
@@ -637,7 +621,6 @@ final class ARGuideViewModel {
         guard Task.isCancelled == false else { return }
 
         practiceLocalizationState = .failed(reason: failure)
-        hasStartedGuidingInCurrentImmersiveSession = false
         appModel.clearRuntimeCalibrationForPracticeRelocation()
 
         await closeImmersiveForStep(using: dismissImmersiveSpace)
