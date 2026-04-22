@@ -17,6 +17,10 @@ struct PracticeStepView: View {
             .containerRelativeFrame(.horizontal, count: 10, span: 9, spacing: 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 18)
+            .overlay {
+                Step3WindowGeometryHint()
+                    .frame(width: 0, height: 0)
+            }
         .toolbar {
             ToolbarItemGroup(placement: .bottomOrnament) {
                 Button("跳过", systemImage: "forward.fill") {
@@ -114,6 +118,47 @@ struct PracticeStepView: View {
         }
         .padding(16)
         .frame(minWidth: 320)
+    }
+}
+
+private struct Step3WindowGeometryHint: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        WindowGeometryHintViewController()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+
+private final class WindowGeometryHintViewController: UIViewController {
+    private var hasRequestedGeometryUpdate = false
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        requestGeometryUpdateIfNeeded()
+    }
+
+    private func requestGeometryUpdateIfNeeded() {
+        guard hasRequestedGeometryUpdate == false else { return }
+        guard let windowScene = view.window?.windowScene else { return }
+
+        hasRequestedGeometryUpdate = true
+
+        let preferences = UIWindowScene.GeometryPreferences.Vision(
+            size: CGSize(width: 1600, height: 400),
+            minimumSize: CGSize(width: 1200, height: 320),
+            maximumSize: nil,
+            resizingRestrictions: nil
+        )
+
+        windowScene.requestGeometryUpdate(preferences) { error in
+            print("Step 3 requestGeometryUpdate failed: \(error.localizedDescription)")
+        }
     }
 }
 
