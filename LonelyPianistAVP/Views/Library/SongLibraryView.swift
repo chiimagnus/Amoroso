@@ -8,10 +8,6 @@ struct SongLibraryView: View {
     @State private var isAudioImporterPresented = false
     @State private var pendingAudioBindingEntryID: UUID?
     @State private var pendingDeletionEntryID: UUID?
-    @State private var isSheetPreviewPresented = false
-    @State private var sheetPreviewTitle: String?
-    @State private var sheetPreviewSVG: String?
-    @State private var isSheetPreviewLoading = false
 
     private var audioImporterTypes: [UTType] {
         var types: [UTType] = []
@@ -135,33 +131,6 @@ struct SongLibraryView: View {
         } message: {
             Text("删除后将移除曲谱文件及已绑定音频文件，且无法撤销。")
         }
-        .sheet(isPresented: $isSheetPreviewPresented) {
-            NavigationStack {
-                Group {
-                    if isSheetPreviewLoading {
-                        ProgressView("正在渲染五线谱…")
-                    } else if let sheetPreviewSVG {
-                        SheetMusicPreviewView(svg: sheetPreviewSVG)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    } else {
-                        ContentUnavailableView(
-                            "暂无预览",
-                            systemImage: "music.quarternote.3",
-                            description: Text("未能生成五线谱预览。")
-                        )
-                    }
-                }
-                .navigationTitle(sheetPreviewTitle ?? "五线谱预览")
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("关闭") {
-                            isSheetPreviewPresented = false
-                        }
-                    }
-                }
-                .padding(16)
-            }
-        }
     }
 
     private var emptyState: some View {
@@ -198,21 +167,6 @@ struct SongLibraryView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-
-                    Button("查看五线谱") {
-                        sheetPreviewTitle = entry.displayName
-                        sheetPreviewSVG = nil
-                        isSheetPreviewLoading = true
-                        isSheetPreviewPresented = true
-
-                        Task { @MainActor in
-                            sheetPreviewSVG = await viewModel.loadSheetPreviewSVG(entryID: entry.id)
-                            isSheetPreviewLoading = false
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .hoverEffect()
-                    .disabled(isSheetPreviewLoading)
                 }
 
                 HStack(spacing: 8) {
