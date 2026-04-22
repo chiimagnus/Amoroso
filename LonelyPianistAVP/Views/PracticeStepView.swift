@@ -21,65 +21,65 @@ struct PracticeStepView: View {
                 Step3WindowGeometryHint()
                     .frame(width: 0, height: 0)
             }
-        .toolbar {
-            ToolbarItemGroup(placement: .bottomOrnament) {
-                Button("返回", systemImage: "chevron.backward") {
-                    dismiss()
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomOrnament) {
+                    Button("返回", systemImage: "chevron.backward") {
+                        dismiss()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.roundedRectangle)
+                    .hoverEffect()
 
-                Button("跳过", systemImage: "forward.fill") {
-                    viewModel.skipStep()
-                }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
-                .disabled(viewModel.canControlPractice == false)
+                    Button("跳过", systemImage: "forward.fill") {
+                        viewModel.skipStep()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.roundedRectangle)
+                    .hoverEffect()
+                    .disabled(viewModel.canControlPractice == false)
 
-                Text("进度 \(viewModel.practiceProgressText)")
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+                    Text("进度 \(viewModel.practiceProgressText)")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
 
-                Button("定位", systemImage: "scope") {
-                    isLocalizationPopoverPresented.toggle()
-                }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
-                .popover(isPresented: $isLocalizationPopoverPresented) {
-                    localizationPopover
+                    Button("定位", systemImage: "scope") {
+                        isLocalizationPopoverPresented.toggle()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.roundedRectangle)
+                    .hoverEffect()
+                    .popover(isPresented: $isLocalizationPopoverPresented) {
+                        localizationPopover
+                    }
                 }
             }
-        }
-        .buttonBorderShape(.roundedRectangle)
-        .onAppear {
-            isStepVisible = true
-            guard hasRequestedImmersiveOpen == false else { return }
-            hasRequestedImmersiveOpen = true
+            .buttonBorderShape(.roundedRectangle)
+            .onAppear {
+                isStepVisible = true
+                guard hasRequestedImmersiveOpen == false else { return }
+                hasRequestedImmersiveOpen = true
 
-            Task { @MainActor in
-                await viewModel.enterPracticeStep(
-                    using: openImmersiveSpace,
-                    dismissImmersiveSpace: dismissImmersiveSpace
-                )
+                Task { @MainActor in
+                    await viewModel.enterPracticeStep(
+                        using: openImmersiveSpace,
+                        dismissImmersiveSpace: dismissImmersiveSpace
+                    )
 
-                if isStepVisible == false {
+                    if isStepVisible == false {
+                        await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
+                        await viewModel.recoverImmersiveStateIfStuck()
+                    }
+                }
+            }
+            .onDisappear {
+                isStepVisible = false
+                hasRequestedImmersiveOpen = false
+                viewModel.resetPracticeLocalizationState()
+                Task { @MainActor in
                     await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
                     await viewModel.recoverImmersiveStateIfStuck()
                 }
             }
-        }
-        .onDisappear {
-            isStepVisible = false
-            hasRequestedImmersiveOpen = false
-            viewModel.resetPracticeLocalizationState()
-            Task { @MainActor in
-                await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
-                await viewModel.recoverImmersiveStateIfStuck()
-            }
-        }
     }
 
     private var highlightedMIDINotes: Set<Int> {
@@ -89,7 +89,6 @@ struct PracticeStepView: View {
         return Set(currentStep.notes.map(\.midiNote))
     }
 
-    @ViewBuilder
     private var localizationPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(viewModel.practiceLocalizationStatusText ?? "进入后会自动定位钢琴。")
@@ -129,11 +128,11 @@ struct PracticeStepView: View {
 }
 
 private struct Step3WindowGeometryHint: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> UIViewController {
+    func makeUIViewController(context _: Context) -> UIViewController {
         WindowGeometryHintViewController()
     }
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+    func updateUIViewController(_: UIViewController, context _: Context) {}
 }
 
 private final class WindowGeometryHintViewController: UIViewController {
