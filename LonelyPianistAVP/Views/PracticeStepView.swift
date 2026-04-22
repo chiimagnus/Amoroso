@@ -68,7 +68,7 @@ struct PracticeStepView: View {
                     }
 
                     if isAutoplayEnabled {
-                        Text("Pedal ↑")
+                        Text(viewModel.practiceSessionViewModel.isSustainPedalDown ? "Pedal ↓" : "Pedal ↑")
                             .foregroundStyle(.secondary)
                     }
 
