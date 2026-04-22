@@ -301,7 +301,9 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
         if let p1Events = rawTempoEventsByPart[primaryPart], p1Events.isEmpty == false {
             rawEvents = p1Events
         } else {
-            rawEvents = rawTempoEventsByPart.values.flatMap { $0 }
+            rawEvents = rawTempoEventsByPart.keys.sorted().flatMap { partID in
+                rawTempoEventsByPart[partID] ?? []
+            }
         }
 
         guard rawEvents.isEmpty == false else { return [] }
