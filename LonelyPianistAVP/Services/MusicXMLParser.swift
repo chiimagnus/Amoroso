@@ -70,6 +70,8 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
     private var noteDuration: Int?
     private var noteStaff: Int?
     private var noteVoice: Int?
+    private var noteTieStart = false
+    private var noteTieStop = false
 
     private var isInDirectionTypeMetronome = false
     private var metronomeBeatUnit: String?
@@ -134,6 +136,8 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
                 noteDuration = nil
                 noteStaff = nil
                 noteVoice = nil
+                noteTieStart = false
+                noteTieStop = false
             case "rest":
                 if isInNote {
                     noteIsRest = true
@@ -141,6 +145,15 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
             case "chord":
                 if isInNote {
                     noteIsChord = true
+                }
+            case "tie", "tied":
+                if isInNote {
+                    let type = attributeDict["type"]?.lowercased()
+                    if type == "start" {
+                        noteTieStart = true
+                    } else if type == "stop" {
+                        noteTieStop = true
+                    }
                 }
             default:
                 break
@@ -244,6 +257,8 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
                 midiNote: midiNote,
                 isRest: noteIsRest,
                 isChord: noteIsChord,
+                tieStart: noteTieStart,
+                tieStop: noteTieStop,
                 staff: noteStaff,
                 voice: noteVoice
             )

@@ -14,7 +14,7 @@ struct MusicXMLTempoEvent: Equatable, Identifiable {
 
 struct MusicXMLNoteEvent: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)"
+        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(tieStart)-\(tieStop)"
     }
 
     let partID: String
@@ -24,6 +24,8 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let midiNote: Int?
     let isRest: Bool
     let isChord: Bool
+    let tieStart: Bool
+    let tieStop: Bool
     let staff: Int?
     let voice: Int?
 }
