@@ -52,8 +52,10 @@ extension MusicXMLParserDelegate {
         guard let quarters else { return nil }
 
         var durationTicks = quarters * Double(state.normalizedTicksPerQuarter)
-        if state.noteHasDot {
-            durationTicks *= 1.5
+        if state.noteDotCount > 0 {
+            let dots = min(6, state.noteDotCount)
+            let multiplier = 2.0 - (1.0 / pow(2.0, Double(dots)))
+            durationTicks *= multiplier
         }
 
         if let actual = state.noteTimeModificationActualNotes,

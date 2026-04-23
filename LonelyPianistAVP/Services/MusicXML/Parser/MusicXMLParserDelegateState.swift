@@ -60,7 +60,7 @@ struct MusicXMLParserDelegateState {
     var noteReleaseTicks: Int?
     var noteIsGrace = false
     var noteType: String?
-    var noteHasDot = false
+    var noteDotCount = 0
     var isInTimeModification = false
     var noteTimeModificationActualNotes: Int?
     var noteTimeModificationNormalNotes: Int?

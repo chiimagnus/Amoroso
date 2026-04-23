@@ -109,7 +109,7 @@ extension MusicXMLParserDelegate {
                 state.noteOctave = nil
                 state.noteDuration = nil
                 state.noteType = nil
-                state.noteHasDot = false
+                state.noteDotCount = 0
                 state.isInTimeModification = false
                 state.noteTimeModificationActualNotes = nil
                 state.noteTimeModificationNormalNotes = nil
@@ -125,7 +125,7 @@ extension MusicXMLParserDelegate {
                 }
             case "dot":
                 if state.isInNote {
-                    state.noteHasDot = true
+                    state.noteDotCount += 1
                 }
             case "time-modification":
                 if state.isInNote {

@@ -77,4 +77,32 @@ struct MusicXMLParserGraceTupletTests {
         #expect(score.notes[0].tick == 0)
         #expect(score.notes[1].tick == 160)
     }
+
+    @Test
+    func parserDerivesDoubleDottedDurationFromTypeWhenDurationIsMissing() throws {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <score-partwise version="4.0">
+          <part-list>
+            <score-part id="P1"><part-name>Piano</part-name></score-part>
+          </part-list>
+          <part id="P1">
+            <measure number="1">
+              <attributes><divisions>1</divisions></attributes>
+              <note>
+                <pitch><step>C</step><octave>4</octave></pitch>
+                <type>quarter</type>
+                <dot/>
+                <dot/>
+              </note>
+            </measure>
+          </part>
+        </score-partwise>
+        """
+
+        let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+
+        #expect(score.notes.count == 1)
+        #expect(score.notes[0].durationTicks == 840)
+    }
 }
