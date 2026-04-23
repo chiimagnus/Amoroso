@@ -1,6 +1,25 @@
 import Foundation
 
 extension MusicXMLParserDelegate {
+    func parseGraceStealFraction(_ rawValue: String?) -> Double? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              rawValue.isEmpty == false,
+              let value = Double(rawValue),
+              value.isFinite
+        else {
+            return nil
+        }
+
+        let normalized: Double = if value > 1 {
+            value / 100.0
+        } else {
+            value
+        }
+
+        let clamped = min(1, max(0, normalized))
+        return clamped == 0 ? nil : clamped
+    }
+
     func parseNotePerformanceOffsetTicks(_ rawValue: String?) -> Int? {
         guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               rawValue.isEmpty == false
@@ -110,6 +129,9 @@ extension MusicXMLParserDelegate {
                 isRest: state.noteIsRest,
                 isChord: state.noteIsChord,
                 isGrace: state.noteIsGrace,
+                graceSlash: state.noteGraceSlash,
+                graceStealTimePrevious: state.noteGraceStealTimePrevious,
+                graceStealTimeFollowing: state.noteGraceStealTimeFollowing,
                 tieStart: state.noteTieStart,
                 tieStop: state.noteTieStop,
                 staff: state.noteStaff,

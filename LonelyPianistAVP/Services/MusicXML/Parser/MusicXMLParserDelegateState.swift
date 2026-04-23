@@ -63,6 +63,9 @@ struct MusicXMLParserDelegateState {
     var noteAttackTicks: Int?
     var noteReleaseTicks: Int?
     var noteIsGrace = false
+    var noteGraceSlash = false
+    var noteGraceStealTimePrevious: Double?
+    var noteGraceStealTimeFollowing: Double?
     var noteType: String?
     var noteDotCount = 0
     var isInTimeModification = false

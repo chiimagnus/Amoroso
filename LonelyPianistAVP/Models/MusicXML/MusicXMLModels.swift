@@ -170,7 +170,7 @@ struct MusicXMLEndingDirective: Equatable {
 
 struct MusicXMLNoteEvent: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(isGrace)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)-\(dynamicsOverrideVelocity ?? 0)-\(articulations.map(\.rawValue).sorted().joined(separator: ","))"
+        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(isGrace)-\(graceSlash)-\(graceStealTimePrevious ?? 0)-\(graceStealTimeFollowing ?? 0)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)-\(dynamicsOverrideVelocity ?? 0)-\(articulations.map(\.rawValue).sorted().joined(separator: ","))"
     }
 
     let partID: String
@@ -181,6 +181,9 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let isRest: Bool
     let isChord: Bool
     let isGrace: Bool
+    let graceSlash: Bool
+    let graceStealTimePrevious: Double?
+    let graceStealTimeFollowing: Double?
     let tieStart: Bool
     let tieStop: Bool
     let staff: Int?
@@ -199,6 +202,9 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         isRest: Bool,
         isChord: Bool,
         isGrace: Bool = false,
+        graceSlash: Bool = false,
+        graceStealTimePrevious: Double? = nil,
+        graceStealTimeFollowing: Double? = nil,
         tieStart: Bool,
         tieStop: Bool,
         staff: Int?,
@@ -216,6 +222,9 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         self.isRest = isRest
         self.isChord = isChord
         self.isGrace = isGrace
+        self.graceSlash = graceSlash
+        self.graceStealTimePrevious = graceStealTimePrevious
+        self.graceStealTimeFollowing = graceStealTimeFollowing
         self.tieStart = tieStart
         self.tieStop = tieStop
         self.staff = staff
