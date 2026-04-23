@@ -1,34 +1,44 @@
-# Deepwiki Generation Metadata
+# Generation Metadata
 
-## Generation Summary
-| 字段 | 值 |
+## Run info
+| Item | Value |
 | --- | --- |
-| Commit hash | `a9b6a0e` |
-| Branch | `crh` |
-| Generation timestamp (local) | `2026-04-22 16:27:31 +0800` |
-| Output language | `Chinese (中文)` |
-| Mode | `增量更新（update）` |
+| Commit hash | 1b94996 |
+| Branch name | crh |
+| Generated at | 2026-04-23T17:57:40.061+08:00 |
+| Output language | Chinese |
+| Generation mode | Incremental update |
 
-## Generated / Updated Page List
+## Generated pages
 - `INDEX.md`
 - `GENERATION.md`
 - `business-context.md`
 - `overview.md`
 - `architecture.md`
+- `dependencies.md`
 - `data-flow.md`
 - `configuration.md`
-- `storage.md`
 - `testing.md`
 - `workflow.md`
+- `storage.md`
 - `troubleshooting.md`
 - `glossary.md`
+- `modules/lonelypianist-macos.md`
+- `modules/lonelypianist-macos-runtime.md`
+- `modules/lonelypianist-macos-mapping.md`
+- `modules/lonelypianist-macos-recording.md`
+- `modules/lonelypianist-macos-dialogue.md`
 - `modules/lonelypianist-avp.md`
-
-## Copied Asset List
-- `assets/.gitkeep`（用于固定保留 `assets/` 目录）
+- `modules/lonelypianist-avp-library.md`
+- `modules/lonelypianist-avp-calibration.md`
+- `modules/lonelypianist-avp-musicxml.md`
+- `modules/lonelypianist-avp-tracking.md`
+- `modules/lonelypianist-avp-practice.md`
+- `modules/piano-dialogue-server.md`
+- `modules/piano-dialogue-server-protocol.md`
+- `modules/piano-dialogue-server-inference.md`
+- `modules/piano-dialogue-server-debug.md`
 
 ## Notes
-- 本次增量更新重点是对齐 `crh` 分支下的 AVP 三步流程（Step 1 校准、Step 2 选曲/试听、Step 3 练习）与 Song Library 子系统事实。
-- 同步了曲库 bundled seed 音频、试听状态与相关测试样本，并保留 legacy `ImportedScores` 清理说明。
-- 已修正多处历史路径漂移（例如 AVP 视图路径迁移到 `Views/` 子目录）。
-- 已保留并显式更新 Coverage Gaps（CI 缺失、AVP 共享 scheme 不可见）。
+- This update is based on the current repository tree, README files, AGENTS files, Swift sources, Python sources, and test filenames.
+- Coverage gaps are intentionally preserved where the repository does not provide CI or shared scheme evidence.

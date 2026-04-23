@@ -1,64 +1,48 @@
 # 故障排查
 
 ## 症状索引
-| 症状 | 可能范围 | 首查位置 | 快速判断 |
-| --- | --- | --- | --- |
-| Start Listening 后目标应用无响应 | macOS 权限 / MIDI 输入 | Runtime 状态区、Accessibility | `hasAccessibilityPermission` 是否为 true |
-| Dialogue 无回应 | Python 服务 / 模型加载 | `/health`、服务日志 | `curl /health` 是否为 `ok` |
-| Step 3 定位失败 | AVP provider / world anchors | `practiceLocalizationStatusText` | 是否已存在 stored calibration + provider running |
-| 曲库条目可见但无法开始练习 | AVP 文件/索引不一致 | SongLibraryView 提示 | 目标 MusicXML 文件是否存在 |
-| 音频“聆听”失败 | 音频文件丢失、格式不受 `AVAudioPlayer` 支持或播放器无法创建 | SongLibrary 错误弹窗 | 条目 `audioFileName` 指向的文件是否存在；当前仅接受 mp3 / m4a |
+| 症状 | 首查位置 | 典型原因 |
+| --- | --- | --- |
+| Start Listening 后无按键输出 | Accessibility / `statusMessage` | 权限没开 |
+| Dialogue 没回复 | `/health` / 模型目录 | Python 服务没起或权重缺失 |
+| Step 3 定位失败 | `practiceLocalizationStatusText` | 校准缺失 / provider 未运行 |
+| 曲库能看到但不能练习 | 曲库与步骤生成 | MusicXML 没生成 steps |
+| 试听没声音 | 曲库音频绑定 / 播放器 | 音频文件缺失或不可播 |
 
-## 第一现场信息
-- macOS：`statusMessage`、`recentLogs`、Sources 与 Pressed 状态。
-- AVP：
-  - `practiceLocalizationStatusText`、`calibrationStatusMessage`；
-  - provider state（hand/world）；
-  - HUD 中进度与反馈状态。
-- Python：`uvicorn` 日志、`/health`、`out/dialogue_debug/*`。
+## macOS 排查
+1. 检查 `hasAccessibilityPermission`。
+2. 看 `connectionState` 和 `connectedSourceNames`。
+3. 若无响应，先确认 MIDI 来源刷新成功。
 
-## 常见故障场景
-### 场景 1：映射规则已配置但无快捷键输出
-1. 检查系统设置中 Accessibility 授权。
-2. 使用最小规则（单键）复现。
-3. 确认目标应用处于可接收焦点状态。
+## AVP 排查
+1. 确认 Step 1 已保存，而不是只捕获。
+2. 确认已导入 MusicXML 且 `importedSteps` 非空。
+3. 若定位失败，优先看 provider state / anchor 状态。
 
-### 场景 2：Dialogue 长时间无回复
-1. `curl -s http://127.0.0.1:8765/health`。
-2. 检查 `AMT_MODEL_DIR` 是否有权重文件。
-3. 检查踏板是否持续按下导致静默不触发。
+## Python 排查
+1. `curl -s http://127.0.0.1:8765/health`
+2. 检查 `AMT_MODEL_DIR` 或 `AMT_MODEL_ID`
+3. 查看 `out/dialogue_debug/*`
 
-### 场景 3：AVP Step 3 反复定位失败
-1. 确认 Step 1 已保存校准（非仅捕获未保存）。
-2. 观察失败类型：`anchorMissing` / `anchorNotTracked` / `providerNotRunning`。
-3. 返回 Step 1 执行“重新校准”，再进入 Step 3。
-
-### 场景 4：曲库删除后报文件删除失败
-1. 这是“索引已删、文件删除失败”的已知分支。
-2. 手工检查 `Documents/SongLibrary/scores|audio` 是否残留文件。
-3. 必要时手工清理残留文件，保持索引与文件一致。
-
-### 场景 5：导入音频后无法试听
-1. 仅支持 mp3 / m4a；其他格式会在导入阶段被拦截。
-2. 确认条目 `audioFileName` 已写入索引，并且对应文件位于 `Documents/SongLibrary/audio/`。
-3. 若播放器仍无法创建，优先检查文件是否损坏或是否被外部进程锁定。
-
-## 调试命令
-| 命令 | 用途 |
+## 恢复建议
+| 场景 | 恢复 |
 | --- | --- |
-| `xcodebuild test -project LonelyPianist.xcodeproj -scheme LonelyPianist -destination 'platform=macOS'` | macOS 回归 |
-| `xcodebuild test -project LonelyPianist.xcodeproj -scheme LonelyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro'` | AVP 回归 |
-| `curl -s http://127.0.0.1:8765/health` | 服务健康检查 |
-| `cd piano_dialogue_server/server && ../.venv/bin/python test_client.py` | WS 回环验证 |
+| Dialogue 卡住 | 停止对话后重启服务 |
+| 校准不稳 | 回 Step 1 重新校准 |
+| 索引与文件不一致 | 删除异常条目后重新导入 |
+| 试听状态乱掉 | 停止播放并重新绑定音频 |
 
-## 恢复与回退建议
-- Dialogue：停止对话 -> 重启 Python 服务 -> 重新 Start Dialogue。
-- AVP 校准：Step 1 重新校准并保存，避免直接在 Step 3 反复重试。
-- 曲库异常：先删除异常条目再重新导入，必要时清理残留文件。
-
-## 已知尖锐边界
-- AVP 定位依赖 world anchor 在当前空间可追踪，场景变化会导致恢复失败。
-- 本地模型首次加载耗时长，低内存设备容易触发生成失败或延迟显著增加。
+## Source References
+- `README.md`
+- `LonelyPianist/README.md`
+- `LonelyPianistAVP/README.md`
+- `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`
+- `LonelyPianist/Services/Dialogue/DialogueManager.swift`
+- `LonelyPianistAVP/ViewModels/ARGuideViewModel.swift`
+- `LonelyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift`
+- `piano_dialogue_server/server/main.py`
+- `piano_dialogue_server/server/inference.py`
 
 ## Coverage Gaps
-- 尚未形成统一日志采集与聚合方案（目前以控制台与本地文件为主）。
+- 目前没有统一日志聚合，因此排障页只能依赖本地状态和调试目录。
+

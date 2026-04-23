@@ -1,62 +1,62 @@
 # 概览
 
-## 仓库目标与产品线
-- **总体目标**：构建一个本机优先（local-first）的跨端钢琴交互系统。
-- **三条运行面**：
-  1. macOS：MIDI 监听、映射、录制、Dialogue 控制台；
-  2. visionOS：Step 1/2/3 练习流程（校准、选曲、练习）；
-  3. Python：`/health` + `/ws` 对话推理服务。
+## 仓库目标
+这是一个 macOS + visionOS + 本地 Python 组成的本机优先钢琴系统。
 
-## 一句话心智模型
-- macOS 负责“输入采集 + 业务编排”，Python 负责“回应生成”，AVP 负责“空间定位 + 可视化引导”。
-- 核心跨边界数据：`MIDIEvent`、`RecordingTake`、`DialogueNote`、`PracticeStep`、`StoredWorldAnchorCalibration`、`SongLibraryIndex`。
-
-## 顶层目录与职责
-| 路径 | 职责 | 为什么重要 |
+## 顶层目录
+| 路径 | 角色 | 关键内容 |
 | --- | --- | --- |
-| `LonelyPianist/` | macOS 主应用（MVVM + Services） | 改映射、录制、Dialogue 的主落点 |
-| `LonelyPianistAVP/` | visionOS 三步流与沉浸式引导 | 改校准、曲库、定位策略、高亮逻辑 |
-| `piano_dialogue_server/` | Python 推理与 WS 协议 | 改生成逻辑、模型加载、调试产物 |
-| `LonelyPianistTests/` | macOS Swift Testing | 回归映射/录制/静默检测 |
-| `LonelyPianistAVPTests/` | AVP Swift Testing | 回归解析/步骤/曲库/定位策略 |
-| `Packages/RealityKitContent/` | RealityKit Swift Package | AVP target 的包依赖与平台约束 |
+| `LonelyPianist/` | macOS 主应用 | CoreMIDI、映射、Recorder、Dialogue |
+| `LonelyPianistAVP/` | visionOS 原型 | Step 1/2/3、AR tracking、MusicXML、曲库 |
+| `piano_dialogue_server/` | Python 服务 | `/health`、`/ws`、推理和调试包 |
+| `LonelyPianistTests/` | macOS Swift Testing | 映射、录音、对话、静默检测 |
+| `LonelyPianistAVPTests/` | AVP Swift Testing | MusicXML、校准、曲库、练习 |
+| `Packages/RealityKitContent/` | RealityKit 包 | visionOS 内容资源 |
 
-## 主要入口点
-| 入口 | 文件 | 用途 |
+## 入口文件
+| 入口 | 文件 | 说明 |
 | --- | --- | --- |
-| macOS App | `LonelyPianist/LonelyPianistApp.swift` | 依赖注入与主窗口启动 |
-| AVP App | `LonelyPianistAVP/LonelyPianistAVPApp.swift` | `WindowGroup + ImmersiveSpace` 场景启动 |
-| AVP 三步入口 | `LonelyPianistAVP/Views/ContentView.swift` | Step 1 校准、Step 2 选曲、Step 3 练习导航 |
-| Python 服务 | `piano_dialogue_server/server/main.py` | FastAPI + WebSocket 路由入口 |
+| macOS app | `LonelyPianist/LonelyPianistApp.swift` | 组装 SwiftData、MIDI、mapping、recorder、Dialogue |
+| visionOS app | `LonelyPianistAVP/LonelyPianistAVPApp.swift` | 组装 AppModel、曲库 seed、WindowGroup + ImmersiveSpace |
+| Python app | `piano_dialogue_server/server/main.py` | FastAPI + WebSocket 主入口 |
 
-## 核心产物与状态落点
-| 产物 | 生成方 | 存储位置 |
+## 功能地图
+| 运行面 | 用户能做什么 | 读哪一页 |
 | --- | --- | --- |
-| 映射配置 / 录音 take | macOS repositories | `Application Support/.../LonelyPianist.store` |
-| 世界锚点校准 | AVP 校准流程 | `Documents/piano-worldanchor-calibration.json` |
-| 曲库索引与文件 | AVP Song Library | `Documents/SongLibrary/index.json` + `scores/` + `audio/` |
-| AVP 默认种子曲与试听状态 | AVP 启动 + 曲库页 | bundled `Resources/SeedScores/` -> `Documents/SongLibrary/*` + `currentListeningEntryID` |
-| 对话调试包 | Python server | `piano_dialogue_server/out/dialogue_debug/` |
+| macOS Runtime | 监听来源、看事件、切换输出 | [modules/lonelypianist-macos-runtime.md](modules/lonelypianist-macos-runtime.md) |
+| macOS Mappings | 配置单键 / 和弦 / velocity 规则 | [modules/lonelypianist-macos-mapping.md](modules/lonelypianist-macos-mapping.md) |
+| macOS Recorder | 录 take、导入 MIDI、回放 take | [modules/lonelypianist-macos-recording.md](modules/lonelypianist-macos-recording.md) |
+| macOS Dialogue | turn-based 钢琴对话 | [modules/lonelypianist-macos-dialogue.md](modules/lonelypianist-macos-dialogue.md) |
+| visionOS Library | 导入 MusicXML、绑定音频、试听、删除 | [modules/lonelypianist-avp-library.md](modules/lonelypianist-avp-library.md) |
+| visionOS Calibration | A0/C8 校准与保存 | [modules/lonelypianist-avp-calibration.md](modules/lonelypianist-avp-calibration.md) |
+| visionOS Practice | 定位、自动推进、按键高亮 | [modules/lonelypianist-avp-practice.md](modules/lonelypianist-avp-practice.md) |
+| Python Server | 接收 generate 请求、返回回复 notes | [modules/piano-dialogue-server-protocol.md](modules/piano-dialogue-server-protocol.md) |
 
-## 关键工作流（跨页路由）
-| 工作流 | 入口 | 继续阅读 |
+## 生成物与持久化
+| 产物 | 来源 | 去向 |
 | --- | --- | --- |
-| MIDI 映射与录制 | macOS 主窗口 | `modules/lonelypianist-macos.md` |
-| 对话生成与回放 | Dialogue 页面 + Python `/ws` | `modules/piano-dialogue-server.md` + `data-flow.md` |
-| AVP 三步练习 | AVP `ContentView` | `modules/lonelypianist-avp.md` |
+| SwiftData store | macOS repositories | `Application Support/.../LonelyPianist.store` |
+| 世界锚点校准 | AVP Step 1 | `Documents/piano-worldanchor-calibration.json` |
+| 曲库索引 | AVP Step 2 | `Documents/SongLibrary/index.json` |
+| 曲谱与音频副本 | AVP 导入流程 | `Documents/SongLibrary/scores|audio` |
+| Python 调试包 | `DIALOGUE_DEBUG=1` | `piano_dialogue_server/out/dialogue_debug` |
 
-## 示例片段
-```swift
-let appModel = AppModel()
-appModel.loadStoredCalibrationIfPossible()
-let songLibrarySeeder = SongLibrarySeeder()
-try? songLibrarySeeder.seedAndMigrateIfNeeded()
-```
+## 阅读顺序建议
+1. `business-context.md`
+2. `architecture.md`
+3. `data-flow.md`
+4. 进入对应模块页
 
-```python
-app = FastAPI(title="Piano Dialogue Server", version="0.1.0")
-```
+## Source References
+- `README.md`
+- `LonelyPianist/README.md`
+- `LonelyPianistAVP/README.md`
+- `LonelyPianist/LonelyPianistApp.swift`
+- `LonelyPianistAVP/LonelyPianistAVPApp.swift`
+- `piano_dialogue_server/server/main.py`
+- `LonelyPianist/ViewModels/LonelyPianistViewModel.swift`
+- `LonelyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift`
 
 ## Coverage Gaps
-- `.github/workflows/` 为空，当前文档仅能描述“本地验证链路”。
-- 仓库缺少共享 `LonelyPianistAVP.xcscheme`，跨机器命令稳定性受影响。
+- `.github/workflows/` 仍为空；此页只能描述本地可执行入口，不能声明 CI 已存在。
+

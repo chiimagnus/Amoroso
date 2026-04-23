@@ -1,81 +1,70 @@
 # 依赖关系
 
-## 技术栈矩阵
-| 维度 | 技术 / 框架 | 版本 / 约束 | 用途 |
-| --- | --- | --- | --- |
-| macOS 前端 | SwiftUI + Observation | Swift 6 / Xcode 26.x 工程 | UI 与状态编排 |
-| MIDI / 试听播放 | CoreMIDI / AVFAudio | Apple 系统框架 | 实时输入、回放与试听 |
-| 持久化 | SwiftData | App Support 下本地 store | 映射配置与录音 take |
-| visionOS 空间层 | RealityKit + ARKit | visionOS 26+ | 手部追踪与空间高亮 |
-| Python 服务层 | FastAPI + Uvicorn + websockets | `requirements.txt` | WS 对话 |
-| 推理层 | torch + transformers + anticipation | `requirements.txt` | 对话音符生成 |
+## 技术栈
+| 维度 | 技术 | 作用 |
+| --- | --- | --- |
+| macOS UI | SwiftUI + Observation | 页面和状态 |
+| macOS 系统能力 | CoreMIDI / CoreGraphics / AppKit / AVFAudio | 输入、按键注入、回放 |
+| 持久化 | SwiftData | mapping config + takes |
+| visionOS UI | SwiftUI + RealityKit + ARKit | 窗口、沉浸空间、手部和世界追踪 |
+| Python 服务 | FastAPI + websockets + Uvicorn | WS 对话 |
+| 推理 | torch + transformers + anticipation | 回复生成 |
 
-## 第一方模块 / 包
-| 模块 / 包 | 位置 | 产物 | 被谁依赖 |
-| --- | --- | --- | --- |
-| LonelyPianist | `LonelyPianist/` | `LonelyPianist.app` | 用户主入口 |
-| LonelyPianistTests | `LonelyPianistTests/` | `LonelyPianistTests.xctest` | 本地单元测试 |
-| LonelyPianistAVP | `LonelyPianistAVP/` | `LonelyPianistAVP.app` | Vision Pro 端 |
-| LonelyPianistAVPTests | `LonelyPianistAVPTests/` | `LonelyPianistAVPTests.xctest` | AVP 单元测试 |
-| RealityKitContent | `Packages/RealityKitContent/` | Swift Package library | AVP target |
-| piano_dialogue_server | `piano_dialogue_server/` | 本地 Python 服务与脚本 | macOS Dialogue 流 |
+## 第三方依赖
+| 依赖 | 用途 | 风险 |
+| --- | --- | --- |
+| `torch` | 模型加载和执行 | MPS/CUDA 差异 |
+| `transformers` | CausalLM 加载 | 权重格式变化 |
+| `anticipation` | token 采样 | 上游语义变动会影响输出 |
+| `websockets` | `test_client.py` | 仅用于离线冒烟 |
+| `mido` | MIDI 调试和测试脚本 | MIDI 文件结构要求 |
+| `ZIPFoundation` | `.mxl` 解包 | 压缩包损坏会失败 |
 
-## 第三方库 / 框架
-| 依赖 | 类型 | 版本 | 用途 | 风险 / 注意事项 |
-| --- | --- | --- | --- | --- |
-| `torch` | runtime | `>=2.2` | 模型推理 | MPS/CUDA 兼容差异 |
-| `transformers` | runtime | `>=4.41` | 加载 CausalLM | 大模型加载耗时高 |
-| `anticipation` | runtime | GitHub 源安装 | 音符事件生成 | 依赖外网与上游稳定性 |
-| `fastapi` / `uvicorn` | runtime | `>=0.110` / `>=0.27` | HTTP/WS 服务 | 本地端口占用导致启动失败 |
-| `mido` | tool/runtime | `>=1.3.2` | MIDI 调试文件读写 | 依赖标准 MIDI 结构 |
+## 第一方模块
+| 模块 | 位置 | 说明 |
+| --- | --- | --- |
+| macOS app | `LonelyPianist/` | 主业务面 |
+| AVP app | `LonelyPianistAVP/` | 三步练习面 |
+| Dialogue service | `piano_dialogue_server/server/` | Python 对话服务 |
+| RealityKitContent | `Packages/RealityKitContent/` | visionOS 内容包 |
 
 ## 外部服务与平台
-| 服务 / 平台 | 调用方 | 协议 / 接口 | 用途 |
-| --- | --- | --- | --- |
-| 本地 Python 服务 | macOS App | `ws://127.0.0.1:8765/ws` | Dialogue 生成 |
-| HuggingFace / 镜像 | Python 推理脚本 | HTTP 下载模型权重 | 模型文件获取 |
-| Shortcuts URL Scheme | macOS Shortcut 服务 | `shortcuts://run-shortcut` | 扩展自动化动作 |
-| macOS Accessibility | KeyboardEventService | 系统权限接口 | 发送全局按键事件 |
+| 服务 / 平台 | 调用方 | 接口 |
+| --- | --- | --- |
+| 本地 Python WS 服务 | macOS Dialogue | `ws://127.0.0.1:8765/ws` |
+| HuggingFace 镜像 | Python inference | 模型下载 |
+| macOS Accessibility | `KeyboardEventService` | 全局按键注入 |
+| Apple ARKit 权限 | `ARTrackingService` | Hand/World tracking |
 
-## 构建、测试与开发工具
-| 工具 / 命令 | 位置 | 用途 | 备注 |
-| --- | --- | --- | --- |
-| `xcodebuild` | 仓库根目录 | macOS/visionOS build & test | AGENTS 明确要求 |
-| `python -m uvicorn` | `piano_dialogue_server/` | 启动服务 | 默认 `127.0.0.1:8765` |
-| `scripts/test_generate.py` | `piano_dialogue_server/scripts/` | 离线模型生成检查 | 不依赖服务进程 |
+## 构建与工具
+| 工具 | 用途 | 约束 |
+| --- | --- | --- |
+| `xcodebuild` | macOS / visionOS build & test | 仓库级默认命令 |
+| `python -m uvicorn` | 启动 WS 服务 | 本地监听 127.0.0.1:8765 |
+| `python scripts/test_generate.py` | 离线生成 sanity check | 改动 inference 时用 |
+| `python server/test_client.py` | WS 回环测试 | 需要先启动服务 |
 
-## 平台兼容性
-- Xcode 工程 target 覆盖 macOS 与 visionOS（项目中可见 `LonelyPianist` / `LonelyPianistAVP`）。
-- `Packages/RealityKitContent/Package.swift` 声明最低平台为 `v26`（visionOS/macOS/iOS/tvOS）。
-- Python 环境 README 推荐 `python3.12` 虚拟环境。
+## 配置耦合
+| 配置 | 关联代码 | 影响 |
+| --- | --- | --- |
+| `AMT_MODEL_DIR` / `AMT_MODEL_ID` | `server/inference.py` | 模型定位 |
+| `AMT_DEVICE` | `server/inference.py` | 执行设备 |
+| `DIALOGUE_DEBUG` | `server/debug_artifacts.py` | 调试包写盘 |
+| `practiceMusicXML*` defaults | AVP ViewModels | MusicXML 解析和步骤生成 |
+| `DialoguePlaybackInterruptionBehavior` | macOS ViewModel | AI 回放期间输入策略 |
 
-## 版本与锁定策略
-- Swift 侧无单独 lockfile，依赖由 Xcode 工程与系统框架约束。
-- Python 依赖通过 `requirements.txt` 管理，多数为下限版本（`>=`），并非严格锁定。
-- 模型版本优先级：`AMT_MODEL_DIR` > 本地 `models/music-large-800k` > `AMT_MODEL_ID` 默认值。
-
-## 升级热点与风险
-- 升级 `anticipation` / `transformers` 可能影响事件 token 语义与采样行为。
-- Apple SDK 升级可能影响 HandTrackingProvider 可用性与权限行为。
-
-## 示例片段
-```txt
-# piano_dialogue_server/requirements.txt（节选）
-torch>=2.2
-transformers>=4.41
-anticipation @ git+https://github.com/jthickstun/anticipation.git
-fastapi>=0.110
-```
-
-```swift
-// Packages/RealityKitContent/Package.swift（节选）
-platforms: [
-    .visionOS(.v26),
-    .macOS(.v26),
-    .iOS(.v26),
-    .tvOS(.v26)
-]
-```
+## Source References
+- `LonelyPianist/README.md`
+- `LonelyPianistAVP/README.md`
+- `piano_dialogue_server/README.md`
+- `piano_dialogue_server/requirements.txt`
+- `Packages/RealityKitContent/Package.swift`
+- `LonelyPianist/LonelyPianistApp.swift`
+- `LonelyPianist/Services/Dialogue/WebSocketDialogueService.swift`
+- `LonelyPianistAVP/Services/Library/SongLibrarySeeder.swift`
+- `LonelyPianistAVP/Services/MusicXML/MusicXMLImportService.swift`
+- `piano_dialogue_server/server/inference.py`
 
 ## Coverage Gaps
-- 未发现仓库内统一依赖锁定（如 Python lockfile），跨机器可重复性仍依赖本地环境管理。
+- 没有统一 lockfile；Python 依赖和模型权重都依赖本地环境管理。
+
