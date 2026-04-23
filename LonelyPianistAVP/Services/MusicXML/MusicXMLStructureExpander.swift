@@ -81,7 +81,7 @@ struct MusicXMLStructureExpander {
         )
     }
 
-    private struct EndingSpan: Sendable {
+    private struct EndingSpan {
         let startIndex: Int
         let endIndex: Int
     }
@@ -135,11 +135,13 @@ struct MusicXMLStructureExpander {
         var outputNotes: [MusicXMLNoteEvent] = []
         var outputTempoEvents: [MusicXMLTempoEvent] = []
         var outputSoundDirectives: [MusicXMLSoundDirective] = []
+        var outputPedalEvents: [MusicXMLPedalEvent] = []
         var outputMeasures: [MusicXMLMeasureSpan] = []
 
         outputNotes.reserveCapacity(original.notes.count)
         outputTempoEvents.reserveCapacity(original.tempoEvents.count)
         outputSoundDirectives.reserveCapacity(original.soundDirectives.count)
+        outputPedalEvents.reserveCapacity(original.pedalEvents.count)
         outputMeasures.reserveCapacity(sequence.count)
 
         var outputTick = 0
@@ -202,6 +204,22 @@ struct MusicXMLStructureExpander {
                 }
             }
 
+            let pedalsInMeasure = original.pedalEvents.filter { event in
+                event.partID == primaryPartID && event.measureNumber == span.measureNumber
+            }
+            for event in pedalsInMeasure {
+                let shiftedTick = currentMeasureStartTick + (event.tick - span.startTick)
+                outputPedalEvents.append(
+                    MusicXMLPedalEvent(
+                        partID: primaryPartID,
+                        measureNumber: outputMeasureNumber,
+                        tick: shiftedTick,
+                        kind: event.kind,
+                        isDown: event.isDown
+                    )
+                )
+            }
+
             outputMeasures.append(
                 MusicXMLMeasureSpan(
                     partID: primaryPartID,
@@ -221,11 +239,18 @@ struct MusicXMLStructureExpander {
         }
         outputTempoEvents.sort { $0.tick < $1.tick }
         outputSoundDirectives.sort { $0.tick < $1.tick }
+        outputPedalEvents.sort { lhs, rhs in
+            if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+            let lhsKey = lhs.isDown.map { $0 ? 1 : 0 } ?? 2
+            let rhsKey = rhs.isDown.map { $0 ? 1 : 0 } ?? 2
+            return lhsKey < rhsKey
+        }
 
         return MusicXMLScore(
             notes: outputNotes,
             tempoEvents: outputTempoEvents,
             soundDirectives: outputSoundDirectives,
+            pedalEvents: outputPedalEvents,
             measures: outputMeasures,
             repeatDirectives: [],
             endingDirectives: []
@@ -234,8 +259,8 @@ struct MusicXMLStructureExpander {
 }
 
 extension MusicXMLStructureExpander {
-    private struct JumpInstruction: Sendable {
-        enum Kind: Sendable {
+    private struct JumpInstruction {
+        enum Kind {
             case dacapo
             case dalsegno(value: String)
             case tocoda(value: String)
@@ -249,7 +274,7 @@ extension MusicXMLStructureExpander {
     func expandSoundJumpsIfPossible(
         score: MusicXMLScore,
         primaryPartID: String = "P1",
-        maxOutputMeasures: Int = 10_000,
+        maxOutputMeasures: Int = 10000,
         maxJumps: Int = 64
     ) -> MusicXMLScore {
         let primarySoundDirectives = score.soundDirectives.filter { $0.partID == primaryPartID }
@@ -288,11 +313,19 @@ extension MusicXMLStructureExpander {
             }
 
             if let value = directive.tocoda {
-                instructions.append(JumpInstruction(tick: directive.tick, atMeasureIndex: index, kind: .tocoda(value: value)))
+                instructions.append(JumpInstruction(
+                    tick: directive.tick,
+                    atMeasureIndex: index,
+                    kind: .tocoda(value: value)
+                ))
             }
 
             if let value = directive.dalsegno {
-                instructions.append(JumpInstruction(tick: directive.tick, atMeasureIndex: index, kind: .dalsegno(value: value)))
+                instructions.append(JumpInstruction(
+                    tick: directive.tick,
+                    atMeasureIndex: index,
+                    kind: .dalsegno(value: value)
+                ))
             }
 
             if directive.dacapo != nil {
@@ -329,7 +362,7 @@ extension MusicXMLStructureExpander {
             var didJump = false
 
             for instruction in sortedCandidates {
-                let instructionID: String = switch instruction.kind {
+                let instructionID = switch instruction.kind {
                     case .dacapo:
                         "\(instruction.tick)-\(instruction.atMeasureIndex)-dacapo"
                     case let .dalsegno(value):
@@ -363,7 +396,9 @@ extension MusicXMLStructureExpander {
 
         if didHitLimit {
             #if DEBUG
-            print("MusicXMLStructureExpander: jump expansion hit limit (measures=\(outputSequence.count), jumps=\(jumpCount)); falling back to linear score")
+                print(
+                    "MusicXMLStructureExpander: jump expansion hit limit (measures=\(outputSequence.count), jumps=\(jumpCount)); falling back to linear score"
+                )
             #endif
             return score
         }

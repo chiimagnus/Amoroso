@@ -14,6 +14,9 @@ func structureExpanderExpandsRepeatWithEndingsAndTempoEvents() throws {
         <measure number="1">
           <attributes><divisions>1</divisions></attributes>
           <barline location="left"><repeat direction="forward"/></barline>
+          <direction>
+            <direction-type><pedal type="start"/></direction-type>
+          </direction>
           <direction><sound tempo="120"/></direction>
           <note>
             <pitch><step>C</step><octave>4</octave></pitch>
@@ -54,6 +57,9 @@ func structureExpanderExpandsRepeatWithEndingsAndTempoEvents() throws {
     let tempoBpms = expanded.tempoEvents.map(\.quarterBPM)
     #expect(tempoTicks == [0, 480, 960])
     #expect(tempoBpms == [120, 60, 120])
+
+    let pedalTicks = expanded.pedalEvents.map(\.tick)
+    #expect(pedalTicks == [0, 960])
 }
 
 @Test
@@ -159,7 +165,16 @@ func structureExpanderFallsBackWhenJumpLimitsAreHit() {
         ],
         tempoEvents: [],
         soundDirectives: [
-            MusicXMLSoundDirective(partID: "P1", measureNumber: 1, tick: 0, segno: nil, coda: nil, tocoda: nil, dalsegno: "S1", dacapo: nil),
+            MusicXMLSoundDirective(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 0,
+                segno: nil,
+                coda: nil,
+                tocoda: nil,
+                dalsegno: "S1",
+                dacapo: nil
+            ),
         ],
         measures: [
             MusicXMLMeasureSpan(partID: "P1", measureNumber: 1, startTick: 0, endTick: 480),

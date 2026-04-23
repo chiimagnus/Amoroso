@@ -11,6 +11,7 @@ struct PracticeStepView: View {
     @State private var isStepVisible = false
     @State private var isLocalizationPopoverPresented = false
     @State private var isSettingsPopoverPresented = false
+    @State private var isAudioErrorAlertPresented = false
 
     @AppStorage("practiceStep3AutoplayEnabled") private var isAutoplayEnabled = false
 
@@ -33,21 +34,24 @@ struct PracticeStepView: View {
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
 
-                    Button("下一步", systemImage: "forward.fill") {
-                        viewModel.skipStep()
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-                    .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel.state == .completed)
+                    if isAutoplayEnabled == false {
+                        Button("下一步", systemImage: "forward.fill") {
+                            viewModel.skipStep()
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel
+                            .state == .completed)
 
-                    Button("播放琴声", systemImage: "speaker.wave.2.fill") {
-                        viewModel.playCurrentPracticeStepSound()
+                        Button("播放琴声", systemImage: "speaker.wave.2.fill") {
+                            viewModel.playCurrentPracticeStepSound()
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .disabled(viewModel.practiceSessionViewModel.currentStep == nil)
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-                    .disabled(viewModel.practiceSessionViewModel.currentStep == nil)
 
                     Toggle("自动播放", isOn: $isAutoplayEnabled)
                         .toggleStyle(.button)
@@ -65,18 +69,25 @@ struct PracticeStepView: View {
                         PracticeSettingsView()
                     }
 
+                    if isAutoplayEnabled {
+                        Text(viewModel.practiceSessionViewModel.isSustainPedalDown ? "Pedal ↓" : "Pedal ↑")
+                            .foregroundStyle(.secondary)
+                    }
+
                     Text("进度 \(viewModel.practiceProgressText)")
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
 
-                    Button("定位", systemImage: "scope") {
-                        isLocalizationPopoverPresented.toggle()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-                    .popover(isPresented: $isLocalizationPopoverPresented) {
-                        localizationPopover
+                    if isAutoplayEnabled == false {
+                        Button("定位", systemImage: "scope") {
+                            isLocalizationPopoverPresented.toggle()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .popover(isPresented: $isLocalizationPopoverPresented) {
+                            localizationPopover
+                        }
                     }
                 }
             }
@@ -101,6 +112,16 @@ struct PracticeStepView: View {
             }
             .onChange(of: isAutoplayEnabled) {
                 viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
+            }
+            .onChange(of: viewModel.practiceSessionViewModel.audioErrorMessage) {
+                isAudioErrorAlertPresented = viewModel.practiceSessionViewModel.audioErrorMessage != nil
+            }
+            .alert("音频不可用", isPresented: $isAudioErrorAlertPresented) {
+                Button("知道了") {
+                    viewModel.practiceSessionViewModel.clearAudioError()
+                }
+            } message: {
+                Text(viewModel.practiceSessionViewModel.audioErrorMessage ?? "")
             }
             .onDisappear {
                 isStepVisible = false
