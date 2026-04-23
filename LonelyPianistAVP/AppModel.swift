@@ -101,12 +101,23 @@ class AppModel {
         file: ImportedMusicXMLFile?,
         tempoMap: MusicXMLTempoMap? = nil,
         pedalTimeline: MusicXMLPedalTimeline? = nil,
+        fermataTimeline: MusicXMLFermataTimeline? = nil,
+        attributeTimeline: MusicXMLAttributeTimeline? = nil,
+        slurTimeline: MusicXMLSlurTimeline? = nil,
         noteSpans: [MusicXMLNoteSpan] = []
     ) {
         importedSteps = steps
         importedFile = file
         importErrorMessage = nil
-        practiceSessionViewModel.setSteps(steps, tempoMap: tempoMap, pedalTimeline: pedalTimeline, noteSpans: noteSpans)
+        practiceSessionViewModel.setSteps(
+            steps,
+            tempoMap: tempoMap,
+            pedalTimeline: pedalTimeline,
+            fermataTimeline: fermataTimeline,
+            attributeTimeline: attributeTimeline,
+            slurTimeline: slurTimeline,
+            noteSpans: noteSpans
+        )
         applySessionIfPossible()
     }
 
@@ -119,14 +130,42 @@ class AppModel {
                 ? structureExpander.expandStructureIfPossible(score: score)
                 : score
 
-            let buildResult = stepBuilder.buildSteps(from: effectiveScore)
-            let tempoMap = MusicXMLTempoMap(tempoEvents: effectiveScore.tempoEvents)
-            let pedalTimeline = MusicXMLPedalTimeline(events: effectiveScore.pedalEvents)
+            let expressivityOptions = MusicXMLExpressivityOptions(
+                wedgeEnabled: UserDefaults.standard.bool(forKey: "practiceMusicXMLWedgeEnabled"),
+                graceEnabled: UserDefaults.standard.bool(forKey: "practiceMusicXMLGraceEnabled"),
+                fermataEnabled: UserDefaults.standard.bool(forKey: "practiceMusicXMLFermataEnabled"),
+                arpeggiateEnabled: UserDefaults.standard.bool(forKey: "practiceMusicXMLArpeggiateEnabled"),
+                wordsSemanticsEnabled: UserDefaults.standard.bool(forKey: "practiceMusicXMLWordsSemanticsEnabled")
+            )
+            let buildResult = stepBuilder.buildSteps(from: effectiveScore, expressivity: expressivityOptions)
+            let wordsSemantics = expressivityOptions.wordsSemanticsEnabled
+                ? MusicXMLWordsSemanticsInterpreter().interpret(
+                    wordsEvents: effectiveScore.wordsEvents,
+                    tempoEvents: effectiveScore.tempoEvents
+                )
+                : nil
+            let tempoMap = MusicXMLTempoMap(
+                tempoEvents: effectiveScore.tempoEvents + (wordsSemantics?.derivedTempoEvents ?? []),
+                tempoRamps: wordsSemantics?.derivedTempoRamps ?? []
+            )
+            let pedalTimeline = MusicXMLPedalTimeline(events: effectiveScore
+                .pedalEvents + (wordsSemantics?.derivedPedalEvents ?? []))
+            let fermataTimeline = expressivityOptions.fermataEnabled
+                ? MusicXMLFermataTimeline(fermataEvents: effectiveScore.fermataEvents, notes: effectiveScore.notes)
+                : nil
+            let attributeTimeline = MusicXMLAttributeTimeline(
+                timeSignatureEvents: effectiveScore.timeSignatureEvents,
+                keySignatureEvents: effectiveScore.keySignatureEvents,
+                clefEvents: effectiveScore.clefEvents
+            )
+            let slurTimeline = MusicXMLSlurTimeline(events: effectiveScore.slurEvents)
             let shouldUsePerformanceTiming = UserDefaults.standard
                 .bool(forKey: "practiceMusicXMLPerformanceTimingEnabled")
             let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
                 from: effectiveScore.notes,
-                performanceTimingEnabled: shouldUsePerformanceTiming
+                performanceTimingEnabled: shouldUsePerformanceTiming,
+                expressivity: expressivityOptions,
+                fermataTimeline: fermataTimeline
             )
             if buildResult.unsupportedNoteCount > 0 {
                 importErrorMessage = "已导入（忽略了 \(buildResult.unsupportedNoteCount) 个不支持的音符）。"
@@ -138,6 +177,9 @@ class AppModel {
                 file: importedFile,
                 tempoMap: tempoMap,
                 pedalTimeline: pedalTimeline,
+                fermataTimeline: fermataTimeline,
+                attributeTimeline: attributeTimeline,
+                slurTimeline: slurTimeline,
                 noteSpans: noteSpans
             )
         } catch {

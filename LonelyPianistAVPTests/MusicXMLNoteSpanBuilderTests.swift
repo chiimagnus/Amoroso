@@ -121,3 +121,155 @@ func noteSpanBuilderAppliesAttackAndReleaseWhenEnabled() {
     #expect(performance.first?.onTick == 120)
     #expect(performance.first?.offTick == 600)
 }
+
+@Test
+func noteSpanBuilderShortensDurationForStaccato() {
+    let builder = MusicXMLNoteSpanBuilder()
+    let notes: [MusicXMLNoteEvent] = [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1,
+            articulations: [.staccato]
+        ),
+    ]
+
+    let spans = builder.buildSpans(from: notes)
+    #expect(spans.count == 1)
+    #expect(spans[0].onTick == 0)
+    #expect(spans[0].offTick == 240)
+}
+
+@Test
+func noteSpanBuilderEmitsGraceSpansAndStealsFromFollowingWhenEnabled() {
+    let builder = MusicXMLNoteSpanBuilder()
+    let notes: [MusicXMLNoteEvent] = [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 480,
+            durationTicks: 0,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            isGrace: true,
+            graceSlash: false,
+            graceStealTimePrevious: nil,
+            graceStealTimeFollowing: 0.25,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        ),
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 480,
+            durationTicks: 480,
+            midiNote: 62,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        ),
+    ]
+
+    let spans = builder.buildSpans(from: notes, expressivity: MusicXMLExpressivityOptions(graceEnabled: true))
+    #expect(spans.count == 2)
+
+    let grace = spans.first(where: { $0.midiNote == 60 })
+    let main = spans.first(where: { $0.midiNote == 62 })
+    #expect(grace?.onTick == 360)
+    #expect(grace?.offTick == 480)
+    #expect(main?.onTick == 480)
+    #expect(main?.offTick == 840)
+}
+
+@Test
+func noteSpanBuilderOffsetsArpeggiateChordOnsetsWhenEnabled() {
+    let builder = MusicXMLNoteSpanBuilder()
+    let notes: [MusicXMLNoteEvent] = [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1,
+            arpeggiate: MusicXMLArpeggiate(numberToken: nil, directionToken: nil)
+        ),
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 64,
+            isRest: false,
+            isChord: true,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        ),
+    ]
+
+    let spans = builder.buildSpans(from: notes, expressivity: MusicXMLExpressivityOptions(arpeggiateEnabled: true))
+    let low = spans.first(where: { $0.midiNote == 60 })
+    let high = spans.first(where: { $0.midiNote == 64 })
+    #expect(low?.onTick == 0)
+    #expect(low?.offTick == 480)
+    #expect(high?.onTick == 30)
+    #expect(high?.offTick == 510)
+}
+
+@Test
+func noteSpanBuilderExtendsFermataNoteOffTicksWhenEnabled() {
+    let builder = MusicXMLNoteSpanBuilder()
+    let notes: [MusicXMLNoteEvent] = [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 480,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        ),
+    ]
+    let fermataEvents: [MusicXMLFermataEvent] = [
+        MusicXMLFermataEvent(
+            tick: 480,
+            scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: 1),
+            source: .noteNotations
+        ),
+    ]
+    let fermataTimeline = MusicXMLFermataTimeline(fermataEvents: fermataEvents, notes: notes)
+
+    let spans = builder.buildSpans(
+        from: notes,
+        expressivity: MusicXMLExpressivityOptions(fermataEnabled: true),
+        fermataTimeline: fermataTimeline
+    )
+    #expect(spans.count == 1)
+    #expect(spans[0].onTick == 480)
+    #expect(spans[0].offTick == 1200)
+}

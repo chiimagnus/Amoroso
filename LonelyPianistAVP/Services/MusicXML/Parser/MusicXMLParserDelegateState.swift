@@ -9,6 +9,14 @@ struct MusicXMLParserDelegateState {
     var tempoEvents: [MusicXMLTempoEvent] = []
     var soundDirectives: [MusicXMLSoundDirective] = []
     var pedalEvents: [MusicXMLPedalEvent] = []
+    var dynamicEvents: [MusicXMLDynamicEvent] = []
+    var wedgeEvents: [MusicXMLWedgeEvent] = []
+    var fermataEvents: [MusicXMLFermataEvent] = []
+    var slurEvents: [MusicXMLSlurEvent] = []
+    var timeSignatureEvents: [MusicXMLTimeSignatureEvent] = []
+    var keySignatureEvents: [MusicXMLKeySignatureEvent] = []
+    var clefEvents: [MusicXMLClefEvent] = []
+    var wordsEvents: [MusicXMLWordsEvent] = []
     var measures: [MusicXMLMeasureSpan] = []
     var repeatDirectives: [MusicXMLRepeatDirective] = []
     var endingDirectives: [MusicXMLEndingDirective] = []
@@ -39,11 +47,24 @@ struct MusicXMLParserDelegateState {
     var elementText = ""
 
     var isInAttributes = false
+    var isInTime = false
+    var timeBeats: Int?
+    var timeBeatType: Int?
+    var isInKey = false
+    var keyFifths: Int?
+    var keyModeToken: String?
+    var isInClef = false
+    var clefSignToken: String?
+    var clefLine: Int?
+    var clefOctaveChange: Int?
+    var clefNumberToken: String?
     var isInBackup = false
     var isInForward = false
     var isInDirection = false
     var isInBarline = false
     var isInSound = false
+    var currentDirectionStaff: Int?
+    var isInDirectionTypeDynamics = false
 
     var isInNote = false
     var noteIsRest = false
@@ -59,11 +80,22 @@ struct MusicXMLParserDelegateState {
     var noteAttackTicks: Int?
     var noteReleaseTicks: Int?
     var noteIsGrace = false
+    var noteGraceSlash = false
+    var noteGraceStealTimePrevious: Double?
+    var noteGraceStealTimeFollowing: Double?
     var noteType: String?
-    var noteHasDot = false
+    var noteDotCount = 0
     var isInTimeModification = false
     var noteTimeModificationActualNotes: Int?
     var noteTimeModificationNormalNotes: Int?
+    var noteDynamicsOverrideVelocity: UInt8?
+    var isInNoteArticulations = false
+    var noteArticulations: Set<MusicXMLArticulation> = []
+    var noteHasFermata = false
+    var noteArpeggiate: MusicXMLArpeggiate?
+    var noteFingeringText: String?
+    var notePendingSlurEvents: [(kind: MusicXMLSlurEventKind, numberToken: String?)] = []
+    var isInTechnical = false
 
     var isInDirectionTypeMetronome = false
     var metronomeBeatUnit: String?
@@ -78,6 +110,10 @@ struct MusicXMLParserDelegateState {
     var currentDirectionTempoStartIndex = 0
     var currentDirectionSoundStartIndex = 0
     var currentDirectionPedalStartIndex = 0
+    var currentDirectionDynamicStartIndex = 0
+    var currentDirectionWedgeStartIndex = 0
+    var currentDirectionFermataStartIndex = 0
+    var currentDirectionWordsStartIndex = 0
 
     var currentOffsetAppliesToSound = false
 

@@ -26,6 +26,38 @@ final class MusicXMLParserDelegate: NSObject {
         state.pedalEvents
     }
 
+    var dynamicEvents: [MusicXMLDynamicEvent] {
+        state.dynamicEvents
+    }
+
+    var wedgeEvents: [MusicXMLWedgeEvent] {
+        state.wedgeEvents
+    }
+
+    var fermataEvents: [MusicXMLFermataEvent] {
+        state.fermataEvents
+    }
+
+    var slurEvents: [MusicXMLSlurEvent] {
+        state.slurEvents
+    }
+
+    var timeSignatureEvents: [MusicXMLTimeSignatureEvent] {
+        state.timeSignatureEvents
+    }
+
+    var keySignatureEvents: [MusicXMLKeySignatureEvent] {
+        state.keySignatureEvents
+    }
+
+    var clefEvents: [MusicXMLClefEvent] {
+        state.clefEvents
+    }
+
+    var wordsEvents: [MusicXMLWordsEvent] {
+        state.wordsEvents
+    }
+
     var measures: [MusicXMLMeasureSpan] {
         state.measures
     }

@@ -1,6 +1,25 @@
 import Foundation
 
 extension MusicXMLParserDelegate {
+    func parseGraceStealFraction(_ rawValue: String?) -> Double? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              rawValue.isEmpty == false,
+              let value = Double(rawValue),
+              value.isFinite
+        else {
+            return nil
+        }
+
+        let normalized: Double = if value > 1 {
+            value / 100.0
+        } else {
+            value
+        }
+
+        let clamped = min(1, max(0, normalized))
+        return clamped == 0 ? nil : clamped
+    }
+
     func parseNotePerformanceOffsetTicks(_ rawValue: String?) -> Int? {
         guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               rawValue.isEmpty == false
@@ -52,8 +71,10 @@ extension MusicXMLParserDelegate {
         guard let quarters else { return nil }
 
         var durationTicks = quarters * Double(state.normalizedTicksPerQuarter)
-        if state.noteHasDot {
-            durationTicks *= 1.5
+        if state.noteDotCount > 0 {
+            let dots = min(6, state.noteDotCount)
+            let multiplier = 2.0 - (1.0 / pow(2.0, Double(dots)))
+            durationTicks *= multiplier
         }
 
         if let actual = state.noteTimeModificationActualNotes,
@@ -108,14 +129,52 @@ extension MusicXMLParserDelegate {
                 isRest: state.noteIsRest,
                 isChord: state.noteIsChord,
                 isGrace: state.noteIsGrace,
+                graceSlash: state.noteGraceSlash,
+                graceStealTimePrevious: state.noteGraceStealTimePrevious,
+                graceStealTimeFollowing: state.noteGraceStealTimeFollowing,
                 tieStart: state.noteTieStart,
                 tieStop: state.noteTieStop,
                 staff: state.noteStaff,
                 voice: state.noteVoice,
                 attackTicks: state.noteAttackTicks,
-                releaseTicks: state.noteReleaseTicks
+                releaseTicks: state.noteReleaseTicks,
+                dynamicsOverrideVelocity: state.noteDynamicsOverrideVelocity,
+                articulations: state.noteArticulations,
+                arpeggiate: state.noteArpeggiate,
+                fingeringText: state.noteFingeringText
             )
         )
+
+        if state.notePendingSlurEvents.isEmpty == false {
+            for slur in state.notePendingSlurEvents {
+                state.slurEvents.append(
+                    MusicXMLSlurEvent(
+                        tick: startTick,
+                        kind: slur.kind,
+                        numberToken: slur.numberToken,
+                        scope: MusicXMLEventScope(
+                            partID: state.currentPartID,
+                            staff: state.noteStaff,
+                            voice: state.noteVoice
+                        )
+                    )
+                )
+            }
+        }
+
+        if state.noteHasFermata {
+            state.fermataEvents.append(
+                MusicXMLFermataEvent(
+                    tick: startTick,
+                    scope: MusicXMLEventScope(
+                        partID: state.currentPartID,
+                        staff: state.noteStaff,
+                        voice: state.noteVoice
+                    ),
+                    source: .noteNotations
+                )
+            )
+        }
 
         let noteEndTick = startTick + duration
         let currentMax = state.partMeasureMaxTick[state.currentPartID] ?? state.currentMeasureStartTick

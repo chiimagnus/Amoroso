@@ -4,9 +4,15 @@ struct PianoKeyboard88View: View {
     static let aspectRatio: CGFloat = 52.0 / 8.0
 
     let highlightedMIDINotes: Set<Int>
+    let fingeringByMIDINote: [Int: String]
 
     private let playableRange = 21 ... 108
     private let blackPitchClasses: Set<Int> = [1, 3, 6, 8, 10]
+
+    init(highlightedMIDINotes: Set<Int>, fingeringByMIDINote: [Int: String] = [:]) {
+        self.highlightedMIDINotes = highlightedMIDINotes
+        self.fingeringByMIDINote = fingeringByMIDINote
+    }
 
     private var highlightedInRange: Set<Int> {
         Set(highlightedMIDINotes.filter { playableRange.contains($0) })
@@ -50,6 +56,16 @@ struct PianoKeyboard88View: View {
                             Rectangle()
                                 .stroke(.black.opacity(0.22), lineWidth: 0.6)
                         }
+                        .overlay(alignment: .bottom) {
+                            if highlightedInRange.contains(key.midiNote),
+                               let fingering = fingeringByMIDINote[key.midiNote]
+                            {
+                                Text(fingering)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.black.opacity(0.78))
+                                    .padding(.bottom, 10)
+                            }
+                        }
                         .frame(width: whiteKeyWidth, height: whiteKeyHeight)
                         .offset(x: CGFloat(key.whiteIndex) * whiteKeyWidth)
                 }
@@ -60,6 +76,16 @@ struct PianoKeyboard88View: View {
                         .overlay {
                             Rectangle()
                                 .stroke(.white.opacity(0.28), lineWidth: 0.5)
+                        }
+                        .overlay(alignment: .bottom) {
+                            if highlightedInRange.contains(key.midiNote),
+                               let fingering = fingeringByMIDINote[key.midiNote]
+                            {
+                                Text(fingering)
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(.white.opacity(0.92))
+                                    .padding(.bottom, 6)
+                            }
                         }
                         .frame(width: blackKeyWidth, height: blackKeyHeight)
                         .offset(
