@@ -39,6 +39,7 @@ struct MusicXMLParserDelegateState {
     var isInForward = false
     var isInDirection = false
     var isInBarline = false
+    var isInSound = false
 
     var isInNote = false
     var noteIsRest = false
@@ -65,4 +66,16 @@ struct MusicXMLParserDelegateState {
     var currentDirectionTempoStartIndex = 0
     var currentDirectionSoundStartIndex = 0
     var currentDirectionPedalStartIndex = 0
+
+    var currentOffsetAppliesToSound = false
+
+    var currentSoundBaseTick = 0
+    var currentSoundMeasureStartTick = 0
+    var currentSoundTempoStartIndex = 0
+    var currentSoundSoundStartIndex = 0
+    var currentSoundPedalStartIndex = 0
+
+    var currentDirectionSoundOffsetTempoOverrideTicksByIndex: [Int: Int] = [:]
+    var currentDirectionSoundOffsetSoundOverrideTicksByIndex: [Int: Int] = [:]
+    var currentDirectionSoundOffsetPedalOverrideTicksByIndex: [Int: Int] = [:]
 }

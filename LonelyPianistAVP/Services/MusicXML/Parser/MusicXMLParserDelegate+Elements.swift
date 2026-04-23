@@ -24,10 +24,17 @@ extension MusicXMLParserDelegate {
                 state.currentDirectionTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
                 state.currentDirectionSoundStartIndex = state.soundDirectives.count
                 state.currentDirectionPedalStartIndex = state.pedalEvents.count
+                state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
             case "direction-type":
                 break
             case "pedal":
                 recordPedalEvent(attributes: attributeDict)
+            case "offset":
+                if state.isInDirection, state.isInSound == false {
+                    state.currentOffsetAppliesToSound = attributeDict["sound"]?.lowercased() == "yes"
+                }
             case "barline":
                 state.isInBarline = true
             case "repeat":
@@ -66,6 +73,12 @@ extension MusicXMLParserDelegate {
                     state.metronomePerMinute = nil
                 }
             case "sound":
+                state.isInSound = true
+                state.currentSoundMeasureStartTick = state.currentMeasureStartTick
+                state.currentSoundBaseTick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
+                state.currentSoundTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
+                state.currentSoundSoundStartIndex = state.soundDirectives.count
+                state.currentSoundPedalStartIndex = state.pedalEvents.count
                 if state.isInDirection, let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
                     recordTempoEvent(quarterBPM: bpm, source: .sound)
                 }
@@ -126,10 +139,15 @@ extension MusicXMLParserDelegate {
             case "metronome":
                 finalizeMetronomeTempoIfNeeded()
                 state.isInDirectionTypeMetronome = false
-            case "offset" where state.isInDirection:
+            case "offset":
                 if let rawOffset = Int(text) {
-                    applyDirectionOffset(rawOffset)
+                    if state.isInSound {
+                        applySoundOffset(rawOffset)
+                    } else if state.isInDirection, state.currentOffsetAppliesToSound {
+                        applyDirectionOffset(rawOffset)
+                    }
                 }
+                state.currentOffsetAppliesToSound = false
             case "duration":
                 if let duration = Int(text), duration >= 0 {
                     let normalizedDuration = normalizeDuration(duration)
@@ -163,6 +181,16 @@ extension MusicXMLParserDelegate {
                 state.currentDirectionTempoStartIndex = 0
                 state.currentDirectionSoundStartIndex = 0
                 state.currentDirectionPedalStartIndex = 0
+                state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
+            case "sound":
+                state.isInSound = false
+                state.currentSoundBaseTick = 0
+                state.currentSoundMeasureStartTick = 0
+                state.currentSoundTempoStartIndex = 0
+                state.currentSoundSoundStartIndex = 0
+                state.currentSoundPedalStartIndex = 0
             case "barline":
                 state.isInBarline = false
             case "backup":

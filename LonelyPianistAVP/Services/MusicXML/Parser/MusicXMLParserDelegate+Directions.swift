@@ -132,6 +132,17 @@ extension MusicXMLParserDelegate {
                     source: tempoEvents[i].source
                 )
             }
+            if state.currentDirectionSoundOffsetTempoOverrideTicksByIndex.isEmpty == false {
+                for (i, overrideTick) in state.currentDirectionSoundOffsetTempoOverrideTicksByIndex
+                where i >= state.currentDirectionTempoStartIndex && i < tempoEvents.count {
+                    tempoEvents[i] = RawTempoEvent(
+                        partID: tempoEvents[i].partID,
+                        tick: overrideTick,
+                        quarterBPM: tempoEvents[i].quarterBPM,
+                        source: tempoEvents[i].source
+                    )
+                }
+            }
             state.rawTempoEventsByPart[state.currentPartID] = tempoEvents
         }
 
@@ -149,6 +160,21 @@ extension MusicXMLParserDelegate {
                     dacapo: state.soundDirectives[i].dacapo
                 )
             }
+            if state.currentDirectionSoundOffsetSoundOverrideTicksByIndex.isEmpty == false {
+                for (i, overrideTick) in state.currentDirectionSoundOffsetSoundOverrideTicksByIndex
+                where i >= state.currentDirectionSoundStartIndex && i < state.soundDirectives.count {
+                    state.soundDirectives[i] = MusicXMLSoundDirective(
+                        partID: state.soundDirectives[i].partID,
+                        measureNumber: state.soundDirectives[i].measureNumber,
+                        tick: overrideTick,
+                        segno: state.soundDirectives[i].segno,
+                        coda: state.soundDirectives[i].coda,
+                        tocoda: state.soundDirectives[i].tocoda,
+                        dalsegno: state.soundDirectives[i].dalsegno,
+                        dacapo: state.soundDirectives[i].dacapo
+                    )
+                }
+            }
         }
 
         if state.currentDirectionPedalStartIndex < state.pedalEvents.count {
@@ -162,9 +188,76 @@ extension MusicXMLParserDelegate {
                     isDown: state.pedalEvents[i].isDown
                 )
             }
+            if state.currentDirectionSoundOffsetPedalOverrideTicksByIndex.isEmpty == false {
+                for (i, overrideTick) in state.currentDirectionSoundOffsetPedalOverrideTicksByIndex
+                where i >= state.currentDirectionPedalStartIndex && i < state.pedalEvents.count {
+                    state.pedalEvents[i] = MusicXMLPedalEvent(
+                        partID: state.pedalEvents[i].partID,
+                        measureNumber: state.pedalEvents[i].measureNumber,
+                        tick: overrideTick,
+                        kind: state.pedalEvents[i].kind,
+                        isDown: state.pedalEvents[i].isDown
+                    )
+                }
+            }
         }
 
         state.currentDirectionOffsetTicks = newOffset
+    }
+
+    func applySoundOffset(_ rawOffset: Int) {
+        let offsetTicks = normalizeSignedDuration(rawOffset)
+        let tick = max(state.currentSoundMeasureStartTick, state.currentSoundBaseTick + offsetTicks)
+
+        if var tempoEvents = state.rawTempoEventsByPart[state.currentPartID],
+           state.currentSoundTempoStartIndex < tempoEvents.count
+        {
+            for i in state.currentSoundTempoStartIndex ..< tempoEvents.count {
+                tempoEvents[i] = RawTempoEvent(
+                    partID: tempoEvents[i].partID,
+                    tick: tick,
+                    quarterBPM: tempoEvents[i].quarterBPM,
+                    source: tempoEvents[i].source
+                )
+                if state.isInDirection {
+                    state.currentDirectionSoundOffsetTempoOverrideTicksByIndex[i] = tick
+                }
+            }
+            state.rawTempoEventsByPart[state.currentPartID] = tempoEvents
+        }
+
+        if state.currentSoundSoundStartIndex < state.soundDirectives.count {
+            for i in state.currentSoundSoundStartIndex ..< state.soundDirectives.count {
+                state.soundDirectives[i] = MusicXMLSoundDirective(
+                    partID: state.soundDirectives[i].partID,
+                    measureNumber: state.soundDirectives[i].measureNumber,
+                    tick: tick,
+                    segno: state.soundDirectives[i].segno,
+                    coda: state.soundDirectives[i].coda,
+                    tocoda: state.soundDirectives[i].tocoda,
+                    dalsegno: state.soundDirectives[i].dalsegno,
+                    dacapo: state.soundDirectives[i].dacapo
+                )
+                if state.isInDirection {
+                    state.currentDirectionSoundOffsetSoundOverrideTicksByIndex[i] = tick
+                }
+            }
+        }
+
+        if state.currentSoundPedalStartIndex < state.pedalEvents.count {
+            for i in state.currentSoundPedalStartIndex ..< state.pedalEvents.count {
+                state.pedalEvents[i] = MusicXMLPedalEvent(
+                    partID: state.pedalEvents[i].partID,
+                    measureNumber: state.pedalEvents[i].measureNumber,
+                    tick: tick,
+                    kind: state.pedalEvents[i].kind,
+                    isDown: state.pedalEvents[i].isDown
+                )
+                if state.isInDirection {
+                    state.currentDirectionSoundOffsetPedalOverrideTicksByIndex[i] = tick
+                }
+            }
+        }
     }
 
     func currentDirectionEventTick() -> Int {
