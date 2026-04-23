@@ -122,6 +122,36 @@ func parserParsesSoundTempoEvents() throws {
 }
 
 @Test
+func parserParsesMeasureLevelSoundTempoEvents() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <sound tempo="120"/>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+          <sound tempo="60"/>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.tempoEvents.count == 2)
+    #expect(score.tempoEvents[0].tick == 0)
+    #expect(score.tempoEvents[0].quarterBPM == 120)
+    #expect(score.tempoEvents[1].tick == 480)
+    #expect(score.tempoEvents[1].quarterBPM == 60)
+}
+
+@Test
 func parserParsesMetronomeTempoWhenSoundIsMissing() throws {
     let xml = """
     <?xml version="1.0" encoding="UTF-8"?>

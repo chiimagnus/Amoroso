@@ -79,7 +79,7 @@ extension MusicXMLParserDelegate {
                 state.currentSoundTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
                 state.currentSoundSoundStartIndex = state.soundDirectives.count
                 state.currentSoundPedalStartIndex = state.pedalEvents.count
-                if state.isInDirection, let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
+                if let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
                     recordTempoEvent(quarterBPM: bpm, source: .sound)
                 }
                 recordDamperPedalEventFromSound(attributes: attributeDict)
