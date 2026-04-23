@@ -55,13 +55,33 @@ struct MusicXMLPedalEvent: Equatable, Identifiable {
 
 struct MusicXMLMeasureSpan: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(startTick)-\(endTick)"
+        "\(partID)-\(measureIndex)-\(startTick)-\(endTick)"
     }
 
     let partID: String
     let measureNumber: Int
+    let measureIndex: Int
+    let measureNumberToken: String?
     let startTick: Int
     let endTick: Int
+
+    init(partID: String, measureNumber: Int, startTick: Int, endTick: Int) {
+        self.partID = partID
+        self.measureNumber = measureNumber
+        measureIndex = measureNumber
+        measureNumberToken = nil
+        self.startTick = startTick
+        self.endTick = endTick
+    }
+
+    init(partID: String, measureNumber: Int, measureIndex: Int, measureNumberToken: String?, startTick: Int, endTick: Int) {
+        self.partID = partID
+        self.measureNumber = measureNumber
+        self.measureIndex = measureIndex
+        self.measureNumberToken = measureNumberToken
+        self.startTick = startTick
+        self.endTick = endTick
+    }
 }
 
 enum MusicXMLRepeatDirection: String, Equatable {

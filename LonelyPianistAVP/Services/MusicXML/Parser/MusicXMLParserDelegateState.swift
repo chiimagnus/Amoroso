@@ -25,6 +25,8 @@ struct MusicXMLParserDelegateState {
 
     var currentPartID = "P1"
     var currentMeasureNumber = 1
+    var currentMeasureIndex = 0
+    var currentMeasureNumberToken: String? = nil
 
     var partDivisions: [String: Int] = [:]
     var partTick: [String: Int] = [:]

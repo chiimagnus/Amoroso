@@ -8,10 +8,15 @@ extension MusicXMLParserDelegate {
                 if state.partDivisions[state.currentPartID] == nil {
                     state.partDivisions[state.currentPartID] = 1
                 }
+                state.currentMeasureIndex = 0
+                state.currentMeasureNumberToken = nil
+                state.currentMeasureNumber = 0
                 state.currentMeasureStartTick = state.partTick[state.currentPartID] ?? 0
                 state.partMeasureMaxTick[state.currentPartID] = state.currentMeasureStartTick
             case "measure":
-                state.currentMeasureNumber = Int(attributeDict["number"] ?? "") ?? (state.currentMeasureNumber + 1)
+                state.currentMeasureIndex += 1
+                state.currentMeasureNumber = state.currentMeasureIndex
+                state.currentMeasureNumberToken = attributeDict["number"]
                 state.currentMeasureStartTick = state.partTick[state.currentPartID] ?? 0
                 state.partMeasureMaxTick[state.currentPartID] = state.currentMeasureStartTick
                 state.partLastNonChordStartTick[state.currentPartID] = nil
@@ -203,6 +208,8 @@ extension MusicXMLParserDelegate {
                     MusicXMLMeasureSpan(
                         partID: state.currentPartID,
                         measureNumber: state.currentMeasureNumber,
+                        measureIndex: state.currentMeasureIndex,
+                        measureNumberToken: state.currentMeasureNumberToken,
                         startTick: state.currentMeasureStartTick,
                         endTick: endTick
                     )
