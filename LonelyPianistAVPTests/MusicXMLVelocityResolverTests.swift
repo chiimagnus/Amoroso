@@ -66,5 +66,59 @@ struct MusicXMLVelocityResolverTests {
         )
         #expect(resolver.velocity(for: directionFallbackNote) == 60)
     }
-}
 
+    @Test
+    func velocityInterpolatesWithinWedgeSpanWhenEnabled() {
+        let dynamicEvents: [MusicXMLDynamicEvent] = [
+            MusicXMLDynamicEvent(
+                tick: 0,
+                velocity: 60,
+                scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: nil),
+                source: .directionDynamics
+            ),
+            MusicXMLDynamicEvent(
+                tick: 480,
+                velocity: 100,
+                scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: nil),
+                source: .directionDynamics
+            ),
+        ]
+        let wedgeEvents: [MusicXMLWedgeEvent] = [
+            MusicXMLWedgeEvent(
+                tick: 0,
+                kind: .crescendoStart,
+                numberToken: "1",
+                scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: nil)
+            ),
+            MusicXMLWedgeEvent(
+                tick: 480,
+                kind: .stop,
+                numberToken: "1",
+                scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: nil)
+            ),
+        ]
+
+        let resolver = MusicXMLVelocityResolver(
+            dynamicEvents: dynamicEvents,
+            wedgeEvents: wedgeEvents,
+            wedgeEnabled: true,
+            defaultVelocity: 96
+        )
+
+        let note = MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 240,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        )
+
+        #expect(resolver.velocity(for: note) == 80)
+    }
+}

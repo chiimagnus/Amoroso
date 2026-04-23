@@ -116,7 +116,10 @@ final class SongLibraryViewModel {
                 ? structureExpander.expandStructureIfPossible(score: score)
                 : score
 
-            let buildResult = stepBuilder.buildSteps(from: effectiveScore)
+            let expressivityOptions = MusicXMLExpressivityOptions(
+                wedgeEnabled: UserDefaults.standard.bool(forKey: "practiceMusicXMLWedgeEnabled")
+            )
+            let buildResult = stepBuilder.buildSteps(from: effectiveScore, expressivity: expressivityOptions)
             let tempoMap = MusicXMLTempoMap(tempoEvents: effectiveScore.tempoEvents)
             let pedalTimeline = MusicXMLPedalTimeline(events: effectiveScore.pedalEvents)
             let shouldUsePerformanceTiming = UserDefaults.standard

@@ -1,16 +1,26 @@
 import Foundation
 
 protocol PracticeStepBuilderProtocol {
-    func buildSteps(from score: MusicXMLScore) -> PracticeStepBuildResult
+    func buildSteps(from score: MusicXMLScore, expressivity: MusicXMLExpressivityOptions) -> PracticeStepBuildResult
+}
+
+extension PracticeStepBuilderProtocol {
+    func buildSteps(from score: MusicXMLScore) -> PracticeStepBuildResult {
+        buildSteps(from: score, expressivity: MusicXMLExpressivityOptions())
+    }
 }
 
 struct PracticeStepBuilder: PracticeStepBuilderProtocol {
     private let playableRange = 21 ... 108
 
-    func buildSteps(from score: MusicXMLScore) -> PracticeStepBuildResult {
+    func buildSteps(from score: MusicXMLScore, expressivity: MusicXMLExpressivityOptions) -> PracticeStepBuildResult {
         var grouped: [Int: [Int: (staff: Int?, velocity: UInt8)]] = [:] // tick -> midi -> (staff, velocity)
         var unsupportedNoteCount = 0
-        let velocityResolver = MusicXMLVelocityResolver(dynamicEvents: score.dynamicEvents)
+        let velocityResolver = MusicXMLVelocityResolver(
+            dynamicEvents: score.dynamicEvents,
+            wedgeEvents: score.wedgeEvents,
+            wedgeEnabled: expressivity.wedgeEnabled
+        )
 
         for noteEvent in score.notes {
             if noteEvent.isRest {
