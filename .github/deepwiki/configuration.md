@@ -26,6 +26,7 @@
 | macOS shared scheme | `LonelyPianist.xcodeproj/xcshareddata/xcschemes/LonelyPianist.xcscheme` | 共享构建入口 |
 | AVP scheme | 当前仓库中未见共享 scheme | 需要本地 Xcode 环境 |
 | RealityKitContent 平台 | `Packages/RealityKitContent/Package.swift` | visionOS 兼容 |
+| Deployment targets | `LonelyPianist.xcodeproj/project.pbxproj` | macOS 26.0 / visionOS 26.0 |
 
 ## 权限与 entitlements
 | 文件 | 说明 |
@@ -54,3 +55,4 @@
 
 ## Coverage Gaps
 - Python 依赖没有 lockfile；环境变量也没有统一 `.env.example`。
+- AVP 的共享 scheme 未提交，因此命令行测试在不同机器上可能需要先在 Xcode 里生成本地 scheme。

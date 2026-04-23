@@ -52,6 +52,16 @@ sequenceDiagram
 | 推理 | notes + params | `InferenceEngine.generate_response` | reply notes |
 | 调试 | `DIALOGUE_DEBUG=1` | write request/response/midi/summary | `out/dialogue_debug/*` |
 
+## 对话协议骨架
+| 对象 | 默认值 / 约束 | 位置 |
+| --- | --- | --- |
+| `GenerateRequest.type` | `"generate"` | `server/protocol.py` |
+| `GenerateRequest.protocol_version` | `1` | `server/protocol.py` |
+| `GenerateParams.top_p` | `0.95` | `server/protocol.py` |
+| `GenerateParams.max_tokens` | `256` | `server/protocol.py` |
+| `ResultResponse.type` | `"result"` | `server/protocol.py` |
+| `ErrorResponse.type` | `"error"` | `server/protocol.py` |
+
 ## 状态机边界
 | 组件 | 状态 |
 | --- | --- |

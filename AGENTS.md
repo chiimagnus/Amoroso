@@ -51,10 +51,10 @@
 - UI：SwiftUI、RealityKit（按需）
 - 状态管理：Observation（`@Observable` / `@Bindable`）；必要时使用 Swift Concurrency；仅在需要 Publisher 管道时引入 Combine
 - 持久化：SwiftData（按需）
-- Swift：Swift 6.0+
+- Swift：Swift 6.2+（以当前 Xcode 26 工具链为准）
 
 平台支持（按项目选择）：
-- iOS 17.0+、iPadOS 17.0+、macOS 14.0+、visionOS 2.0+
+- macOS 26.0+、visionOS 26.0+
 
 ## 设计原则
 
@@ -93,7 +93,7 @@
 
 ### ViewModel 规范（Observation 优先）
 
-- iOS 17+ / macOS 14+：优先 `@Observable` / `@Bindable`
+- macOS 26+ / visionOS 26+：优先 `@Observable` / `@Bindable`
 - 避免单例：不要用 `static let shared`
 - 依赖注入优先：初始化参数或 `.environment(...)`
 - 不使用 `ObservableObject` / `@Published` / `@StateObject` / `@ObservedObject` / `@EnvironmentObject`（统一用 Observation 体系）。
@@ -117,7 +117,7 @@
 - 涉及 Simulator/Device 与日志相关的操作，按需使用原生 `xcrun simctl` / `log stream` 等系统工具。
 
 单元测试优先级建议：
-- **逻辑层 / ViewModel / UI 层**：统一用 XCTest（通过 `xcodebuild test` 跑）
+- **逻辑层 / ViewModel / UI 层**：统一用 Swift Testing（通过 `xcodebuild test` 跑）
 
 调试与日志：
 - 日志用 `os.Logger`，明确 `subsystem` 与 `category`，便于过滤与定位

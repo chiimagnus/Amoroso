@@ -1,42 +1,49 @@
 # macOS App：LonelyPianist
 
-这里是 **macOS 主应用**的源码目录（SwiftUI + CoreMIDI + SwiftData）。
+这里是 macOS 主应用源码目录，负责把 MIDI 输入变成可见、可控、可回放的本地体验。
 
-## 这个 App 做什么
+## 这层负责什么
 
-- 监听 MIDI 输入（电子琴/MIDI 键盘）
-- 把演奏事件映射为文本 / 快捷键 / 快捷指令（Shortcuts）等
-- 与本机 Python 后端配合，实现 **Piano Dialogue（AI 钢琴对话）**
+- 监听 MIDI 设备
+- 把单音 / 和弦映射成文本、快捷键或系统动作
+- 录制 take，并回放到内建 Sampler 或外部 MIDI 目的地
+- 与 `piano_dialogue_server` 配合，完成 Piano Dialogue
 
-## 🤖 Piano Dialogue：在 App 中如何使用
+## 快速上手
 
-前置：先把 Python 服务跑起来（见 `piano_dialogue_server/README.md`）。
+1. 打开 `LonelyPianist.xcodeproj`
+2. 选择 `LonelyPianist` scheme
+3. 运行到 macOS 26.0+ 目标
+4. 首次使用时在系统设置里授予**辅助功能**权限
 
-1. 启动 `LonelyPianist`（主窗口直接显示）
-2. 首次使用需要授予 **辅助功能权限**（否则无法开始监听）
-3. 点击 `Start Listening`
-4. 在侧边栏选择 `Dialogue`，点击 `Start Dialogue`
-5. 弹一段，停顿（默认静默 2s + 踏板抬起）后触发 AI 回应
-6. 回应会自动回放到你选择的 playback output，并保存为 take（Recorder 里可见）
+## Piano Dialogue
 
-回放期间的输入策略（可持久化，默认 B）：
+前置条件：先启动 `piano_dialogue_server`，让 `GET /health` 返回 `{"status":"ok"}`。
 
-- A Ignore：忽略你的输入
-- B Interrupt：你一按键就打断 AI，立刻开始收集下一句（默认）
-- C Queue：排队，AI 播完后再生成下一句
+工作流：
 
-## 🎹 没有实体 MIDI 键盘？
+1. 点击 `Start Listening`
+2. 打开 `Dialogue`
+3. 弹奏一段后停顿，默认静默窗口结束后触发生成
+4. AI 回放会自动落盘为 take，可在 Recorder 中查看
 
-没问题！你可以用虚拟 MIDI 键盘测试：
+当前回放打断策略可在以下三种模式间切换：
 
-- 推荐 [MidiKeys](https://github.com/flit/MidiKeys)（开源免费）
-- 打开 MidiKeys 后，在 App 中点击 `Refresh MIDI Sources` 即可识别
+| 模式 | 行为 |
+| --- | --- |
+| Ignore | 忽略输入 |
+| Interrupt | 一旦按键就打断 AI 回放 |
+| Queue | 先排队，回放结束后再生成下一句 |
 
-> 💡 避坑提示：不要用库乐队（GarageBand）测试 — 它的 MIDI 事件不会广播给外部应用。
+## 没有实体 MIDI 键盘？
 
-## 运行与验收
+可以用虚拟 MIDI 键盘测试，例如 [MidiKeys](https://github.com/flit/MidiKeys)。
+打开后，在 App 中点 `Refresh MIDI Sources` 即可识别。
 
-本目录只维护与 macOS App 相关的使用与验收（本文件）。与 Python/AVP 相关的内容请看：
+> 不建议用 GarageBand 做外部广播测试，它的 MIDI 事件不会稳定广播给外部应用。
 
-- Python 服务（Dialogue）：`piano_dialogue_server/README.md`
-- AVP（AR Guide）：`LonelyPianistAVP/README.md`
+## 关联文档
+
+- Python 服务：[`../piano_dialogue_server/README.md`](../piano_dialogue_server/README.md)
+- visionOS 端：[`../LonelyPianistAVP/README.md`](../LonelyPianistAVP/README.md)
+- 仓库知识库：[`../.github/deepwiki/INDEX.md`](../.github/deepwiki/INDEX.md)

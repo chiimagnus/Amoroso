@@ -76,6 +76,5 @@
 
 ## Coverage Gaps / Missing Assets
 - 仓库内没有 `.github/workflows/*`，CI 门禁仍只能依赖本地测试链路。
-- `LonelyPianistAVP` 的共享 scheme 仍未入库，AVP 命令在不同机器上可用性不完全一致。
+- `LonelyPianist` 的 macOS 共享 scheme 已入库；`LonelyPianistAVP` 仍主要依赖本地 Xcode scheme 管理，跨机器的可用性不完全一致。
 - `.github/deepwiki/assets/` 保留为资产位，但本次没有额外图片资产可复制。
-

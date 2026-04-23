@@ -7,6 +7,7 @@
 - App 代码：`LonelyPianistAVP/`（RealityKit / ImmersiveSpace）
 - 测试：`LonelyPianistAVPTests/`（Swift Testing）
 - 资源包/内容包：`Packages/RealityKitContent/`
+- 当前工程目标随项目设置为 visionOS 26.0。
 
 ## 代码风格与命名规范
 

@@ -1,7 +1,7 @@
 # 概览
 
 ## 仓库目标
-这是一个 macOS + visionOS + 本地 Python 组成的本机优先钢琴系统。
+这是一个 macOS + visionOS + 本地 Python 组成的本机优先钢琴系统，当前工程目标分别对齐 macOS 26.0 与 visionOS 26.0。
 
 ## 顶层目录
 | 路径 | 角色 | 关键内容 |
@@ -19,6 +19,12 @@
 | macOS app | `LonelyPianist/LonelyPianistApp.swift` | 组装 SwiftData、MIDI、mapping、recorder、Dialogue |
 | visionOS app | `LonelyPianistAVP/LonelyPianistAVPApp.swift` | 组装 AppModel、曲库 seed、WindowGroup + ImmersiveSpace |
 | Python app | `piano_dialogue_server/server/main.py` | FastAPI + WebSocket 主入口 |
+
+## 构建入口
+| 入口 | 现状 | 说明 |
+| --- | --- | --- |
+| macOS scheme | 共享 scheme 已提交 | `LonelyPianist.xcscheme` |
+| visionOS scheme | 主要依赖本地 Xcode scheme | 仓库未提交共享 scheme |
 
 ## 功能地图
 | 运行面 | 用户能做什么 | 读哪一页 |

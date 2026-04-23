@@ -1,55 +1,43 @@
-# visionOS App：LonelyPianistAVP（AR Guide）
+# visionOS App：LonelyPianistAVP
 
-这里是 **Apple Vision Pro（visionOS）端**的原型工程目录，核心目标是：
+这是 Apple Vision Pro 端的原型工程，核心目标是：
 
-**导入 MusicXML → 校准钢琴空间位置 → 手部追踪判定按键 → 用 AR 高亮提示下一步。**
+**导入 MusicXML → 校准钢琴空间位置 → 追踪手势与按键 → 以 AR 方式引导练习。**
 
-## 沉浸式 vs 非沉浸式（用户体验）
+## 运行面
 
-visionOS 里我们把体验拆成两部分：
+- **2D Window**：导入谱面、设置校准、控制练习
+- **Immersive Space**：显示 reticle、指尖点位和空间高亮
 
-- **非沉浸式（2D Window）**：用于“文件导入、按钮控制、状态文字”（例如 `Import MusicXML…`、`Start AR Guide`、`Set A0/C8`、`Skip` 等）。
-- **沉浸式（Immersive Space）**：用于“空间内容与追踪”（指尖绿点、黄色 reticle 球、AR 高亮等）。
+## 最短闭环
 
-你没进入沉浸式时：通常只会看到一个 2D 窗口（像一个面板）。
+1. 导入一个外部准备好的 `MusicXML`
+2. 进入 AR Guide
+3. 按提示完成 A0 / C8 两点校准
+4. 进入 Step 3 后查看键位高亮与自动推进
 
-你进入沉浸式后：你会看到 2D HUD 面板 + 空间中的视觉指引（reticle/手部点位/高亮）。
+## 关键限制
 
-## 功能范围（MVP）
+- 当前只接受外部准备好的 `MusicXML`
+- 当前 MVP 依赖 **A0 / C8 两点校准**
+- `SalC5Light2.sf2` 默认需要放在：
 
-- MusicXML 导入（来自外部下载或人工准备）
-- AR Guide：HUD + reticle + 指尖点位
-- A0 / C8 两点校准（决定键位对齐）
-- `Skip` / `Mark Correct` 推进（便于功能验收）
+```text
+LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2
+```
 
-## 验收流程（最短闭环）
+## 运行说明
 
-1. **导入谱子（MusicXML）**：在 2D 窗口点 `Import MusicXML…`，看到 `Steps: N`（N>0）。
-2. **进入 AR Guide**：点 `Start AR Guide`，首次会弹出手部追踪权限弹窗，点允许。
-3. **确认沉浸式状态可见**：你应看到 HUD（`AR Guide` 面板）+ 黄色 reticle 球 + 手指绿点（指尖）。
-4. **校准（A0 / C8）**：在 HUD 点 `Set A0` / `Set C8`，把左手食指按在对应琴键上，等待 reticle 变绿后用右手捏合确认，然后 `Save`。
-5. **练习指引**：校准完成后会显示当前 step 的键位高亮；可用 `Skip` / `Mark Correct` 辅助推进验证流程。
+```text
+打开 LonelyPianist.xcodeproj
+选择 / 创建 LonelyPianistAVP scheme
+运行到 visionOS Simulator 或真机
+```
 
-> 重要：当前 MVP 的键位对齐依赖 **A0 / C8 两点校准**。如果高亮位置明显漂移，先重新校准再判断判定逻辑。
+仓库当前只提交了 macOS 的共享 scheme；`LonelyPianistAVP` 在本地 Xcode 中选择或创建 scheme 后即可运行。
 
-## 依赖与输入
+## 相关页面
 
-- 推荐输入：`MusicXML`
-- 如果你只有 PDF/图片谱：请先在其他工具里转换并下载 MusicXML，再回到这里导入。
-
-## 🎹 Step 3 琴声（SoundFont）
-
-Step 3 的 2D 键盘高亮会自动播放“当前按键”的琴声，并提供 `播放琴声` 按钮用于重放。
-
-当前默认尝试加载 `SalC5Light2.sf2`。若音色文件缺失或加载失败，会在 Step 3 弹出明确错误提示（不再自动 fallback 到占位音色）。
-
-### 本机资源放置（不进 Git）
-
-出于体积考虑，SoundFont 文件默认不提交到仓库（已在 `.gitignore` 忽略）：
-
-- 放置路径：`LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2`
-
-下载来源（任选其一）：
-
-- `https://drive.google.com/file/d/0B5gPxvwx-I4KWjZ2SHZOLU42dHM/view?resourcekey=0-MM0kBCZkU-ZEnL9lDeJIVA`
-- `https://freepats.zenvoid.org/Piano/SalamanderGrandPiano/SalamanderGrandPiano-SF2-V3+20200602.tar.xz`
+- [`../README.md`](../README.md)
+- [`../.github/deepwiki/modules/lonelypianist-avp.md`](../.github/deepwiki/modules/lonelypianist-avp.md)
+- [`../.github/deepwiki/modules/lonelypianist-avp-practice.md`](../.github/deepwiki/modules/lonelypianist-avp-practice.md)

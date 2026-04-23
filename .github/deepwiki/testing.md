@@ -11,7 +11,7 @@
 | 命令 | 适用场景 |
 | --- | --- |
 | `xcodebuild test -project LonelyPianist.xcodeproj -scheme LonelyPianist -destination 'platform=macOS'` | macOS 回归 |
-| `xcodebuild test -project LonelyPianist.xcodeproj -scheme LonelyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro'` | AVP 回归 |
+| `xcodebuild test -project LonelyPianist.xcodeproj -scheme LonelyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro'` | AVP 回归（需要本地可用 scheme） |
 | `cd piano_dialogue_server && python scripts/test_generate.py` | 离线推理 sanity check |
 | `cd piano_dialogue_server/server && ../.venv/bin/python test_client.py` | WS 回环 |
 | `curl -s http://127.0.0.1:8765/health` | 服务健康检查 |
@@ -45,6 +45,7 @@
 
 ## 现状
 - 没有 `.github/workflows/*`，所以测试门禁不在 CI 上自动定义。
+- macOS shared scheme 已提交；AVP 验证更依赖本地 scheme 管理。
 
 ## Coverage Gaps
 - 三端端到端自动化仍缺失；当前覆盖依赖单测和人工冒烟组合。

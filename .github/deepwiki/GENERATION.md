@@ -3,9 +3,9 @@
 ## Run info
 | Item | Value |
 | --- | --- |
-| Commit hash | 1b94996 |
-| Branch name | crh |
-| Generated at | 2026-04-23T17:57:40.061+08:00 |
+| Commit hash | ea1794a |
+| Branch name | main |
+| Generated at | 2026-04-23T21:33:09+08:00 |
 | Output language | Chinese |
 | Generation mode | Incremental update |
 
@@ -42,3 +42,4 @@
 ## Notes
 - This update is based on the current repository tree, README files, AGENTS files, Swift sources, Python sources, and test filenames.
 - Coverage gaps are intentionally preserved where the repository does not provide CI or shared scheme evidence.
+- The current refresh also aligned the top-level README and AGENTS files with the project targets and test framework.
