@@ -12,7 +12,7 @@ struct MusicXMLWordsSemanticsInterpreter {
         tempoEvents: [MusicXMLTempoEvent]
     ) -> MusicXMLWordsSemanticsResult {
         let markers = wordsEvents
-            .compactMap(Self.marker(from:))
+            .compactMap { Self.marker(from: $0) }
             .sorted { lhs, rhs in
                 if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
                 return lhs.kind.sortPriority < rhs.kind.sortPriority
@@ -71,7 +71,7 @@ struct MusicXMLWordsSemanticsInterpreter {
 
         let ramps: [MusicXMLTempoMap.TempoRamp] = markers.compactMap { marker in
             let tempoScope = MusicXMLEventScope(partID: marker.scope.partID, staff: nil, voice: nil)
-            switch marker.kind {
+            return switch marker.kind {
                 case .rit:
                     Self.tempoRampIfPossible(
                         startTick: marker.tick,
