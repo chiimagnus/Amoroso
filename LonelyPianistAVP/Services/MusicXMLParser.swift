@@ -95,6 +95,11 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
     private var rawTempoEventsByPart: [String: [RawTempoEvent]] = [:]
 
     private var currentMeasureStartTick = 0
+    private var currentDirectionOffsetTicks = 0
+    private var currentDirectionMeasureStartTick = 0
+    private var currentDirectionTempoStartIndex = 0
+    private var currentDirectionSoundStartIndex = 0
+    private var currentDirectionPedalStartIndex = 0
 
     func parser(
         _: XMLParser,
@@ -123,6 +128,11 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
                 isInAttributes = true
             case "direction":
                 isInDirection = true
+                currentDirectionOffsetTicks = 0
+                currentDirectionMeasureStartTick = currentMeasureStartTick
+                currentDirectionTempoStartIndex = rawTempoEventsByPart[currentPartID]?.count ?? 0
+                currentDirectionSoundStartIndex = soundDirectives.count
+                currentDirectionPedalStartIndex = pedalEvents.count
             case "direction-type":
                 break
             case "pedal":
@@ -231,6 +241,10 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
             case "metronome":
                 finalizeMetronomeTempoIfNeeded()
                 isInDirectionTypeMetronome = false
+            case "offset" where isInDirection:
+                if let rawOffset = Int(text) {
+                    applyDirectionOffset(rawOffset)
+                }
             case "duration":
                 if let duration = Int(text), duration >= 0 {
                     let normalizedDuration = normalizeDuration(duration)
@@ -259,6 +273,11 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
                 isInAttributes = false
             case "direction":
                 isInDirection = false
+                currentDirectionOffsetTicks = 0
+                currentDirectionMeasureStartTick = 0
+                currentDirectionTempoStartIndex = 0
+                currentDirectionSoundStartIndex = 0
+                currentDirectionPedalStartIndex = 0
             case "barline":
                 isInBarline = false
             case "backup":
@@ -286,7 +305,7 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
 
         guard let rawType = attributes["type"]?.lowercased() else { return }
 
-        let tick = partTick[currentPartID] ?? 0
+        let tick = currentDirectionEventTick()
         let base = (
             partID: currentPartID,
             measureNumber: currentMeasureNumber,
@@ -408,10 +427,76 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
         return max(0, Int(normalized.rounded()))
     }
 
+    private func normalizeSignedDuration(_ rawDuration: Int) -> Int {
+        if rawDuration == 0 {
+            return 0
+        }
+        let sign = rawDuration >= 0 ? 1 : -1
+        let normalized = normalizeDuration(abs(rawDuration))
+        return sign * normalized
+    }
+
+    private func applyDirectionOffset(_ rawOffset: Int) {
+        let newOffset = normalizeSignedDuration(rawOffset)
+        let delta = newOffset - currentDirectionOffsetTicks
+        guard delta != 0 else { return }
+
+        if var tempoEvents = rawTempoEventsByPart[currentPartID], currentDirectionTempoStartIndex < tempoEvents.count {
+            for i in currentDirectionTempoStartIndex ..< tempoEvents.count {
+                let shifted = max(currentDirectionMeasureStartTick, tempoEvents[i].tick + delta)
+                tempoEvents[i] = RawTempoEvent(
+                    partID: tempoEvents[i].partID,
+                    tick: shifted,
+                    quarterBPM: tempoEvents[i].quarterBPM,
+                    source: tempoEvents[i].source
+                )
+            }
+            rawTempoEventsByPart[currentPartID] = tempoEvents
+        }
+
+        if currentDirectionSoundStartIndex < soundDirectives.count {
+            for i in currentDirectionSoundStartIndex ..< soundDirectives.count {
+                let shifted = max(currentDirectionMeasureStartTick, soundDirectives[i].tick + delta)
+                soundDirectives[i] = MusicXMLSoundDirective(
+                    partID: soundDirectives[i].partID,
+                    measureNumber: soundDirectives[i].measureNumber,
+                    tick: shifted,
+                    segno: soundDirectives[i].segno,
+                    coda: soundDirectives[i].coda,
+                    tocoda: soundDirectives[i].tocoda,
+                    dalsegno: soundDirectives[i].dalsegno,
+                    dacapo: soundDirectives[i].dacapo
+                )
+            }
+        }
+
+        if currentDirectionPedalStartIndex < pedalEvents.count {
+            for i in currentDirectionPedalStartIndex ..< pedalEvents.count {
+                let shifted = max(currentDirectionMeasureStartTick, pedalEvents[i].tick + delta)
+                pedalEvents[i] = MusicXMLPedalEvent(
+                    partID: pedalEvents[i].partID,
+                    measureNumber: pedalEvents[i].measureNumber,
+                    tick: shifted,
+                    kind: pedalEvents[i].kind,
+                    isDown: pedalEvents[i].isDown
+                )
+            }
+        }
+
+        currentDirectionOffsetTicks = newOffset
+    }
+
+    private func currentDirectionEventTick() -> Int {
+        let baseTick = partTick[currentPartID] ?? currentMeasureStartTick
+        guard isInDirection else { return baseTick }
+        let shifted = baseTick + currentDirectionOffsetTicks
+        return max(currentDirectionMeasureStartTick, shifted)
+    }
+
     private func recordTempoEvent(quarterBPM: Double, source: TempoSource) {
         guard quarterBPM.isFinite, quarterBPM > 0 else { return }
 
-        let tick = partTick[currentPartID] ?? currentMeasureStartTick
+        let tick = currentDirectionEventTick()
         let event = RawTempoEvent(partID: currentPartID, tick: tick, quarterBPM: quarterBPM, source: source)
         rawTempoEventsByPart[currentPartID, default: []].append(event)
     }
@@ -427,7 +512,7 @@ private final class MusicXMLParserDelegate: NSObject, XMLParserDelegate {
             return
         }
 
-        let tick = partTick[currentPartID] ?? currentMeasureStartTick
+        let tick = currentDirectionEventTick()
         soundDirectives.append(
             MusicXMLSoundDirective(
                 partID: currentPartID,

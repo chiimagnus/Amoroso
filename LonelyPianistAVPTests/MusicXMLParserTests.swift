@@ -467,3 +467,38 @@ func parserIgnoresUnknownPedalType() throws {
     let score = try MusicXMLParser().parse(data: Data(xml.utf8))
     #expect(score.pedalEvents.isEmpty == true)
 }
+
+@Test
+func parserAppliesDirectionOffsetToSoundTempoAndPedalEvents() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>48</divisions></attributes>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>48</duration>
+          </note>
+          <direction>
+            <direction-type><pedal type="start"/></direction-type>
+            <sound tempo="60"/>
+            <offset>-24</offset>
+          </direction>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.tempoEvents.count == 1)
+    #expect(score.tempoEvents[0].tick == 240)
+    #expect(score.tempoEvents[0].quarterBPM == 60)
+
+    #expect(score.pedalEvents.count == 1)
+    #expect(score.pedalEvents[0].kind == .start)
+    #expect(score.pedalEvents[0].tick == 240)
+}
