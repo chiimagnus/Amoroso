@@ -4,11 +4,11 @@ import ZIPFoundation
 
 @testable import LonelyPianistAVP
 
-struct MXLReaderTests {
+struct MusicXMLParserMXLTests {
     @Test
-    func readsScoreDataViaContainerRootfile() throws {
+    func parseFileURLReadsMXLAndParsesScore() throws {
         let baseURL = FileManager.default.temporaryDirectory
-            .appending(path: "MXLReaderTests")
+            .appending(path: "MusicXMLParserMXLTests")
             .appending(path: UUID().uuidString)
         try FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: baseURL) }
@@ -52,33 +52,10 @@ struct MXLReaderTests {
         try archive.addEntry(with: "META-INF/container.xml", relativeTo: baseURL, compressionMethod: .deflate)
         try archive.addEntry(with: "score.xml", relativeTo: baseURL, compressionMethod: .deflate)
 
-        let reader = MXLReader()
-        let data = try reader.readScoreXMLData(from: mxlURL)
+        let score = try MusicXMLParser().parse(fileURL: mxlURL)
 
-        #expect(String(data: data, encoding: .utf8)?.contains("<score-partwise") == true)
-    }
-
-    @Test
-    func throwsWhenContainerIsMissing() throws {
-        let baseURL = FileManager.default.temporaryDirectory
-            .appending(path: "MXLReaderTests")
-            .appending(path: UUID().uuidString)
-        try FileManager.default.createDirectory(at: baseURL, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: baseURL) }
-
-        let scoreXML = """
-        <?xml version="1.0" encoding="UTF-8"?>
-        <score-partwise version="4.0"></score-partwise>
-        """
-        try scoreXML.data(using: .utf8)!.write(to: baseURL.appending(path: "score.xml"))
-
-        let mxlURL = baseURL.appending(path: "fixture.mxl")
-        let archive = try Archive(url: mxlURL, accessMode: .create)
-        try archive.addEntry(with: "score.xml", relativeTo: baseURL, compressionMethod: .deflate)
-
-        let reader = MXLReader()
-        #expect(throws: MXLReaderError.missingContainerXML) {
-            _ = try reader.readScoreXMLData(from: mxlURL)
-        }
+        #expect(score.notes.count == 1)
+        #expect(score.notes.first?.midiNote == 60)
+        #expect(score.notes.first?.durationTicks == 480)
     }
 }

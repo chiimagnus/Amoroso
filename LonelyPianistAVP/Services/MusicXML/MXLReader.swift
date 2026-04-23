@@ -11,7 +11,10 @@ enum MXLReaderError: Error, Equatable {
 
 struct MXLReader {
     func readScoreXMLData(from mxlFileURL: URL) throws -> Data {
-        guard let archive = Archive(url: mxlFileURL, accessMode: .read) else {
+        let archive: Archive
+        do {
+            archive = try Archive(url: mxlFileURL, accessMode: .read)
+        } catch {
             throw MXLReaderError.invalidArchive
         }
 
@@ -72,4 +75,3 @@ private final class MXLContainerXMLParserDelegate: NSObject, XMLParserDelegate {
         }
     }
 }
-
