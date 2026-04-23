@@ -47,7 +47,7 @@ func wordsSemanticsDerivesTempoRampForRitWhenTargetIsSlower() {
     )
 
     #expect(result.derivedTempoRamps == [
-        MusicXMLTempoMap.TempoRamp(startTick: 0, endTick: 480, startQuarterBPM: 120, endQuarterBPM: 60),
+        MusicXMLTempoMap.TempoRamp(startTick: 0, endTick: 480, startQuarterBPM: 120, endQuarterBPM: 60, curve: .easeInOut),
     ])
 }
 

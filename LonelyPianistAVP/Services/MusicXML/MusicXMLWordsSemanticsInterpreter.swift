@@ -288,7 +288,8 @@ struct MusicXMLWordsSemanticsInterpreter {
             endTick: endEvent.tick,
             startQuarterBPM: startBPM,
             endQuarterBPM: endBPM,
-            scope: scope
+            scope: scope,
+            curve: .easeInOut
         )
     }
 }
