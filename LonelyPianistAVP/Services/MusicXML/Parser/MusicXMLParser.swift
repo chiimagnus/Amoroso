@@ -30,6 +30,7 @@ struct MusicXMLParser: MusicXMLParserProtocol {
             throw MusicXMLParserError.parseFailed
         }
         return MusicXMLScore(
+            scoreVersion: delegate.scoreVersion,
             notes: delegate.notes,
             tempoEvents: delegate.tempoEvents,
             soundDirectives: delegate.soundDirectives,

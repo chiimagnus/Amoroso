@@ -3,6 +3,10 @@ import Foundation
 extension MusicXMLParserDelegate {
     func handleStartElement(_ elementName: String, attributes attributeDict: [String: String]) {
         switch elementName {
+            case "score-partwise", "score-timewise":
+                if state.scoreVersion == nil {
+                    state.scoreVersion = attributeDict["version"]
+                }
             case "part":
                 state.currentPartID = attributeDict["id"] ?? "P1"
                 if state.partDivisions[state.currentPartID] == nil {
