@@ -7,6 +7,13 @@ struct PracticeStepNote: Equatable, Hashable, Identifiable {
 
     let midiNote: Int
     let staff: Int?
+    let velocity: UInt8
+
+    init(midiNote: Int, staff: Int?, velocity: UInt8 = 96) {
+        self.midiNote = midiNote
+        self.staff = staff
+        self.velocity = velocity
+    }
 }
 
 struct PracticeStep: Equatable, Identifiable {

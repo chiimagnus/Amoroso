@@ -382,7 +382,7 @@ final class PracticeSessionViewModel {
 
         for note in currentStep.notes {
             do {
-                try noteOutput.noteOn(midi: note.midiNote, velocity: 96)
+                try noteOutput.noteOn(midi: note.midiNote, velocity: note.velocity)
                 let offTick = resolveOffTick(midi: note.midiNote, staff: note.staff, onTick: currentStep.tick)
                 activeNoteOffTickByMIDI[note.midiNote] = offTick
             } catch {
