@@ -174,7 +174,9 @@ struct MusicXMLStructureExpander {
                         tieStart: note.tieStart,
                         tieStop: note.tieStop,
                         staff: note.staff,
-                        voice: note.voice
+                        voice: note.voice,
+                        attackTicks: note.attackTicks,
+                        releaseTicks: note.releaseTicks
                     )
                 )
             }

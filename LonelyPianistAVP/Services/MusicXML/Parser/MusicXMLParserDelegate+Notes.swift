@@ -1,6 +1,25 @@
 import Foundation
 
 extension MusicXMLParserDelegate {
+    func parseNotePerformanceOffsetTicks(_ rawValue: String?) -> Int? {
+        guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              rawValue.isEmpty == false
+        else {
+            return nil
+        }
+
+        guard let offsetInDivisions = Double(rawValue), offsetInDivisions.isFinite else {
+            return nil
+        }
+
+        let divisions = Double(state.partDivisions[state.currentPartID] ?? 1)
+        guard divisions > 0 else { return nil }
+
+        let ticksPerDivision = Double(state.normalizedTicksPerQuarter) / divisions
+        let offsetTicks = Int(offsetInDivisions * ticksPerDivision)
+        return offsetTicks == 0 ? nil : offsetTicks
+    }
+
     func finalizeNote() {
         guard let duration = state.noteDuration else { return }
 
@@ -32,7 +51,9 @@ extension MusicXMLParserDelegate {
                 tieStart: state.noteTieStart,
                 tieStop: state.noteTieStop,
                 staff: state.noteStaff,
-                voice: state.noteVoice
+                voice: state.noteVoice,
+                attackTicks: state.noteAttackTicks,
+                releaseTicks: state.noteReleaseTicks
             )
         )
 

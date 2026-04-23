@@ -197,7 +197,9 @@ func structureExpanderFallsBackWhenJumpLimitsAreHit() {
                 tieStart: false,
                 tieStop: false,
                 staff: 1,
-                voice: 1
+                voice: 1,
+                attackTicks: nil,
+                releaseTicks: nil
             ),
         ],
         tempoEvents: [],

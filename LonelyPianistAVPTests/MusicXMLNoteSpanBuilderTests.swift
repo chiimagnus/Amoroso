@@ -91,3 +91,33 @@ func noteSpanBuilderSkipsRestsAndBuildsNormalSpans() {
     #expect(spans[0].onTick == 0)
     #expect(spans[0].offTick == 480)
 }
+
+@Test
+func noteSpanBuilderAppliesAttackAndReleaseWhenEnabled() {
+    let builder = MusicXMLNoteSpanBuilder()
+    let notes: [MusicXMLNoteEvent] = [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1,
+            attackTicks: 120,
+            releaseTicks: 120
+        ),
+    ]
+
+    let normal = builder.buildSpans(from: notes)
+    #expect(normal.first?.onTick == 0)
+    #expect(normal.first?.offTick == 480)
+
+    let performance = builder.buildSpans(from: notes, performanceTimingEnabled: true)
+    #expect(performance.first?.onTick == 120)
+    #expect(performance.first?.offTick == 600)
+}

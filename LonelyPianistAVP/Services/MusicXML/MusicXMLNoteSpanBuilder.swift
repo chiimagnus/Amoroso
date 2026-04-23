@@ -8,7 +8,7 @@ struct MusicXMLNoteSpanBuilder {
         let voice: Int
     }
 
-    func buildSpans(from notes: [MusicXMLNoteEvent]) -> [MusicXMLNoteSpan] {
+    func buildSpans(from notes: [MusicXMLNoteEvent], performanceTimingEnabled: Bool = false) -> [MusicXMLNoteSpan] {
         let orderedNotes = notes.sorted { lhs, rhs in
             if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
             return (lhs.midiNote ?? -1) < (rhs.midiNote ?? -1)
@@ -48,13 +48,9 @@ struct MusicXMLNoteSpanBuilder {
                         activeSpanIndexByKey[key] = nil
                     }
 
-                    let span = MusicXMLNoteSpan(
-                        midiNote: midiNote,
-                        staff: staff,
-                        voice: voice,
-                        onTick: note.tick,
-                        offTick: note.tick + max(0, note.durationTicks)
-                    )
+                    let onTick = note.tick + (performanceTimingEnabled ? (note.attackTicks ?? 0) : 0)
+                    let offTick = max(onTick, note.tick + max(0, note.durationTicks))
+                    let span = MusicXMLNoteSpan(midiNote: midiNote, staff: staff, voice: voice, onTick: onTick, offTick: offTick)
                     output.append(span)
                     activeSpanIndexByKey[key] = output.count - 1
                 case .middle:
@@ -73,17 +69,14 @@ struct MusicXMLNoteSpanBuilder {
                                 "MusicXMLNoteSpanBuilder: tie-middle without active; starting new active span for \(key.partID) midi=\(midiNote) staff=\(staff) voice=\(voice)"
                             )
                         #endif
-                        let span = MusicXMLNoteSpan(
-                            midiNote: midiNote,
-                            staff: staff,
-                            voice: voice,
-                            onTick: note.tick,
-                            offTick: note.tick + max(0, note.durationTicks)
-                        )
+                        let onTick = note.tick + (performanceTimingEnabled ? (note.attackTicks ?? 0) : 0)
+                        let offTick = max(onTick, note.tick + max(0, note.durationTicks))
+                        let span = MusicXMLNoteSpan(midiNote: midiNote, staff: staff, voice: voice, onTick: onTick, offTick: offTick)
                         output.append(span)
                         activeSpanIndexByKey[key] = output.count - 1
                     }
                 case .end:
+                    let releaseTicks = performanceTimingEnabled ? (note.releaseTicks ?? 0) : 0
                     if let existingIndex = activeSpanIndexByKey[key] {
                         let existing = output[existingIndex]
                         output[existingIndex] = MusicXMLNoteSpan(
@@ -91,7 +84,7 @@ struct MusicXMLNoteSpanBuilder {
                             staff: existing.staff,
                             voice: existing.voice,
                             onTick: existing.onTick,
-                            offTick: existing.offTick + max(0, note.durationTicks)
+                            offTick: max(existing.onTick, existing.offTick + max(0, note.durationTicks) + releaseTicks)
                         )
                         activeSpanIndexByKey[key] = nil
                     } else {
@@ -105,19 +98,26 @@ struct MusicXMLNoteSpanBuilder {
                                 midiNote: midiNote,
                                 staff: staff,
                                 voice: voice,
-                                onTick: note.tick,
-                                offTick: note.tick + max(0, note.durationTicks)
+                                onTick: note.tick + (performanceTimingEnabled ? (note.attackTicks ?? 0) : 0),
+                                offTick: max(
+                                    note.tick + (performanceTimingEnabled ? (note.attackTicks ?? 0) : 0),
+                                    note.tick + max(0, note.durationTicks) + releaseTicks
+                                )
                             )
                         )
                     }
                 case .normal:
+                    let attackTicks = performanceTimingEnabled ? (note.attackTicks ?? 0) : 0
+                    let releaseTicks = performanceTimingEnabled ? (note.releaseTicks ?? 0) : 0
+                    let onTick = note.tick + attackTicks
+                    let offTick = max(onTick, note.tick + max(0, note.durationTicks) + releaseTicks)
                     output.append(
                         MusicXMLNoteSpan(
                             midiNote: midiNote,
                             staff: staff,
                             voice: voice,
-                            onTick: note.tick,
-                            offTick: note.tick + max(0, note.durationTicks)
+                            onTick: onTick,
+                            offTick: offTick
                         )
                     )
             }

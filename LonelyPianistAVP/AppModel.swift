@@ -122,7 +122,11 @@ class AppModel {
             let buildResult = stepBuilder.buildSteps(from: effectiveScore)
             let tempoMap = MusicXMLTempoMap(tempoEvents: effectiveScore.tempoEvents)
             let pedalTimeline = MusicXMLPedalTimeline(events: effectiveScore.pedalEvents)
-            let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(from: effectiveScore.notes)
+            let shouldUsePerformanceTiming = UserDefaults.standard.bool(forKey: "practiceMusicXMLPerformanceTimingEnabled")
+            let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
+                from: effectiveScore.notes,
+                performanceTimingEnabled: shouldUsePerformanceTiming
+            )
             if buildResult.unsupportedNoteCount > 0 {
                 importErrorMessage = "已导入（忽略了 \(buildResult.unsupportedNoteCount) 个不支持的音符）。"
             } else {

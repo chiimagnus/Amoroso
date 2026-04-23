@@ -111,6 +111,8 @@ extension MusicXMLParserDelegate {
                 state.noteVoice = nil
                 state.noteTieStart = false
                 state.noteTieStop = false
+                state.noteAttackTicks = parseNotePerformanceOffsetTicks(attributeDict["attack"])
+                state.noteReleaseTicks = parseNotePerformanceOffsetTicks(attributeDict["release"])
             case "rest":
                 if state.isInNote {
                     state.noteIsRest = true

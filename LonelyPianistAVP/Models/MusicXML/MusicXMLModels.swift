@@ -113,7 +113,7 @@ struct MusicXMLEndingDirective: Equatable {
 
 struct MusicXMLNoteEvent: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(tieStart)-\(tieStop)"
+        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)"
     }
 
     let partID: String
@@ -127,6 +127,38 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let tieStop: Bool
     let staff: Int?
     let voice: Int?
+    let attackTicks: Int?
+    let releaseTicks: Int?
+
+    init(
+        partID: String,
+        measureNumber: Int,
+        tick: Int,
+        durationTicks: Int,
+        midiNote: Int?,
+        isRest: Bool,
+        isChord: Bool,
+        tieStart: Bool,
+        tieStop: Bool,
+        staff: Int?,
+        voice: Int?,
+        attackTicks: Int? = nil,
+        releaseTicks: Int? = nil
+    ) {
+        self.partID = partID
+        self.measureNumber = measureNumber
+        self.tick = tick
+        self.durationTicks = durationTicks
+        self.midiNote = midiNote
+        self.isRest = isRest
+        self.isChord = isChord
+        self.tieStart = tieStart
+        self.tieStop = tieStop
+        self.staff = staff
+        self.voice = voice
+        self.attackTicks = attackTicks
+        self.releaseTicks = releaseTicks
+    }
 }
 
 struct MusicXMLNoteSpan: Equatable, Identifiable {
