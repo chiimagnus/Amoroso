@@ -14,7 +14,7 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
     private let playableRange = 21 ... 108
 
     func buildSteps(from score: MusicXMLScore, expressivity: MusicXMLExpressivityOptions) -> PracticeStepBuildResult {
-        var grouped: [Int: [Int: (staff: Int?, velocity: UInt8, onTickOffset: Int)]] = [:] // tick -> midi -> (staff, velocity, onTickOffset)
+        var grouped: [Int: [Int: (staff: Int?, velocity: UInt8, onTickOffset: Int, fingeringText: String?)]] = [:] // tick -> midi -> (staff, velocity, onTickOffset, fingeringText)
         var unsupportedNoteCount = 0
         let velocityResolver = MusicXMLVelocityResolver(
             dynamicEvents: score.dynamicEvents,
@@ -51,7 +51,12 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
             let onTickOffset = max(0, arpeggiateOffsetByNoteIndex[index] ?? 0)
             var map = grouped[effectiveTick] ?? [:]
             if map[midiNote] == nil {
-                map[midiNote] = (staff: noteEvent.staff, velocity: velocity, onTickOffset: onTickOffset)
+                map[midiNote] = (
+                    staff: noteEvent.staff,
+                    velocity: velocity,
+                    onTickOffset: onTickOffset,
+                    fingeringText: noteEvent.fingeringText
+                )
             }
             grouped[effectiveTick] = map
         }
@@ -64,7 +69,8 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
                     midiNote: midiNote,
                     staff: entry?.staff,
                     velocity: entry?.velocity ?? 96,
-                    onTickOffset: entry?.onTickOffset ?? 0
+                    onTickOffset: entry?.onTickOffset ?? 0,
+                    fingeringText: entry?.fingeringText
                 )
             }
             return PracticeStep(tick: tick, notes: notes)

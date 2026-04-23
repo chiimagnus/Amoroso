@@ -9,12 +9,20 @@ struct PracticeStepNote: Equatable, Hashable, Identifiable {
     let staff: Int?
     let velocity: UInt8
     let onTickOffset: Int
+    let fingeringText: String?
 
-    init(midiNote: Int, staff: Int?, velocity: UInt8 = 96, onTickOffset: Int = 0) {
+    init(
+        midiNote: Int,
+        staff: Int?,
+        velocity: UInt8 = 96,
+        onTickOffset: Int = 0,
+        fingeringText: String? = nil
+    ) {
         self.midiNote = midiNote
         self.staff = staff
         self.velocity = velocity
         self.onTickOffset = onTickOffset
+        self.fingeringText = fingeringText
     }
 }
 

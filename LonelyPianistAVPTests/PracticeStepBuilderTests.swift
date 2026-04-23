@@ -247,3 +247,28 @@ func buildStepsSetsOnTickOffsetsForArpeggiateChordWhenEnabled() {
     #expect(result.steps[0].notes[0].onTickOffset == 0)
     #expect(result.steps[0].notes[1].onTickOffset == 30)
 }
+
+@Test
+func buildStepsCarriesFingeringTextIntoStepNotes() {
+    let score = MusicXMLScore(notes: [
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 60,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1,
+            fingeringText: "1"
+        ),
+    ])
+
+    let result = PracticeStepBuilder().buildSteps(from: score)
+    #expect(result.steps.count == 1)
+    #expect(result.steps[0].notes.count == 1)
+    #expect(result.steps[0].notes[0].fingeringText == "1")
+}

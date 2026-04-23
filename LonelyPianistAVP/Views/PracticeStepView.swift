@@ -16,7 +16,7 @@ struct PracticeStepView: View {
     @AppStorage("practiceStep3AutoplayEnabled") private var isAutoplayEnabled = false
 
     var body: some View {
-        PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes)
+        PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes, fingeringByMIDINote: fingeringByMIDINote)
             .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
             .containerRelativeFrame(.horizontal, count: 10, span: 9, spacing: 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -143,6 +143,16 @@ struct PracticeStepView: View {
             return []
         }
         return Set(currentStep.notes.map(\.midiNote))
+    }
+
+    private var fingeringByMIDINote: [Int: String] {
+        guard isAutoplayEnabled else { return [:] }
+        guard let currentStep = viewModel.practiceSessionViewModel.currentStep else { return [:] }
+        let items = currentStep.notes.compactMap { note -> (Int, String)? in
+            guard let text = note.fingeringText, text.isEmpty == false else { return nil }
+            return (note.midiNote, text)
+        }
+        return Dictionary(uniqueKeysWithValues: items)
     }
 
     private var localizationPopover: some View {
