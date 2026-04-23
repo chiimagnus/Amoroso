@@ -11,6 +11,7 @@ struct MusicXMLParserDelegateState {
     var pedalEvents: [MusicXMLPedalEvent] = []
     var dynamicEvents: [MusicXMLDynamicEvent] = []
     var wedgeEvents: [MusicXMLWedgeEvent] = []
+    var fermataEvents: [MusicXMLFermataEvent] = []
     var measures: [MusicXMLMeasureSpan] = []
     var repeatDirectives: [MusicXMLRepeatDirective] = []
     var endingDirectives: [MusicXMLEndingDirective] = []
@@ -74,6 +75,8 @@ struct MusicXMLParserDelegateState {
     var noteDynamicsOverrideVelocity: UInt8?
     var isInNoteArticulations = false
     var noteArticulations: Set<MusicXMLArticulation> = []
+    var noteHasFermata = false
+    var noteArpeggiate: MusicXMLArpeggiate?
 
     var isInDirectionTypeMetronome = false
     var metronomeBeatUnit: String?
@@ -90,6 +93,7 @@ struct MusicXMLParserDelegateState {
     var currentDirectionPedalStartIndex = 0
     var currentDirectionDynamicStartIndex = 0
     var currentDirectionWedgeStartIndex = 0
+    var currentDirectionFermataStartIndex = 0
 
     var currentOffsetAppliesToSound = false
 

@@ -36,6 +36,7 @@ struct MusicXMLParser: MusicXMLParserProtocol {
             pedalEvents: delegate.pedalEvents,
             dynamicEvents: delegate.dynamicEvents,
             wedgeEvents: delegate.wedgeEvents,
+            fermataEvents: delegate.fermataEvents,
             measures: delegate.measures,
             repeatDirectives: delegate.repeatDirectives,
             endingDirectives: delegate.endingDirectives

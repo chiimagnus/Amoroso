@@ -117,6 +117,17 @@ extension MusicXMLParserDelegate {
         )
     }
 
+    func recordDirectionFermataEvent() {
+        guard state.isInDirection else { return }
+        state.fermataEvents.append(
+            MusicXMLFermataEvent(
+                tick: currentDirectionEventTick(),
+                scope: MusicXMLEventScope(partID: state.currentPartID, staff: state.currentDirectionStaff, voice: nil),
+                source: .directionType
+            )
+        )
+    }
+
     func parseTimeOnlyPasses(attributes: [String: String]) -> [Int]? {
         guard let raw = attributes["time-only"]?.trimmingCharacters(in: .whitespacesAndNewlines),
               raw.isEmpty == false

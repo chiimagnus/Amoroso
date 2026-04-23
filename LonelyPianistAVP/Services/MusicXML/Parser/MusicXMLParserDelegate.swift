@@ -34,6 +34,10 @@ final class MusicXMLParserDelegate: NSObject {
         state.wedgeEvents
     }
 
+    var fermataEvents: [MusicXMLFermataEvent] {
+        state.fermataEvents
+    }
+
     var measures: [MusicXMLMeasureSpan] {
         state.measures
     }

@@ -35,6 +35,7 @@ extension MusicXMLParserDelegate {
                 state.currentDirectionPedalStartIndex = state.pedalEvents.count
                 state.currentDirectionDynamicStartIndex = state.dynamicEvents.count
                 state.currentDirectionWedgeStartIndex = state.wedgeEvents.count
+                state.currentDirectionFermataStartIndex = state.fermataEvents.count
                 state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
                 state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
                 state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
@@ -137,6 +138,26 @@ extension MusicXMLParserDelegate {
                 state.noteDynamicsOverrideVelocity = parseMIDIVelocity(attributeDict["dynamics"])
                 state.isInNoteArticulations = false
                 state.noteArticulations = []
+                state.noteHasFermata = false
+                state.noteArpeggiate = nil
+            case "fermata":
+                if state.isInNote {
+                    state.noteHasFermata = true
+                } else if state.isInDirection {
+                    recordDirectionFermataEvent()
+                }
+            case "arpeggiate":
+                if state.isInNote {
+                    let numberToken = attributeDict["number"].flatMap { token in
+                        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return trimmed.isEmpty ? nil : trimmed
+                    }
+                    let directionToken = attributeDict["direction"].flatMap { token in
+                        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                        return trimmed.isEmpty ? nil : trimmed
+                    }
+                    state.noteArpeggiate = MusicXMLArpeggiate(numberToken: numberToken, directionToken: directionToken)
+                }
             case "grace":
                 if state.isInNote {
                     state.noteIsGrace = true
@@ -285,6 +306,23 @@ extension MusicXMLParserDelegate {
                         )
                     }
                 }
+                if let staff = state.currentDirectionStaff,
+                   state.currentDirectionFermataStartIndex < state.fermataEvents.count
+                {
+                    for i in state.currentDirectionFermataStartIndex ..< state.fermataEvents.count
+                        where state.fermataEvents[i].scope.staff == nil
+                    {
+                        state.fermataEvents[i] = MusicXMLFermataEvent(
+                            tick: state.fermataEvents[i].tick,
+                            scope: MusicXMLEventScope(
+                                partID: state.fermataEvents[i].scope.partID,
+                                staff: staff,
+                                voice: state.fermataEvents[i].scope.voice
+                            ),
+                            source: state.fermataEvents[i].source
+                        )
+                    }
+                }
             case "voice" where state.isInNote:
                 state.noteVoice = Int(text)
             case "note":
@@ -301,6 +339,7 @@ extension MusicXMLParserDelegate {
                 state.currentDirectionPedalStartIndex = 0
                 state.currentDirectionDynamicStartIndex = 0
                 state.currentDirectionWedgeStartIndex = 0
+                state.currentDirectionFermataStartIndex = 0
                 state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
                 state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
                 state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]

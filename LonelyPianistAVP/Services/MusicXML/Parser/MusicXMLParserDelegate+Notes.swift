@@ -139,9 +139,24 @@ extension MusicXMLParserDelegate {
                 attackTicks: state.noteAttackTicks,
                 releaseTicks: state.noteReleaseTicks,
                 dynamicsOverrideVelocity: state.noteDynamicsOverrideVelocity,
-                articulations: state.noteArticulations
+                articulations: state.noteArticulations,
+                arpeggiate: state.noteArpeggiate
             )
         )
+
+        if state.noteHasFermata {
+            state.fermataEvents.append(
+                MusicXMLFermataEvent(
+                    tick: startTick,
+                    scope: MusicXMLEventScope(
+                        partID: state.currentPartID,
+                        staff: state.noteStaff,
+                        voice: state.noteVoice
+                    ),
+                    source: .noteNotations
+                )
+            )
+        }
 
         let noteEndTick = startTick + duration
         let currentMax = state.partMeasureMaxTick[state.currentPartID] ?? state.currentMeasureStartTick
