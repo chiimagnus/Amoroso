@@ -1,82 +1,78 @@
 # 数据流
 
 ## 主流程总览
-| 流程 | 起点 | 中间层 | 终点 | 去重 / 窗口策略 |
-| --- | --- | --- | --- | --- |
-| MIDI 映射流 | CoreMIDI NoteOn/Off | ViewModel -> MappingEngine | CGEvent 注入 + 事件日志 | 和弦按“按下集合严格相等” |
-| Recorder 流 | Runtime MIDI 事件 | DefaultRecordingService | SwiftData `RecordingTake` | 停止时补全未关闭音符 |
-| Dialogue 流 | Phrase + 静默检测 | DialogueManager -> WS -> InferenceEngine | AI 回放 + 会话 take | 80ms polling + 队列策略 |
-| AVP 启动种子流 | App init | SongLibrarySeeder -> IndexStore/FileStore/AudioImportService | bundled MusicXML + MP3 -> `Documents/SongLibrary/*` | seed/backfill + legacy cleanup |
-| AVP 曲库导入流 | fileImporter URLs | SongLibraryViewModel -> SongFileStore/IndexStore | `SongLibrary/index.json` + score/audio 文件 | 先存文件，再提交索引 |
-| AVP 试听流 | 聆听/暂停按钮 | SongLibraryViewModel -> SongAudioPlaybackStateController -> SongAudioPlayer | `currentListeningEntryID` / 播放态 | 切换或暂停当前条目 |
-| AVP 练习定位流 | 已选曲 + 已保存校准 | ARGuideViewModel -> ARTrackingService -> AppModel | 进入 ready 后推进 `PracticeStep` | provider 启动超时 + 定位超时 |
-
-## 触发入口
-- macOS：`Start Listening`、`Start Dialogue`、录制与回放控制。
-- AVP：
-  - Step 1：`设置 A0/C8` + 右手捏合确认；
-  - Step 2：导入 / 删除曲目、绑定音频、试听/暂停、开始练习；
-  - Step 3：自动定位 + 手指按键检测。
-- Python：收到 WS `type=generate` 请求后执行校验与推理。
-
-## AVP 三步数据路径
-1. **Step 1 校准**：世界锚点 ID 落入 `StoredWorldAnchorCalibration`。
-2. **Step 2 选曲**：MusicXML 复制到 `SongLibrary/scores/`，索引写入 `index.json`，可选音频写入 `SongLibrary/audio/`，试听按钮则驱动播放态切换。
-3. **Step 3 练习**：恢复并定位世界锚点 -> 生成 key regions -> 指尖检测 -> step 推进。
-
-## 输入与输出（I/O）
-| 类型 | 名称 | 位置 | 说明 |
+| 流程 | 入口 | 中间层 | 结果 |
 | --- | --- | --- | --- |
-| 输入 | `MIDIEvent` | `LonelyPianist/Models/MIDI/MIDIEvent.swift` | macOS 统一输入模型 |
-| 输入 | `GenerateRequest` | `piano_dialogue_server/server/protocol.py` | Dialogue WS 请求契约 |
-| 输入 | `SongLibraryEntry` | `LonelyPianistAVP/Models/Library/SongLibraryEntry.swift` | AVP 曲库条目 |
-| 输入 | `StoredWorldAnchorCalibration` | `LonelyPianistAVP/Models/Calibration/StoredWorldAnchorCalibration.swift` | AVP 定位基线 |
-| 输出 | `RecordingTake` | `LonelyPianist/Models/Recording/RecordingTake.swift` | 录制与对话归档 |
-| 输出 | `ResultResponse.notes` | `piano_dialogue_server/server/protocol.py` | AI 回复音符 |
-| 输出 | `PracticeState` | `LonelyPianistAVP/ViewModels/PracticeSessionViewModel.swift` | AVP 引导状态 |
+| MIDI 映射 | CoreMIDI note on/off | ViewModel -> MappingEngine | CGEvent / text / shortcut |
+| Recorder | MIDI events | DefaultRecordingService | `RecordingTake` |
+| Dialogue | 静默触发 | DialogueManager -> WS -> inference | AI 回放 + take |
+| AVP seed | App 启动 | SongLibrarySeeder | 默认谱面和音频 |
+| AVP import | fileImporter URLs | SongFileStore + IndexStore | `SongLibrary/index.json` |
+| AVP practice | 校准 + 曲库 + tracking | ARGuideViewModel + PracticeSessionViewModel | 高亮和步骤推进 |
 
-## 状态机与异步边界
-- Dialogue：`idle -> listening -> thinking -> playing`。
-- AVP 定位：`idle -> openingImmersive -> waitingForProviders -> locating -> ready/failed`。
-- 异步边界：
-  - Dialogue 每 80ms 静默轮询；
-  - AR provider 更新通过 `for await` 持续推送；
-  - 定位失败时主动关闭沉浸空间并恢复状态。
-
-## 图表
+## macOS 数据流
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant V as AVP ContentView
-  participant L as SongLibraryViewModel
-  participant A as ARGuideViewModel
-  participant T as ARTrackingService
-  participant P as PracticeSessionViewModel
+  participant M as LonelyPianistViewModel
+  participant E as DefaultMappingEngine
+  participant R as DefaultRecordingService
+  participant D as DialogueManager
+  participant S as WebSocketDialogueService
 
-  U->>V: Step 2 导入 MusicXML
-  V->>L: importMusicXML(urls)
-  L->>L: copy score + update index.json
-  U->>V: 开始练习
-  V->>A: enterPracticeStep()
-  A->>T: start providers
-  T-->>A: anchors + finger tips + provider states
-  A->>P: configure/start guiding
-  P-->>V: progress/feedback 更新
+  U->>M: MIDI event
+  M->>E: process(event, payload)
+  M->>R: append(event) [recording]
+  M->>D: handle(event) [dialogue active]
+  D->>S: generate(notes, params, sessionID)
+  S-->>D: result notes
+  D-->>M: playback finished / take saved
 ```
 
-## 失败模式与恢复路径
-| 失败模式 | 典型症状 | 恢复路径 |
+## AVP 数据流
+| 阶段 | 输入 | 关键对象 | 输出 |
+| --- | --- | --- | --- |
+| Step 1 校准 | 左手 A0 / C8 + 右手捏合 | `CalibrationPointCaptureService` | `StoredWorldAnchorCalibration` |
+| Step 2 选曲 | MusicXML / mp3 / m4a | `SongLibraryViewModel` | `SongLibraryIndex` |
+| MusicXML 处理 | score XML | `MusicXMLParser`, `PracticeStepBuilder` | `PracticeStep[]` + timelines |
+| Step 3 练习 | finger tips + steps | `ARGuideViewModel`, `PracticeSessionViewModel` | 反馈和 autoplay |
+
+## AVP 练习内部
+| 子流 | 说明 | 关键状态 |
 | --- | --- | --- |
-| provider 未运行 | Step 3 一直定位失败 | 重试定位或返回 Step 1 重新校准 |
-| 曲库索引与文件不一致 | 条目存在但加载失败 | 删除异常条目后重新导入 |
-| Dialogue 服务不可达 | 一直 listening/thinking 无回复 | 检查 `/health` 与模型目录 |
-| 权限缺失 | 手部追踪不可用 / 快捷键注入无效 | 重新授权系统权限 |
+| 定位 | 恢复世界锚点并生成 calibration | `PracticeLocalizationState` |
+| 按键检测 | 指尖落点映射到 key regions | `pressedNotes` |
+| 匹配 | 当前 step 的和弦/音符匹配 | `VisualFeedbackState` |
+| 自动演奏 | 根据 note spans / pedal / fermata 推进 | `autoplayState` |
+
+## Python 数据流
+| 步骤 | 输入 | 处理 | 输出 |
+| --- | --- | --- | --- |
+| 接收 | WS JSON | JSON + Pydantic 校验 | `GenerateRequest` |
+| 推理 | notes + params | `InferenceEngine.generate_response` | reply notes |
+| 调试 | `DIALOGUE_DEBUG=1` | write request/response/midi/summary | `out/dialogue_debug/*` |
+
+## 状态机边界
+| 组件 | 状态 |
+| --- | --- |
+| DialogueManager | `idle -> listening -> thinking -> playing` |
+| PracticeLocalizationState | `idle -> blocked/openingImmersive/waitingForProviders/locating -> ready/failed` |
+| PracticeState | `idle -> ready -> guiding -> completed` |
+| SongAudio playback | `nil / playing / paused` 由当前条目驱动 |
+
+## 失败与恢复
+| 失败 | 表现 | 恢复 |
+| --- | --- | --- |
+| Python 服务不可达 | Dialogue 一直无回复 | 启动 `/health` 可用的服务 |
+| Accessibility 未授权 | macOS 无法注入按键 | 重新授权 |
+| 校准丢失 | Step 3 不能定位 | 回 Step 1 重新保存 |
+| 曲库索引和文件漂移 | 选曲后无法开始练习 | 重新导入或清理残留文件 |
+| 音频绑定失败 | 试听按钮失效 | 重新导入 mp3/m4a |
 
 ## 调试抓手
-- macOS：`statusMessage`、`recentLogs`、Sources/Pressed。
-- AVP：`practiceLocalizationStatusText`、HUD 状态、手指点和键位高亮。
-- AVP 曲库试听：`currentListeningEntryID`、`isCurrentListeningPlaying`、`SongLibraryView` 按钮文案。
-- Python：`/health`、`test_client.py`、`out/dialogue_debug/*`。
+- macOS：`statusMessage`、`recentLogs`、`previewText`
+- AVP：`practiceLocalizationStatusText`、`calibrationStatusMessage`、`currentListeningEntryID`
+- Python：`/health`、`test_client.py`、`out/dialogue_debug/index.jsonl`
 
 ## Coverage Gaps
-- 仍未见覆盖三端完整闭环的自动化 E2E 测试（当前由多套单测 + 手工冒烟组合承担）。
+- 没有自动化 E2E 去验证三端全链路；现状仍需要多处单元测试组合覆盖。

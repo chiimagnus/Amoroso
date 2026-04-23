@@ -1,27 +1,30 @@
 # Deepwiki 索引（LonelyPianist）
 
-本索引是 `.github/deepwiki/` 的统一入口，目标是：读者只看 wiki 也能快速建立“业务语义 → 技术落点 → 可改动边界”的完整心智模型。
+本索引是 `.github/deepwiki/` 的入口。目标是让读者先看业务，再看实现；或者先看工程，再落到模块。
 
 ## 推荐阅读路径
 
-### business-first（先业务后实现）
+### business-first
 1. [business-context.md](business-context.md)
 2. [overview.md](overview.md)
 3. [architecture.md](architecture.md)
-4. [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md)
-5. [data-flow.md](data-flow.md)
-6. [configuration.md](configuration.md)
-7. [troubleshooting.md](troubleshooting.md)
+4. [data-flow.md](data-flow.md)
+5. [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md)
+6. [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md)
+7. [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md)
+8. [troubleshooting.md](troubleshooting.md)
 
-### engineering-first（先架构后模块）
+### engineering-first
 1. [overview.md](overview.md)
 2. [architecture.md](architecture.md)
-3. [data-flow.md](data-flow.md)
-4. [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md)
-5. [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md)
-6. [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md)
-7. [testing.md](testing.md)
-8. [workflow.md](workflow.md)
+3. [dependencies.md](dependencies.md)
+4. [configuration.md](configuration.md)
+5. [data-flow.md](data-flow.md)
+6. [testing.md](testing.md)
+7. [workflow.md](workflow.md)
+8. [modules/lonelypianist-macos-runtime.md](modules/lonelypianist-macos-runtime.md)
+9. [modules/lonelypianist-avp-musicxml.md](modules/lonelypianist-avp-musicxml.md)
+10. [modules/piano-dialogue-server-inference.md](modules/piano-dialogue-server-inference.md)
 
 ## 页面分组
 
@@ -39,23 +42,40 @@
 - [workflow.md](workflow.md)
 - [troubleshooting.md](troubleshooting.md)
 
-### 模块页（按运行面）
+### macOS 主应用
 - [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md)
+- [modules/lonelypianist-macos-runtime.md](modules/lonelypianist-macos-runtime.md)
+- [modules/lonelypianist-macos-mapping.md](modules/lonelypianist-macos-mapping.md)
+- [modules/lonelypianist-macos-recording.md](modules/lonelypianist-macos-recording.md)
+- [modules/lonelypianist-macos-dialogue.md](modules/lonelypianist-macos-dialogue.md)
+
+### visionOS 原型
 - [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md)
+- [modules/lonelypianist-avp-library.md](modules/lonelypianist-avp-library.md)
+- [modules/lonelypianist-avp-calibration.md](modules/lonelypianist-avp-calibration.md)
+- [modules/lonelypianist-avp-musicxml.md](modules/lonelypianist-avp-musicxml.md)
+- [modules/lonelypianist-avp-tracking.md](modules/lonelypianist-avp-tracking.md)
+- [modules/lonelypianist-avp-practice.md](modules/lonelypianist-avp-practice.md)
+
+### Python 对话服务
 - [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md)
+- [modules/piano-dialogue-server-protocol.md](modules/piano-dialogue-server-protocol.md)
+- [modules/piano-dialogue-server-inference.md](modules/piano-dialogue-server-inference.md)
+- [modules/piano-dialogue-server-debug.md](modules/piano-dialogue-server-debug.md)
 
 ### 术语与元数据
 - [glossary.md](glossary.md)
 - [GENERATION.md](GENERATION.md)
 
 ## 按问题导航
-- **想先知道产品到底做什么**：先看 `business-context.md`。
-- **要改 AVP 的导入/选曲/练习链路**：先看 `modules/lonelypianist-avp.md`，再看 `data-flow.md`。
-- **要改 macOS MIDI 映射/录制/对话**：先看 `modules/lonelypianist-macos.md`。
-- **要改 Python 推理协议或服务行为**：先看 `modules/piano-dialogue-server.md`。
+- **想先理解产品在做什么**：先看 `business-context.md`。
+- **要改 macOS 监听 / 映射 / 录音 / 对话**：看 `modules/lonelypianist-macos.md`，再下钻对应子页。
+- **要改 AVP 导入 / 校准 / 练习 / MusicXML**：看 `modules/lonelypianist-avp.md`，再下钻对应子页。
+- **要改 Python 协议或采样逻辑**：看 `modules/piano-dialogue-server.md` 与 `modules/piano-dialogue-server-inference.md`。
 - **遇到运行异常**：从 `troubleshooting.md` 开始。
 
 ## Coverage Gaps / Missing Assets
-- 仓库内仍未发现 `.github/workflows/*`，CI 门禁链路暂无可验证定义。
-- `assets/` 目录已补齐，但本次仍未新增外部图片资产（核心图表继续使用 Mermaid 内联）。
-- `LonelyPianistAVP` 共享 scheme 文件仍未进入 `xcshareddata/xcschemes`，AVP 命令可用性依赖本地 Xcode 环境。
+- 仓库内没有 `.github/workflows/*`，CI 门禁仍只能依赖本地测试链路。
+- `LonelyPianistAVP` 的共享 scheme 仍未入库，AVP 命令在不同机器上可用性不完全一致。
+- `.github/deepwiki/assets/` 保留为资产位，但本次没有额外图片资产可复制。
+

@@ -1,71 +1,49 @@
 # 业务入口
 
-## 产品定位与目标用户
-- **产品定位**：LonelyPianist 是一个“钢琴输入 → 实时反馈产物”的多运行面系统：
-  1) macOS 把 MIDI 变成控制与录制，
-  2) Python 把短句变成 AI 回应，
-  3) visionOS 把乐谱变成空间引导练习。
-- **目标用户**：
-  - 有电子琴 / MIDI 键盘的练习者；
-  - 希望把钢琴作为快捷控制器的创作者；
-  - 在 Vision Pro 上验证 AR 指引练习流程的开发者。
+## 产品定位
+LonelyPianist 是一个本地优先的钢琴交互系统，围绕三条产品线展开：
+1. macOS 把 MIDI 变成控制、录音和对话；
+2. visionOS 把导入的 MusicXML 变成空间引导练习；
+3. Python 把短句钢琴输入变成 AI 回复。
 
-## 核心体验与可见产物
-| 体验 | 用户看到什么 | 输入 | 输出 / 状态 | 技术页 |
-| --- | --- | --- | --- | --- |
-| MIDI Runtime | 连接状态、来源、按键事件日志 | CoreMIDI Source | `MIDIEvent` 流与状态变化 | [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md) |
-| Mapping 编辑器 | 单键/和弦映射规则 | 用户绑定规则 | 系统快捷键注入 | [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md) |
-| Piano Dialogue | 你弹一句，AI 回一句 | Phrase notes | WS 结果回放 + 会话 take | [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md) |
-| AVP Step 1 校准 | 设置 A0/C8 + 保存 | 手部追踪 + 右手捏合确认 | `StoredWorldAnchorCalibration` | [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md) |
-| AVP Step 2 选曲 | 乐曲库导入/删除/绑定音频/试听 | MusicXML / mp3 / m4a | `SongLibrary/index.json` + 试听状态更新 | [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md) |
-| AVP Step 3 练习 | 进度、定位状态、跳过/标记正确 | 手指点位 + 已选曲目 | 高亮推进与反馈 | [data-flow.md](data-flow.md) |
-
-## 能力矩阵（业务视角）
-| 能力 | 触发点 | 业务规则 | 风险边界 |
+## 三条用户旅程
+| 旅程 | 输入 | 可见结果 | 下一跳 |
 | --- | --- | --- | --- |
-| MIDI 映射 | Runtime Start + 演奏 | 和弦匹配采用“按下集合严格相等” | 依赖 Accessibility 权限 |
-| 对话生成 | 静默超时 + 踏板抬起 | turn-based，会话持续累积 | Python 服务不可用会降级 |
-| AVP 定位练习 | 进入 Step 3 | 必须先有已保存校准 + 已导入步骤 | world/hand provider 状态会阻断进入 |
-| 曲库管理 | Step 2 页面操作 | 索引与文件需保持一致，seed 条目会在启动时补齐音频 | 文件导入失败/删除失败需回滚或提示 |
+| MIDI 快捷控制 | MIDI 键盘事件 | 目标 App 收到系统按键/文本 | [modules/lonelypianist-macos-mapping.md](modules/lonelypianist-macos-mapping.md) |
+| Piano Dialogue | 静默窗口内的演奏片段 | AI 回放并落盘为 take | [modules/lonelypianist-macos-dialogue.md](modules/lonelypianist-macos-dialogue.md) |
+| AR Guide | MusicXML + A0/C8 校准 + 手势 | 键位高亮与步骤推进 | [modules/lonelypianist-avp-practice.md](modules/lonelypianist-avp-practice.md) |
 
-## 关键用户旅程
-| 旅程 | 起点 | 关键步骤 | 可见结果 | 继续阅读 |
-| --- | --- | --- | --- | --- |
-| 旅程 A：MIDI → 快捷控制 | macOS 主窗口 | 授权 -> Start Listening -> 绑定规则 -> 演奏 | 目标应用收到按键事件 | [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md) |
-| 旅程 B：人机钢琴对话 | Python 服务在线 | Start Dialogue -> 演奏短句 -> 静默触发 | AI 回放并写入会话 take | [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md) |
-| 旅程 C：AVP 三步练习 | visionOS 主流程 | Step 1 校准 -> Step 2 选曲/试听 -> Step 3 定位练习 | 进入引导态并推进步骤 | [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md) |
+## 业务规则
+| 规则 | 含义 | 影响面 |
+| --- | --- | --- |
+| 权限先于动作 | macOS 需要 Accessibility；AVP 需要 Hand/World tracking 权限 | 启动和排障 |
+| 对话是 turn-based | 静默触发后再生成回复，回放策略可配置 | macOS + Python |
+| Step 3 前置条件明确 | 必须先导入谱面并有可用校准 | AVP 进入练习 |
+| 曲库索引与文件必须一致 | 导入 / 删除 / 音频绑定都先后写盘 | AVP 存储和恢复 |
 
-## 业务主流程图
-```mermaid
-flowchart TD
-  A[MIDI 键盘输入] --> B[macOS CoreMIDI 采集]
-  B --> C{模式}
-  C -->|Mapping| D[CGEvent 快捷键注入]
-  C -->|Recorder| E[保存 RecordingTake]
-  C -->|Dialogue| F[静默检测后 WS generate]
-  F --> G[Python 推理回复]
-  G --> H[回放 AI + 合并会话 take]
+## 核心产物
+| 产物 | 由谁生成 | 存储位置 |
+| --- | --- | --- |
+| `MappingConfig` / `RecordingTake` | macOS repositories | SwiftData store |
+| `Dialogue take` | macOS DialogueManager | SwiftData store |
+| `piano-worldanchor-calibration.json` | AVP Step 1 | Documents |
+| `SongLibrary/index.json` + scores/audio | AVP 曲库 | Documents/SongLibrary |
+| `out/dialogue_debug/*` | Python server | 本地调试目录 |
 
-  I[AVP Step1 校准] --> J[保存世界锚点校准]
-  K[AVP Step2 曲库导入] --> L[解析并生成 PracticeSteps]
-  J --> M[AVP Step3 定位]
-  L --> M
-  M --> N[键位高亮与步骤推进]
-```
+## 术语路由
+| 术语 | 业务含义 | 技术页 |
+| --- | --- | --- |
+| Runtime | MIDI 监听和状态反馈面板 | [modules/lonelypianist-macos-runtime.md](modules/lonelypianist-macos-runtime.md) |
+| Mappings | 单键/和弦映射编辑器 | [modules/lonelypianist-macos-mapping.md](modules/lonelypianist-macos-mapping.md) |
+| Recorder | take 录制、导入与播放 | [modules/lonelypianist-macos-recording.md](modules/lonelypianist-macos-recording.md) |
+| Step 1 / 2 / 3 | 校准、选曲、练习 | [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md) |
+| `/ws` | 对话协议入口 | [modules/piano-dialogue-server-protocol.md](modules/piano-dialogue-server-protocol.md) |
 
-## 业务规则与约束
-- Dialogue 触发条件不是“只静默”，而是“静默窗口满足且踏板状态允许”。
-- AVP Step 3 的进入策略是“先判阻断原因，再开沉浸空间，再定位锚点”。
-- 曲库删除是“两阶段”：先更新索引，再删除文件；文件删除失败会显式提示。
-- AVP seed 曲会在启动时自动从 bundled `Resources/SeedScores` 注入；若默认条目已存在但缺少音频，会在后续启动时补齐。
-- AVP 的定位失败会主动关闭沉浸空间并回到失败态，避免假成功。
-
-## 从业务进入技术细节
-- 先看 [overview.md](overview.md) 了解目录、入口与三条运行面。
-- 再看 [architecture.md](architecture.md) 识别依赖方向与热点。
-- 跟踪流程时看 [data-flow.md](data-flow.md)。
-- 排故看 [troubleshooting.md](troubleshooting.md)。
+## 继续阅读
+- 全局目录与入口：`overview.md`
+- 依赖与平台约束：`dependencies.md`
+- 流程细节：`data-flow.md`
+- 故障定位：`troubleshooting.md`
 
 ## Coverage Gaps
-- 目前仍无仓库内 CI workflow，业务流程的自动门禁缺少结构化证据。
-- AVP 共享 scheme 文件未入库，自动化命令在不同机器上可用性不一致。
+- 业务入口页只描述已在仓库中出现的能力；未包含任何尚未实现的产品路线图。

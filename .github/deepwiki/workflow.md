@@ -1,46 +1,40 @@
 # 工作流
 
-## 进入仓库后的判断顺序
-1. 判定改动运行面：`LonelyPianist` / `LonelyPianistAVP` / `piano_dialogue_server`。
-2. 读取入口文档：根 `README.md`、子目录 `README.md`、`AGENTS.md`、对应模块页。
-3. 若涉及 Dialogue，先确认 Python 服务可用（`/health`）。
-4. 若涉及 AVP Step 3，先确认是否已有“已导入曲目 + 已保存校准”。
+## 进入仓库的判断顺序
+1. 先判断改动属于 macOS / visionOS / Python 哪一面。
+2. 再找对应入口：App、ViewModel、Service、Test。
+3. 涉及 Dialogue 先确认 `piano_dialogue_server` 已启动。
+4. 涉及 AVP 先确认 Step 1 校准和 Step 2 曲库是否就绪。
 
-## 标准开发循环
-| 阶段 | 动作 | 产物 | 关注点 |
-| --- | --- | --- | --- |
-| 需求定位 | 锁定模块边界与数据契约 | 变更清单 | 避免跨层混改 |
-| 实现 | 按 MVVM + Services 修改 | 代码变更 | View 不承载业务流程 |
-| 验证 | 跑对应测试与脚本 | 测试结果 | 覆盖权限/设备边界 |
-| 文档同步 | 更新 deepwiki/README | 可追溯知识层 | 代码事实优先 |
-
-## 按运行面的实施路径
-| 运行面 | 推荐入口 | 默认验证 |
+## 开发循环
+| 阶段 | 做什么 | 产物 |
 | --- | --- | --- |
-| macOS | `ViewModels/LonelyPianistViewModel.swift` + `Services/` | macOS `xcodebuild test` + 手工映射/录制 |
-| AVP | `Views/ContentView.swift` + `ViewModels/ARGuideViewModel.swift` + `ViewModels/Library/SongLibraryViewModel.swift` | AVP tests + Step 1/2/3 冒烟 |
-| Python | `server/main.py` + `server/protocol.py` + `server/inference.py` | `/health` + `test_client.py` + `scripts/test_generate.py` |
+| 定位 | 锁定业务和模块边界 | 变更范围 |
+| 实现 | 按 MVVM + Services 改代码 | 代码变更 |
+| 验证 | 跑对应用例和脚本 | 测试结果 |
+| 同步 | 更新 deepwiki / README | 知识层 |
 
-## AVP 三步流协作约束
-- App 启动还会先执行 `SongLibrarySeeder.seedAndMigrateIfNeeded()`：从 bundled `Resources/SeedScores` 注入默认曲目与音频，并清理旧 `ImportedScores`。
-- Step 1（校准）改动通常会联动：`WorldAnchorCalibrationStore`、`ARTrackingService`、`ARGuideViewModel`。
-- Step 2（选曲/试听）改动通常会联动：`SongLibraryViewModel`、`SongFileStore`、`SongLibraryIndexStore`、`AudioImportService`、`SongAudioPlaybackStateController`。
-- Step 3（练习）改动通常会联动：`PracticeSessionViewModel`、`PressDetectionService`、Overlay controllers。
+## 按运行面修改
+| 运行面 | 默认入口 | 常见联动 |
+| --- | --- | --- |
+| macOS | `LonelyPianist/ViewModels/LonelyPianistViewModel.swift` | MIDI service、storage、Dialogue |
+| visionOS | `LonelyPianistAVP/ViewModels/ARGuideViewModel.swift` + `ViewModels/Library/SongLibraryViewModel.swift` | tracking、musicxml、playback |
+| Python | `piano_dialogue_server/server/main.py` + `inference.py` | protocol、debug artifacts |
 
-## 文档同步流程
-- 业务旅程有变化：先改 `business-context.md`，再更新技术页路由。
-- 数据/状态流有变化：更新 `data-flow.md` 与相关模块页。
-- 配置/权限变化：更新 `configuration.md` 与 `troubleshooting.md`。
+## 常见变更清单
+| 变更 | 需要同步 |
+| --- | --- |
+| Dialogue 协议字段 | Swift model + WebSocket service + Python protocol |
+| 曲库字段 | SongLibrary models + store + seeder |
+| 校准字段 | StoredWorldAnchorCalibration + store + localization |
+| MusicXML 规则 | parser + step builder + practice view model |
 
-## 变更清单（高频联动）
-- 协议改动：Swift `DialogueNote` ↔ Python `protocol.py` 同步。
-- AVP 曲库格式改动：`SongLibraryEntry` ↔ `SongLibraryIndexStore` ↔ 迁移逻辑同步。
-- 校准字段改动：`StoredWorldAnchorCalibration` ↔ `WorldAnchorCalibrationStore` ↔ 定位流程同步。
-
-## 评审关注点
-- 是否仍保持依赖注入与单向数据流。
-- 是否在失败路径有明确状态回落与用户提示。
-- 是否补齐对应测试（尤其状态机与存储一致性）。
+## 维护 deepwiki
+- 业务变化先改 `business-context.md`
+- 技术边界变化再改 `architecture.md`、`data-flow.md`
+- 配置变化改 `configuration.md`
+- 测试命中面变化改 `testing.md`
+- 新增运行面时新增 module page，并补 `INDEX.md`
 
 ## Coverage Gaps
-- 目前缺少 CI 自动化门禁与统一发布流水线文档。
+- 没有统一发布流水线；因此工作流页只记录本地开发和验证路径。
