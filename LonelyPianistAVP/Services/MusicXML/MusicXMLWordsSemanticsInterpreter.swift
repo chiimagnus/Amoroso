@@ -117,7 +117,7 @@ struct MusicXMLWordsSemanticsInterpreter {
 
         let tokens = tokenize(normalized)
 
-        if tokens.first == "ped" {
+        if tokens.count == 1, tokens[0] == "ped" {
             return Marker(tick: event.tick, partID: event.scope.partID, kind: .pedalDown)
         }
 

@@ -21,6 +21,19 @@ func wordsSemanticsDerivesPedalEventsFromPedAndAsterisk() {
 }
 
 @Test
+func wordsSemanticsDoesNotDerivePedalEventsFromPedSimile() {
+    let interpreter = MusicXMLWordsSemanticsInterpreter()
+    let result = interpreter.interpret(
+        wordsEvents: [
+            MusicXMLWordsEvent(tick: 0, text: "Ped. simile", scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: nil)),
+        ],
+        tempoEvents: []
+    )
+
+    #expect(result.derivedPedalEvents.isEmpty == true)
+}
+
+@Test
 func wordsSemanticsDerivesTempoRampForRitWhenTargetIsSlower() {
     let interpreter = MusicXMLWordsSemanticsInterpreter()
     let result = interpreter.interpret(
