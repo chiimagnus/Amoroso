@@ -191,7 +191,11 @@ struct MusicXMLStructureExpander {
                     MusicXMLTempoEvent(
                         tick: shiftedTick,
                         quarterBPM: event.quarterBPM,
-                        scope: MusicXMLEventScope(partID: primaryPartID, staff: event.scope.staff, voice: event.scope.voice)
+                        scope: MusicXMLEventScope(
+                            partID: primaryPartID,
+                            staff: event.scope.staff,
+                            voice: event.scope.voice
+                        )
                     )
                 )
             }

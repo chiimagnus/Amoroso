@@ -256,12 +256,11 @@ struct MusicXMLWordsSemanticsInterpreter {
             let key = "\(event.scope.partID)-\(staffKey)-\(voiceKey)-\(event.tick)"
             byKey[key] = event
         }
-        let sorted = byKey.values.sorted { lhs, rhs in
+        return byKey.values.sorted { lhs, rhs in
             if lhs.scope.partID != rhs.scope.partID { return lhs.scope.partID < rhs.scope.partID }
             if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
             return (lhs.scope.staff ?? -1) < (rhs.scope.staff ?? -1)
         }
-        return sorted
     }
 
     private static func tempoRampIfPossible(
@@ -276,7 +275,11 @@ struct MusicXMLWordsSemanticsInterpreter {
             partID: scope.partID
         )
         else { return nil }
-        guard let endEvent = nextExplicitTempo(afterTick: startTick, tempoEvents: explicitTempoEvents, partID: scope.partID)
+        guard let endEvent = nextExplicitTempo(
+            afterTick: startTick,
+            tempoEvents: explicitTempoEvents,
+            partID: scope.partID
+        )
         else { return nil }
         let endBPM = endEvent.quarterBPM
 
