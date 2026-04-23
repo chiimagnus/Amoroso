@@ -21,6 +21,7 @@ struct MusicXMLNoteSpanBuilder {
 
         for note in orderedNotes {
             guard note.isRest == false else { continue }
+            guard note.isGrace == false else { continue }
             guard let midiNote = note.midiNote else { continue }
 
             let staff = note.staff ?? 1

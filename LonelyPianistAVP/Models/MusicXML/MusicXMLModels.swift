@@ -113,7 +113,7 @@ struct MusicXMLEndingDirective: Equatable {
 
 struct MusicXMLNoteEvent: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)"
+        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(isGrace)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)"
     }
 
     let partID: String
@@ -123,6 +123,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let midiNote: Int?
     let isRest: Bool
     let isChord: Bool
+    let isGrace: Bool
     let tieStart: Bool
     let tieStop: Bool
     let staff: Int?
@@ -138,6 +139,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         midiNote: Int?,
         isRest: Bool,
         isChord: Bool,
+        isGrace: Bool = false,
         tieStart: Bool,
         tieStop: Bool,
         staff: Int?,
@@ -152,6 +154,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         self.midiNote = midiNote
         self.isRest = isRest
         self.isChord = isChord
+        self.isGrace = isGrace
         self.tieStart = tieStart
         self.tieStop = tieStop
         self.staff = staff

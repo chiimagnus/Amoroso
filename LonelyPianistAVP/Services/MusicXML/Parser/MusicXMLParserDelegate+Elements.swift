@@ -103,16 +103,36 @@ extension MusicXMLParserDelegate {
                 state.isInNote = true
                 state.noteIsRest = false
                 state.noteIsChord = false
+                state.noteIsGrace = false
                 state.noteStep = nil
                 state.noteAlter = nil
                 state.noteOctave = nil
                 state.noteDuration = nil
+                state.noteType = nil
+                state.noteHasDot = false
+                state.isInTimeModification = false
+                state.noteTimeModificationActualNotes = nil
+                state.noteTimeModificationNormalNotes = nil
                 state.noteStaff = nil
                 state.noteVoice = nil
                 state.noteTieStart = false
                 state.noteTieStop = false
                 state.noteAttackTicks = parseNotePerformanceOffsetTicks(attributeDict["attack"])
                 state.noteReleaseTicks = parseNotePerformanceOffsetTicks(attributeDict["release"])
+            case "grace":
+                if state.isInNote {
+                    state.noteIsGrace = true
+                }
+            case "dot":
+                if state.isInNote {
+                    state.noteHasDot = true
+                }
+            case "time-modification":
+                if state.isInNote {
+                    state.isInTimeModification = true
+                    state.noteTimeModificationActualNotes = nil
+                    state.noteTimeModificationNormalNotes = nil
+                }
             case "rest":
                 if state.isInNote {
                     state.noteIsRest = true
@@ -169,6 +189,16 @@ extension MusicXMLParserDelegate {
                     } else if state.isInForward {
                         moveCurrentTick(by: normalizedDuration)
                     }
+                }
+            case "type" where state.isInNote:
+                state.noteType = text
+            case "actual-notes" where state.isInNote && state.isInTimeModification:
+                state.noteTimeModificationActualNotes = Int(text)
+            case "normal-notes" where state.isInNote && state.isInTimeModification:
+                state.noteTimeModificationNormalNotes = Int(text)
+            case "time-modification":
+                if state.isInNote {
+                    state.isInTimeModification = false
                 }
             case "step" where state.isInNote:
                 state.noteStep = text

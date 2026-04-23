@@ -20,13 +20,73 @@ extension MusicXMLParserDelegate {
         return offsetTicks == 0 ? nil : offsetTicks
     }
 
+    func deriveDurationTicksFromTypeAndTupletIfPossible() -> Int? {
+        guard let rawType = state.noteType?.trimmingCharacters(in: .whitespacesAndNewlines),
+              rawType.isEmpty == false
+        else {
+            return nil
+        }
+
+        let type = rawType.lowercased()
+        let quarters: Double?
+        switch type {
+            case "whole":
+                quarters = 4
+            case "half":
+                quarters = 2
+            case "quarter":
+                quarters = 1
+            case "eighth":
+                quarters = 0.5
+            case "16th":
+                quarters = 0.25
+            case "32nd":
+                quarters = 0.125
+            case "64th":
+                quarters = 0.0625
+            case "128th":
+                quarters = 0.03125
+            default:
+                quarters = nil
+        }
+
+        guard let quarters else { return nil }
+
+        var durationTicks = quarters * Double(state.normalizedTicksPerQuarter)
+        if state.noteHasDot {
+            durationTicks *= 1.5
+        }
+
+        if let actual = state.noteTimeModificationActualNotes,
+           let normal = state.noteTimeModificationNormalNotes,
+           actual > 0,
+           normal > 0
+        {
+            durationTicks *= Double(normal) / Double(actual)
+        }
+
+        let ticks = Int(durationTicks.rounded())
+        return ticks > 0 ? ticks : nil
+    }
+
     func finalizeNote() {
-        guard let duration = state.noteDuration else { return }
+        let duration: Int
+        if let rawDuration = state.noteDuration {
+            duration = rawDuration
+        } else if state.noteIsGrace {
+            duration = 0
+        } else if let derivedDuration = deriveDurationTicksFromTypeAndTupletIfPossible() {
+            duration = derivedDuration
+        } else {
+            return
+        }
 
         let currentTick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
         let startTick: Int
         if state.noteIsChord {
             startTick = state.partLastNonChordStartTick[state.currentPartID] ?? currentTick
+        } else if state.noteIsGrace {
+            startTick = currentTick
         } else {
             startTick = currentTick
             state.partLastNonChordStartTick[state.currentPartID] = startTick
@@ -48,6 +108,7 @@ extension MusicXMLParserDelegate {
                 midiNote: midiNote,
                 isRest: state.noteIsRest,
                 isChord: state.noteIsChord,
+                isGrace: state.noteIsGrace,
                 tieStart: state.noteTieStart,
                 tieStop: state.noteTieStop,
                 staff: state.noteStaff,

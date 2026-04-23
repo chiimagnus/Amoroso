@@ -171,6 +171,7 @@ struct MusicXMLStructureExpander {
                         midiNote: note.midiNote,
                         isRest: note.isRest,
                         isChord: note.isChord,
+                        isGrace: note.isGrace,
                         tieStart: note.tieStart,
                         tieStop: note.tieStop,
                         staff: note.staff,

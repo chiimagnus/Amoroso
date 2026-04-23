@@ -58,6 +58,12 @@ struct MusicXMLParserDelegateState {
     var noteTieStop = false
     var noteAttackTicks: Int?
     var noteReleaseTicks: Int?
+    var noteIsGrace = false
+    var noteType: String?
+    var noteHasDot = false
+    var isInTimeModification = false
+    var noteTimeModificationActualNotes: Int?
+    var noteTimeModificationNormalNotes: Int?
 
     var isInDirectionTypeMetronome = false
     var metronomeBeatUnit: String?
