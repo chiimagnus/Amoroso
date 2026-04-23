@@ -442,6 +442,7 @@ func autoplaySchedulesNoteOffUsingNoteSpans() async {
 
     #expect(output.recordedNoteOns.map(\.midi) == [60])
     #expect(output.recordedNoteOffs.isEmpty == true)
+    #expect(viewModel.autoplayHighlightedMIDINotes == [60])
 
     for _ in 0 ..< 6 {
         await sleeper.resumeOldestPending()
@@ -452,6 +453,7 @@ func autoplaySchedulesNoteOffUsingNoteSpans() async {
     }
 
     #expect(output.recordedNoteOffs.contains(60) == true)
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == false)
 }
 
 @Test
@@ -494,12 +496,15 @@ func autoplayDefersNoteOffWhilePedalIsDownAndReleasesOnPedalUp() async {
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
 
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == true)
+
     for _ in 0 ..< 2 {
         await sleeper.resumeOldestPending()
         await settleTaskQueue()
     }
 
     #expect(output.recordedNoteOffs.contains(60) == false)
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == true)
 
     for _ in 0 ..< 6 {
         await sleeper.resumeOldestPending()
@@ -510,6 +515,7 @@ func autoplayDefersNoteOffWhilePedalIsDownAndReleasesOnPedalUp() async {
     }
 
     #expect(output.recordedNoteOffs.contains(60) == true)
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == false)
 }
 
 @Test

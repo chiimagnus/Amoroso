@@ -136,6 +136,9 @@ struct PracticeStepView: View {
     }
 
     private var highlightedMIDINotes: Set<Int> {
+        if isAutoplayEnabled {
+            return viewModel.practiceSessionViewModel.autoplayHighlightedMIDINotes
+        }
         guard let currentStep = viewModel.practiceSessionViewModel.currentStep else {
             return []
         }
