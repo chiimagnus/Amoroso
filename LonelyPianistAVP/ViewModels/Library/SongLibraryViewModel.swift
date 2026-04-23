@@ -140,6 +140,7 @@ final class SongLibraryViewModel {
                 keySignatureEvents: effectiveScore.keySignatureEvents,
                 clefEvents: effectiveScore.clefEvents
             )
+            let slurTimeline = MusicXMLSlurTimeline(events: effectiveScore.slurEvents)
             let shouldUsePerformanceTiming = UserDefaults.standard
                 .bool(forKey: "practiceMusicXMLPerformanceTimingEnabled")
             let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
@@ -165,6 +166,7 @@ final class SongLibraryViewModel {
                 pedalTimeline: pedalTimeline,
                 fermataTimeline: fermataTimeline,
                 attributeTimeline: attributeTimeline,
+                slurTimeline: slurTimeline,
                 noteSpans: noteSpans
             )
 

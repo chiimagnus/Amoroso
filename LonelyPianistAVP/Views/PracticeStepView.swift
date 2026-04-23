@@ -73,6 +73,11 @@ struct PracticeStepView: View {
                         Text(viewModel.practiceSessionViewModel.isSustainPedalDown ? "Pedal ↓" : "Pedal ↑")
                             .foregroundStyle(.secondary)
 
+                        if viewModel.practiceSessionViewModel.isMusicXMLSlurActive {
+                            Text("Slur")
+                                .foregroundStyle(.secondary)
+                        }
+
                         if let summary = viewModel.practiceSessionViewModel.currentMusicXMLAttributeSummaryText {
                             Text(summary)
                                 .foregroundStyle(.secondary)

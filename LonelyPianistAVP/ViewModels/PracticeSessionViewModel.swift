@@ -47,6 +47,7 @@ final class PracticeSessionViewModel {
     private var pedalTimeline: MusicXMLPedalTimeline?
     private var fermataTimeline: MusicXMLFermataTimeline?
     private var attributeTimeline: MusicXMLAttributeTimeline?
+    private var slurTimeline: MusicXMLSlurTimeline?
     private var noteSpanOffTickByOnsetKey: [NoteSpanOnsetKey: Int] = [:]
     private var activeNoteOffTickByMIDI: [Int: Int] = [:]
     private var pendingReleaseOffTickByMIDI: [Int: Int] = [:]
@@ -131,6 +132,12 @@ final class PracticeSessionViewModel {
         }
     }
 
+    var isMusicXMLSlurActive: Bool {
+        guard let slurTimeline else { return false }
+        guard let currentStep else { return false }
+        return slurTimeline.isActive(atTick: currentStep.tick)
+    }
+
     func setSteps(_ steps: [PracticeStep]) {
         setSteps(steps, tempoMap: nil, pedalTimeline: nil)
     }
@@ -142,6 +149,7 @@ final class PracticeSessionViewModel {
             pedalTimeline: pedalTimeline,
             fermataTimeline: nil,
             attributeTimeline: nil,
+            slurTimeline: nil,
             noteSpans: []
         )
     }
@@ -152,6 +160,7 @@ final class PracticeSessionViewModel {
         pedalTimeline: MusicXMLPedalTimeline? = nil,
         fermataTimeline: MusicXMLFermataTimeline? = nil,
         attributeTimeline: MusicXMLAttributeTimeline? = nil,
+        slurTimeline: MusicXMLSlurTimeline? = nil,
         noteSpans: [MusicXMLNoteSpan] = []
     ) {
         if state == .completed, self.steps == steps, steps.isEmpty == false {
@@ -170,6 +179,7 @@ final class PracticeSessionViewModel {
         self.pedalTimeline = pedalTimeline
         self.fermataTimeline = fermataTimeline
         self.attributeTimeline = attributeTimeline
+        self.slurTimeline = slurTimeline
         noteSpanOffTickByOnsetKey = Self.makeNoteSpanOffTickByOnsetKey(noteSpans)
         pendingAutoplayOnsetsByTick = [:]
 
@@ -214,6 +224,7 @@ final class PracticeSessionViewModel {
         pedalTimeline = nil
         fermataTimeline = nil
         attributeTimeline = nil
+        slurTimeline = nil
         noteSpanOffTickByOnsetKey = [:]
         calibration = nil
         keyRegions = []
