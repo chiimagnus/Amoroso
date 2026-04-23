@@ -3,6 +3,8 @@ import Foundation
 struct MusicXMLParserDelegateState {
     let normalizedTicksPerQuarter = 480
 
+    var scoreVersion: String?
+
     var notes: [MusicXMLNoteEvent] = []
     var tempoEvents: [MusicXMLTempoEvent] = []
     var soundDirectives: [MusicXMLSoundDirective] = []
@@ -25,6 +27,8 @@ struct MusicXMLParserDelegateState {
 
     var currentPartID = "P1"
     var currentMeasureNumber = 1
+    var currentMeasureIndex = 0
+    var currentMeasureNumberToken: String?
 
     var partDivisions: [String: Int] = [:]
     var partTick: [String: Int] = [:]
@@ -39,6 +43,7 @@ struct MusicXMLParserDelegateState {
     var isInForward = false
     var isInDirection = false
     var isInBarline = false
+    var isInSound = false
 
     var isInNote = false
     var noteIsRest = false
@@ -51,6 +56,14 @@ struct MusicXMLParserDelegateState {
     var noteVoice: Int?
     var noteTieStart = false
     var noteTieStop = false
+    var noteAttackTicks: Int?
+    var noteReleaseTicks: Int?
+    var noteIsGrace = false
+    var noteType: String?
+    var noteHasDot = false
+    var isInTimeModification = false
+    var noteTimeModificationActualNotes: Int?
+    var noteTimeModificationNormalNotes: Int?
 
     var isInDirectionTypeMetronome = false
     var metronomeBeatUnit: String?
@@ -65,4 +78,16 @@ struct MusicXMLParserDelegateState {
     var currentDirectionTempoStartIndex = 0
     var currentDirectionSoundStartIndex = 0
     var currentDirectionPedalStartIndex = 0
+
+    var currentOffsetAppliesToSound = false
+
+    var currentSoundBaseTick = 0
+    var currentSoundMeasureStartTick = 0
+    var currentSoundTempoStartIndex = 0
+    var currentSoundSoundStartIndex = 0
+    var currentSoundPedalStartIndex = 0
+
+    var currentDirectionSoundOffsetTempoOverrideTicksByIndex: [Int: Int] = [:]
+    var currentDirectionSoundOffsetSoundOverrideTicksByIndex: [Int: Int] = [:]
+    var currentDirectionSoundOffsetPedalOverrideTicksByIndex: [Int: Int] = [:]
 }

@@ -122,6 +122,72 @@ func parserParsesSoundTempoEvents() throws {
 }
 
 @Test
+func parserParsesMeasureLevelSoundTempoEvents() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <sound tempo="120"/>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+          <sound tempo="60"/>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.tempoEvents.count == 2)
+    #expect(score.tempoEvents[0].tick == 0)
+    #expect(score.tempoEvents[0].quarterBPM == 120)
+    #expect(score.tempoEvents[1].tick == 480)
+    #expect(score.tempoEvents[1].quarterBPM == 60)
+}
+
+@Test
+func parserTracksMeasureIndexAndNumberToken() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1A">
+          <attributes><divisions>1</divisions></attributes>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+        </measure>
+        <measure number="2">
+          <note>
+            <pitch><step>D</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.measures.count == 2)
+    #expect(score.measures[0].measureIndex == 1)
+    #expect(score.measures[0].measureNumber == 1)
+    #expect(score.measures[0].measureNumberToken == "1A")
+    #expect(score.measures[1].measureIndex == 2)
+    #expect(score.measures[1].measureNumber == 2)
+    #expect(score.measures[1].measureNumberToken == "2")
+}
+
+@Test
 func parserParsesMetronomeTempoWhenSoundIsMissing() throws {
     let xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -153,6 +219,41 @@ func parserParsesMetronomeTempoWhenSoundIsMissing() throws {
     #expect(score.tempoEvents.count == 1)
     #expect(score.tempoEvents[0].tick == 0)
     #expect(score.tempoEvents[0].quarterBPM == 90)
+}
+
+@Test
+func parserParsesDottedMetronomeTempo() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <direction>
+            <direction-type>
+              <metronome>
+                <beat-unit>quarter</beat-unit>
+                <beat-unit-dot/>
+                <per-minute>80</per-minute>
+              </metronome>
+            </direction-type>
+          </direction>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.tempoEvents.count == 1)
+    #expect(score.tempoEvents[0].tick == 0)
+    #expect(score.tempoEvents[0].quarterBPM == 120)
 }
 
 @Test
@@ -222,7 +323,7 @@ func parserTracksTempoChangeTickUsingPartTimeline() throws {
 }
 
 @Test
-func parserIgnoresNonQuarterMetronomeInV1() throws {
+func parserParsesMetronomeEighthBeatUnitTempo() throws {
     let xml = """
     <?xml version="1.0" encoding="UTF-8"?>
     <score-partwise version="3.1">
@@ -250,7 +351,9 @@ func parserIgnoresNonQuarterMetronomeInV1() throws {
     """
 
     let score = try MusicXMLParser().parse(data: Data(xml.utf8))
-    #expect(score.tempoEvents.isEmpty == true)
+    #expect(score.tempoEvents.count == 1)
+    #expect(score.tempoEvents[0].tick == 0)
+    #expect(score.tempoEvents[0].quarterBPM == 60)
 }
 
 @Test
@@ -380,6 +483,74 @@ func parserParsesPedalStartAndStopEvents() throws {
 }
 
 @Test
+func parserParsesSoundDamperPedalEventsInsideDirection() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <direction>
+            <sound damper-pedal="yes"/>
+          </direction>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+          <direction>
+            <sound damper-pedal="no"/>
+          </direction>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.pedalEvents.count == 2)
+    #expect(score.pedalEvents[0].tick == 0)
+    #expect(score.pedalEvents[0].kind == .start)
+    #expect(score.pedalEvents[0].isDown == true)
+    #expect(score.pedalEvents[1].tick == 480)
+    #expect(score.pedalEvents[1].kind == .stop)
+    #expect(score.pedalEvents[1].isDown == false)
+}
+
+@Test
+func parserParsesSoundDamperPedalEventsAtMeasureLevel() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <sound damper-pedal="100"/>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>1</duration>
+          </note>
+          <sound damper-pedal="0"/>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.pedalEvents.count == 2)
+    #expect(score.pedalEvents[0].tick == 0)
+    #expect(score.pedalEvents[0].kind == .start)
+    #expect(score.pedalEvents[0].isDown == true)
+    #expect(score.pedalEvents[1].tick == 480)
+    #expect(score.pedalEvents[1].kind == .stop)
+    #expect(score.pedalEvents[1].isDown == false)
+}
+
+@Test
 func parserExpandsPedalChangeIntoUpThenDownAtSameTick() throws {
     let xml = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -486,7 +657,7 @@ func parserAppliesDirectionOffsetToSoundTempoAndPedalEvents() throws {
           <direction>
             <direction-type><pedal type="start"/></direction-type>
             <sound tempo="60"/>
-            <offset>-24</offset>
+            <offset sound="yes">-24</offset>
           </direction>
         </measure>
       </part>
@@ -501,4 +672,71 @@ func parserAppliesDirectionOffsetToSoundTempoAndPedalEvents() throws {
     #expect(score.pedalEvents.count == 1)
     #expect(score.pedalEvents[0].kind == .start)
     #expect(score.pedalEvents[0].tick == 240)
+}
+
+@Test
+func parserIgnoresDirectionOffsetWhenSoundGateIsNotYes() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>48</divisions></attributes>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>48</duration>
+          </note>
+          <direction>
+            <direction-type><pedal type="start"/></direction-type>
+            <sound tempo="60"/>
+            <offset>-24</offset>
+          </direction>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.tempoEvents.count == 1)
+    #expect(score.tempoEvents[0].tick == 480)
+    #expect(score.tempoEvents[0].quarterBPM == 60)
+
+    #expect(score.pedalEvents.count == 1)
+    #expect(score.pedalEvents[0].kind == .start)
+    #expect(score.pedalEvents[0].tick == 480)
+}
+
+@Test
+func parserSoundOffsetOverridesDirectionOffsetForSoundEvents() throws {
+    let xml = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <score-partwise version="3.1">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+      </part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>48</divisions></attributes>
+          <note>
+            <pitch><step>C</step><octave>4</octave></pitch>
+            <duration>48</duration>
+          </note>
+          <direction>
+            <offset sound="yes">-24</offset>
+            <sound tempo="60">
+              <offset>0</offset>
+            </sound>
+          </direction>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    #expect(score.tempoEvents.count == 1)
+    #expect(score.tempoEvents[0].quarterBPM == 60)
+    #expect(score.tempoEvents[0].tick == 480)
 }

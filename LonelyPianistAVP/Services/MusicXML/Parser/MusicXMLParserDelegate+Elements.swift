@@ -3,15 +3,24 @@ import Foundation
 extension MusicXMLParserDelegate {
     func handleStartElement(_ elementName: String, attributes attributeDict: [String: String]) {
         switch elementName {
+            case "score-partwise", "score-timewise":
+                if state.scoreVersion == nil {
+                    state.scoreVersion = attributeDict["version"]
+                }
             case "part":
                 state.currentPartID = attributeDict["id"] ?? "P1"
                 if state.partDivisions[state.currentPartID] == nil {
                     state.partDivisions[state.currentPartID] = 1
                 }
+                state.currentMeasureIndex = 0
+                state.currentMeasureNumberToken = nil
+                state.currentMeasureNumber = 0
                 state.currentMeasureStartTick = state.partTick[state.currentPartID] ?? 0
                 state.partMeasureMaxTick[state.currentPartID] = state.currentMeasureStartTick
             case "measure":
-                state.currentMeasureNumber = Int(attributeDict["number"] ?? "") ?? (state.currentMeasureNumber + 1)
+                state.currentMeasureIndex += 1
+                state.currentMeasureNumber = state.currentMeasureIndex
+                state.currentMeasureNumberToken = attributeDict["number"]
                 state.currentMeasureStartTick = state.partTick[state.currentPartID] ?? 0
                 state.partMeasureMaxTick[state.currentPartID] = state.currentMeasureStartTick
                 state.partLastNonChordStartTick[state.currentPartID] = nil
@@ -24,10 +33,17 @@ extension MusicXMLParserDelegate {
                 state.currentDirectionTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
                 state.currentDirectionSoundStartIndex = state.soundDirectives.count
                 state.currentDirectionPedalStartIndex = state.pedalEvents.count
+                state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
             case "direction-type":
                 break
             case "pedal":
                 recordPedalEvent(attributes: attributeDict)
+            case "offset":
+                if state.isInDirection, state.isInSound == false {
+                    state.currentOffsetAppliesToSound = attributeDict["sound"]?.lowercased() == "yes"
+                }
             case "barline":
                 state.isInBarline = true
             case "repeat":
@@ -66,9 +82,16 @@ extension MusicXMLParserDelegate {
                     state.metronomePerMinute = nil
                 }
             case "sound":
-                if state.isInDirection, let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
+                state.isInSound = true
+                state.currentSoundMeasureStartTick = state.currentMeasureStartTick
+                state.currentSoundBaseTick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
+                state.currentSoundTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
+                state.currentSoundSoundStartIndex = state.soundDirectives.count
+                state.currentSoundPedalStartIndex = state.pedalEvents.count
+                if let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
                     recordTempoEvent(quarterBPM: bpm, source: .sound)
                 }
+                recordDamperPedalEventFromSound(attributes: attributeDict)
                 if state.isInDirection {
                     recordSoundDirective(attributes: attributeDict)
                 }
@@ -80,14 +103,36 @@ extension MusicXMLParserDelegate {
                 state.isInNote = true
                 state.noteIsRest = false
                 state.noteIsChord = false
+                state.noteIsGrace = false
                 state.noteStep = nil
                 state.noteAlter = nil
                 state.noteOctave = nil
                 state.noteDuration = nil
+                state.noteType = nil
+                state.noteHasDot = false
+                state.isInTimeModification = false
+                state.noteTimeModificationActualNotes = nil
+                state.noteTimeModificationNormalNotes = nil
                 state.noteStaff = nil
                 state.noteVoice = nil
                 state.noteTieStart = false
                 state.noteTieStop = false
+                state.noteAttackTicks = parseNotePerformanceOffsetTicks(attributeDict["attack"])
+                state.noteReleaseTicks = parseNotePerformanceOffsetTicks(attributeDict["release"])
+            case "grace":
+                if state.isInNote {
+                    state.noteIsGrace = true
+                }
+            case "dot":
+                if state.isInNote {
+                    state.noteHasDot = true
+                }
+            case "time-modification":
+                if state.isInNote {
+                    state.isInTimeModification = true
+                    state.noteTimeModificationActualNotes = nil
+                    state.noteTimeModificationNormalNotes = nil
+                }
             case "rest":
                 if state.isInNote {
                     state.noteIsRest = true
@@ -125,10 +170,15 @@ extension MusicXMLParserDelegate {
             case "metronome":
                 finalizeMetronomeTempoIfNeeded()
                 state.isInDirectionTypeMetronome = false
-            case "offset" where state.isInDirection:
+            case "offset":
                 if let rawOffset = Int(text) {
-                    applyDirectionOffset(rawOffset)
+                    if state.isInSound {
+                        applySoundOffset(rawOffset)
+                    } else if state.isInDirection, state.currentOffsetAppliesToSound {
+                        applyDirectionOffset(rawOffset)
+                    }
                 }
+                state.currentOffsetAppliesToSound = false
             case "duration":
                 if let duration = Int(text), duration >= 0 {
                     let normalizedDuration = normalizeDuration(duration)
@@ -139,6 +189,16 @@ extension MusicXMLParserDelegate {
                     } else if state.isInForward {
                         moveCurrentTick(by: normalizedDuration)
                     }
+                }
+            case "type" where state.isInNote:
+                state.noteType = text
+            case "actual-notes" where state.isInNote && state.isInTimeModification:
+                state.noteTimeModificationActualNotes = Int(text)
+            case "normal-notes" where state.isInNote && state.isInTimeModification:
+                state.noteTimeModificationNormalNotes = Int(text)
+            case "time-modification":
+                if state.isInNote {
+                    state.isInTimeModification = false
                 }
             case "step" where state.isInNote:
                 state.noteStep = text
@@ -162,6 +222,16 @@ extension MusicXMLParserDelegate {
                 state.currentDirectionTempoStartIndex = 0
                 state.currentDirectionSoundStartIndex = 0
                 state.currentDirectionPedalStartIndex = 0
+                state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
+                state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
+            case "sound":
+                state.isInSound = false
+                state.currentSoundBaseTick = 0
+                state.currentSoundMeasureStartTick = 0
+                state.currentSoundTempoStartIndex = 0
+                state.currentSoundSoundStartIndex = 0
+                state.currentSoundPedalStartIndex = 0
             case "barline":
                 state.isInBarline = false
             case "backup":
@@ -174,6 +244,8 @@ extension MusicXMLParserDelegate {
                     MusicXMLMeasureSpan(
                         partID: state.currentPartID,
                         measureNumber: state.currentMeasureNumber,
+                        measureIndex: state.currentMeasureIndex,
+                        measureNumberToken: state.currentMeasureNumberToken,
                         startTick: state.currentMeasureStartTick,
                         endTick: endTick
                     )

@@ -298,7 +298,14 @@ func autoplaySchedulesPedalChangesBetweenSteps() async {
     )
     let pedalTimeline = MusicXMLPedalTimeline(
         events: [
-            MusicXMLPedalEvent(partID: "P1", measureNumber: 1, tick: 480, kind: .start, isDown: true),
+            MusicXMLPedalEvent(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 480,
+                kind: .start,
+                isDown: true,
+                timeOnlyPasses: nil
+            ),
         ]
     )
 
@@ -442,6 +449,7 @@ func autoplaySchedulesNoteOffUsingNoteSpans() async {
 
     #expect(output.recordedNoteOns.map(\.midi) == [60])
     #expect(output.recordedNoteOffs.isEmpty == true)
+    #expect(viewModel.autoplayHighlightedMIDINotes == [60])
 
     for _ in 0 ..< 6 {
         await sleeper.resumeOldestPending()
@@ -452,6 +460,7 @@ func autoplaySchedulesNoteOffUsingNoteSpans() async {
     }
 
     #expect(output.recordedNoteOffs.contains(60) == true)
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == false)
 }
 
 @Test
@@ -465,8 +474,22 @@ func autoplayDefersNoteOffWhilePedalIsDownAndReleasesOnPedalUp() async {
     )
     let pedalTimeline = MusicXMLPedalTimeline(
         events: [
-            MusicXMLPedalEvent(partID: "P1", measureNumber: 1, tick: 0, kind: .start, isDown: true),
-            MusicXMLPedalEvent(partID: "P1", measureNumber: 1, tick: 960, kind: .stop, isDown: false),
+            MusicXMLPedalEvent(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 0,
+                kind: .start,
+                isDown: true,
+                timeOnlyPasses: nil
+            ),
+            MusicXMLPedalEvent(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 960,
+                kind: .stop,
+                isDown: false,
+                timeOnlyPasses: nil
+            ),
         ]
     )
 
@@ -494,12 +517,15 @@ func autoplayDefersNoteOffWhilePedalIsDownAndReleasesOnPedalUp() async {
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
 
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == true)
+
     for _ in 0 ..< 2 {
         await sleeper.resumeOldestPending()
         await settleTaskQueue()
     }
 
     #expect(output.recordedNoteOffs.contains(60) == false)
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == true)
 
     for _ in 0 ..< 6 {
         await sleeper.resumeOldestPending()
@@ -510,6 +536,7 @@ func autoplayDefersNoteOffWhilePedalIsDownAndReleasesOnPedalUp() async {
     }
 
     #expect(output.recordedNoteOffs.contains(60) == true)
+    #expect(viewModel.autoplayHighlightedMIDINotes.contains(60) == false)
 }
 
 @Test
@@ -523,9 +550,30 @@ func autoplayReleasesPendingNotesOnPedalChangeTickEvenIfPedalStaysDown() async {
     )
     let pedalTimeline = MusicXMLPedalTimeline(
         events: [
-            MusicXMLPedalEvent(partID: "P1", measureNumber: 1, tick: 0, kind: .start, isDown: true),
-            MusicXMLPedalEvent(partID: "P1", measureNumber: 1, tick: 480, kind: .change, isDown: false),
-            MusicXMLPedalEvent(partID: "P1", measureNumber: 1, tick: 480, kind: .change, isDown: true),
+            MusicXMLPedalEvent(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 0,
+                kind: .start,
+                isDown: true,
+                timeOnlyPasses: nil
+            ),
+            MusicXMLPedalEvent(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 480,
+                kind: .change,
+                isDown: false,
+                timeOnlyPasses: nil
+            ),
+            MusicXMLPedalEvent(
+                partID: "P1",
+                measureNumber: 1,
+                tick: 480,
+                kind: .change,
+                isDown: true,
+                timeOnlyPasses: nil
+            ),
         ]
     )
 

@@ -1,12 +1,77 @@
 import Foundation
 
 extension MusicXMLParserDelegate {
+    func parseTimeOnlyPasses(attributes: [String: String]) -> [Int]? {
+        guard let raw = attributes["time-only"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              raw.isEmpty == false
+        else {
+            return nil
+        }
+
+        let passes = raw
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .compactMap(Int.init)
+            .filter { $0 > 0 }
+
+        guard passes.isEmpty == false else { return nil }
+
+        var unique = Array(Set(passes))
+        unique.sort()
+        return unique
+    }
+
+    func recordDamperPedalEventFromSound(attributes: [String: String]) {
+        guard let rawValue = attributes["damper-pedal"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+              rawValue.isEmpty == false
+        else {
+            return
+        }
+
+        let lowered = rawValue.lowercased()
+        let isDown: Bool? = switch lowered {
+            case "yes":
+                true
+            case "no":
+                false
+            default:
+                if let value = Int(lowered) {
+                    value > 0
+                } else {
+                    nil
+                }
+        }
+
+        guard let isDown else {
+            return
+        }
+
+        let tick: Int = if state.isInDirection {
+            currentDirectionEventTick()
+        } else {
+            state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
+        }
+
+        let timeOnlyPasses = parseTimeOnlyPasses(attributes: attributes)
+        state.pedalEvents.append(
+            MusicXMLPedalEvent(
+                partID: state.currentPartID,
+                measureNumber: state.currentMeasureNumber,
+                tick: tick,
+                kind: isDown ? .start : .stop,
+                isDown: isDown,
+                timeOnlyPasses: timeOnlyPasses
+            )
+        )
+    }
+
     func recordPedalEvent(attributes: [String: String]) {
         guard state.isInDirection else { return }
 
         guard let rawType = attributes["type"]?.lowercased() else { return }
 
         let tick = currentDirectionEventTick()
+        let timeOnlyPasses = parseTimeOnlyPasses(attributes: attributes)
         let base = (
             partID: state.currentPartID,
             measureNumber: state.currentMeasureNumber,
@@ -21,7 +86,8 @@ extension MusicXMLParserDelegate {
                         measureNumber: base.measureNumber,
                         tick: base.tick,
                         kind: .start,
-                        isDown: true
+                        isDown: true,
+                        timeOnlyPasses: timeOnlyPasses
                     )
                 )
             case "stop":
@@ -31,7 +97,8 @@ extension MusicXMLParserDelegate {
                         measureNumber: base.measureNumber,
                         tick: base.tick,
                         kind: .stop,
-                        isDown: false
+                        isDown: false,
+                        timeOnlyPasses: timeOnlyPasses
                     )
                 )
             case "change":
@@ -41,7 +108,8 @@ extension MusicXMLParserDelegate {
                         measureNumber: base.measureNumber,
                         tick: base.tick,
                         kind: .change,
-                        isDown: false
+                        isDown: false,
+                        timeOnlyPasses: timeOnlyPasses
                     )
                 )
                 state.pedalEvents.append(
@@ -50,7 +118,8 @@ extension MusicXMLParserDelegate {
                         measureNumber: base.measureNumber,
                         tick: base.tick,
                         kind: .change,
-                        isDown: true
+                        isDown: true,
+                        timeOnlyPasses: timeOnlyPasses
                     )
                 )
             case "continue":
@@ -60,7 +129,8 @@ extension MusicXMLParserDelegate {
                         measureNumber: base.measureNumber,
                         tick: base.tick,
                         kind: .continue,
-                        isDown: nil
+                        isDown: nil,
+                        timeOnlyPasses: timeOnlyPasses
                     )
                 )
             default:
@@ -89,6 +159,18 @@ extension MusicXMLParserDelegate {
                     source: tempoEvents[i].source
                 )
             }
+            if state.currentDirectionSoundOffsetTempoOverrideTicksByIndex.isEmpty == false {
+                for (i, overrideTick) in state.currentDirectionSoundOffsetTempoOverrideTicksByIndex
+                    where i >= state.currentDirectionTempoStartIndex && i < tempoEvents.count
+                {
+                    tempoEvents[i] = RawTempoEvent(
+                        partID: tempoEvents[i].partID,
+                        tick: overrideTick,
+                        quarterBPM: tempoEvents[i].quarterBPM,
+                        source: tempoEvents[i].source
+                    )
+                }
+            }
             state.rawTempoEventsByPart[state.currentPartID] = tempoEvents
         }
 
@@ -103,8 +185,26 @@ extension MusicXMLParserDelegate {
                     coda: state.soundDirectives[i].coda,
                     tocoda: state.soundDirectives[i].tocoda,
                     dalsegno: state.soundDirectives[i].dalsegno,
-                    dacapo: state.soundDirectives[i].dacapo
+                    dacapo: state.soundDirectives[i].dacapo,
+                    timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
                 )
+            }
+            if state.currentDirectionSoundOffsetSoundOverrideTicksByIndex.isEmpty == false {
+                for (i, overrideTick) in state.currentDirectionSoundOffsetSoundOverrideTicksByIndex
+                    where i >= state.currentDirectionSoundStartIndex && i < state.soundDirectives.count
+                {
+                    state.soundDirectives[i] = MusicXMLSoundDirective(
+                        partID: state.soundDirectives[i].partID,
+                        measureNumber: state.soundDirectives[i].measureNumber,
+                        tick: overrideTick,
+                        segno: state.soundDirectives[i].segno,
+                        coda: state.soundDirectives[i].coda,
+                        tocoda: state.soundDirectives[i].tocoda,
+                        dalsegno: state.soundDirectives[i].dalsegno,
+                        dacapo: state.soundDirectives[i].dacapo,
+                        timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
+                    )
+                }
             }
         }
 
@@ -116,12 +216,84 @@ extension MusicXMLParserDelegate {
                     measureNumber: state.pedalEvents[i].measureNumber,
                     tick: shifted,
                     kind: state.pedalEvents[i].kind,
-                    isDown: state.pedalEvents[i].isDown
+                    isDown: state.pedalEvents[i].isDown,
+                    timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
                 )
+            }
+            if state.currentDirectionSoundOffsetPedalOverrideTicksByIndex.isEmpty == false {
+                for (i, overrideTick) in state.currentDirectionSoundOffsetPedalOverrideTicksByIndex
+                    where i >= state.currentDirectionPedalStartIndex && i < state.pedalEvents.count
+                {
+                    state.pedalEvents[i] = MusicXMLPedalEvent(
+                        partID: state.pedalEvents[i].partID,
+                        measureNumber: state.pedalEvents[i].measureNumber,
+                        tick: overrideTick,
+                        kind: state.pedalEvents[i].kind,
+                        isDown: state.pedalEvents[i].isDown,
+                        timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
+                    )
+                }
             }
         }
 
         state.currentDirectionOffsetTicks = newOffset
+    }
+
+    func applySoundOffset(_ rawOffset: Int) {
+        let offsetTicks = normalizeSignedDuration(rawOffset)
+        let tick = max(state.currentSoundMeasureStartTick, state.currentSoundBaseTick + offsetTicks)
+
+        if var tempoEvents = state.rawTempoEventsByPart[state.currentPartID],
+           state.currentSoundTempoStartIndex < tempoEvents.count
+        {
+            for i in state.currentSoundTempoStartIndex ..< tempoEvents.count {
+                tempoEvents[i] = RawTempoEvent(
+                    partID: tempoEvents[i].partID,
+                    tick: tick,
+                    quarterBPM: tempoEvents[i].quarterBPM,
+                    source: tempoEvents[i].source
+                )
+                if state.isInDirection {
+                    state.currentDirectionSoundOffsetTempoOverrideTicksByIndex[i] = tick
+                }
+            }
+            state.rawTempoEventsByPart[state.currentPartID] = tempoEvents
+        }
+
+        if state.currentSoundSoundStartIndex < state.soundDirectives.count {
+            for i in state.currentSoundSoundStartIndex ..< state.soundDirectives.count {
+                state.soundDirectives[i] = MusicXMLSoundDirective(
+                    partID: state.soundDirectives[i].partID,
+                    measureNumber: state.soundDirectives[i].measureNumber,
+                    tick: tick,
+                    segno: state.soundDirectives[i].segno,
+                    coda: state.soundDirectives[i].coda,
+                    tocoda: state.soundDirectives[i].tocoda,
+                    dalsegno: state.soundDirectives[i].dalsegno,
+                    dacapo: state.soundDirectives[i].dacapo,
+                    timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
+                )
+                if state.isInDirection {
+                    state.currentDirectionSoundOffsetSoundOverrideTicksByIndex[i] = tick
+                }
+            }
+        }
+
+        if state.currentSoundPedalStartIndex < state.pedalEvents.count {
+            for i in state.currentSoundPedalStartIndex ..< state.pedalEvents.count {
+                state.pedalEvents[i] = MusicXMLPedalEvent(
+                    partID: state.pedalEvents[i].partID,
+                    measureNumber: state.pedalEvents[i].measureNumber,
+                    tick: tick,
+                    kind: state.pedalEvents[i].kind,
+                    isDown: state.pedalEvents[i].isDown,
+                    timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
+                )
+                if state.isInDirection {
+                    state.currentDirectionSoundOffsetPedalOverrideTicksByIndex[i] = tick
+                }
+            }
+        }
     }
 
     func currentDirectionEventTick() -> Int {
@@ -151,6 +323,7 @@ extension MusicXMLParserDelegate {
         }
 
         let tick = currentDirectionEventTick()
+        let timeOnlyPasses = parseTimeOnlyPasses(attributes: attributes)
         state.soundDirectives.append(
             MusicXMLSoundDirective(
                 partID: state.currentPartID,
@@ -160,7 +333,8 @@ extension MusicXMLParserDelegate {
                 coda: coda,
                 tocoda: tocoda,
                 dalsegno: dalsegno,
-                dacapo: dacapo
+                dacapo: dacapo,
+                timeOnlyPasses: timeOnlyPasses
             )
         )
     }
@@ -174,14 +348,28 @@ extension MusicXMLParserDelegate {
             return
         }
 
-        guard beatUnit == "quarter", state.metronomeHasDot == false else {
+        let beatUnitInQuarters: Double? = switch beatUnit {
+            case "whole":
+                4
+            case "half":
+                2
+            case "quarter":
+                1
+            case "eighth":
+                0.5
+            default:
+                nil
+        }
+
+        guard let beatUnitInQuarters else {
             #if DEBUG
-                print("MusicXMLParser: ignoring metronome beatUnit=\(beatUnit) dot=\(state.metronomeHasDot)")
+                print("MusicXMLParser: ignoring metronome beatUnit=\(beatUnit)")
             #endif
             return
         }
 
-        recordTempoEvent(quarterBPM: perMinute, source: .metronome)
+        let dottedMultiplier = state.metronomeHasDot ? 1.5 : 1.0
+        recordTempoEvent(quarterBPM: perMinute * beatUnitInQuarters * dottedMultiplier, source: .metronome)
     }
 
     func finalizeTempoEvents() -> [MusicXMLTempoEvent] {

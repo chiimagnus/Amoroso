@@ -6,6 +6,10 @@ final class MusicXMLParserDelegate: NSObject {
 
     var state = MusicXMLParserDelegateState()
 
+    var scoreVersion: String? {
+        state.scoreVersion
+    }
+
     var notes: [MusicXMLNoteEvent] {
         state.notes
     }

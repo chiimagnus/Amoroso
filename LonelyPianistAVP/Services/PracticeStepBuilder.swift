@@ -16,6 +16,10 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
                 continue
             }
 
+            if noteEvent.isGrace {
+                continue
+            }
+
             if noteEvent.tieStop {
                 continue
             }

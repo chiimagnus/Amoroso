@@ -1,6 +1,7 @@
 import Foundation
 
 struct MusicXMLScore: Equatable {
+    var scoreVersion: String?
     var notes: [MusicXMLNoteEvent]
     var tempoEvents: [MusicXMLTempoEvent] = []
     var soundDirectives: [MusicXMLSoundDirective] = []
@@ -21,7 +22,7 @@ struct MusicXMLTempoEvent: Equatable, Identifiable {
 
 struct MusicXMLSoundDirective: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(segno ?? "")-\(coda ?? "")-\(tocoda ?? "")-\(dalsegno ?? "")-\(dacapo ?? "")"
+        "\(partID)-\(measureNumber)-\(tick)-\(segno ?? "")-\(coda ?? "")-\(tocoda ?? "")-\(dalsegno ?? "")-\(dacapo ?? "")-\(timeOnlyPasses?.map(String.init).joined(separator: ",") ?? "")"
     }
 
     let partID: String
@@ -32,6 +33,7 @@ struct MusicXMLSoundDirective: Equatable, Identifiable {
     let tocoda: String?
     let dalsegno: String?
     let dacapo: String?
+    let timeOnlyPasses: [Int]?
 }
 
 enum MusicXMLPedalEventKind: String, Equatable {
@@ -43,7 +45,7 @@ enum MusicXMLPedalEventKind: String, Equatable {
 
 struct MusicXMLPedalEvent: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(kind.rawValue)-\(isDown.map { $0 ? "down" : "up" } ?? "keep")"
+        "\(partID)-\(measureNumber)-\(tick)-\(kind.rawValue)-\(isDown.map { $0 ? "down" : "up" } ?? "keep")-\(timeOnlyPasses?.map(String.init).joined(separator: ",") ?? "")"
     }
 
     let partID: String
@@ -51,17 +53,45 @@ struct MusicXMLPedalEvent: Equatable, Identifiable {
     let tick: Int
     let kind: MusicXMLPedalEventKind
     let isDown: Bool?
+    let timeOnlyPasses: [Int]?
 }
 
 struct MusicXMLMeasureSpan: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(startTick)-\(endTick)"
+        "\(partID)-\(measureIndex)-\(startTick)-\(endTick)"
     }
 
     let partID: String
     let measureNumber: Int
+    let measureIndex: Int
+    let measureNumberToken: String?
     let startTick: Int
     let endTick: Int
+
+    init(partID: String, measureNumber: Int, startTick: Int, endTick: Int) {
+        self.partID = partID
+        self.measureNumber = measureNumber
+        measureIndex = measureNumber
+        measureNumberToken = nil
+        self.startTick = startTick
+        self.endTick = endTick
+    }
+
+    init(
+        partID: String,
+        measureNumber: Int,
+        measureIndex: Int,
+        measureNumberToken: String?,
+        startTick: Int,
+        endTick: Int
+    ) {
+        self.partID = partID
+        self.measureNumber = measureNumber
+        self.measureIndex = measureIndex
+        self.measureNumberToken = measureNumberToken
+        self.startTick = startTick
+        self.endTick = endTick
+    }
 }
 
 enum MusicXMLRepeatDirection: String, Equatable {
@@ -90,7 +120,7 @@ struct MusicXMLEndingDirective: Equatable {
 
 struct MusicXMLNoteEvent: Equatable, Identifiable {
     var id: String {
-        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(tieStart)-\(tieStop)"
+        "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(isGrace)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)"
     }
 
     let partID: String
@@ -100,10 +130,45 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let midiNote: Int?
     let isRest: Bool
     let isChord: Bool
+    let isGrace: Bool
     let tieStart: Bool
     let tieStop: Bool
     let staff: Int?
     let voice: Int?
+    let attackTicks: Int?
+    let releaseTicks: Int?
+
+    init(
+        partID: String,
+        measureNumber: Int,
+        tick: Int,
+        durationTicks: Int,
+        midiNote: Int?,
+        isRest: Bool,
+        isChord: Bool,
+        isGrace: Bool = false,
+        tieStart: Bool,
+        tieStop: Bool,
+        staff: Int?,
+        voice: Int?,
+        attackTicks: Int? = nil,
+        releaseTicks: Int? = nil
+    ) {
+        self.partID = partID
+        self.measureNumber = measureNumber
+        self.tick = tick
+        self.durationTicks = durationTicks
+        self.midiNote = midiNote
+        self.isRest = isRest
+        self.isChord = isChord
+        self.isGrace = isGrace
+        self.tieStart = tieStart
+        self.tieStop = tieStop
+        self.staff = staff
+        self.voice = voice
+        self.attackTicks = attackTicks
+        self.releaseTicks = releaseTicks
+    }
 }
 
 struct MusicXMLNoteSpan: Equatable, Identifiable {

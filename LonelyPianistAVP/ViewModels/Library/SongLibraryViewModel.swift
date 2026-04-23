@@ -119,7 +119,12 @@ final class SongLibraryViewModel {
             let buildResult = stepBuilder.buildSteps(from: effectiveScore)
             let tempoMap = MusicXMLTempoMap(tempoEvents: effectiveScore.tempoEvents)
             let pedalTimeline = MusicXMLPedalTimeline(events: effectiveScore.pedalEvents)
-            let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(from: effectiveScore.notes)
+            let shouldUsePerformanceTiming = UserDefaults.standard
+                .bool(forKey: "practiceMusicXMLPerformanceTimingEnabled")
+            let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
+                from: effectiveScore.notes,
+                performanceTimingEnabled: shouldUsePerformanceTiming
+            )
 
             guard buildResult.steps.isEmpty == false else {
                 errorMessage = "该曲目未生成可练习步骤。"
