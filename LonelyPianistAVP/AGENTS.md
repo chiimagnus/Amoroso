@@ -94,8 +94,11 @@
 ### 6. ARKit & World Sensing
 - **Full Space Only:** ARKit data is ONLY available when the app is in a `Full Space`. It will not work in Shared Space (Windows/Volumes).
 - **Session Management:** Use `ARKitSession` to manage data providers. Keep a strong reference to the session.
-- **Authorization:** 
-  - Add `NSWorldSensingUsageDescription` and `NSHandsTrackingUsageDescription` to `Info.plist`.
+- **Authorization:**
+  - Add usage descriptions only for the ARKit data types you actually access:
+    - `NSHandsTrackingUsageDescription`: use this key if your app uses hand tracking.
+    - `NSWorldSensingUsageDescription`: use this key only if your app uses image tracking, plane detection, or scene reconstruction.
+  - World *tracking* (for example, `WorldTrackingProvider`) doesn't require world-sensing authorization. Don't request world-sensing permission unless you need world-sensing data.
   - Handle authorization gracefully (check `await session.requestAuthorization(for:)`).
 - **Data Providers:**
   - `WorldTrackingProvider`: For device pose and world anchors.
