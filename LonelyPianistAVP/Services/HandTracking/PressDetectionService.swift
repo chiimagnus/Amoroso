@@ -5,6 +5,7 @@ protocol PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips: [String: SIMD3<Float>],
         keyRegions: [PianoKeyRegion],
+        keyboardFrame: KeyboardFrame?,
         at timestamp: Date
     ) -> Set<Int>
 }
@@ -21,6 +22,7 @@ final class PressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips: [String: SIMD3<Float>],
         keyRegions: [PianoKeyRegion],
+        keyboardFrame: KeyboardFrame?,
         at timestamp: Date
     ) -> Set<Int> {
         var pressed: Set<Int> = []
@@ -30,14 +32,32 @@ final class PressDetectionService: PressDetectionServiceProtocol {
             guard let previousPosition = lastFingerTipPositions[fingerID] else { continue }
 
             for region in keyRegions {
-                let keyPlaneY = region.center.y + region.size.y * 0.5
-                let crossedPlane = previousPosition.y > keyPlaneY && currentPosition.y <= keyPlaneY
+                let previousPoint: SIMD3<Float>
+                let currentPoint: SIMD3<Float>
+                let regionCenter: SIMD3<Float>
+                let minPoint: SIMD3<Float>
+                let maxPoint: SIMD3<Float>
+
+                if let keyboardFrame {
+                    previousPoint = Self.transformPoint(keyboardFrame.keyboardFromWorld, previousPosition)
+                    currentPoint = Self.transformPoint(keyboardFrame.keyboardFromWorld, currentPosition)
+                    regionCenter = Self.transformPoint(keyboardFrame.keyboardFromWorld, region.center)
+                    minPoint = regionCenter - region.size / 2
+                    maxPoint = regionCenter + region.size / 2
+                } else {
+                    previousPoint = previousPosition
+                    currentPoint = currentPosition
+                    regionCenter = region.center
+                    minPoint = region.min
+                    maxPoint = region.max
+                }
+
+                let keyPlaneY = regionCenter.y + region.size.y * 0.5
+                let crossedPlane = previousPoint.y > keyPlaneY && currentPoint.y <= keyPlaneY
                 guard crossedPlane else { continue }
 
-                let minPoint = region.min
-                let maxPoint = region.max
-                let insideKeyBounds = currentPosition.x >= minPoint.x && currentPosition.x <= maxPoint.x
-                    && currentPosition.z >= minPoint.z && currentPosition.z <= maxPoint.z
+                let insideKeyBounds = currentPoint.x >= minPoint.x && currentPoint.x <= maxPoint.x
+                    && currentPoint.z >= minPoint.z && currentPoint.z <= maxPoint.z
                 guard insideKeyBounds else { continue }
 
                 let lastTriggerTime = lastTriggerTimeByNote[region.midiNote]
@@ -50,5 +70,13 @@ final class PressDetectionService: PressDetectionServiceProtocol {
         }
 
         return pressed
+    }
+}
+
+extension PressDetectionService {
+    @inline(__always)
+    static func transformPoint(_ matrix: simd_float4x4, _ point: SIMD3<Float>) -> SIMD3<Float> {
+        let v4 = simd_mul(matrix, SIMD4<Float>(point, 1))
+        return SIMD3<Float>(v4.x, v4.y, v4.z)
     }
 }

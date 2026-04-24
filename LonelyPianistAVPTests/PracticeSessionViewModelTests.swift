@@ -802,6 +802,7 @@ private struct NoopPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: [String: SIMD3<Float>],
         keyRegions _: [PianoKeyRegion],
+        keyboardFrame _: KeyboardFrame?,
         at _: Date
     ) -> Set<Int> {
         []
@@ -822,6 +823,7 @@ private struct ConstantPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: [String: SIMD3<Float>],
         keyRegions _: [PianoKeyRegion],
+        keyboardFrame _: KeyboardFrame?,
         at _: Date
     ) -> Set<Int> {
         pressedNotes
