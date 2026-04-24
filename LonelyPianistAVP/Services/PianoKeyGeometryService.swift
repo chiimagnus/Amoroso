@@ -9,6 +9,10 @@ struct PianoKeyGeometryService: PianoKeyGeometryServiceProtocol {
     private let keyCount = 88
     private let firstMIDINote = 21 // A0
 
+    // Approximate physical dimensions used for hit regions and AR highlights.
+    static let keyDepthMeters: Float = 0.14
+    static let keyHeightMeters: Float = 0.03
+
     func generateKeyRegions(from calibration: PianoCalibration) -> [PianoKeyRegion] {
         let a0World = calibration.a0.simdValue
         let c8World = calibration.c8.simdValue
@@ -23,8 +27,8 @@ struct PianoKeyGeometryService: PianoKeyGeometryServiceProtocol {
         let axis = delta / totalDistance
         let keySpacing = totalDistance / Float(max(1, keyCount - 1))
 
-        let depth: Float = 0.14
-        let height: Float = 0.03
+        let depth: Float = Self.keyDepthMeters
+        let height: Float = Self.keyHeightMeters
         let planeY = calibration.planeHeight
         let a0 = SIMD3<Float>(a0World.x, planeY, a0World.z)
 

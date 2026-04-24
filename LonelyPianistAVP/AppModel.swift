@@ -12,6 +12,7 @@ class AppModel {
         case anchorMissing(id: UUID)
         case anchorNotTracked(id: UUID)
         case anchorsTooClose(distanceMeters: Float)
+        case devicePoseUnavailable
     }
 
     let immersiveSpaceID = "ImmersiveSpace"
@@ -273,10 +274,41 @@ class AppModel {
             return .anchorsTooClose(distanceMeters: distanceMeters)
         }
 
+        let planeY = (a0Point.y + c8Point.y) / 2
+        var adjustedA0 = a0Point
+        var adjustedC8 = c8Point
+
+        // Interpret the calibrated A0/C8 as the keyboard's front edge line.
+        // Shift the runtime calibration points by half key depth towards the keyboard interior so that
+        // the highlight boxes' *front faces* align with the calibrated line (instead of their centers).
+        if let frame = KeyboardFrame(a0World: a0Point, c8World: c8Point, planeHeight: planeY) {
+            let timestamp = ProcessInfo.processInfo.systemUptime
+            guard
+                let deviceAnchor = arTrackingService.worldTrackingProvider.queryDeviceAnchor(atTimestamp: timestamp),
+                deviceAnchor.isTracked
+            else {
+                return .devicePoseUnavailable
+            }
+            let deviceTransform = deviceAnchor.originFromAnchorTransform
+            let devicePos = SIMD3<Float>(deviceTransform.columns.3.x, deviceTransform.columns.3.y, deviceTransform.columns.3.z)
+            let origin = frame.originWorld
+            let toDevice = SIMD3<Float>(devicePos.x - origin.x, 0, devicePos.z - origin.z)
+            let toDeviceLen = simd_length(toDevice)
+            if toDeviceLen > 1e-4 {
+                let toDeviceDir = toDevice / toDeviceLen
+                let zAxis = frame.zAxisWorld
+                // If the device is on +Z side, interior is -Z; otherwise interior is +Z.
+                let interiorDir = simd_dot(toDeviceDir, zAxis) > 0 ? -zAxis : zAxis
+                let offset = interiorDir * (PianoKeyGeometryService.keyDepthMeters / 2)
+                adjustedA0 = a0Point + offset
+                adjustedC8 = c8Point + offset
+            }
+        }
+
         calibration = PianoCalibration(
-            a0: a0Point,
-            c8: c8Point,
-            planeHeight: (a0Point.y + c8Point.y) / 2,
+            a0: adjustedA0,
+            c8: adjustedC8,
+            planeHeight: planeY,
             whiteKeyWidth: storedCalibration.whiteKeyWidth
         )
 
