@@ -8,6 +8,7 @@ struct PracticeSettingsView: View {
     @AppStorage("practiceMusicXMLFermataEnabled") private var isMusicXMLFermataEnabled = false
     @AppStorage("practiceMusicXMLArpeggiateEnabled") private var isMusicXMLArpeggiateEnabled = false
     @AppStorage("practiceMusicXMLWordsSemanticsEnabled") private var isMusicXMLWordsSemanticsEnabled = false
+    @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -36,6 +37,10 @@ struct PracticeSettingsView: View {
             Text("默认关闭。仅在自动播放时生效，用于更贴合谱面的听感与提示。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Divider()
+
+            Toggle("调试：显示键盘坐标轴（X/Y/Z）", isOn: $debugKeyboardAxesOverlayEnabled)
         }
         .padding(16)
         .frame(minWidth: 320)

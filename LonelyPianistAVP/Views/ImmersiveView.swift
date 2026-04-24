@@ -6,6 +6,8 @@ struct ImmersiveView: View {
     @State private var overlayController = PianoGuideOverlayController()
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var handDebugOverlayController = HandDebugOverlayController()
+    @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
+    @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
 
     var body: some View {
         RealityView { content in
@@ -20,8 +22,14 @@ struct ImmersiveView: View {
                 fingerTipPositions: viewModel.arTrackingService.fingerTipPositions,
                 content: content
             )
+            keyboardAxesDebugOverlayController.update(
+                isEnabled: debugKeyboardAxesOverlayEnabled,
+                keyboardFrame: viewModel.practiceSessionViewModel.calibration?.keyboardFrame,
+                content: content
+            )
             overlayController.updateHighlights(
                 currentStep: viewModel.practiceSessionViewModel.currentStep,
+                keyboardFrame: viewModel.practiceSessionViewModel.calibration?.keyboardFrame,
                 keyRegions: viewModel.practiceSessionViewModel.keyRegions,
                 feedbackState: viewModel.practiceSessionViewModel.feedbackState,
                 content: content
@@ -38,8 +46,14 @@ struct ImmersiveView: View {
                 fingerTipPositions: viewModel.arTrackingService.fingerTipPositions,
                 content: content
             )
+            keyboardAxesDebugOverlayController.update(
+                isEnabled: debugKeyboardAxesOverlayEnabled,
+                keyboardFrame: viewModel.practiceSessionViewModel.calibration?.keyboardFrame,
+                content: content
+            )
             overlayController.updateHighlights(
                 currentStep: viewModel.practiceSessionViewModel.currentStep,
+                keyboardFrame: viewModel.practiceSessionViewModel.calibration?.keyboardFrame,
                 keyRegions: viewModel.practiceSessionViewModel.keyRegions,
                 feedbackState: viewModel.practiceSessionViewModel.feedbackState,
                 content: content

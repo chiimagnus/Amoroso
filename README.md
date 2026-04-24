@@ -57,19 +57,13 @@ open LonelyPianist.xcodeproj
 # 打开工程后，在本地 Xcode 里选择 / 创建 LonelyPianistAVP scheme
 ```
 
-仓库当前只提交了 macOS 的共享 scheme；`LonelyPianistAVP` 可以在本地 Xcode 中选择或创建 scheme 后运行到 visionOS Simulator 或真机。
-
 ## 项目结构
 
 ```text
 LonelyPianist.xcodeproj/      # Xcode 工程
 LonelyPianist/                # macOS App
 LonelyPianistAVP/             # visionOS 原型
-LonelyPianistTests/           # macOS Swift Testing
-LonelyPianistAVPTests/        # visionOS Swift Testing
-Packages/RealityKitContent/    # visionOS 内容包
 piano_dialogue_server/        # 本地 Python 服务
-.github/deepwiki/             # 仓库知识库
 ```
 
 ## 文档入口
@@ -90,11 +84,6 @@ piano_dialogue_server/        # 本地 Python 服务
 | 服务端 | FastAPI · WebSocket · Uvicorn |
 | 推理 | PyTorch · Transformers · Anticipation |
 | 测试 | Swift Testing + Python 脚本 |
-
-## 额外说明
-
-- AVP 端只负责导入外部准备好的 MusicXML，不再内置 PDF/图片转 MusicXML 链路。
-- 想看更完整的架构、数据流和排障说明，请直接进入 `.github/deepwiki/`。
 
 ## Acknowledgements
 

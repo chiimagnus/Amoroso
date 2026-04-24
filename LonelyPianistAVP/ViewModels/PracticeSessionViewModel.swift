@@ -291,6 +291,7 @@ final class PracticeSessionViewModel {
         let detected = pressDetectionService.detectPressedNotes(
             fingerTips: fingerTips,
             keyRegions: keyRegions,
+            keyboardFrame: calibration?.keyboardFrame,
             at: timestamp
         )
         if detected.isEmpty == false {
