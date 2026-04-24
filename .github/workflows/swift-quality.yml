@@ -1,19 +1,6 @@
 name: Swift Quality
 
-# Touch 2026-04-25T00:00:00Z to rerun SwiftFormat and SwiftLint on crh.
 on:
-  push:
-    paths:
-      - "**/*.swift"
-      - ".swiftformat"
-      - ".swiftlint.yml"
-      - ".github/workflows/swift-quality.yml"
-  pull_request:
-    paths:
-      - "**/*.swift"
-      - ".swiftformat"
-      - ".swiftlint.yml"
-      - ".github/workflows/swift-quality.yml"
   workflow_dispatch:
 
 permissions:
