@@ -10,6 +10,12 @@ final class PianoGuideOverlayController {
     private var activeMarkersByMIDINote: [Int: ModelEntity] = [:]
     private var lastTintColor: UIColor?
 
+    private let lightBeamHeight: Float = 0.22
+    private let lightBeamBaseYOffset: Float = 0.006
+    private let lightBeamRadiusScale: Float = 0.32
+    private let lightBeamMinimumRadius: Float = 0.006
+    private let lightBeamAlpha: CGFloat = 0.42
+
     func updateHighlights(
         currentStep: PracticeStep?,
         keyboardFrame: KeyboardFrame?,
@@ -40,7 +46,7 @@ final class PianoGuideOverlayController {
         }
 
         if lastTintColor != tintColor {
-            let material = SimpleMaterial(color: tintColor, isMetallic: false)
+            let material = lightBeamMaterial(for: tintColor)
             for marker in activeMarkersByMIDINote.values {
                 marker.model?.materials = [material]
             }
@@ -58,7 +64,7 @@ final class PianoGuideOverlayController {
             }
         }
 
-        // Add/update markers for desired notes.
+        // Add/update light beams for desired notes.
         for midiNote in desiredNotes {
             guard let region = regionByNote[midiNote] else { continue }
 
@@ -73,14 +79,26 @@ final class PianoGuideOverlayController {
                 marker = existing
             } else {
                 marker = ModelEntity(
-                    mesh: .generateBox(size: SIMD3<Float>(region.size.x * 0.9, 0.01, region.size.z * 0.9)),
-                    materials: [SimpleMaterial(color: tintColor, isMetallic: false)]
+                    mesh: .generateCylinder(height: 1, radius: 1),
+                    materials: [lightBeamMaterial(for: tintColor)]
                 )
                 activeMarkersByMIDINote[midiNote] = marker
                 keyboardRootEntity.addChild(marker)
             }
-            marker.position = SIMD3<Float>(centerLocal.x, centerLocal.y, centerLocal.z)
+
+            let keyFootprint = min(region.size.x, region.size.z)
+            let beamRadius = max(keyFootprint * lightBeamRadiusScale, lightBeamMinimumRadius)
+            marker.scale = SIMD3<Float>(beamRadius, lightBeamHeight, beamRadius)
+            marker.position = SIMD3<Float>(
+                centerLocal.x,
+                centerLocal.y + lightBeamBaseYOffset + lightBeamHeight * 0.5,
+                centerLocal.z
+            )
         }
+    }
+
+    private func lightBeamMaterial(for tintColor: UIColor) -> SimpleMaterial {
+        SimpleMaterial(color: tintColor.withAlphaComponent(lightBeamAlpha), isMetallic: false)
     }
 
     private func clearMarkers() {
