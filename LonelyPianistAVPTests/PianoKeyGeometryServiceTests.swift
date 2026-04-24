@@ -21,4 +21,3 @@ func keyGeometryIgnoresYNoiseInCalibrationAnchors() {
     #expect(abs(last.y - 0.50) < 1e-6)
     #expect(abs(last.z - 0.0) < 1e-4)
 }
-

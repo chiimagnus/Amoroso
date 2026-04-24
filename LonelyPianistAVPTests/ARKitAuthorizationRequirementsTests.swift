@@ -3,7 +3,7 @@ import Testing
 
 @Test("ARKit required authorizations for current providers")
 @MainActor
-func arkitRequiredAuthorizationsForCurrentProviders() async {
+func arkitRequiredAuthorizationsForCurrentProviders() {
     // This test is intentionally simple: it gives us hard evidence about which
     // ARKitSession.AuthorizationType values our providers actually require on
     // the current SDK/runtime.
@@ -24,4 +24,3 @@ func arkitRequiredAuthorizationsForCurrentProviders() async {
         #expect(handRequired.contains(.cameraAccess) == false)
     }
 }
-

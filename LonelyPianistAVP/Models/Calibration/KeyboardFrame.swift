@@ -42,10 +42,37 @@ struct KeyboardFrame {
 }
 
 extension KeyboardFrame {
-    var xAxisWorld: SIMD3<Float> { SIMD3<Float>(worldFromKeyboard.columns.0.x, worldFromKeyboard.columns.0.y, worldFromKeyboard.columns.0.z) }
-    var yAxisWorld: SIMD3<Float> { SIMD3<Float>(worldFromKeyboard.columns.1.x, worldFromKeyboard.columns.1.y, worldFromKeyboard.columns.1.z) }
-    var zAxisWorld: SIMD3<Float> { SIMD3<Float>(worldFromKeyboard.columns.2.x, worldFromKeyboard.columns.2.y, worldFromKeyboard.columns.2.z) }
-    var originWorld: SIMD3<Float> { SIMD3<Float>(worldFromKeyboard.columns.3.x, worldFromKeyboard.columns.3.y, worldFromKeyboard.columns.3.z) }
+    var xAxisWorld: SIMD3<Float> {
+        SIMD3<Float>(
+            worldFromKeyboard.columns.0.x,
+            worldFromKeyboard.columns.0.y,
+            worldFromKeyboard.columns.0.z
+        )
+    }
+
+    var yAxisWorld: SIMD3<Float> {
+        SIMD3<Float>(
+            worldFromKeyboard.columns.1.x,
+            worldFromKeyboard.columns.1.y,
+            worldFromKeyboard.columns.1.z
+        )
+    }
+
+    var zAxisWorld: SIMD3<Float> {
+        SIMD3<Float>(
+            worldFromKeyboard.columns.2.x,
+            worldFromKeyboard.columns.2.y,
+            worldFromKeyboard.columns.2.z
+        )
+    }
+
+    var originWorld: SIMD3<Float> {
+        SIMD3<Float>(
+            worldFromKeyboard.columns.3.x,
+            worldFromKeyboard.columns.3.y,
+            worldFromKeyboard.columns.3.z
+        )
+    }
 }
 
 extension PianoCalibration {
@@ -53,4 +80,3 @@ extension PianoCalibration {
         KeyboardFrame(a0World: a0.simdValue, c8World: c8.simdValue, planeHeight: planeHeight)
     }
 }
-

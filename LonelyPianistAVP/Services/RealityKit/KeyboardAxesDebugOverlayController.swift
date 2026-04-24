@@ -67,4 +67,3 @@ final class KeyboardAxesDebugOverlayController {
         axesRootEntity.addChild(zAxis)
     }
 }
-

@@ -1,5 +1,5 @@
-@testable import LonelyPianistAVP
 import Foundation
+@testable import LonelyPianistAVP
 import simd
 import Testing
 
