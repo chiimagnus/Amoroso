@@ -43,7 +43,7 @@ jobs:
     name: macOS tests
     needs: changes
     if: needs.changes.outputs.macos == 'true'
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -66,7 +66,7 @@ jobs:
     name: AVP tests
     needs: changes
     if: needs.changes.outputs.avp == 'true'
-    runs-on: macos-latest
+    runs-on: macos-26
     steps:
       - name: Checkout
         uses: actions/checkout@v4
