@@ -38,132 +38,132 @@
 - Apple/Swift 基线规范优先于本文的通用建议。
 - 本文只补充 visionOS 平台细则；不要用它覆盖项目既有架构、测试框架、最低系统版本或多平台策略。
 
-## PROJECT KNOWLEDGE
+## 项目知识
 
-### Tech Stack
-- **OS:** Follow the project's deployment target. Use newer visionOS APIs only when the project target supports them.
-- **Languages:** Follow the project's Swift version and concurrency settings.
-- **UI Framework:** SwiftUI (primary), UIKit (only when asked by the user)
-- **3D Engine:** RealityKit (Entity Component System)
+### 技术栈
+- **OS:** 遵循项目当前的 deployment target。仅在项目最低版本支持时，才使用更新的 visionOS API。
+- **语言:** 遵循项目的 Swift 版本与并发（Swift Concurrency）设置。
+- **UI 框架:** SwiftUI 为主；仅在用户明确要求时才使用 UIKit。
+- **3D 引擎:** RealityKit（Entity Component System, ECS）。
 
-## CODING STANDARDS
+## 编码规范
 
-### 1. SwiftUI & Window Management
-- **WindowGroups:** Always define distinct `id`s for WindowGroups in `App` struct.
-- **Ornaments:** Use `.ornament()` for toolbars and controls attached to windows. Never place standard floating buttons inside the window content area if they belong in the chrome.
-- **Glass Background:** Rely on the default glass background. `.glassBackgroundEffect()` modifier is to be used.
-- **Hover Effects:** ALWAYS add `.hoverEffect()` to custom interactive elements to support eye-tracking highlight feedback.
-- **Button Styling:** ALWAYS set `.buttonBorderShape()` on buttons for proper visionOS appearance (e.g., `.roundedRectangle`, `.capsule`, `.circle`).
+### 1. SwiftUI 与窗口管理
+- **WindowGroups:** 在 `App` struct 里为每个 `WindowGroup` 明确且互不冲突地定义 `id`。
+- **Ornaments:** 使用 `.ornament()` 来承载附着在窗口上的工具条与控制组件。若按钮属于“窗口 chrome/外壳”，不要把标准悬浮按钮直接塞进 window content 区域。
+- **玻璃背景:** 优先使用系统默认玻璃背景；需要时使用 `.glassBackgroundEffect()`。
+- **Hover Effects:** 自定义交互控件必须加 `.hoverEffect()`，以支持眼动注视的 hover 高亮反馈。
+- **按钮样式:** 为按钮设置 `.buttonBorderShape()` 以符合 visionOS 的空间风格（例如 `.roundedRectangle`、`.capsule`、`.circle`）。
 
-### 2. RealityKit & ECS (Entity Component System)
-- **RealityView:** Use `RealityView` for all 3D content integration.
+### 2. RealityKit 与 ECS（Entity Component System）
+- **RealityView:** 所有 3D 内容集成都使用 `RealityView`。
   ```swift
   RealityView { content in
-      // Load and add entities here
+      // 在这里加载并添加实体entities
       if let model = try? await Entity(named: "Scene") {
           content.add(model)
       }
   } update: { content in
-      // Update logic based on SwiftUI state changes
+      // 基于 SwiftUI 状态变化的更新逻辑
   }
   ```
-- **Attachments:** Use `Attachment` in RealityView to embed SwiftUI views into 3D space.
-- **Async Loading:** ALWAYS load assets asynchronously (`_ = try! await Entity(named: "MyEntity")`, `async let textureA = try? TextureResource(named:"textureA.jpg")`) to prevent blocking the main thread.
-- **Components:** Prefer composition over inheritance. Create custom components implementing `Component` and `Codable`.
-- **Draggable Entities:** MUST have both `CollisionComponent` and `InputTargetComponent`.
+- **Attachments:** 在 `RealityView` 中使用 `Attachment` 将 SwiftUI 视图嵌入 3D 空间。
+- **异步加载:** 资源必须异步加载（例如 `_ = try! await Entity(named: "MyEntity")`、`async let textureA = try? TextureResource(named:"textureA.jpg")`），避免阻塞主线程。
+- **Components:** 组合优于继承。自定义组件应实现 `Component` 与 `Codable`。
+- **可拖拽实体:** 必须同时具备 `CollisionComponent` 和 `InputTargetComponent`。
   ```swift
   entity.components.set(CollisionComponent(shapes: [.generateBox(size: [0.1, 0.1, 0.1])]))
   entity.components.set(InputTargetComponent())
   ```
-- **Mesh Resources:** Valid generations are only: `box`, `sphere`, `plane`, `cylinder`, `cone`.
+- **Mesh 资源:** 仅允许生成：`box`、`sphere`、`plane`、`cylinder`、`cone`。
 
-### 3. Interaction & Input
-- **Gestures:**
-  - **2D:** Standard SwiftUI gestures work on Windows.
-  - **3D:** Use `.gesture(...)` targeted to entities.
+### 3. 交互与输入
+- **手势:**
+  - **2D:** 标准 SwiftUI 手势可用于 Window。
+  - **3D:** 使用面向实体的 `.gesture(...)`（targeted to entities）。
 
-### 4. Concurrency & Threading
-- **Strict Concurrency:** Swift 6.2 defaults to `@MainActor` isolation for Views and UI logic. Assume strict isolation checks are active. Everything is `@MainActor` by default.
-- **Main Actor:** UI updates and RealityKit mutations are on `@MainActor` by default. Only explicitly mark with `@MainActor` if needed for clarity or when overriding defaults.
-- **Background Tasks:** Explicitly move heavy physics/data work *off* the main actor using detached Tasks or non-isolated actors.
-- **Task Management:** Do **not** use `Task.detached` indiscriminately. Cancel long-running tasks on teardown.
+### 4. 并发与线程
+- **严格并发:** Swift 6.2 默认对 View 与 UI 逻辑采用 `@MainActor` 隔离。假设严格隔离检查开启，并且一切默认在 `@MainActor` 上运行。
+- **Main Actor:** UI 更新与 RealityKit 的变更默认都在 `@MainActor` 上。只有在需要增强可读性或覆盖默认行为时，才显式标注 `@MainActor`。
+- **后台任务:** 重型物理/数据处理要明确移出主 actor，使用 detached tasks 或 non-isolated actors。
+- **Task 管理:** 不要滥用 `Task.detached`。在 teardown 时取消长生命周期任务。
 
-### 5. Advanced Spatial Architecture
-- **System-Based Logic:** For complex, continuous behaviors (AI, physics, swarming), DO NOT use the SwiftUI update closure. Implement a custom System class and register it.
+### 5. 进阶空间架构
+- **基于 System 的逻辑:** 对于复杂且持续运行的行为（AI、物理、群集等），不要塞进 SwiftUI 的 `RealityView` update 闭包里。应实现自定义 `System` 并注册。
 
-### 6. ARKit & World Sensing
-- **Full Space Only:** ARKit data is ONLY available when the app is in a `Full Space`. It will not work in Shared Space (Windows/Volumes).
-- **Session Management:** Use `ARKitSession` to manage data providers. Keep a strong reference to the session.
-- **Authorization:**
-  - Add usage descriptions only for the ARKit data types you actually access:
-    - `NSHandsTrackingUsageDescription`: use this key if your app uses hand tracking.
-    - `NSWorldSensingUsageDescription`: use this key only if your app uses image tracking, plane detection, or scene reconstruction.
-  - World *tracking* (for example, `WorldTrackingProvider`) doesn't require world-sensing authorization. Don't request world-sensing permission unless you need world-sensing data.
-  - `NSCameraUsageDescription` / `NSMainCameraUsageDescription` are for camera access (for example, `ARKitSession.AuthorizationType.cameraAccess` / camera frame features). Don't add them unless you actually request camera access.
-  - Handle authorization gracefully (check `await session.requestAuthorization(for:)`).
+### 6. ARKit 与世界感知
+- **仅 Full Space:** 只有当 app 处于 `Full Space` 时，ARKit 数据才可用。在 Shared Space（Windows/Volumes）里不可用。
+- **Session 管理:** 使用 `ARKitSession` 管理 data providers，并保持对 session 的强引用。
+- **授权:**
+  - 只为“确实会访问的 ARKit 数据类型”添加对应的 usage descriptions:
+    - `NSHandsTrackingUsageDescription`: 当你使用 hand tracking 时才需要。
+    - `NSWorldSensingUsageDescription`: 只有当你使用 image tracking / plane detection / scene reconstruction 时才需要。
+  - World *tracking*（例如 `WorldTrackingProvider`）不需要 world-sensing 授权。除非真的需要 world-sensing 数据，否则不要请求这类权限。
+  - `NSCameraUsageDescription` / `NSMainCameraUsageDescription` 用于 camera access（例如 `ARKitSession.AuthorizationType.cameraAccess` / camera frame 相关能力）。除非你确实要请求 camera access，否则不要添加。
+  - 优雅处理授权（例如检查 `await session.requestAuthorization(for:)` 的结果）。
 - **Data Providers:**
-  - `WorldTrackingProvider`: For device pose and world anchors.
-  - `PlaneDetectionProvider`: For detecting tables, floors, and walls.
-  - `SceneReconstructionProvider`: For environmental meshing and occlusion.
-  - `HandTrackingProvider`: For custom hand gestures (requires specific entitlements).
-- **Anchors:** Use `UUID` from ARKit anchors to correlate with RealityKit entities.
+  - `WorldTrackingProvider`: 用于 device pose 与 world anchors。
+  - `PlaneDetectionProvider`: 用于检测桌面/地面/墙等平面。
+  - `SceneReconstructionProvider`: 用于环境网格与遮挡（meshing/occlusion）。
+  - `HandTrackingProvider`: 用于手部追踪（可能需要特定 entitlements）。
+- **Anchors:** 使用 ARKit anchor 的 `UUID` 来关联 RealityKit entities。
 
-### 7. Swift Language Standards
-- **Observable Classes:** `@Observable` classes are `@MainActor` by default, so explicit `@MainActor` annotation is not needed.
-- **Strict Concurrency:** Assume strict Swift concurrency rules are being applied. Everything is `@MainActor` by default.
-- **Swift-Native APIs:** Prefer Swift-native alternatives to Foundation methods where they exist, such as using `replacing("hello", with: "world")` with strings rather than `replacingOccurrences(of: "hello", with: "world")`.
-- **Modern Foundation API:** Prefer modern Foundation API, for example `URL.documentsDirectory` to find the app's documents directory, and `appending(path:)` to append strings to a URL.
-- **Number Formatting:** Never use C-style number formatting such as `Text(String(format: "%.2f", abs(myNumber)))`; always use `Text(abs(change), format: .number.precision(.fractionLength(2)))` instead.
-- **Static Member Lookup:** Prefer static member lookup to struct instances where possible, such as `.circle` rather than `Circle()`, and `.borderedProminent` rather than `BorderedProminentButtonStyle()`.
-- **Modern Concurrency:** Never use old-style Grand Central Dispatch concurrency such as `DispatchQueue.main.async()`. If behavior like this is needed, always use modern Swift concurrency.
-- **Text Filtering:** Filtering text based on user-input must be done using `localizedStandardContains()` as opposed to `contains()`.
-- **Force Unwraps:** Avoid force unwraps and force `try` unless it is unrecoverable.
+### 7. Swift 语言规范
+- **Observable 类:** `@Observable` 类默认就是 `@MainActor`，通常不需要再额外标注 `@MainActor`。
+- **严格并发:** 假设严格 Swift 并发规则开启，并且一切默认在 `@MainActor` 上运行。
+- **Swift 原生 API 优先:** 当 Swift 原生 API 可用时优先使用（例如对字符串用 `replacing("hello", with: "world")`，而不是 `replacingOccurrences(of: "hello", with: "world")`）。
+- **现代 Foundation API:** 优先使用现代 Foundation API，例如用 `URL.documentsDirectory` 获取 documents 目录，用 `appending(path:)` 拼接 URL。
+- **数字格式化:** 不要用 C 风格格式化（例如 `Text(String(format: "%.2f", abs(myNumber)))`）；应使用 `Text(abs(change), format: .number.precision(.fractionLength(2)))`。
+- **静态成员查找:** 能用静态成员就用静态成员（例如 `.circle` 而不是 `Circle()`，`.borderedProminent` 而不是 `BorderedProminentButtonStyle()`）。
+- **现代并发:** 不要使用旧式 GCD（例如 `DispatchQueue.main.async()`）。需要类似行为时使用 Swift Concurrency。
+- **文本过滤:** 基于用户输入进行文本过滤时，使用 `localizedStandardContains()`，不要用 `contains()`。
+- **强解包:** 避免强制解包与 `try!`，除非它确实不可恢复。
 
-### 8. SwiftUI Standards
-- **Foreground Style:** Always use `foregroundStyle()` instead of `foregroundColor()`.
-- **Clip Shape:** Always use `clipShape(.rect(cornerRadius:))` instead of `cornerRadius()`.
-- **Tab API:** Always use the `Tab` API instead of `tabItem()`.
-- **Observable:** Never use `ObservableObject`; always prefer `@Observable` classes instead.
-- **onChange Modifier:** Never use the `onChange()` modifier in its 1-parameter variant; either use the variant that accepts two parameters or accepts none.
-- **onTapGesture:** Never use `onTapGesture()` unless you specifically need to know a tap's location or the number of taps. All other usages should use `Button`.
-- **Task.sleep:** Never use `Task.sleep(nanoseconds:)`; always use `Task.sleep(for:)` instead.
-- **UIScreen:** Never use `UIScreen.main.bounds` to read the size of the available space.
-- **View Composition:** Do not break views up using computed properties; place them into new `View` structs instead.
-- **Dynamic Type:** Do not force specific font sizes; prefer using Dynamic Type instead.
-- **Navigation:** Use the `navigationDestination(for:)` modifier to specify navigation, and always use `NavigationStack` instead of the old `NavigationView`.
-- **Button Labels:** If using an image for a button label, always specify text alongside like this: `Button("Tap me", systemImage: "plus", action: myButtonAction)`.
-- **Image Rendering:** When rendering SwiftUI views, always prefer using `ImageRenderer` to `UIGraphicsImageRenderer`.
-- **Font Weight:** Don't apply the `fontWeight()` modifier unless there is good reason. If you want to make some text bold, always use `bold()` instead of `fontWeight(.bold)`.
-- **GeometryReader:** Do not use `GeometryReader` if a newer alternative would work as well, such as `containerRelativeFrame()` or `visualEffect()`.
-- **ForEach with Enumerated:** When making a `ForEach` out of an `enumerated` sequence, do not convert it to an array first. So, prefer `ForEach(x.enumerated(), id: \.element.id)` instead of `ForEach(Array(x.enumerated()), id: \.element.id)`.
-- **Scroll Indicators:** When hiding scroll view indicators, use the `.scrollIndicators(.hidden)` modifier rather than using `showsIndicators: false` in the scroll view initializer.
-- **View Logic:** Place view logic into view models or similar, so it can be tested.
-- **AnyView:** Avoid `AnyView` unless it is absolutely required.
-- **Hard-coded Values:** Avoid specifying hard-coded values for padding and stack spacing unless requested.
-- **UIKit Colors:** Avoid using UIKit colors in SwiftUI code.
+### 8. SwiftUI 规范
+- **Foreground Style:** 使用 `foregroundStyle()`，不要用 `foregroundColor()`。
+- **Clip Shape:** 使用 `clipShape(.rect(cornerRadius:))`，不要用 `cornerRadius()`。
+- **Tab API:** 使用新的 `Tab` API，不要用 `tabItem()`。
+- **Observable:** 不要使用 `ObservableObject`；优先使用 `@Observable`。
+- **onChange:** 不要使用 `onChange()` 的 1 参数变体；应使用 2 参数变体或无参数变体。
+- **onTapGesture:** 除非你确实需要 tap 的位置或 tap 次数，否则不要用 `onTapGesture()`；其他情况用 `Button`。
+- **Task.sleep:** 不要用 `Task.sleep(nanoseconds:)`；用 `Task.sleep(for:)`。
+- **UIScreen:** 不要用 `UIScreen.main.bounds` 来读取可用空间大小。使用 `GeometryReader` 或 `GeometryReader3D`。
+- **视图拆分:** 不要用 computed properties 拆分视图；应创建新的 `View` struct。
+- **动态字体:** 不要强制指定字体大小；使用 Dynamic Type。
+- **导航:** 使用 `navigationDestination(for:)` 并统一用 `NavigationStack`，不要用旧的 `NavigationView`。
+- **按钮 label:** 若用图片作为按钮 label，要同时提供文本，例如 `Button("Tap me", systemImage: "plus", action: myButtonAction)`。
+- **图片渲染:** 渲染 SwiftUI 视图成图片时优先 `ImageRenderer`，不要用 `UIGraphicsImageRenderer`。
+- **字重:** 没有充分理由不要用 `fontWeight()`；要加粗用 `bold()`，不要用 `fontWeight(.bold)`。
+- **GeometryReader:** 若有更新替代方案可行（例如 `containerRelativeFrame()`、`visualEffect()`），不要用 `GeometryReader`。
+- **ForEach + enumerated:** 用 `ForEach(x.enumerated(), id: \.element.id)`，不要先转 `Array` 再 ForEach。
+- **滚动条:** 隐藏滚动条用 `.scrollIndicators(.hidden)`，不要在初始化时用 `showsIndicators: false`。
+- **视图逻辑:** 把视图逻辑放进 view models 或类似层，确保可测试性。
+- **AnyView:** 除非绝对必要，否则避免 `AnyView`。
+- **硬编码:** 未被要求时，不要硬编码 padding 与 stack spacing。
+- **UIKit Colors:** SwiftUI 代码中避免使用 UIKit 的颜色。
 
-### 9. Swift 6+ Migration Guide
+### 9. Swift 6+ 迁移指南
 
-#### ⚠️ Breaking Changes (Swift 6)
-| Issue | Swift 5 | Swift 6 |
-|-------|---------|---------|
-| Data races | Warnings | **Compile errors** |
-| Missing `await` | Warning | **Error** |
-| Non-Sendable across actors | Allowed | **Error** |
-| Global mutable state | Allowed | **Must be isolated or Sendable** |
+#### ⚠️ 破坏性变更（Swift 6）
+| 问题 | Swift 5 | Swift 6 |
+|------|---------|---------|
+| 数据竞争 | Warnings | **Compile errors** |
+| 缺少 `await` | Warning | **Error** |
+| 非 Sendable 跨 actor | Allowed | **Error** |
+| 全局可变状态 | Allowed | **必须隔离或 Sendable** |
 
-#### 🚨 Common Pitfalls
-- **Sendable:** Classes crossing actors need `@unchecked Sendable` or must be converted to structs/actors.
-- **Closures:** Escaping closures capture isolation context—watch for `@Sendable` requirements.
-- **Actor Reentrancy:** Code after `await` may see mutated state—never assume continuity.
-- **Global State:** Use `nonisolated(unsafe)` only as last resort for legacy globals.
+#### 🚨 常见坑
+- **Sendable:** 跨 actor 传递的 class 需要 `@unchecked Sendable`，或改成 struct/actor。
+- **闭包:** escaping 闭包会捕获隔离上下文，注意 `@Sendable` 约束。
+- **Actor 可重入:** `await` 之后的代码可能看到被其他任务修改过的状态，不要假设连续性。
+- **全局状态:** `nonisolated(unsafe)` 仅作为兼容遗留代码的最后手段。
 
-#### Swift 6.2 Improvements
-- **`defaultIsolation(MainActor.self)`** — Eliminates `@MainActor` boilerplate for UI targets.
-- **`NonisolatedNonsendingByDefault`** — Nonisolated async inherits caller's actor. Use `@concurrent` for background.
-- **Typed Throws** — `throws(MyError)` for exhaustive error handling.
+#### Swift 6.2 改进
+- **`defaultIsolation(MainActor.self)`** — 为 UI targets 消除大量 `@MainActor` 样板。
+- **`NonisolatedNonsendingByDefault`** — nonisolated async 默认继承调用方 actor；需要后台并发用 `@concurrent`。
+- **Typed Throws** — `throws(MyError)` 用于更可穷举的错误处理。
 
-#### Recommended Package.swift
+#### 推荐的 Package.swift
 ```swift
 swiftSettings: [
     .defaultIsolation(MainActor.self),
@@ -171,7 +171,7 @@ swiftSettings: [
 ]
 ```
 
-#### Quick Patterns
+#### 快速模式
 ```swift
 // Swift 6.2: Inherits caller's isolation
 nonisolated func fetchData() async throws -> Data { ... }
@@ -183,134 +183,134 @@ nonisolated func fetchData() async throws -> Data { ... }
 func load() throws(LoadError) { ... }
 ```
 
-## REALITYKIT COMPONENTS REFERENCE
+## RealityKit 组件参考
 
-### Rendering & Appearance
-| Component | Description |
-|-----------|-------------|
-| `ModelComponent` | Contains mesh and materials for the visual appearance of an entity |
-| `ModelSortGroupComponent` | Configures the rendering order for an entity's model |
-| `OpacityComponent` | Controls the opacity of an entity and its descendants |
-| `AdaptiveResolutionComponent` | Adjusts resolution based on viewing distance |
-| `ModelDebugOptionsComponent` | Enables visual debugging options for models |
-| `MeshInstancesComponent` | Efficient rendering of multiple unique variations of an asset |
-| `BlendShapeWeightsComponent` | Controls blend shape (morph target) weights for meshes |
+### 渲染与外观
+| Component | 说明 |
+|-----------|------|
+| `ModelComponent` | 包含实体外观所需的 mesh 与 materials |
+| `ModelSortGroupComponent` | 配置实体 model 的渲染顺序 |
+| `OpacityComponent` | 控制实体及其子实体的不透明度 |
+| `AdaptiveResolutionComponent` | 基于观察距离自适应分辨率 |
+| `ModelDebugOptionsComponent` | 为 model 启用调试可视化选项 |
+| `MeshInstancesComponent` | 高效渲染多种唯一变体的资产 |
+| `BlendShapeWeightsComponent` | 控制 blend shape（morph target）权重 |
 
-### User Interaction
-| Component | Description |
-|-----------|-------------|
-| `InputTargetComponent` | Enables an entity to receive input events (required for gestures) |
-| `ManipulationComponent` | Adds fluid and immersive interactive behaviors and effects |
-| `GestureComponent` | Handles gesture recognition on entities |
-| `HoverEffectComponent` | Applies highlight effect when user focuses on an entity |
-| `AccessibilityComponent` | Configures accessibility features for an entity |
-| `BillboardComponent` | Makes an entity always face the camera/user |
+### 用户交互
+| Component | 说明 |
+|-----------|------|
+| `InputTargetComponent` | 让实体可接收输入事件（手势必需） |
+| `ManipulationComponent` | 提供更流畅、沉浸的交互操控行为与效果 |
+| `GestureComponent` | 处理实体的手势识别 |
+| `HoverEffectComponent` | 用户注视/聚焦实体时的高亮效果 |
+| `AccessibilityComponent` | 配置实体的无障碍特性 |
+| `BillboardComponent` | 让实体始终朝向相机/用户 |
 
-### Presentation & UI
-| Component | Description |
-|-----------|-------------|
-| `ViewAttachmentComponent` | Embeds SwiftUI views into 3D space |
-| `PresentationComponent` | Presents SwiftUI modal presentations from an entity |
-| `TextComponent` | Renders 3D text in the scene |
-| `ImagePresentationComponent` | Displays images in 3D space |
-| `VideoPlayerComponent` | Plays video content on an entity |
+### 呈现与 UI
+| Component | 说明 |
+|-----------|------|
+| `ViewAttachmentComponent` | 将 SwiftUI 视图嵌入 3D 空间 |
+| `PresentationComponent` | 从实体发起 SwiftUI 的 modal presentation |
+| `TextComponent` | 在场景里渲染 3D 文本 |
+| `ImagePresentationComponent` | 在 3D 空间中显示图片 |
+| `VideoPlayerComponent` | 在实体上播放视频 |
 
-### Portals & Environments
-| Component | Description |
-|-----------|-------------|
-| `PortalComponent` | Creates a portal to render a separate world |
-| `WorldComponent` | Designates an entity as a separate renderable world |
-| `PortalCrossingComponent` | Controls behavior when entities cross portal boundaries |
-| `EnvironmentBlendingComponent` | Blends virtual content with real environment |
+### 传送门与环境
+| Component | 说明 |
+|-----------|------|
+| `PortalComponent` | 创建 portal，用于渲染另一个 world |
+| `WorldComponent` | 将实体标记为一个独立可渲染的 world |
+| `PortalCrossingComponent` | 控制实体穿越 portal 时的行为 |
+| `EnvironmentBlendingComponent` | 与真实环境进行融合渲染 |
 
-### Anchoring & Spatial
-| Component | Description |
-|-----------|-------------|
-| `AnchoringComponent` | Anchors an entity to a real-world position |
-| `ARKitAnchorComponent` | Links entity to an ARKit anchor |
-| `SceneUnderstandingComponent` | Access scene understanding data (planes, meshes) |
-| `DockingRegionComponent` | Defines regions for docking content |
-| `ReferenceComponent` | References external entity files for lazy loading |
-| `AttachedTransformComponent` | Attaches entity transform to another entity |
+### 锚定与空间
+| Component | 说明 |
+|-----------|------|
+| `AnchoringComponent` | 将实体锚定到真实世界位置 |
+| `ARKitAnchorComponent` | 将实体关联到 ARKit anchor |
+| `SceneUnderstandingComponent` | 访问 scene understanding 数据（planes、meshes） |
+| `DockingRegionComponent` | 定义内容可停靠区域 |
+| `ReferenceComponent` | 引用外部实体文件以支持懒加载 |
+| `AttachedTransformComponent` | 将实体 transform 附着到另一实体 |
 
-### Cameras
-| Component | Description |
-|-----------|-------------|
-| `PerspectiveCameraComponent` | Configures perspective camera properties |
-| `OrthographicCameraComponent` | Configures orthographic camera properties |
-| `ProjectiveTransformCameraComponent` | Custom projective transform for cameras |
+### 相机
+| Component | 说明 |
+|-----------|------|
+| `PerspectiveCameraComponent` | 配置透视相机参数 |
+| `OrthographicCameraComponent` | 配置正交相机参数 |
+| `ProjectiveTransformCameraComponent` | 自定义相机投影变换 |
 
-### Lighting & Shadows
-| Component | Description |
-|-----------|-------------|
-| `PointLightComponent` | Omnidirectional point light source |
-| `DirectionalLightComponent` | Parallel rays light source (sun-like) |
-| `SpotLightComponent` | Cone-shaped spotlight |
-| `ImageBasedLightComponent` | Environment lighting from HDR images |
-| `ImageBasedLightReceiverComponent` | Enables entity to receive IBL |
-| `GroundingShadowComponent` | Casts/receives grounding shadows for realism |
-| `DynamicLightShadowComponent` | Dynamic shadows from light sources |
-| `EnvironmentLightingConfigurationComponent` | Configures environment lighting behavior |
-| `VirtualEnvironmentProbeComponent` | Virtual environment reflection probes |
+### 光照与阴影
+| Component | 说明 |
+|-----------|------|
+| `PointLightComponent` | 点光源（全向） |
+| `DirectionalLightComponent` | 平行光源（类似太阳） |
+| `SpotLightComponent` | 聚光灯（锥形） |
+| `ImageBasedLightComponent` | 基于 HDR 的环境光照 |
+| `ImageBasedLightReceiverComponent` | 让实体接收 IBL |
+| `GroundingShadowComponent` | 生成/接收地面阴影以增强真实感 |
+| `DynamicLightShadowComponent` | 动态光照产生的阴影 |
+| `EnvironmentLightingConfigurationComponent` | 配置环境光照行为 |
+| `VirtualEnvironmentProbeComponent` | 虚拟环境反射探针 |
 
-### Audio
-| Component | Description |
-|-----------|-------------|
-| `SpatialAudioComponent` | 3D positioned audio source |
-| `AmbientAudioComponent` | Non-directional ambient audio |
-| `ChannelAudioComponent` | Channel-based audio playback |
-| `AudioLibraryComponent` | Stores multiple audio resources |
-| `ReverbComponent` | Applies reverb effects |
-| `AudioMixGroupsComponent` | Groups audio for mixing control |
+### 音频
+| Component | 说明 |
+|-----------|------|
+| `SpatialAudioComponent` | 3D 空间定位音频源 |
+| `AmbientAudioComponent` | 无方向的环境音 |
+| `ChannelAudioComponent` | 基于 channel 的音频播放 |
+| `AudioLibraryComponent` | 存放多份音频资源 |
+| `ReverbComponent` | 混响效果 |
+| `AudioMixGroupsComponent` | 将音频分组混音 |
 
-### Animation & Character
-| Component | Description |
-|-----------|-------------|
-| `AnimationLibraryComponent` | Stores multiple animation resources |
-| `CharacterControllerComponent` | Character movement and physics |
-| `CharacterControllerStateComponent` | Runtime state of character controller |
-| `SkeletalPosesComponent` | Skeletal animation poses |
-| `IKComponent` | Inverse kinematics for procedural animation |
-| `BodyTrackingComponent` | Full body tracking integration |
+### 动画与角色
+| Component | 说明 |
+|-----------|------|
+| `AnimationLibraryComponent` | 存放多份动画资源 |
+| `CharacterControllerComponent` | 角色移动与物理 |
+| `CharacterControllerStateComponent` | 角色控制器的运行时状态 |
+| `SkeletalPosesComponent` | 骨骼动画 pose |
+| `IKComponent` | 逆向运动学（IK） |
+| `BodyTrackingComponent` | 全身追踪集成 |
 
-### Physics & Collision
-| Component | Description |
-|-----------|-------------|
-| `CollisionComponent` | Defines collision shapes (required for interaction) |
-| `PhysicsBodyComponent` | Adds physics simulation (mass, friction, etc.) |
-| `PhysicsMotionComponent` | Controls velocity and angular velocity |
-| `PhysicsSimulationComponent` | Configures physics simulation parameters |
-| `ParticleEmitterComponent` | Emits particle effects |
-| `ForceEffectComponent` | Applies force fields to physics bodies |
-| `PhysicsJointsComponent` | Creates joints between physics bodies |
-| `GeometricPinsComponent` | Defines geometric attachment points |
+### 物理与碰撞
+| Component | 说明 |
+|-----------|------|
+| `CollisionComponent` | 碰撞形状（交互必需） |
+| `PhysicsBodyComponent` | 为实体加入物理模拟（质量、摩擦等） |
+| `PhysicsMotionComponent` | 控制速度与角速度 |
+| `PhysicsSimulationComponent` | 配置物理模拟参数 |
+| `ParticleEmitterComponent` | 粒子发射器 |
+| `ForceEffectComponent` | 力场效果 |
+| `PhysicsJointsComponent` | 物理关节 |
+| `GeometricPinsComponent` | 几何附着点 |
 
-### Networking & Sync
-| Component | Description |
-|-----------|-------------|
-| `SynchronizationComponent` | Synchronizes entity state across network |
-| `TransientComponent` | Marks entity as non-persistent |
+### 网络与同步
+| Component | 说明 |
+|-----------|------|
+| `SynchronizationComponent` | 跨网络同步实体状态 |
+| `TransientComponent` | 标记实体为非持久化 |
 
-## BOUNDARIES & COMMON PITFALLS
+## 边界与常见陷阱
 
-### 🚫 NEVER DO
-- **Legacy ARKit:** Never use `ARView` (from iOS ARKit). It is deprecated/unavailable on visionOS. You MUST use `RealityView`.
-- **The "Screen" Fallacy:** Do not use `UIScreen.main.bounds`. There is no "screen". Use `GeometryReader` or `GeometryReader3D`.
-- **Blocking Main Thread:** Zero tolerance for blocking operations on the main thread. Dropping frames causes motion sickness.
-- **Raw Eye Data:** Do not attempt to access gaze coordinates directly.
-- **Scene Usage:** Do not rely on `Scene` outside of the main App target.
-- **Cross-Platform Checks:** In a visionOS-only target, avoid unnecessary platform conditionals. In a shared Apple target, use narrow `#if os(...)` guards only to isolate APIs that are unavailable on visionOS, and follow the repo's platform layout.
+### 🚫 禁止事项
+- **Legacy ARKit:** 不要使用 `ARView`（iOS ARKit）。它在 visionOS 上已废弃/不可用。必须使用 `RealityView`。
+- **“屏幕”幻觉:** 不要用 `UIScreen.main.bounds`。visionOS 没有“屏幕”。用 `GeometryReader` 或 `GeometryReader3D`。
+- **阻塞主线程:** 严禁在主线程做阻塞操作。掉帧会引发眩晕不适。
+- **原始眼动数据:** 不要尝试直接访问 gaze 坐标。
+- **Scene 使用:** 不要在主 App target 之外依赖 `Scene`。
+- **跨平台判断:** visionOS-only target 中避免不必要的 `#if`。共享 target 中仅用非常窄的 `#if os(...)` 隔离 visionOS 不可用 API，并遵循仓库的平台布局。
 
-### ✅ ALWAYS DO
-- **Hover Effects:** Ensure interactive elements have hover states.
-- **Validation:** Validate functions against the latest Apple docs.
-- **Error Handling:** Implement proper error handling for model loading.
-- **Documentation:** Use clear names and doc comments for public APIs.
-- **Deliverables:** Follow the specific output format requested below.
+### ✅ 必做事项
+- **Hover Effects:** 交互元素必须有 hover 状态。
+- **Validation:** 以最新 Apple 文档校验函数与 API 可用性。
+- **错误处理:** 对 model 加载等关键路径做合理错误处理。
+- **Documentation:** public API 使用清晰命名并写必要的 doc comments。
+- **交付格式:** 遵循下方约定的输出格式。
 
-## PREFERRED CODE PATTERNS
+## 推荐代码模式
 
-### Loading a Model with Error Handling
+### 带错误处理的 Model 加载
 ```swift
 @State private var entity: Entity?
 
@@ -326,7 +326,7 @@ var body: some View {
 }
 ```
 
-### Volumetric Window Definition
+### Volumetric Window 定义
 ```swift
 WindowGroup(id: "VolumetricWindow") {
     ContentView()
@@ -335,7 +335,7 @@ WindowGroup(id: "VolumetricWindow") {
 .defaultSize(width: 1.0, height: 1.0, depth: 1.0, in: .meters)
 ```
 
-### RealityView Attachment Usage
+### RealityView Attachment 用法
 ```swift
 RealityView { content in
     let entity = Entity()
@@ -346,8 +346,8 @@ RealityView { content in
 }
 ```
 
-### Observable App State with Environment Injection
-Use this pattern for app-wide state management with SwiftUI Environment integration:
+### 通过 Environment 注入的 Observable App State
+用于 app 级状态管理，并与 SwiftUI Environment 集成：
 ```swift
 @Observable
 final class AppState {
@@ -375,11 +375,11 @@ struct MyView: View {
 }
 ```
 
-### Styled Button for visionOS
-Always use `.buttonBorderShape()` for proper spatial styling:
+### visionOS 的按钮样式
+为了正确的空间按钮风格，始终使用 `.buttonBorderShape()`：
 ```swift
 Button(action: {
-    // Button action here
+    // 在这里处理按钮动作
 }, label: {
     Label("Play First Episode", systemImage: "play.fill")
         .padding(.horizontal)
@@ -388,16 +388,16 @@ Button(action: {
 .tint(.white)
 .buttonBorderShape(.roundedRectangle)
 ```
-Available shapes: `.roundedRectangle`, `.roundedRectangle(radius:)`, `.capsule`, `.circle`.
+可用形状：`.roundedRectangle`、`.roundedRectangle(radius:)`、`.capsule`、`.circle`。
 
-## DELIVERABLES
-- A concise plan (≤ 8 bullets) mapping directly to implementation steps.
-- **Assumptions:** If anything is ambiguous, make the most reasonable assumption and list it at the end.
-- **Implementation:** Write complete, compiling Swift/RealityKit code that follows all rules.
-- **Output Format:**
-  - File tree
-  - Full file contents with fenced code blocks labeled as: `// FILE: <path>`
-  - Build & run notes for Xcode (targets, capabilities/entitlements if any).
-  - Validation summary (RealityView usage, proper components, etc.).
-  - List of reasonable assumptions made.
+## 交付物
+- 一份简洁计划（<= 8 条要点），并且每条都能对应到具体实现步骤。
+- **假设:** 如有任何歧义，做最合理的假设，并在最后列出。
+- **实现:** 输出完整、可编译的 Swift/RealityKit 代码，并遵守本文所有规则。
+- **输出格式:**
+  - 文件树
+  - 完整文件内容（用 fenced code blocks），并标注：`// FILE: <path>`
+  - Xcode 的 build/run 备注（targets、capabilities/entitlements 如有）。
+  - 验证总结（RealityView 用法、组件是否正确等）。
+  - 列出所有合理假设。
 ```
