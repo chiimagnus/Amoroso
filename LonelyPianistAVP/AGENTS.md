@@ -99,6 +99,7 @@
     - `NSHandsTrackingUsageDescription`: use this key if your app uses hand tracking.
     - `NSWorldSensingUsageDescription`: use this key only if your app uses image tracking, plane detection, or scene reconstruction.
   - World *tracking* (for example, `WorldTrackingProvider`) doesn't require world-sensing authorization. Don't request world-sensing permission unless you need world-sensing data.
+  - `NSCameraUsageDescription` / `NSMainCameraUsageDescription` are for camera access (for example, `ARKitSession.AuthorizationType.cameraAccess` / camera frame features). Don't add them unless you actually request camera access.
   - Handle authorization gracefully (check `await session.requestAuthorization(for:)`).
 - **Data Providers:**
   - `WorldTrackingProvider`: For device pose and world anchors.
