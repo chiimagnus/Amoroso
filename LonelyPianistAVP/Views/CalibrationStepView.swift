@@ -36,8 +36,6 @@ struct CalibrationStepView: View {
                 onSimulatorDemoAdvance: simulatorDemoState == nil ? nil : { handleSimulatorDemoAdvance() }
             )
         }
-        .padding(18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             isStepVisible = true
 
@@ -221,15 +219,7 @@ private struct CalibrationStageCard: View {
                 errorBody
             }
         }
-        .padding(18)
-        .frame(maxWidth: stage == .capturingA0 || stage == .capturingC8 ? 920 : 720)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(.primary.opacity(0.12))
-        }
-        .transition(.opacity)
-        .animation(.easeInOut(duration: 0.35), value: stage)
+        .padding()
     }
 
     private var completionBody: some View {
