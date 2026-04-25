@@ -31,11 +31,6 @@ struct CalibrationStepView: View {
                 simulatorDemoState: simulatorDemoState,
                 onSimulatorDemoAdvance: handleSimulatorDemoAdvance
             )
-
-            CalibrationTransitionOverlay(
-                isVisible: viewModel.calibrationPhase == .transitionA0 ||
-                    viewModel.calibrationPhase == .transitionC8
-            )
         }
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -422,22 +417,6 @@ private struct KeyboardMovingGlowOverlay: View {
             }
         } else {
             progress = 0
-        }
-    }
-}
-
-private struct CalibrationTransitionOverlay: View {
-    let isVisible: Bool
-
-    var body: some View {
-        if isVisible {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 80, weight: .semibold))
-                .foregroundStyle(.green)
-                .padding(28)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .transition(.scale.combined(with: .opacity))
-                .animation(.spring(response: 0.45, dampingFraction: 0.72), value: isVisible)
         }
     }
 }
