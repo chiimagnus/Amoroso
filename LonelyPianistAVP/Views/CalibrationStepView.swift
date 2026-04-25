@@ -335,7 +335,7 @@ private struct CalibrationStageCard: View {
     }
 
     private var showsMovingGlow: Bool {
-        phase == .transitionA0 || phase == .transitionC8
+        phase == .transitionA0
     }
 
     private var highlightedMIDINotes: Set<Int> {
