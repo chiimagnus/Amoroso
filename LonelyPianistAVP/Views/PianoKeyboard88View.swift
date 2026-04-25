@@ -5,10 +5,16 @@ struct PianoKeyboard88View: View {
 
     let highlightedMIDINotes: Set<Int>
     let fingeringByMIDINote: [Int: String]
+    let highlightColorByMIDINote: [Int: Color]
 
-    init(highlightedMIDINotes: Set<Int>, fingeringByMIDINote: [Int: String] = [:]) {
+    init(
+        highlightedMIDINotes: Set<Int>,
+        fingeringByMIDINote: [Int: String] = [:],
+        highlightColorByMIDINote: [Int: Color] = [:]
+    ) {
         self.highlightedMIDINotes = highlightedMIDINotes
         self.fingeringByMIDINote = fingeringByMIDINote
+        self.highlightColorByMIDINote = highlightColorByMIDINote
     }
 
     var body: some View {
@@ -22,7 +28,7 @@ struct PianoKeyboard88View: View {
                 ForEach(Self.whiteKeys) { key in
                     let isHighlighted = isHighlighted(key.midiNote)
                     Rectangle()
-                        .fill(isHighlighted ? .yellow.opacity(0.48) : .white)
+                        .fill(whiteKeyFillColor(midiNote: key.midiNote, isHighlighted: isHighlighted))
                         .overlay {
                             Rectangle()
                                 .stroke(.black.opacity(0.22), lineWidth: 0.6)
@@ -43,7 +49,7 @@ struct PianoKeyboard88View: View {
                 ForEach(Self.blackKeys) { key in
                     let isHighlighted = isHighlighted(key.midiNote)
                     Rectangle()
-                        .fill(isHighlighted ? .orange.opacity(0.95) : .black.opacity(0.88))
+                        .fill(blackKeyFillColor(midiNote: key.midiNote, isHighlighted: isHighlighted))
                         .overlay {
                             Rectangle()
                                 .stroke(.white.opacity(0.28), lineWidth: 0.5)
@@ -71,6 +77,22 @@ struct PianoKeyboard88View: View {
 
     private func isHighlighted(_ midiNote: Int) -> Bool {
         highlightedMIDINotes.contains(midiNote)
+    }
+
+    private func whiteKeyFillColor(midiNote: Int, isHighlighted: Bool) -> Color {
+        guard isHighlighted else { return .white }
+        if let custom = highlightColorByMIDINote[midiNote] {
+            return custom.opacity(0.55)
+        }
+        return .yellow.opacity(0.48)
+    }
+
+    private func blackKeyFillColor(midiNote: Int, isHighlighted: Bool) -> Color {
+        guard isHighlighted else { return .black.opacity(0.88) }
+        if let custom = highlightColorByMIDINote[midiNote] {
+            return custom.opacity(0.92)
+        }
+        return .orange.opacity(0.95)
     }
 
     private static let playableRange = 21 ... 108

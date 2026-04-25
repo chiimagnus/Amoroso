@@ -283,10 +283,12 @@ private struct CalibrationCaptureCard: View {
                 )
             }
 
-            KeyboardGuideStrip(
-                highlight: step,
-                isA0Locked: isA0Locked
+            PianoKeyboard88View(
+                highlightedMIDINotes: highlightedMIDINotes,
+                highlightColorByMIDINote: highlightColorByMIDINote
             )
+            .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
+            .frame(maxWidth: .infinity)
 
             Text(step == .a0 ? "左手食指放在 A0 键，准星变绿后捏合确认。" : "左手食指移到 C8 键，准星变绿后捏合确认。")
                 .font(.callout)
@@ -309,6 +311,27 @@ private struct CalibrationCaptureCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(.primary.opacity(0.12))
+        }
+    }
+
+    private var highlightedMIDINotes: Set<Int> {
+        switch step {
+            case .a0:
+                [21]
+            case .c8:
+                isA0Locked ? [21, 108] : [108]
+        }
+    }
+
+    private var highlightColorByMIDINote: [Int: Color] {
+        switch step {
+            case .a0:
+                return [21: Color.blue]
+            case .c8:
+                if isA0Locked {
+                    return [21: Color.green, 108: Color.blue]
+                }
+                return [108: Color.blue]
         }
     }
 }
@@ -472,43 +495,6 @@ private struct KeyboardEdgeLabels: View {
             .font(.callout.weight(.semibold))
         }
         .foregroundStyle(.secondary)
-    }
-}
-
-private struct KeyboardGuideStrip: View {
-    let highlight: CalibrationAnchorPoint
-    let isA0Locked: Bool
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(.secondary.opacity(0.12))
-
-            HStack(spacing: 0) {
-                KeyboardSegment(
-                    color: isA0Locked ? .green : (highlight == .a0 ? .blue : .secondary.opacity(0.2)),
-                    isHighlighted: highlight == .a0 || isA0Locked
-                )
-                KeyboardSegment(
-                    color: highlight == .c8 ? .blue : .secondary.opacity(0.2),
-                    isHighlighted: highlight == .c8
-                )
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .padding(4)
-        }
-        .frame(height: 44)
-    }
-}
-
-private struct KeyboardSegment: View {
-    let color: Color
-    let isHighlighted: Bool
-
-    var body: some View {
-        Rectangle()
-            .fill(isHighlighted ? color.opacity(0.75) : color.opacity(0.45))
-            .frame(maxWidth: .infinity)
     }
 }
 
