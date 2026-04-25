@@ -7,14 +7,7 @@ final class PianoGuideOverlayController {
     private var rootEntity = Entity()
     private var keyboardRootEntity = Entity()
     private var hasAttachedRoot = false
-    private var activeMarkersByMIDINote: [Int: ModelEntity] = [:]
-    private var lastTintColor: UIColor?
-
-    private let lightBeamHeight: Float = 0.22
-    private let lightBeamBaseYOffset: Float = 0.006
-    private let lightBeamRadiusScale: Float = 0.32
-    private let lightBeamMinimumRadius: Float = 0.006
-    private let lightBeamAlpha: CGFloat = 0.42
+    private var activeBeamEntitiesByMIDINote: [Int: ModelEntity] = [:]
 
     func updateHighlights(
         currentStep: PracticeStep?,
@@ -28,76 +21,65 @@ final class PianoGuideOverlayController {
             hasAttachedRoot = true
         }
 
-        guard let currentStep, let keyboardGeometry else {
-            clearMarkers()
+        guard let keyboardGeometry else {
+            clearBeams()
             return
         }
 
         keyboardRootEntity.transform = Transform(matrix: keyboardGeometry.frame.worldFromKeyboard)
 
-        let tintColor: UIColor = switch feedbackState {
-            case .none:
+        let descriptors = PianoGuideBeamDescriptor.makeDescriptors(
+            currentStep: currentStep,
+            keyboardGeometry: keyboardGeometry,
+            feedbackState: feedbackState
+        )
+        guard descriptors.isEmpty == false else {
+            clearBeams()
+            return
+        }
+
+        let desiredNotes = Set(descriptors.map(\.midiNote))
+
+        for (midiNote, beam) in activeBeamEntitiesByMIDINote {
+            if desiredNotes.contains(midiNote) == false {
+                beam.removeFromParent()
+                activeBeamEntitiesByMIDINote[midiNote] = nil
+            }
+        }
+
+        for descriptor in descriptors {
+            let beam: ModelEntity
+            if let existing = activeBeamEntitiesByMIDINote[descriptor.midiNote] {
+                beam = existing
+            } else {
+                beam = ModelEntity(mesh: .generateCylinder(height: 1, radius: 1), materials: [])
+                activeBeamEntitiesByMIDINote[descriptor.midiNote] = beam
+                keyboardRootEntity.addChild(beam)
+            }
+
+            beam.model?.materials = [beamMaterial(for: descriptor)]
+            let radius = min(descriptor.sizeLocal.x, descriptor.sizeLocal.z) / 2
+            beam.scale = SIMD3<Float>(radius, descriptor.sizeLocal.y, radius)
+            beam.position = descriptor.positionLocal
+        }
+    }
+
+    private func beamMaterial(for descriptor: PianoGuideBeamDescriptor) -> SimpleMaterial {
+        let tintColor: UIColor = switch descriptor.baseColor {
+            case .guide:
                 AVPOverlayPalette.feedbackNoneColor
             case .correct:
                 AVPOverlayPalette.feedbackCorrectColor
             case .wrong:
                 AVPOverlayPalette.feedbackWrongColor
         }
-
-        if lastTintColor != tintColor {
-            let material = lightBeamMaterial(for: tintColor)
-            for marker in activeMarkersByMIDINote.values {
-                marker.model?.materials = [material]
-            }
-            lastTintColor = tintColor
-        }
-
-        let desiredNotes: Set<Int> = Set(currentStep.notes.map(\.midiNote))
-
-        // Remove markers that are no longer needed.
-        for (midiNote, marker) in activeMarkersByMIDINote {
-            if desiredNotes.contains(midiNote) == false {
-                marker.removeFromParent()
-                activeMarkersByMIDINote[midiNote] = nil
-            }
-        }
-
-        // Add/update light beams for desired notes.
-        for midiNote in desiredNotes {
-            guard let key = keyboardGeometry.key(for: midiNote) else { continue }
-
-            let marker: ModelEntity
-            if let existing = activeMarkersByMIDINote[midiNote] {
-                marker = existing
-            } else {
-                marker = ModelEntity(
-                    mesh: .generateCylinder(height: 1, radius: 1),
-                    materials: [lightBeamMaterial(for: tintColor)]
-                )
-                activeMarkersByMIDINote[midiNote] = marker
-                keyboardRootEntity.addChild(marker)
-            }
-
-            let keyFootprint = min(key.beamFootprintSizeLocal.x, key.beamFootprintSizeLocal.y)
-            let beamRadius = max(keyFootprint * lightBeamRadiusScale, lightBeamMinimumRadius)
-            marker.scale = SIMD3<Float>(beamRadius, lightBeamHeight, beamRadius)
-            marker.position = SIMD3<Float>(
-                key.beamFootprintCenterLocal.x,
-                key.surfaceLocalY + lightBeamBaseYOffset + lightBeamHeight * 0.5,
-                key.beamFootprintCenterLocal.z
-            )
-        }
+        return SimpleMaterial(color: tintColor.withAlphaComponent(CGFloat(descriptor.alpha)), isMetallic: false)
     }
 
-    private func lightBeamMaterial(for tintColor: UIColor) -> SimpleMaterial {
-        SimpleMaterial(color: tintColor.withAlphaComponent(lightBeamAlpha), isMetallic: false)
-    }
-
-    private func clearMarkers() {
-        for marker in activeMarkersByMIDINote.values {
-            marker.removeFromParent()
+    private func clearBeams() {
+        for beam in activeBeamEntitiesByMIDINote.values {
+            beam.removeFromParent()
         }
-        activeMarkersByMIDINote.removeAll()
-        lastTintColor = nil
+        activeBeamEntitiesByMIDINote.removeAll()
     }
 }
