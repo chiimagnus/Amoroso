@@ -18,7 +18,6 @@ struct CalibrationStepView: View {
     var body: some View {
         ZStack {
             CalibrationCardContainer(
-                stage: CalibrationCardStage(phase: viewModel.calibrationPhase),
                 phase: viewModel.calibrationPhase,
                 storedCalibration: viewModel.storedCalibration,
                 isReticleReadyToConfirm: isReticleReadyToConfirm,
@@ -169,7 +168,6 @@ private enum CalibrationCardStage: Hashable {
 }
 
 private struct CalibrationCardContainer: View {
-    let stage: CalibrationCardStage
     let phase: ARGuideViewModel.CalibrationPhase
     let storedCalibration: StoredWorldAnchorCalibration?
     let isReticleReadyToConfirm: Bool
@@ -179,109 +177,170 @@ private struct CalibrationCardContainer: View {
     let onSimulatorDemoAdvance: () -> Void
 
     var body: some View {
-        VStack {
-            switch stage {
-                case .capturingA0:
-                    CalibrationCaptureCard(
-                        step: .a0,
-                        isA0Locked: phase == .transitionA0,
-                        isReticleReadyToConfirm: isReticleReadyToConfirm,
-                        showsMovingGlow: phase == .transitionA0,
-                        simulatorDemoState: simulatorDemoState,
-                        onSimulatorDemoAdvance: simulatorDemoState == .enabled ? onSimulatorDemoAdvance : nil
-                    )
-                    .transition(.opacity)
-
-                case .capturingC8:
-                    CalibrationCaptureCard(
-                        step: .c8,
-                        isA0Locked: true,
-                        isReticleReadyToConfirm: isReticleReadyToConfirm,
-                        showsMovingGlow: phase == .transitionC8,
-                        simulatorDemoState: simulatorDemoState,
-                        onSimulatorDemoAdvance: simulatorDemoState == .enabled ? onSimulatorDemoAdvance : nil
-                    )
-                    .transition(.opacity)
-
-                case .completed:
-                    CalibrationCompletionCard(
-                        estimatedKeyboardWidthText: CalibrationCompletionCard.estimatedKeyboardWidthText(
-                            storedCalibration: storedCalibration
-                        ),
-                        onReturnHome: onReturnHome
-                    )
-                    .transition(.opacity)
-
-                case .error:
-                    CalibrationErrorCard(
-                        message: errorMessage ?? "手部追踪不可用，无法进入校准流程。",
-                        onReturnHome: onReturnHome
-                    )
-                    .transition(.opacity)
-            }
-        }
-        .animation(.easeInOut(duration: 0.35), value: stage)
+        CalibrationStageCard(
+            stage: CalibrationCardStage(phase: phase),
+            phase: phase,
+            storedCalibration: storedCalibration,
+            isReticleReadyToConfirm: isReticleReadyToConfirm,
+            errorMessage: errorMessage,
+            onReturnHome: onReturnHome,
+            simulatorDemoState: simulatorDemoState,
+            onSimulatorDemoAdvance: simulatorDemoState == .enabled ? onSimulatorDemoAdvance : nil
+        )
     }
 }
 
-private struct CalibrationCaptureCard: View {
-    let step: CalibrationAnchorPoint
-    let isA0Locked: Bool
+private struct CalibrationStageCard: View {
+    let stage: CalibrationCardStage
+    let phase: ARGuideViewModel.CalibrationPhase
+    let storedCalibration: StoredWorldAnchorCalibration?
     let isReticleReadyToConfirm: Bool
-    let showsMovingGlow: Bool
+    let errorMessage: String?
+    let onReturnHome: () -> Void
     let simulatorDemoState: CalibrationSimulatorDemoState?
     let onSimulatorDemoAdvance: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .center) {
-                CalibrationProgressIndicator(
-                    isA0Complete: isA0Locked,
-                    isC8Current: step == .c8,
-                    isC8Complete: false
+            header
+
+            if stage == .capturingA0 || stage == .capturingC8 {
+                PianoKeyboard88View(
+                    highlightedMIDINotes: highlightedMIDINotes,
+                    highlightColorByMIDINote: highlightColorByMIDINote
                 )
+                .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
+                .frame(maxWidth: .infinity)
+                .overlay {
+                    KeyboardMovingGlowOverlay(isActive: showsMovingGlow)
+                }
 
-                Spacer()
+                Text(step == .a0 ? "左手食指放在 A0 键，准星变绿后捏合确认。" : "左手食指移到 C8 键，准星变绿后捏合确认。")
+                    .font(.callout)
 
-                KeyboardEdgeLabels(
-                    isA0Locked: isA0Locked,
-                    currentStep: step
-                )
-            }
+                Text(isReticleReadyToConfirm ? "已就绪：现在可捏合确认" : "等待稳定：准星变绿后再捏合确认")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
-            PianoKeyboard88View(
-                highlightedMIDINotes: highlightedMIDINotes,
-                highlightColorByMIDINote: highlightColorByMIDINote
-            )
-            .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .overlay {
-                KeyboardMovingGlowOverlay(isActive: showsMovingGlow)
-            }
-
-            Text(step == .a0 ? "左手食指放在 A0 键，准星变绿后捏合确认。" : "左手食指移到 C8 键，准星变绿后捏合确认。")
-                .font(.callout)
-
-            Text(isReticleReadyToConfirm ? "已就绪：现在可捏合确认" : "等待稳定：准星变绿后再捏合确认")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            #if DEBUG && targetEnvironment(simulator)
-            if simulatorDemoState == .enabled, let onSimulatorDemoAdvance {
-                HStack {
-                    Text("模拟器演示")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button("下一步") {
-                        onSimulatorDemoAdvance()
+                #if DEBUG && targetEnvironment(simulator)
+                if simulatorDemoState == .enabled, let onSimulatorDemoAdvance {
+                    HStack {
+                        Text("模拟器演示")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("下一步") {
+                            onSimulatorDemoAdvance()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .hoverEffect()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .hoverEffect()
+                }
+                #endif
+            } else if stage == .completed {
+                completionBody
+            } else if stage == .error {
+                errorBody
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: stage == .capturingA0 || stage == .capturingC8 ? 920 : 720)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.primary.opacity(0.12))
+        }
+        .transition(.opacity)
+        .animation(.easeInOut(duration: 0.35), value: stage)
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        switch stage {
+            case .capturingA0, .capturingC8:
+                HStack(alignment: .center) {
+                    CalibrationProgressIndicator(
+                        isA0Complete: isA0Locked,
+                        isC8Current: step == .c8,
+                        isC8Complete: false
+                    )
+
+                    Spacer()
+
+                    KeyboardEdgeLabels(
+                        isA0Locked: isA0Locked,
+                        currentStep: step
+                    )
+                }
+
+            case .completed:
+                CalibrationProgressIndicator(isA0Complete: true, isC8Current: false, isC8Complete: true)
+
+            case .error:
+                EmptyView()
+        }
+    }
+
+    private var completionBody: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 72, weight: .semibold))
+                .foregroundStyle(.green)
+
+            VStack(spacing: 6) {
+                Text("校准完成")
+                    .font(.title2.weight(.semibold))
+
+                if let estimatedKeyboardWidthText {
+                    Text(estimatedKeyboardWidthText)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
                 }
             }
-            #endif
+
+            Button("返回首页") {
+                onReturnHome()
+            }
+            .buttonStyle(.borderedProminent)
+            .hoverEffect()
         }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var errorBody: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 72, weight: .semibold))
+                .foregroundStyle(.red)
+
+            VStack(spacing: 6) {
+                Text("无法校准")
+                    .font(.title2.weight(.semibold))
+                Text(errorMessage ?? "手部追踪不可用，无法进入校准流程。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button("返回首页") {
+                onReturnHome()
+            }
+            .buttonStyle(.borderedProminent)
+            .hoverEffect()
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var step: CalibrationAnchorPoint {
+        stage == .capturingC8 ? .c8 : .a0
+    }
+
+    private var isA0Locked: Bool {
+        phase == .transitionA0 || stage == .capturingC8 || stage == .completed
+    }
+
+    private var showsMovingGlow: Bool {
+        phase == .transitionA0 || phase == .transitionC8
     }
 
     private var highlightedMIDINotes: Set<Int> {
@@ -303,6 +362,13 @@ private struct CalibrationCaptureCard: View {
                 }
                 return [108: Color.blue]
         }
+    }
+
+    private var estimatedKeyboardWidthText: String? {
+        guard let storedCalibration else { return nil }
+        let estimatedMeters = storedCalibration.whiteKeyWidth * 52
+        let estimatedCentimeters = Int((estimatedMeters * 100).rounded())
+        return "键盘宽度 · ~\(estimatedCentimeters) cm"
     }
 }
 
@@ -356,87 +422,6 @@ private struct KeyboardMovingGlowOverlay: View {
             }
         } else {
             progress = 0
-        }
-    }
-}
-
-private struct CalibrationCompletionCard: View {
-    let estimatedKeyboardWidthText: String?
-    let onReturnHome: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            CalibrationProgressIndicator(isA0Complete: true, isC8Current: false, isC8Complete: true)
-
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 72, weight: .semibold))
-                .foregroundStyle(.green)
-
-            VStack(spacing: 6) {
-                Text("校准完成")
-                    .font(.title2.weight(.semibold))
-
-                if let estimatedKeyboardWidthText {
-                    Text(estimatedKeyboardWidthText)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Button("返回首页") {
-                onReturnHome()
-            }
-            .buttonStyle(.borderedProminent)
-            .hoverEffect()
-        }
-        .padding(18)
-        .frame(maxWidth: 720)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(.primary.opacity(0.12))
-        }
-    }
-
-    static func estimatedKeyboardWidthText(storedCalibration: StoredWorldAnchorCalibration?) -> String? {
-        guard let storedCalibration else { return nil }
-        let estimatedMeters = storedCalibration.whiteKeyWidth * 52
-        let estimatedCentimeters = Int((estimatedMeters * 100).rounded())
-        return "键盘宽度 · ~\(estimatedCentimeters) cm"
-    }
-}
-
-private struct CalibrationErrorCard: View {
-    let message: String
-    let onReturnHome: () -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "xmark.circle.fill")
-                .font(.system(size: 72, weight: .semibold))
-                .foregroundStyle(.red)
-
-            VStack(spacing: 6) {
-                Text("无法校准")
-                    .font(.title2.weight(.semibold))
-                Text(message)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            Button("返回首页") {
-                onReturnHome()
-            }
-            .buttonStyle(.borderedProminent)
-            .hoverEffect()
-        }
-        .padding(18)
-        .frame(maxWidth: 720)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(.primary.opacity(0.12))
         }
     }
 }
