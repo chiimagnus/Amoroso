@@ -306,7 +306,7 @@ class AppModel {
                 // If the device is on +Z side, keyboard interior is -Z; otherwise interior is +Z.
                 let interiorIsNegativeZ = simd_dot(toDeviceDir, zAxis) > 0
                 frontEdgeToKeyCenterLocalZ = (interiorIsNegativeZ ? -1 : 1) *
-                    (PianoKeyGeometryService.keyDepthMeters / 2)
+                    (PianoKeyGeometryService.whiteKeyDepthMeters / 2)
             } else {
                 // Degenerate; fall back to "no offset" rather than guessing a direction.
                 frontEdgeToKeyCenterLocalZ = 0
