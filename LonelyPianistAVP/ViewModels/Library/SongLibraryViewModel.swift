@@ -58,7 +58,7 @@ final class SongLibraryViewModel {
         var merged: [SongLibraryEntry] = []
         merged.reserveCapacity(bundledEntries.count + index.entries.count)
 
-        var bundledNames = Set(bundledEntries.map(\.displayName))
+        let bundledNames = Set(bundledEntries.map(\.displayName))
         merged.append(contentsOf: bundledEntries)
 
         for entry in index.entries where bundledNames.contains(entry.displayName) == false {
