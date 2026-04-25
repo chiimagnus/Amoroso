@@ -6,7 +6,9 @@ enum PianoKeyKind: Equatable {
 }
 
 struct PianoKeyGeometry: Equatable, Identifiable {
-    var id: Int { midiNote }
+    var id: Int {
+        midiNote
+    }
 
     let midiNote: Int
     let kind: PianoKeyKind
@@ -35,4 +37,3 @@ struct PianoKeyboardGeometry {
         keys.first { $0.midiNote == midiNote }
     }
 }
-

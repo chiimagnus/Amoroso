@@ -55,63 +55,68 @@ struct PianoKeyGeometryService: PianoKeyGeometryServiceProtocol {
             switch kind {
                 case .white:
                     do {
-                    guard let whiteIndex = layout.whiteKeyIndexByMIDINote[midiNote] else { continue }
-                    let x = Float(whiteIndex) * whiteKeySpacing
+                        guard let whiteIndex = layout.whiteKeyIndexByMIDINote[midiNote] else { continue }
+                        let x = Float(whiteIndex) * whiteKeySpacing
 
-                    let surfaceLocalY: Float = 0
-                    let localSize = SIMD3<Float>(whiteKeyWidth, Self.whiteKeyThicknessMeters, Self.whiteKeyDepthMeters)
-                    let localCenter = SIMD3<Float>(x, surfaceLocalY - localSize.y / 2, whiteKeyCenterZ)
+                        let surfaceLocalY: Float = 0
+                        let localSize = SIMD3<Float>(
+                            whiteKeyWidth,
+                            Self.whiteKeyThicknessMeters,
+                            Self.whiteKeyDepthMeters
+                        )
+                        let localCenter = SIMD3<Float>(x, surfaceLocalY - localSize.y / 2, whiteKeyCenterZ)
 
-                    let beamFootprintSizeLocal = SIMD2<Float>(
-                        localSize.x * Self.whiteBeamWidthScale,
-                        localSize.z * Self.whiteBeamDepthScale
-                    )
-                    let beamFootprintCenterLocal = SIMD3<Float>(x, surfaceLocalY, whiteKeyCenterZ)
+                        let beamFootprintSizeLocal = SIMD2<Float>(
+                            localSize.x * Self.whiteBeamWidthScale,
+                            localSize.z * Self.whiteBeamDepthScale
+                        )
+                        let beamFootprintCenterLocal = SIMD3<Float>(x, surfaceLocalY, whiteKeyCenterZ)
 
-                    keys.append(PianoKeyGeometry(
-                        midiNote: midiNote,
-                        kind: kind,
-                        localCenter: localCenter,
-                        localSize: localSize,
-                        surfaceLocalY: surfaceLocalY,
-                        hitCenterLocal: localCenter,
-                        hitSizeLocal: localSize,
-                        beamFootprintCenterLocal: beamFootprintCenterLocal,
-                        beamFootprintSizeLocal: beamFootprintSizeLocal
-                    ))
+                        keys.append(PianoKeyGeometry(
+                            midiNote: midiNote,
+                            kind: kind,
+                            localCenter: localCenter,
+                            localSize: localSize,
+                            surfaceLocalY: surfaceLocalY,
+                            hitCenterLocal: localCenter,
+                            hitSizeLocal: localSize,
+                            beamFootprintCenterLocal: beamFootprintCenterLocal,
+                            beamFootprintSizeLocal: beamFootprintSizeLocal
+                        ))
                     }
                 case .black:
                     do {
-                    guard let adjacent = layout.adjacentWhiteKeyIndicesByBlackMIDINote[midiNote] else { continue }
-                    let xLeft = Float(adjacent.left) * whiteKeySpacing
-                    let xRight = Float(adjacent.right) * whiteKeySpacing
-                    let x = (xLeft + xRight) / 2
+                        guard let adjacent = layout.adjacentWhiteKeyIndicesByBlackMIDINote[midiNote] else { continue }
+                        let xLeft = Float(adjacent.left) * whiteKeySpacing
+                        let xRight = Float(adjacent.right) * whiteKeySpacing
+                        let x = (xLeft + xRight) / 2
 
-                    let surfaceLocalY: Float = Self.blackKeySurfaceHeightMeters
-                    let blackDepth = Self.whiteKeyDepthMeters * Self.blackKeyDepthScale
-                    let blackWidth = whiteKeyWidth * Self.blackKeyWidthScale
-                    let localSize = SIMD3<Float>(blackWidth, Self.whiteKeyThicknessMeters, blackDepth)
+                        let surfaceLocalY: Float = Self.blackKeySurfaceHeightMeters
+                        let blackDepth = Self.whiteKeyDepthMeters * Self.blackKeyDepthScale
+                        let blackWidth = whiteKeyWidth * Self.blackKeyWidthScale
+                        let localSize = SIMD3<Float>(blackWidth, Self.whiteKeyThicknessMeters, blackDepth)
 
-                    let z = interiorSign * (Self.whiteKeyDepthMeters * Self.blackKeyFrontInsetScale + blackDepth / 2)
-                    let localCenter = SIMD3<Float>(x, surfaceLocalY - localSize.y / 2, z)
+                        let z = interiorSign *
+                            (Self.whiteKeyDepthMeters * Self.blackKeyFrontInsetScale + blackDepth / 2)
+                        let localCenter = SIMD3<Float>(x, surfaceLocalY - localSize.y / 2, z)
 
-                    let beamFootprintSizeLocal = SIMD2<Float>(
-                        localSize.x * Self.blackBeamWidthScale,
-                        localSize.z * Self.blackBeamDepthScale
-                    )
-                    let beamFootprintCenterLocal = SIMD3<Float>(x, surfaceLocalY, z)
+                        let beamFootprintSizeLocal = SIMD2<Float>(
+                            localSize.x * Self.blackBeamWidthScale,
+                            localSize.z * Self.blackBeamDepthScale
+                        )
+                        let beamFootprintCenterLocal = SIMD3<Float>(x, surfaceLocalY, z)
 
-                    keys.append(PianoKeyGeometry(
-                        midiNote: midiNote,
-                        kind: kind,
-                        localCenter: localCenter,
-                        localSize: localSize,
-                        surfaceLocalY: surfaceLocalY,
-                        hitCenterLocal: localCenter,
-                        hitSizeLocal: localSize,
-                        beamFootprintCenterLocal: beamFootprintCenterLocal,
-                        beamFootprintSizeLocal: beamFootprintSizeLocal
-                    ))
+                        keys.append(PianoKeyGeometry(
+                            midiNote: midiNote,
+                            kind: kind,
+                            localCenter: localCenter,
+                            localSize: localSize,
+                            surfaceLocalY: surfaceLocalY,
+                            hitCenterLocal: localCenter,
+                            hitSizeLocal: localSize,
+                            beamFootprintCenterLocal: beamFootprintCenterLocal,
+                            beamFootprintSizeLocal: beamFootprintSizeLocal
+                        ))
                     }
             }
         }
@@ -119,7 +124,6 @@ struct PianoKeyGeometryService: PianoKeyGeometryServiceProtocol {
         guard keys.count == Self.keyCount else { return nil }
         return PianoKeyboardGeometry(frame: frame, keys: keys)
     }
-
 }
 
 extension PianoKeyGeometryService {

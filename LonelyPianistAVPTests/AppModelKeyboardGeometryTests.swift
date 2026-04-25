@@ -71,7 +71,7 @@ private final class CapturingKeyGeometryService: PianoKeyGeometryServiceProtocol
         self.result = result
     }
 
-    func generateKeyboardGeometry(from calibration: PianoCalibration) -> PianoKeyboardGeometry? {
+    func generateKeyboardGeometry(from _: PianoCalibration) -> PianoKeyboardGeometry? {
         callCount += 1
         return result
     }

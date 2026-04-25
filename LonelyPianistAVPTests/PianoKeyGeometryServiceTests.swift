@@ -44,8 +44,8 @@ func keyboardGeometryCreatesFiftyTwoWhiteKeys() {
     )
 
     let geometry = PianoKeyGeometryService().generateKeyboardGeometry(from: calibration)
-    let whiteCount = geometry?.keys.filter { isWhite($0.kind) }.count ?? 0
-    let blackCount = geometry?.keys.filter { isBlack($0.kind) }.count ?? 0
+    let whiteCount = geometry?.keys.count(where: { isWhite($0.kind) }) ?? 0
+    let blackCount = geometry?.keys.count(where: { isBlack($0.kind) }) ?? 0
     #expect(whiteCount == 52)
     #expect(blackCount == 36)
 }

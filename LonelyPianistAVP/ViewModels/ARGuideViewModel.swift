@@ -400,7 +400,8 @@ final class ARGuideViewModel {
 
             if let oldAnchorID,
                oldAnchorID != worldAnchor.id,
-               let oldAnchor = arTrackingService.worldAnchorsByID[oldAnchorID] {
+               let oldAnchor = arTrackingService.worldAnchorsByID[oldAnchorID]
+            {
                 try? await arTrackingService.worldTrackingProvider.removeAnchor(oldAnchor)
             }
         } catch {
@@ -591,7 +592,8 @@ final class ARGuideViewModel {
         }
 
         if let handAuthorizationStatus = arTrackingService.authorizationStatusByType[.handTracking],
-           handAuthorizationStatus != .allowed {
+           handAuthorizationStatus != .allowed
+        {
             return .handTrackingDenied
         }
 

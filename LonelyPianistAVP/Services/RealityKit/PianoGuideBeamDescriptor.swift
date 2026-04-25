@@ -7,7 +7,9 @@ enum BeamColorToken: Equatable {
 }
 
 struct PianoGuideBeamDescriptor: Equatable, Identifiable {
-    var id: Int { midiNote }
+    var id: Int {
+        midiNote
+    }
 
     let midiNote: Int
     let positionLocal: SIMD3<Float>
@@ -66,4 +68,3 @@ extension PianoGuideBeamDescriptor {
         }
     }
 }
-
