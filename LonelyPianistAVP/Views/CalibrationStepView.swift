@@ -19,6 +19,7 @@ struct CalibrationStepView: View {
         ZStack {
             CalibrationCardContainer(
                 stage: CalibrationCardStage(phase: viewModel.calibrationPhase),
+                phase: viewModel.calibrationPhase,
                 storedCalibration: viewModel.storedCalibration,
                 isReticleReadyToConfirm: isReticleReadyToConfirm,
                 errorMessage: {
@@ -169,6 +170,7 @@ private enum CalibrationCardStage: Hashable {
 
 private struct CalibrationCardContainer: View {
     let stage: CalibrationCardStage
+    let phase: ARGuideViewModel.CalibrationPhase
     let storedCalibration: StoredWorldAnchorCalibration?
     let isReticleReadyToConfirm: Bool
     let errorMessage: String?
@@ -182,32 +184,24 @@ private struct CalibrationCardContainer: View {
                 case .capturingA0:
                     CalibrationCaptureCard(
                         step: .a0,
-                        isA0Locked: false,
+                        isA0Locked: phase == .transitionA0,
                         isReticleReadyToConfirm: isReticleReadyToConfirm,
+                        showsMovingGlow: phase == .transitionA0,
                         simulatorDemoState: simulatorDemoState,
                         onSimulatorDemoAdvance: simulatorDemoState == .enabled ? onSimulatorDemoAdvance : nil
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        )
-                    )
+                    .transition(.opacity)
 
                 case .capturingC8:
                     CalibrationCaptureCard(
                         step: .c8,
                         isA0Locked: true,
                         isReticleReadyToConfirm: isReticleReadyToConfirm,
+                        showsMovingGlow: phase == .transitionC8,
                         simulatorDemoState: simulatorDemoState,
                         onSimulatorDemoAdvance: simulatorDemoState == .enabled ? onSimulatorDemoAdvance : nil
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        )
-                    )
+                    .transition(.opacity)
 
                 case .completed:
                     CalibrationCompletionCard(
@@ -216,27 +210,17 @@ private struct CalibrationCardContainer: View {
                         ),
                         onReturnHome: onReturnHome
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        )
-                    )
+                    .transition(.opacity)
 
                 case .error:
                     CalibrationErrorCard(
                         message: errorMessage ?? "手部追踪不可用，无法进入校准流程。",
                         onReturnHome: onReturnHome
                     )
-                    .transition(
-                        .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .leading).combined(with: .opacity)
-                        )
-                    )
+                    .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.5), value: stage)
+        .animation(.easeInOut(duration: 0.35), value: stage)
     }
 }
 
@@ -244,6 +228,7 @@ private struct CalibrationCaptureCard: View {
     let step: CalibrationAnchorPoint
     let isA0Locked: Bool
     let isReticleReadyToConfirm: Bool
+    let showsMovingGlow: Bool
     let simulatorDemoState: CalibrationSimulatorDemoState?
     let onSimulatorDemoAdvance: (() -> Void)?
 
@@ -270,6 +255,9 @@ private struct CalibrationCaptureCard: View {
             )
             .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
             .frame(maxWidth: .infinity)
+            .overlay {
+                KeyboardMovingGlowOverlay(isActive: showsMovingGlow)
+            }
 
             Text(step == .a0 ? "左手食指放在 A0 键，准星变绿后捏合确认。" : "左手食指移到 C8 键，准星变绿后捏合确认。")
                 .font(.callout)
@@ -314,6 +302,60 @@ private struct CalibrationCaptureCard: View {
                     return [21: Color.green, 108: Color.blue]
                 }
                 return [108: Color.blue]
+        }
+    }
+}
+
+private struct KeyboardMovingGlowOverlay: View {
+    let isActive: Bool
+
+    @State private var progress: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+            let glowWidth = max(60, width * 0.18)
+            let x = progress * (width + glowWidth) - glowWidth
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            Color.blue.opacity(0.32),
+                            .clear
+                        ],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(width: glowWidth, height: height)
+                .blur(radius: 10)
+                .offset(x: x, y: 0)
+                .opacity(isActive ? 1 : 0)
+                .allowsHitTesting(false)
+                .onChange(of: isActive) {
+                    updateAnimation(width: width)
+                }
+                .onAppear {
+                    updateAnimation(width: width)
+                }
+        }
+        .clipShape(.rect(cornerRadius: 12))
+        .allowsHitTesting(false)
+    }
+
+    private func updateAnimation(width: CGFloat) {
+        guard width > 1 else { return }
+
+        if isActive {
+            progress = 0
+            withAnimation(.easeInOut(duration: 0.55)) {
+                progress = 1
+            }
+        } else {
+            progress = 0
         }
     }
 }
