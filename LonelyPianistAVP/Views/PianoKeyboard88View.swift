@@ -2,6 +2,8 @@ import SwiftUI
 
 struct PianoKeyboard88View: View {
     static let aspectRatio: CGFloat = 52.0 / 8.0
+    static let minPlayableMIDINote = 21
+    static let maxPlayableMIDINote = 108
 
     let highlightedMIDINotes: Set<Int>
     let fingeringByMIDINote: [Int: String]
@@ -95,7 +97,17 @@ struct PianoKeyboard88View: View {
         return .orange.opacity(0.95)
     }
 
-    private static let playableRange = 21 ... 108
+    static func keyCenterFraction(midiNote: Int) -> CGFloat? {
+        if let whiteIndex = whiteIndexByMIDINote[midiNote] {
+            return (CGFloat(whiteIndex) + 0.5) / CGFloat(max(1, whiteKeys.count))
+        }
+        if let blackCenter = blackKeyCenterFractionByMIDINote[midiNote] {
+            return blackCenter
+        }
+        return nil
+    }
+
+    private static let playableRange = minPlayableMIDINote ... maxPlayableMIDINote
     private static let blackPitchClasses: Set<Int> = [1, 3, 6, 8, 10]
 
     private static let whiteKeys: [WhiteKey] = {
@@ -111,15 +123,24 @@ struct PianoKeyboard88View: View {
         return keys
     }()
 
-    private static let blackKeys: [BlackKey] = {
-        let whiteIndexByMIDINote = Dictionary(uniqueKeysWithValues: whiteKeys.map { ($0.midiNote, $0.whiteIndex) })
+    private static let whiteIndexByMIDINote: [Int: Int] = Dictionary(
+        uniqueKeysWithValues: whiteKeys.map { ($0.midiNote, $0.whiteIndex) }
+    )
 
+    private static let blackKeys: [BlackKey] = {
         return playableRange.compactMap { midiNote in
             guard isBlackKey(midiNote) else { return nil }
             guard let leftWhiteIndex = whiteIndexByMIDINote[midiNote - 1] else { return nil }
             return BlackKey(midiNote: midiNote, leftWhiteIndex: leftWhiteIndex)
         }
     }()
+
+    private static let blackKeyCenterFractionByMIDINote: [Int: CGFloat] = Dictionary(
+        uniqueKeysWithValues: blackKeys.map { key in
+            // Black key is centered at the boundary between leftWhiteIndex and leftWhiteIndex+1.
+            (key.midiNote, CGFloat(key.leftWhiteIndex + 1) / CGFloat(max(1, whiteKeys.count)))
+        }
+    )
 
     private static func isBlackKey(_ midiNote: Int) -> Bool {
         blackPitchClasses.contains(midiNote % 12)

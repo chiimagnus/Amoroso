@@ -188,7 +188,11 @@ private struct CalibrationStageCard: View {
                 .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
                 .frame(maxWidth: .infinity)
                 .overlay {
-                    KeyboardMovingGlowOverlay(isActive: showsMovingGlow)
+                    KeyboardMovingGlowOverlay(
+                        isActive: showsMovingGlow,
+                        startFraction: PianoKeyboard88View.keyCenterFraction(midiNote: PianoKeyboard88View.minPlayableMIDINote) ?? 0,
+                        endFraction: PianoKeyboard88View.keyCenterFraction(midiNote: PianoKeyboard88View.maxPlayableMIDINote) ?? 1
+                    )
                 }
 
                 Text(step == .a0 ? "左手食指放在 A0 键，准星变绿后捏合确认。" : "左手食指移到 C8 键，准星变绿后捏合确认。")
@@ -350,6 +354,8 @@ private struct CalibrationStageCard: View {
 
 private struct KeyboardMovingGlowOverlay: View {
     let isActive: Bool
+    let startFraction: CGFloat
+    let endFraction: CGFloat
 
     @State private var progress: CGFloat = 0
     private let animationDurationSeconds: Double = 1.25
@@ -359,7 +365,13 @@ private struct KeyboardMovingGlowOverlay: View {
             let width = proxy.size.width
             let height = proxy.size.height
             let glowWidth = max(60, width * 0.18)
-            let x = progress * (width + glowWidth) - glowWidth
+            let clampedStart = max(0, min(1, startFraction))
+            let clampedEnd = max(0, min(1, endFraction))
+
+            let startCenterX = clampedStart * width
+            let endCenterX = clampedEnd * width
+            let centerX = startCenterX + (progress * (endCenterX - startCenterX))
+            let x = centerX - (glowWidth / 2)
 
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(
