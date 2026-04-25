@@ -202,14 +202,15 @@ class AppModel {
         }
     }
 
-    func saveCalibrationIfPossible() {
+    @discardableResult
+    func saveCalibrationIfPossible() -> Bool {
         guard
             let a0AnchorID = calibrationCaptureService.a0AnchorID,
             let c8AnchorID = calibrationCaptureService.c8AnchorID,
             a0AnchorID != c8AnchorID
         else {
             calibrationStatusMessage = "校准信息不完整"
-            return
+            return false
         }
 
         let savedCalibration = StoredWorldAnchorCalibration(
@@ -235,8 +236,10 @@ class AppModel {
                     )
                 }
             }
+            return true
         } catch {
             calibrationStatusMessage = "保存校准失败：\(error.localizedDescription)"
+            return false
         }
     }
 
