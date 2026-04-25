@@ -71,6 +71,60 @@ final class PressDetectionService: PressDetectionServiceProtocol {
 
         return pressed
     }
+
+    func detectPressedNotes(
+        fingerTips: [String: SIMD3<Float>],
+        keyboardGeometry: PianoKeyboardGeometry?,
+        at timestamp: Date
+    ) -> Set<Int> {
+        guard let keyboardGeometry else { return [] }
+
+        var blackKeys: [PianoKeyGeometry] = []
+        var whiteKeys: [PianoKeyGeometry] = []
+        blackKeys.reserveCapacity(36)
+        whiteKeys.reserveCapacity(52)
+        for key in keyboardGeometry.keys {
+            if case .black = key.kind {
+                blackKeys.append(key)
+            } else {
+                whiteKeys.append(key)
+            }
+        }
+        let keysForHitTesting = blackKeys + whiteKeys
+
+        var pressed: Set<Int> = []
+        let keyboardFromWorld = keyboardGeometry.frame.keyboardFromWorld
+
+        for (fingerID, currentPosition) in fingerTips {
+            defer { lastFingerTipPositions[fingerID] = currentPosition }
+            guard let previousPosition = lastFingerTipPositions[fingerID] else { continue }
+
+            let previousPoint = Self.transformPoint(keyboardFromWorld, previousPosition)
+            let currentPoint = Self.transformPoint(keyboardFromWorld, currentPosition)
+
+            for key in keysForHitTesting {
+                let keyPlaneY = key.surfaceLocalY
+                let crossedPlane = previousPoint.y > keyPlaneY && currentPoint.y <= keyPlaneY
+                guard crossedPlane else { continue }
+
+                let minPoint = key.hitCenterLocal - key.hitSizeLocal / 2
+                let maxPoint = key.hitCenterLocal + key.hitSizeLocal / 2
+                let insideKeyBounds = currentPoint.x >= minPoint.x && currentPoint.x <= maxPoint.x
+                    && currentPoint.z >= minPoint.z && currentPoint.z <= maxPoint.z
+                guard insideKeyBounds else { continue }
+
+                let lastTriggerTime = lastTriggerTimeByNote[key.midiNote]
+                let isCoolingDown = lastTriggerTime.map { timestamp.timeIntervalSince($0) < cooldownSeconds } ?? false
+                guard isCoolingDown == false else { continue }
+
+                pressed.insert(key.midiNote)
+                lastTriggerTimeByNote[key.midiNote] = timestamp
+                break
+            }
+        }
+
+        return pressed
+    }
 }
 
 extension PressDetectionService {
