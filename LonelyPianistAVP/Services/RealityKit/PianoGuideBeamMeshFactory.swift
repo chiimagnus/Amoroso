@@ -98,11 +98,6 @@ enum PianoGuideBeamMeshFactory {
         descriptor.textureCoordinates = MeshBuffers.TextureCoordinates(uvs)
         descriptor.primitives = .triangles(indices)
 
-        do {
-            return try MeshResource.generate(from: [descriptor])
-        } catch {
-            return .generateBox(size: SIMD3<Float>(repeating: 1))
-        }
+        return try! MeshResource.generate(from: [descriptor])
     }()
 }
-
