@@ -10,19 +10,26 @@ struct CalibrationStepView: View {
     @State private var hasRequestedImmersiveOpen = false
     @State private var isStepVisible = false
 
+    #if DEBUG && targetEnvironment(simulator)
+    @State private var simulatorDemoEnabled = true
+    @State private var simulatorDemoTask: Task<Void, Never>?
+    #endif
+
     var body: some View {
         ZStack {
             CalibrationCardContainer(
                 stage: CalibrationCardStage(phase: viewModel.calibrationPhase),
                 storedCalibration: viewModel.storedCalibration,
-                isReticleReadyToConfirm: viewModel.calibrationCaptureService.isReticleReadyToConfirm,
+                isReticleReadyToConfirm: isReticleReadyToConfirm,
                 errorMessage: {
                     if case let .error(message) = viewModel.calibrationPhase {
                         return message
                     }
                     return nil
                 }(),
-                onReturnHome: { dismiss() }
+                onReturnHome: { dismiss() },
+                simulatorDemoState: simulatorDemoState,
+                onSimulatorDemoAdvance: handleSimulatorDemoAdvance
             )
 
             CalibrationTransitionOverlay(
@@ -34,6 +41,15 @@ struct CalibrationStepView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             isStepVisible = true
+
+            if isSimulatorDemoActive {
+                viewModel.endCalibrationGuidedFlow()
+                #if DEBUG
+                viewModel.setCalibrationPhaseForPreview(.capturingA0)
+                #endif
+                return
+            }
+
             viewModel.beginCalibrationGuidedFlow()
             guard hasRequestedImmersiveOpen == false else { return }
             hasRequestedImmersiveOpen = true
@@ -56,13 +72,79 @@ struct CalibrationStepView: View {
         .onDisappear {
             isStepVisible = false
             hasRequestedImmersiveOpen = false
+            #if DEBUG && targetEnvironment(simulator)
+            simulatorDemoTask?.cancel()
+            simulatorDemoTask = nil
+            #endif
             viewModel.endCalibrationGuidedFlow()
-            Task { @MainActor in
-                await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
-                await viewModel.recoverImmersiveStateIfStuck()
+
+            if isSimulatorDemoActive == false {
+                Task { @MainActor in
+                    await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
+                    await viewModel.recoverImmersiveStateIfStuck()
+                }
             }
         }
     }
+
+    private var isReticleReadyToConfirm: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        if isSimulatorDemoActive { return true }
+        #endif
+        return viewModel.calibrationCaptureService.isReticleReadyToConfirm
+    }
+
+    private var isSimulatorDemoActive: Bool {
+        #if DEBUG && targetEnvironment(simulator)
+        return simulatorDemoEnabled
+        #else
+        return false
+        #endif
+    }
+
+    private var simulatorDemoState: CalibrationSimulatorDemoState? {
+        #if DEBUG && targetEnvironment(simulator)
+        return isSimulatorDemoActive ? .enabled : nil
+        #else
+        return nil
+        #endif
+    }
+
+    private func handleSimulatorDemoAdvance() {
+        #if DEBUG && targetEnvironment(simulator)
+        guard isSimulatorDemoActive else { return }
+
+        simulatorDemoTask?.cancel()
+        simulatorDemoTask = Task { @MainActor in
+            switch viewModel.calibrationPhase {
+                case .capturingA0:
+                    viewModel.setCalibrationPhaseForPreview(.transitionA0)
+                    try? await Task.sleep(for: .seconds(0.3))
+                    guard Task.isCancelled == false else { return }
+                    viewModel.setCalibrationPhaseForPreview(.capturingC8)
+
+                case .capturingC8:
+                    viewModel.setCalibrationPhaseForPreview(.transitionC8)
+                    try? await Task.sleep(for: .seconds(0.3))
+                    guard Task.isCancelled == false else { return }
+                    viewModel.setCalibrationPhaseForPreview(.completed)
+
+                case .completed:
+                    dismiss()
+
+                case .error:
+                    viewModel.setCalibrationPhaseForPreview(.capturingA0)
+
+                default:
+                    break
+            }
+        }
+        #endif
+    }
+}
+
+private enum CalibrationSimulatorDemoState: Hashable {
+    case enabled
 }
 
 private enum CalibrationCardStage: Hashable {
@@ -91,6 +173,8 @@ private struct CalibrationCardContainer: View {
     let isReticleReadyToConfirm: Bool
     let errorMessage: String?
     let onReturnHome: () -> Void
+    let simulatorDemoState: CalibrationSimulatorDemoState?
+    let onSimulatorDemoAdvance: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -98,11 +182,12 @@ private struct CalibrationCardContainer: View {
 
             switch stage {
                 case .capturingA0:
-                    CalibrationCaptureCard(
+                    wrapInSimulatorDemoButton(CalibrationCaptureCard(
                         step: .a0,
                         isA0Locked: false,
-                        isReticleReadyToConfirm: isReticleReadyToConfirm
-                    )
+                        isReticleReadyToConfirm: isReticleReadyToConfirm,
+                        simulatorDemoState: simulatorDemoState
+                    ))
                     .transition(
                         .asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -111,11 +196,12 @@ private struct CalibrationCardContainer: View {
                     )
 
                 case .capturingC8:
-                    CalibrationCaptureCard(
+                    wrapInSimulatorDemoButton(CalibrationCaptureCard(
                         step: .c8,
                         isA0Locked: true,
-                        isReticleReadyToConfirm: isReticleReadyToConfirm
-                    )
+                        isReticleReadyToConfirm: isReticleReadyToConfirm,
+                        simulatorDemoState: simulatorDemoState
+                    ))
                     .transition(
                         .asymmetric(
                             insertion: .move(edge: .trailing).combined(with: .opacity),
@@ -154,12 +240,31 @@ private struct CalibrationCardContainer: View {
         }
         .animation(.easeInOut(duration: 0.5), value: stage)
     }
+
+    @ViewBuilder
+    private func wrapInSimulatorDemoButton<Content: View>(_ content: Content) -> some View {
+        #if DEBUG && targetEnvironment(simulator)
+        if simulatorDemoState == .enabled {
+            Button {
+                onSimulatorDemoAdvance()
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
+        } else {
+            content
+        }
+        #else
+        content
+        #endif
+    }
 }
 
 private struct CalibrationCaptureCard: View {
     let step: CalibrationAnchorPoint
     let isA0Locked: Bool
     let isReticleReadyToConfirm: Bool
+    let simulatorDemoState: CalibrationSimulatorDemoState?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -189,6 +294,14 @@ private struct CalibrationCaptureCard: View {
             Text(isReticleReadyToConfirm ? "已就绪：现在可捏合确认" : "等待稳定：准星变绿后再捏合确认")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            #if DEBUG && targetEnvironment(simulator)
+            if simulatorDemoState == .enabled {
+                Text("模拟器演示：点击卡片模拟“捏合确认”。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            #endif
         }
         .padding(18)
         .frame(maxWidth: 560)
