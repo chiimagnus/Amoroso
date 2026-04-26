@@ -7,7 +7,7 @@ struct ImmersiveView: View {
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
-    
+
     private var shouldShowCalibrationReticle: Bool {
         guard viewModel.immersiveMode == .calibration else { return false }
         switch viewModel.calibrationPhase {

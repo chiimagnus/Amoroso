@@ -224,15 +224,15 @@ private struct CalibrationStageCard: View {
                         ? "左手食指放在 A0 键，准星变绿后用右手捏合确认。"
                         : "右手食指放在 C8 键，准星变绿后用左手捏合确认。"
                 )
-                    .font(.callout)
+                .font(.callout)
 
                 Text(
                     isReticleReadyToConfirm
                         ? (step == .a0 ? "已就绪：现在可用右手捏合确认" : "已就绪：现在可用左手捏合确认")
                         : "等待稳定：准星变绿后再捏合确认"
                 )
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
                 #if DEBUG && targetEnvironment(simulator)
                     if simulatorDemoState == .enabled, let onSimulatorDemoAdvance {
