@@ -38,7 +38,7 @@ final class CalibrationPointCaptureService {
 
         reticlePoint = point
 
-        let deltaThresholdMeters: Float = 0.002
+        let deltaThresholdMeters: Float = 0.005
         let stableDurationSeconds: TimeInterval = 0.5
 
         if let last = lastReticlePointForStability {

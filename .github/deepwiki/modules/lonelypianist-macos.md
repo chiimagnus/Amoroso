@@ -25,10 +25,10 @@
 | `startRecordingTake()` / `playSelectedTake()` | Recorder 录放 |
 
 ## 重要子页
-- [Runtime](modules/lonelypianist-macos-runtime.md)
-- [Mappings](modules/lonelypianist-macos-mapping.md)
-- [Recorder](modules/lonelypianist-macos-recording.md)
-- [Dialogue](modules/lonelypianist-macos-dialogue.md)
+- [Runtime](lonelypianist-macos-runtime.md)
+- [Mappings](lonelypianist-macos-mapping.md)
+- [Recorder](lonelypianist-macos-recording.md)
+- [Dialogue](lonelypianist-macos-dialogue.md)
 
 ## 风险点
 - `handleMIDIEvent`
@@ -40,3 +40,5 @@
 ## Coverage Gaps
 - 集成测试仍主要覆盖 service / view model 层，没有系统级 E2E。
 
+## 更新记录（Update Notes）
+- 2026-04-26: 修复模块页内部链接（从 `modules/` 前缀改为同目录相对路径）。

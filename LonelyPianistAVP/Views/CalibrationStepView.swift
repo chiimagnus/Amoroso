@@ -31,6 +31,7 @@ struct CalibrationStepView: View {
             isReticleReadyToConfirm: isReticleReadyToConfirm,
             errorMessage: errorMessage,
             onReturnHome: { dismiss() },
+            onRecalibrate: { beginRecalibration() },
             simulatorDemoState: simulatorDemoState,
             onSimulatorDemoAdvance: simulatorDemoState == nil ? nil : { handleSimulatorDemoAdvance() }
         )
@@ -42,6 +43,10 @@ struct CalibrationStepView: View {
                 #if DEBUG
                     viewModel.setCalibrationPhaseForPreview(.capturingA0)
                 #endif
+                return
+            }
+
+            if viewModel.showCalibrationCompletedIfStoredCalibrationExists() {
                 return
             }
 
@@ -65,6 +70,7 @@ struct CalibrationStepView: View {
             }
         }
         .onDisappear {
+            let shouldCloseImmersive = hasRequestedImmersiveOpen
             isStepVisible = false
             hasRequestedImmersiveOpen = false
             #if DEBUG && targetEnvironment(simulator)
@@ -73,11 +79,32 @@ struct CalibrationStepView: View {
             #endif
             viewModel.endCalibrationGuidedFlow()
 
-            if isSimulatorDemoActive == false {
+            if isSimulatorDemoActive == false, shouldCloseImmersive {
                 Task { @MainActor in
                     await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
                     await viewModel.recoverImmersiveStateIfStuck()
                 }
+            }
+        }
+    }
+
+    private func beginRecalibration() {
+        viewModel.beginCalibrationGuidedFlow()
+        guard hasRequestedImmersiveOpen == false else { return }
+        hasRequestedImmersiveOpen = true
+
+        Task { @MainActor in
+            let openError = await viewModel.openImmersiveForStep(
+                mode: .calibration,
+                using: openImmersiveSpace
+            )
+            if let openError {
+                viewModel.presentCalibrationError(message: openError)
+            }
+
+            if isStepVisible == false {
+                await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
+                await viewModel.recoverImmersiveStateIfStuck()
             }
         }
     }
@@ -169,6 +196,7 @@ private struct CalibrationStageCard: View {
     let isReticleReadyToConfirm: Bool
     let errorMessage: String?
     let onReturnHome: () -> Void
+    let onRecalibrate: () -> Void
     let simulatorDemoState: CalibrationSimulatorDemoState?
     let onSimulatorDemoAdvance: (() -> Void)?
 
@@ -191,12 +219,20 @@ private struct CalibrationStageCard: View {
                     )
                 }
 
-                Text(step == .a0 ? "左手食指放在 A0 键，准星变绿后捏合确认。" : "左手食指移到 C8 键，准星变绿后捏合确认。")
-                    .font(.callout)
+                Text(
+                    step == .a0
+                        ? "左手食指放在 A0 键，准星变绿后用右手捏合确认。"
+                        : "右手食指放在 C8 键，准星变绿后用左手捏合确认。"
+                )
+                .font(.callout)
 
-                Text(isReticleReadyToConfirm ? "已就绪：现在可捏合确认" : "等待稳定：准星变绿后再捏合确认")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                Text(
+                    isReticleReadyToConfirm
+                        ? (step == .a0 ? "已就绪：现在可用右手捏合确认" : "已就绪：现在可用左手捏合确认")
+                        : "等待稳定：准星变绿后再捏合确认"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
                 #if DEBUG && targetEnvironment(simulator)
                     if simulatorDemoState == .enabled, let onSimulatorDemoAdvance {
@@ -231,10 +267,15 @@ private struct CalibrationStageCard: View {
             Text("校准完成")
                 .font(.title2.weight(.semibold))
 
+            Button("重新校准") {
+                onRecalibrate()
+            }
+            .buttonStyle(.borderedProminent)
+
             Button("返回首页") {
                 onReturnHome()
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
         }
         .frame(maxWidth: .infinity)
     }

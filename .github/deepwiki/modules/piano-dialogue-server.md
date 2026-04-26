@@ -22,9 +22,9 @@
 | `write_debug_bundle()` | 在 debug 开启时落盘工件 |
 
 ## 重要子页
-- [Protocol](modules/piano-dialogue-server-protocol.md)
-- [Inference](modules/piano-dialogue-server-inference.md)
-- [Debug artifacts](modules/piano-dialogue-server-debug.md)
+- [Protocol](piano-dialogue-server-protocol.md)
+- [Inference](piano-dialogue-server-inference.md)
+- [Debug artifacts](piano-dialogue-server-debug.md)
 
 ## 风险点
 - 模型目录存在但缺权重
@@ -35,3 +35,5 @@
 ## Coverage Gaps
 - 没有并发压测和高负载稳定性数据。
 
+## 更新记录（Update Notes）
+- 2026-04-26: 修复模块页内部链接（从 `modules/` 前缀改为同目录相对路径）。
