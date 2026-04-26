@@ -3,6 +3,7 @@ import Foundation
 import Testing
 
 @Test
+@MainActor
 func singleNoteMatchesWhenExactMIDIWithOnset() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 1_000)
@@ -20,6 +21,7 @@ func singleNoteMatchesWhenExactMIDIWithOnset() {
 }
 
 @Test
+@MainActor
 func singleNoteDoesNotMatchAdjacentSemitone() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 1_000)
@@ -37,6 +39,7 @@ func singleNoteDoesNotMatchAdjacentSemitone() {
 }
 
 @Test
+@MainActor
 func singleNoteReturnsInsufficientWhenConfidenceBelowThreshold() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 1_000)
@@ -54,6 +57,7 @@ func singleNoteReturnsInsufficientWhenConfidenceBelowThreshold() {
 }
 
 @Test
+@MainActor
 func mismatchedGenerationEventsAreIgnored() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 1_000)
@@ -71,6 +75,7 @@ func mismatchedGenerationEventsAreIgnored() {
 }
 
 @Test
+@MainActor
 func triadMatchesWhenTwoExpectedNotesDetectedWithoutStrongWrongNote() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2_000)
@@ -89,6 +94,7 @@ func triadMatchesWhenTwoExpectedNotesDetectedWithoutStrongWrongNote() {
 }
 
 @Test
+@MainActor
 func dyadRequiresBothExpectedNotes() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2_000)
@@ -114,6 +120,7 @@ func dyadRequiresBothExpectedNotes() {
 }
 
 @Test
+@MainActor
 func strongWrongNoteBlocksMatch() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2_100)
@@ -132,6 +139,7 @@ func strongWrongNoteBlocksMatch() {
 }
 
 @Test
+@MainActor
 func expiredEventsAreIgnored() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2_200)
@@ -149,6 +157,7 @@ func expiredEventsAreIgnored() {
 }
 
 @Test
+@MainActor
 func resetForNewStepClearsOldGenerationEvents() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2_300)
@@ -167,6 +176,7 @@ func resetForNewStepClearsOldGenerationEvents() {
 }
 
 @Test
+@MainActor
 func repeatedSameNoteNeedsRearmOrNewOnset() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2_400)
