@@ -23,7 +23,7 @@ func reticleBecomesReadyAfterStayingStable() {
 func reticleReadinessResetsWhenPointMovesTooMuch() {
     let service = CalibrationPointCaptureService()
     let point = SIMD3<Float>(0.1, 0.8, -1.2)
-    let movedPoint = point + SIMD3<Float>(0.003, 0, 0)
+    let movedPoint = point + SIMD3<Float>(0.006, 0, 0)
 
     service.updateReticleFromHandTracking(point, nowUptime: 1.0)
     service.updateReticleFromHandTracking(point, nowUptime: 1.05)
