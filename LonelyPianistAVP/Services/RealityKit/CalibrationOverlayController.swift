@@ -9,7 +9,7 @@ final class CalibrationOverlayController {
     private var reticleEntity: ModelEntity?
 
     func update(
-        reticlePoint: SIMD3<Float>?,
+        leftIndexFingerTipPoint: SIMD3<Float>?,
         content: RealityViewContent
     ) {
         if hasAttachedRoot == false {
@@ -17,7 +17,7 @@ final class CalibrationOverlayController {
             hasAttachedRoot = true
         }
 
-        guard let reticlePoint else {
+        guard let leftIndexFingerTipPoint else {
             reticleEntity?.removeFromParent()
             reticleEntity = nil
             return
@@ -28,7 +28,7 @@ final class CalibrationOverlayController {
             color: AVPOverlayPalette.reticleColor,
             radius: 0.02
         )
-        reticle.position = reticlePoint
+        reticle.position = leftIndexFingerTipPoint
     }
 
     private func ensureSphere(
