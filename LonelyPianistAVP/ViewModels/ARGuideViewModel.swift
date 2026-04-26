@@ -71,7 +71,7 @@ final class ARGuideViewModel {
     private var calibrationGuidedFlowTask: Task<Void, Never>?
     private var calibrationSupportPollTask: Task<Void, Never>?
     private var practiceLocalizationTask: Task<Void, Never>?
-    private var wasRightHandPinching = false
+    private var wasConfirmHandPinching = false
     private let providerStartupTimeoutSeconds = 5
     private let practiceLocalizationTimeoutSeconds = 5
     private let practiceLocalizationPollingIntervalNanoseconds: UInt64 = 250_000_000
@@ -339,7 +339,7 @@ final class ARGuideViewModel {
     func onImmersiveAppear() {
         switch appModel.immersiveMode {
             case .calibration:
-                wasRightHandPinching = false
+                wasConfirmHandPinching = false
                 startHandTrackingIfNeeded()
                 startCalibrationSupportPollingIfNeeded()
                 updateCalibrationTrackingStatusIfNeeded()
@@ -375,24 +375,48 @@ final class ARGuideViewModel {
 
     private func handleCalibrationHandUpdates() {
         let nowUptime = ProcessInfo.processInfo.systemUptime
+        let pendingAnchor = pendingCalibrationCaptureAnchor
+        let reticlePoint: SIMD3<Float>? = switch pendingAnchor {
+            case .a0:
+                arTrackingService.leftIndexFingerTipPosition
+            case .c8:
+                arTrackingService.rightIndexFingerTipPosition
+            case nil:
+                nil
+        }
         calibrationCaptureService.updateReticleFromHandTracking(
-            arTrackingService.leftIndexFingerTipPosition,
+            reticlePoint,
             nowUptime: nowUptime
         )
         updateCalibrationTrackingStatusIfNeeded()
 
-        let isRightHandPinching: Bool = {
-            guard
-                let rightIndex = arTrackingService.rightIndexFingerTipPosition,
-                let rightThumb = arTrackingService.rightThumbTipPosition
-            else {
-                return false
+        let pinchDistanceThresholdMeters: Float = 0.018
+        let isConfirmHandPinching: Bool = {
+            guard let pendingAnchor else { return false }
+            switch pendingAnchor {
+                case .a0:
+                    guard
+                        let rightIndex = arTrackingService.rightIndexFingerTipPosition,
+                        let rightThumb = arTrackingService.rightThumbTipPosition
+                    else {
+                        return false
+                    }
+                    return simd_length(rightIndex - rightThumb) < pinchDistanceThresholdMeters
+
+                case .c8:
+                    guard
+                        let leftIndex = arTrackingService.leftIndexFingerTipPosition,
+                        let leftThumb = arTrackingService.fingerTipPositions.first(where: { key, _ in
+                            key.hasPrefix("left-") && key.hasSuffix("thumbTip")
+                        })?.value
+                    else {
+                        return false
+                    }
+                    return simd_length(leftIndex - leftThumb) < pinchDistanceThresholdMeters
             }
-            let pinchDistanceThresholdMeters: Float = 0.018
-            return simd_length(rightIndex - rightThumb) < pinchDistanceThresholdMeters
         }()
 
-        if isRightHandPinching, wasRightHandPinching == false {
+        if isConfirmHandPinching, wasConfirmHandPinching == false {
             calibrationAnchorCaptureTask?.cancel()
             calibrationAnchorCaptureTask = Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -400,7 +424,7 @@ final class ARGuideViewModel {
                 calibrationAnchorCaptureTask = nil
             }
         }
-        wasRightHandPinching = isRightHandPinching
+        wasConfirmHandPinching = isConfirmHandPinching
     }
 
     private func updateCalibrationTrackingStatusIfNeeded() {
@@ -433,7 +457,12 @@ final class ARGuideViewModel {
     private func confirmPendingCalibrationAnchorIfReady() async {
         guard let pendingAnchor = pendingCalibrationCaptureAnchor else { return }
         guard calibrationCaptureService.isReticleReadyToConfirm else {
-            calibrationStatusMessage = "请先将左手食指放稳在 \(pendingAnchor == .a0 ? "A0" : "C8") 键上（等待准星变绿），再用右手捏合确认。"
+            calibrationStatusMessage = switch pendingAnchor {
+                case .a0:
+                    "请先将左手食指放稳在 A0 键上，再用右手捏合确认。"
+                case .c8:
+                    "请先将右手食指放稳在 C8 键上，再用左手捏合确认。"
+            }
             return
         }
 

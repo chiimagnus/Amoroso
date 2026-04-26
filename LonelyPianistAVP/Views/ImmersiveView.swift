@@ -6,10 +6,26 @@ struct ImmersiveView: View {
     @State private var overlayController = PianoGuideOverlayController()
     @State private var calibrationOverlayController = CalibrationOverlayController()
 
+    private var reticlePointForOverlay: SIMD3<Float>? {
+        switch viewModel.immersiveMode {
+            case .calibration:
+                switch viewModel.pendingCalibrationCaptureAnchor {
+                    case .a0:
+                        viewModel.arTrackingService.leftIndexFingerTipPosition
+                    case .c8:
+                        viewModel.arTrackingService.rightIndexFingerTipPosition
+                    case nil:
+                        nil
+                }
+            case .practice:
+                viewModel.arTrackingService.leftIndexFingerTipPosition
+        }
+    }
+
     var body: some View {
         RealityView { content in
             calibrationOverlayController.update(
-                leftIndexFingerTipPoint: viewModel.arTrackingService.leftIndexFingerTipPosition,
+                reticlePoint: reticlePointForOverlay,
                 content: content
             )
             overlayController.updateHighlights(
@@ -20,7 +36,7 @@ struct ImmersiveView: View {
             )
         } update: { content in
             calibrationOverlayController.update(
-                leftIndexFingerTipPoint: viewModel.arTrackingService.leftIndexFingerTipPosition,
+                reticlePoint: reticlePointForOverlay,
                 content: content
             )
             overlayController.updateHighlights(
