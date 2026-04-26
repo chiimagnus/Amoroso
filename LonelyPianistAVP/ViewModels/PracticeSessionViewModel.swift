@@ -79,7 +79,7 @@ final class PracticeSessionViewModel {
         noteOutput: PracticeMIDINoteOutputProtocol? = nil,
         audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil,
         audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil,
-        handPianoActivityGate: HandPianoActivityGate = HandPianoActivityGate()
+        handPianoActivityGate: HandPianoActivityGate? = nil
     ) {
         self.pressDetectionService = pressDetectionService
         self.chordAttemptAccumulator = chordAttemptAccumulator
@@ -88,7 +88,7 @@ final class PracticeSessionViewModel {
         self.noteOutput = noteOutput ?? (noteAudioPlayer as? PracticeMIDINoteOutputProtocol)
         self.audioRecognitionService = audioRecognitionService
         self.audioStepAttemptAccumulator = audioStepAttemptAccumulator ?? AudioStepAttemptAccumulator()
-        self.handPianoActivityGate = handPianoActivityGate
+        self.handPianoActivityGate = handPianoActivityGate ?? HandPianoActivityGate()
         bindAudioRecognitionStreamsIfNeeded()
     }
 

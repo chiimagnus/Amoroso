@@ -161,6 +161,18 @@ struct PracticeStepView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
+            Divider()
+
+            Text(viewModel.step3ARStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(viewModel.step3HandAssistStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(viewModel.step3AudioStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             Text("提示：即使定位失败或环境不支持，你也可以直接使用下方 2D 键盘的“下一步”继续练习。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
