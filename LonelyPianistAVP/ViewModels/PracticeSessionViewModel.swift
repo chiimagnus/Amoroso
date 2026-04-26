@@ -35,6 +35,12 @@ final class PracticeSessionViewModel {
     private(set) var audioErrorMessage: String?
     private(set) var audioRecognitionStatus: PracticeAudioRecognitionStatus = .idle
     private(set) var audioRecognitionDebugSnapshot: PracticeAudioRecognitionDebugSnapshot = .empty
+    private(set) var handGateState = HandGateState(
+        isNearKeyboard: false,
+        hasDownwardMotion: false,
+        exactPressedNotes: [],
+        confidenceBoost: 0
+    )
     var noteMatchTolerance: Int = 1
 
     private let pressDetectionService: PressDetectionServiceProtocol
@@ -44,6 +50,7 @@ final class PracticeSessionViewModel {
     private let noteOutput: PracticeMIDINoteOutputProtocol?
     private let audioRecognitionService: PracticeAudioRecognitionServiceProtocol?
     private let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
+    private let handPianoActivityGate: HandPianoActivityGate
     private var feedbackResetTask: Task<Void, Never>?
     private var autoplayTask: Task<Void, Never>?
     private var audioRecognitionEventsTask: Task<Void, Never>?
@@ -71,7 +78,8 @@ final class PracticeSessionViewModel {
         noteAudioPlayer: PracticeNoteAudioPlayerProtocol?,
         noteOutput: PracticeMIDINoteOutputProtocol? = nil,
         audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil,
-        audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil
+        audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil,
+        handPianoActivityGate: HandPianoActivityGate = HandPianoActivityGate()
     ) {
         self.pressDetectionService = pressDetectionService
         self.chordAttemptAccumulator = chordAttemptAccumulator
@@ -80,6 +88,7 @@ final class PracticeSessionViewModel {
         self.noteOutput = noteOutput ?? (noteAudioPlayer as? PracticeMIDINoteOutputProtocol)
         self.audioRecognitionService = audioRecognitionService
         self.audioStepAttemptAccumulator = audioStepAttemptAccumulator ?? AudioStepAttemptAccumulator()
+        self.handPianoActivityGate = handPianoActivityGate
         bindAudioRecognitionStreamsIfNeeded()
     }
 
@@ -231,6 +240,13 @@ final class PracticeSessionViewModel {
         calibration = nil
         keyboardGeometry = nil
         pressedNotes.removeAll()
+        handPianoActivityGate.reset()
+        handGateState = HandGateState(
+            isNearKeyboard: false,
+            hasDownwardMotion: false,
+            exactPressedNotes: [],
+            confidenceBoost: 0
+        )
     }
 
     func resetSession() {
@@ -256,6 +272,13 @@ final class PracticeSessionViewModel {
         currentStepIndex = 0
         state = .idle
         pendingAutoplayOnsetsByTick = [:]
+        handPianoActivityGate.reset()
+        handGateState = HandGateState(
+            isNearKeyboard: false,
+            hasDownwardMotion: false,
+            exactPressedNotes: [],
+            confidenceBoost: 0
+        )
     }
 
     func clearAudioError() {
@@ -326,6 +349,11 @@ final class PracticeSessionViewModel {
         )
         if detected.isEmpty == false {
             pressedNotes = detected
+            handGateState = handPianoActivityGate.evaluate(
+                fingerTips: fingerTips,
+                keyboardGeometry: keyboardGeometry,
+                exactPressedNotes: detected
+            )
             if let currentStep {
                 let expected = currentStep.notes.map(\.midiNote)
                 let isMatched = chordAttemptAccumulator.register(
@@ -348,6 +376,12 @@ final class PracticeSessionViewModel {
                     }
                 }
             }
+        } else {
+            handGateState = handPianoActivityGate.evaluate(
+                fingerTips: fingerTips,
+                keyboardGeometry: keyboardGeometry,
+                exactPressedNotes: []
+            )
         }
         return detected
     }
@@ -744,7 +778,7 @@ final class PracticeSessionViewModel {
             wrongCandidateMIDINotes: wrongMIDINotes,
             generation: audioRecognitionGeneration,
             at: event.timestamp,
-            handGateBoost: false
+            handGateBoost: handGateState.isNearKeyboard || handGateState.hasDownwardMotion
         )
 
         switch matchResult {
