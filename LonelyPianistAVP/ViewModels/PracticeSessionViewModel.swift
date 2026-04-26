@@ -61,6 +61,8 @@ final class PracticeSessionViewModel {
     private var pendingAutoplayOnsetsByTick: [Int: [PracticeStepNote]] = [:]
     private var audioRecognitionGeneration = 0
     private var isAudioRecognitionRunning = false
+    private var audioRecognitionSuppressUntil: Date?
+    private let audioRecognitionSuppressDuration: TimeInterval = 0.6
 
     init(
         pressDetectionService: PressDetectionServiceProtocol,
@@ -264,12 +266,12 @@ final class PracticeSessionViewModel {
         guard state == .ready, steps.isEmpty == false else { return }
         currentStepIndex = 0
         state = .guiding(stepIndex: currentStepIndex)
+        refreshAudioRecognitionForCurrentState()
         if autoplayState == .playing {
             prepareAutoplayOnsetsForCurrentStep()
         } else {
             playCurrentStepSound()
         }
-        refreshAudioRecognitionForCurrentState()
         startAutoplayTaskIfNeeded()
     }
 
@@ -283,6 +285,14 @@ final class PracticeSessionViewModel {
     func playCurrentStepSound() {
         guard let currentStep else { return }
         guard audioErrorMessage == nil else { return }
+        if let audioRecognitionService {
+            let suppressUntil = Date().addingTimeInterval(audioRecognitionSuppressDuration)
+            audioRecognitionSuppressUntil = suppressUntil
+            audioRecognitionService.suppressRecognition(
+                until: suppressUntil,
+                generation: audioRecognitionGeneration
+            )
+        }
         do {
             try noteAudioPlayer?.play(midiNotes: currentStep.notes.map(\.midiNote))
         } catch {
@@ -351,12 +361,12 @@ final class PracticeSessionViewModel {
         if currentStepIndex + 1 < steps.count {
             currentStepIndex += 1
             state = .guiding(stepIndex: currentStepIndex)
+            refreshAudioRecognitionForCurrentState()
             if autoplayState == .playing {
                 prepareAutoplayOnsetsForCurrentStep()
             } else {
                 playCurrentStepSound()
             }
-            refreshAudioRecognitionForCurrentState()
         } else {
             currentStepIndex = steps.count
             pressedNotes.removeAll()
@@ -720,6 +730,9 @@ final class PracticeSessionViewModel {
     private func handleAudioRecognitionEvent(_ event: DetectedNoteEvent) {
         guard autoplayState == .off else { return }
         guard event.generation == audioRecognitionGeneration else { return }
+        if let audioRecognitionSuppressUntil, event.timestamp <= audioRecognitionSuppressUntil {
+            return
+        }
         guard let currentStep else { return }
 
         let expectedMIDINotes = currentStep.notes.map(\.midiNote)

@@ -135,13 +135,111 @@ func matchingAudioEventAdvancesStep() async {
             confidence: 0.92,
             onsetScore: 0.9,
             isOnset: true,
-            timestamp: .now,
+            timestamp: Date().addingTimeInterval(0.8),
             generation: generation,
             source: .audio
         )
     )
     await settleTaskQueue()
 
+    #expect(viewModel.currentStepIndex == 1)
+}
+
+@Test
+@MainActor
+func suppressWindowBlocksThenAllowsAdvance() async {
+    UserDefaults.standard.set(true, forKey: "practiceAudioRecognitionEnabled")
+    let fakeService = FakePracticeAudioRecognitionService()
+    let audioPlayer = CapturingAudioPlayer()
+    let viewModel = PracticeSessionViewModel(
+        pressDetectionService: NoopPressDetectionService(),
+        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
+        sleeper: TaskSleeper(),
+        noteAudioPlayer: audioPlayer,
+        audioRecognitionService: fakeService
+    )
+    viewModel.setSteps([
+        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
+        PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
+    ])
+    viewModel.startGuidingIfReady()
+    await settleTaskQueue()
+    let generation = fakeService.startCalls.first?.generation ?? 0
+
+    fakeService.emitEvent(
+        DetectedNoteEvent(
+            midiNote: 60,
+            confidence: 0.9,
+            onsetScore: 0.8,
+            isOnset: true,
+            timestamp: Date(),
+            generation: generation,
+            source: .audio
+        )
+    )
+    await settleTaskQueue()
+    #expect(viewModel.currentStepIndex == 0)
+
+    fakeService.emitEvent(
+        DetectedNoteEvent(
+            midiNote: 60,
+            confidence: 0.9,
+            onsetScore: 0.8,
+            isOnset: true,
+            timestamp: Date().addingTimeInterval(0.8),
+            generation: generation,
+            source: .audio
+        )
+    )
+    await settleTaskQueue()
+    #expect(viewModel.currentStepIndex == 1)
+}
+
+@Test
+@MainActor
+func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
+    UserDefaults.standard.set(true, forKey: "practiceAudioRecognitionEnabled")
+    let fakeService = FakePracticeAudioRecognitionService()
+    let viewModel = makeViewModel(audioRecognitionService: fakeService)
+    viewModel.setSteps([
+        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
+        PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
+    ])
+    viewModel.startGuidingIfReady()
+    await settleTaskQueue()
+    let generation = fakeService.startCalls.first?.generation ?? 0
+
+    viewModel.setAutoplayEnabled(true)
+    await settleTaskQueue()
+    fakeService.emitEvent(
+        DetectedNoteEvent(
+            midiNote: 60,
+            confidence: 0.95,
+            onsetScore: 0.9,
+            isOnset: true,
+            timestamp: Date().addingTimeInterval(0.8),
+            generation: generation,
+            source: .audio
+        )
+    )
+    await settleTaskQueue()
+    #expect(viewModel.currentStepIndex == 0)
+
+    viewModel.setAutoplayEnabled(false)
+    await settleTaskQueue()
+    let resumedGeneration = fakeService.startCalls.last?.generation ?? generation
+    fakeService.emitEvent(
+        DetectedNoteEvent(
+            midiNote: 60,
+            confidence: 0.95,
+            onsetScore: 0.9,
+            isOnset: true,
+            timestamp: Date().addingTimeInterval(1.6),
+            generation: resumedGeneration,
+            source: .audio
+        )
+    )
+    await settleTaskQueue()
     #expect(viewModel.currentStepIndex == 1)
 }
 
@@ -205,4 +303,8 @@ private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     }
 
     func reset() {}
+}
+
+private final class CapturingAudioPlayer: PracticeNoteAudioPlayerProtocol {
+    func play(midiNotes _: [Int]) throws {}
 }
