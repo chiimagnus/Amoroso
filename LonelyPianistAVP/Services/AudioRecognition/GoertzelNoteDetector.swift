@@ -1,0 +1,101 @@
+import Foundation
+
+struct GoertzelNoteDetection: Sendable, Equatable {
+    let midiNote: Int
+    let confidence: Double
+    let rawEnergy: Double
+    let onsetScore: Double
+    let isOnset: Bool
+}
+
+struct GoertzelNoteDetector {
+    var centTolerance: Double = 25
+    var onsetThreshold: Double = 0.25
+
+    private static let detuneOffsetsInCents: [Double] = [-25, -12, 0, 12, 25]
+    private static let harmonicWeights: [Double] = [1.0, 0.65, 0.45, 0.30]
+
+    private var previousEnergyByMIDINote: [Int: Double] = [:]
+
+    mutating func detect(samples: [Float], sampleRate: Double, candidateMIDINotes: [Int]) -> [GoertzelNoteDetection] {
+        guard samples.isEmpty == false else { return [] }
+        guard sampleRate > 0 else { return [] }
+        guard candidateMIDINotes.isEmpty == false else { return [] }
+
+        var energiesByMIDINote: [Int: Double] = [:]
+        for midiNote in Set(candidateMIDINotes) {
+            energiesByMIDINote[midiNote] = energyForMIDINote(midiNote, samples: samples, sampleRate: sampleRate)
+        }
+
+        let maxEnergy = energiesByMIDINote.values.max() ?? 0
+        let denominator = max(maxEnergy, 1e-9)
+
+        return energiesByMIDINote
+            .map { midiNote, rawEnergy in
+                let previousEnergy = previousEnergyByMIDINote[midiNote] ?? 0
+                let onsetScore = max(0, (rawEnergy - previousEnergy) / max(previousEnergy, 1e-9))
+                let confidence = min(1.0, rawEnergy / denominator)
+                previousEnergyByMIDINote[midiNote] = rawEnergy
+                return GoertzelNoteDetection(
+                    midiNote: midiNote,
+                    confidence: confidence,
+                    rawEnergy: rawEnergy,
+                    onsetScore: onsetScore,
+                    isOnset: onsetScore >= onsetThreshold
+                )
+            }
+            .sorted { lhs, rhs in
+                lhs.rawEnergy > rhs.rawEnergy
+            }
+    }
+
+    private func energyForMIDINote(_ midiNote: Int, samples: [Float], sampleRate: Double) -> Double {
+        let baseFrequency = midiFrequency(midiNote: midiNote)
+        let offsetCandidates = Self.detuneOffsetsInCents.filter { abs($0) <= centTolerance }
+        var bestEnergy = 0.0
+
+        for offset in offsetCandidates {
+            let offsetFrequency = baseFrequency * pow(2.0, offset / 1200.0)
+            let weightedEnergy = harmonicEnergy(baseFrequency: offsetFrequency, samples: samples, sampleRate: sampleRate)
+            if weightedEnergy > bestEnergy {
+                bestEnergy = weightedEnergy
+            }
+        }
+        return bestEnergy
+    }
+
+    private func harmonicEnergy(baseFrequency: Double, samples: [Float], sampleRate: Double) -> Double {
+        let nyquist = sampleRate * 0.5
+        var result = 0.0
+
+        for (index, weight) in Self.harmonicWeights.enumerated() {
+            let harmonicFrequency = baseFrequency * Double(index + 1)
+            guard harmonicFrequency < nyquist else { continue }
+            result += goertzelMagnitudeSquared(samples: samples, sampleRate: sampleRate, targetFrequency: harmonicFrequency) * weight
+        }
+        return result
+    }
+
+    private func goertzelMagnitudeSquared(samples: [Float], sampleRate: Double, targetFrequency: Double) -> Double {
+        let sampleCount = Double(samples.count)
+        let k = round((sampleCount * targetFrequency) / sampleRate)
+        let omega = (2.0 * .pi * k) / sampleCount
+        let coefficient = 2.0 * cos(omega)
+
+        var q0 = 0.0
+        var q1 = 0.0
+        var q2 = 0.0
+
+        for sample in samples {
+            q0 = coefficient * q1 - q2 + Double(sample)
+            q2 = q1
+            q1 = q0
+        }
+
+        return q1 * q1 + q2 * q2 - coefficient * q1 * q2
+    }
+
+    private func midiFrequency(midiNote: Int) -> Double {
+        440.0 * pow(2.0, Double(midiNote - 69) / 12.0)
+    }
+}
