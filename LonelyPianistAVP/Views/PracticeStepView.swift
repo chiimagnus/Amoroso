@@ -14,6 +14,7 @@ struct PracticeStepView: View {
     @State private var isAudioErrorAlertPresented = false
 
     @AppStorage("practiceStep3AutoplayEnabled") private var isAutoplayEnabled = false
+    @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var isAudioDebugOverlayEnabled = false
 
     var body: some View {
         PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes, fingeringByMIDINote: fingeringByMIDINote)
@@ -22,8 +23,17 @@ struct PracticeStepView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 18)
             .overlay {
-                Step3WindowGeometryHint()
-                    .frame(width: 0, height: 0)
+                ZStack(alignment: .topTrailing) {
+                    Step3WindowGeometryHint()
+                        .frame(width: 0, height: 0)
+                    if isAudioDebugOverlayEnabled {
+                        Step3AudioDebugOverlay(
+                            sessionViewModel: viewModel.practiceSessionViewModel,
+                            isAutoplayEnabled: isAutoplayEnabled
+                        )
+                        .padding(12)
+                    }
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .bottomOrnament) {

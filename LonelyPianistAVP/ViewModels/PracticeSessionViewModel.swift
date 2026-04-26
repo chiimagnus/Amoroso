@@ -814,4 +814,9 @@ final class PracticeSessionViewModel {
         }
         return UserDefaults.standard.bool(forKey: "practiceAudioRecognitionEnabled")
     }
+
+    var audioRecognitionSuppressRemainingSeconds: TimeInterval {
+        guard let audioRecognitionSuppressUntil else { return 0 }
+        return max(0, audioRecognitionSuppressUntil.timeIntervalSinceNow)
+    }
 }
