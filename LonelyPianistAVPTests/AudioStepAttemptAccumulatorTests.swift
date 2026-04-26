@@ -70,9 +70,150 @@ func mismatchedGenerationEventsAreIgnored() {
     #expect(result == .insufficient(progress: "single note pending"))
 }
 
+@Test
+func triadMatchesWhenTwoExpectedNotesDetectedWithoutStrongWrongNote() {
+    let accumulator = AudioStepAttemptAccumulator()
+    let now = Date(timeIntervalSince1970: 2_000)
+    accumulator.resetForNewStep(generation: 2)
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.8, isOnset: true, timestamp: now, generation: 2))
+    accumulator.register(event: makeEvent(midiNote: 64, confidence: 0.85, isOnset: true, timestamp: now.addingTimeInterval(0.03), generation: 2))
+
+    let result = accumulator.evaluate(
+        expectedMIDINotes: [60, 64, 67],
+        wrongCandidateMIDINotes: [61, 66],
+        generation: 2,
+        at: now.addingTimeInterval(0.04)
+    )
+
+    #expect(result == .matched(reason: "chord majority matched"))
+}
+
+@Test
+func dyadRequiresBothExpectedNotes() {
+    let accumulator = AudioStepAttemptAccumulator()
+    let now = Date(timeIntervalSince1970: 2_000)
+    accumulator.resetForNewStep(generation: 3)
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.85, isOnset: true, timestamp: now, generation: 3))
+
+    let insufficient = accumulator.evaluate(
+        expectedMIDINotes: [60, 64],
+        wrongCandidateMIDINotes: [],
+        generation: 3,
+        at: now.addingTimeInterval(0.02)
+    )
+    #expect(insufficient == .insufficient(progress: "chord 1/2"))
+
+    accumulator.register(event: makeEvent(midiNote: 64, confidence: 0.84, isOnset: true, timestamp: now.addingTimeInterval(0.04), generation: 3))
+    let matched = accumulator.evaluate(
+        expectedMIDINotes: [60, 64],
+        wrongCandidateMIDINotes: [],
+        generation: 3,
+        at: now.addingTimeInterval(0.05)
+    )
+    #expect(matched == .matched(reason: "chord majority matched"))
+}
+
+@Test
+func strongWrongNoteBlocksMatch() {
+    let accumulator = AudioStepAttemptAccumulator()
+    let now = Date(timeIntervalSince1970: 2_100)
+    accumulator.resetForNewStep(generation: 4)
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.7, isOnset: true, timestamp: now, generation: 4))
+    accumulator.register(event: makeEvent(midiNote: 61, confidence: 0.95, isOnset: true, timestamp: now.addingTimeInterval(0.01), generation: 4))
+
+    let result = accumulator.evaluate(
+        expectedMIDINotes: [60],
+        wrongCandidateMIDINotes: [61],
+        generation: 4,
+        at: now.addingTimeInterval(0.02)
+    )
+
+    #expect(result == .wrong(reason: "wrong note dominates window"))
+}
+
+@Test
+func expiredEventsAreIgnored() {
+    let accumulator = AudioStepAttemptAccumulator()
+    let now = Date(timeIntervalSince1970: 2_200)
+    accumulator.resetForNewStep(generation: 5)
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.9, isOnset: true, timestamp: now, generation: 5))
+
+    let result = accumulator.evaluate(
+        expectedMIDINotes: [60],
+        wrongCandidateMIDINotes: [],
+        generation: 5,
+        at: now.addingTimeInterval(0.6)
+    )
+
+    #expect(result == .insufficient(progress: "single note pending"))
+}
+
+@Test
+func resetForNewStepClearsOldGenerationEvents() {
+    let accumulator = AudioStepAttemptAccumulator()
+    let now = Date(timeIntervalSince1970: 2_300)
+    accumulator.resetForNewStep(generation: 6)
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.9, isOnset: true, timestamp: now, generation: 6))
+    accumulator.resetForNewStep(generation: 7)
+
+    let result = accumulator.evaluate(
+        expectedMIDINotes: [60],
+        wrongCandidateMIDINotes: [],
+        generation: 7,
+        at: now.addingTimeInterval(0.01)
+    )
+
+    #expect(result == .insufficient(progress: "single note pending"))
+}
+
+@Test
+func repeatedSameNoteNeedsRearmOrNewOnset() {
+    let accumulator = AudioStepAttemptAccumulator()
+    let now = Date(timeIntervalSince1970: 2_400)
+    accumulator.resetForNewStep(generation: 8)
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.9, isOnset: true, timestamp: now, generation: 8))
+
+    let first = accumulator.evaluate(
+        expectedMIDINotes: [60],
+        wrongCandidateMIDINotes: [],
+        generation: 8,
+        at: now
+    )
+    #expect(first == .matched(reason: "single note matched"))
+    accumulator.markMatchedAndRequireRearm(expectedMIDINotes: [60], at: now)
+
+    accumulator.register(
+        event: makeEvent(
+            midiNote: 60,
+            confidence: 0.9,
+            onsetScore: 1.0,
+            isOnset: false,
+            timestamp: now.addingTimeInterval(0.02),
+            generation: 8
+        )
+    )
+    let blocked = accumulator.evaluate(
+        expectedMIDINotes: [60],
+        wrongCandidateMIDINotes: [],
+        generation: 8,
+        at: now.addingTimeInterval(0.02)
+    )
+    #expect(blocked == .insufficient(progress: "single note pending"))
+
+    accumulator.register(event: makeEvent(midiNote: 60, confidence: 0.92, isOnset: true, timestamp: now.addingTimeInterval(0.03), generation: 8))
+    let second = accumulator.evaluate(
+        expectedMIDINotes: [60],
+        wrongCandidateMIDINotes: [],
+        generation: 8,
+        at: now.addingTimeInterval(0.03)
+    )
+    #expect(second == .matched(reason: "single note matched"))
+}
+
 private func makeEvent(
     midiNote: Int,
     confidence: Double,
+    onsetScore: Double? = nil,
     isOnset: Bool,
     timestamp: Date,
     generation: Int
@@ -80,7 +221,7 @@ private func makeEvent(
     DetectedNoteEvent(
         midiNote: midiNote,
         confidence: confidence,
-        onsetScore: isOnset ? 1.0 : 0.0,
+        onsetScore: onsetScore ?? (isOnset ? 1.0 : 0.0),
         isOnset: isOnset,
         timestamp: timestamp,
         generation: generation,
