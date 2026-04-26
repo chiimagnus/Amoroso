@@ -35,6 +35,7 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
     private let audioEngine: AVAudioEngine
     private let processingQueue = DispatchQueue(label: "com.lonelypianist.audio.recognition.processing", qos: .userInitiated)
     private let lock = NSLock()
+    private let detectorLock = NSLock()
     private let recognitionLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
         category: "Step3AudioRecognition"
@@ -178,12 +179,14 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         let sampleRate = buffer.format.sampleRate
         let startedAt = CFAbsoluteTimeGetCurrent()
         let debugLoggingEnabled = UserDefaults.standard.bool(forKey: "practiceAudioRecognitionDebugOverlayEnabled")
+        detectorLock.lock()
         let detections = detector.detect(
             samples: samples,
             sampleRate: sampleRate,
             candidateMIDINotes: expectedMIDINotes + wrongCandidateMIDINotes,
             debugLoggingEnabled: debugLoggingEnabled
         )
+        detectorLock.unlock()
         if debugLoggingEnabled {
             performanceLogger.debug(
                 "step3 audio process ms=\((CFAbsoluteTimeGetCurrent() - startedAt) * 1_000, privacy: .public) detections=\(detections.count, privacy: .public)"
@@ -244,7 +247,9 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         self.expectedMIDINotes = expectedMIDINotes
         self.wrongCandidateMIDINotes = wrongCandidateMIDINotes
         currentGeneration = generation
+        detectorLock.lock()
         detector = GoertzelNoteDetector()
+        detectorLock.unlock()
         suppressUntil = nil
         recentDetectedNotes.removeAll()
         lock.unlock()
