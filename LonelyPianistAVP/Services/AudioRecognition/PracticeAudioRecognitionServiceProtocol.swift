@@ -12,6 +12,7 @@ protocol PracticeAudioRecognitionServiceProtocol: AnyObject {
         suppressUntil: Date?
     ) async throws
     func updateExpectedNotes(_ expectedMIDINotes: [Int], wrongCandidateMIDINotes: [Int], generation: Int)
+    func configureDetectorMode(_ mode: PracticeAudioRecognitionDetectorMode, profile: HarmonicTemplateTuningProfile)
     func suppressRecognition(until date: Date, generation: Int)
     func stop()
 }

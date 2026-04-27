@@ -12,8 +12,8 @@ struct PracticeSettingsView: View {
     @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var practiceAudioRecognitionDebugOverlayEnabled =
         false
     @AppStorage("practiceStep3AudioRecognitionMode") private var practiceStep3AudioRecognitionMode =
-        Step3AudioRecognitionMode
-            .lowLatency
+        PracticeAudioRecognitionDetectorMode
+            .automatic
             .rawValue
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
 
@@ -52,8 +52,9 @@ struct PracticeSettingsView: View {
                 "Step3 音频识别模式",
                 selection: $practiceStep3AudioRecognitionMode
             ) {
-                Text("低延迟").tag(Step3AudioRecognitionMode.lowLatency.rawValue)
-                Text("更严格").tag(Step3AudioRecognitionMode.stricter.rawValue)
+                Text("自动").tag(PracticeAudioRecognitionDetectorMode.automatic.rawValue)
+                Text("谐波模板").tag(PracticeAudioRecognitionDetectorMode.harmonicTemplate.rawValue)
+                Text("Goertzel").tag(PracticeAudioRecognitionDetectorMode.simpleGoertzel.rawValue)
             }
             .pickerStyle(.segmented)
             Toggle("调试：显示音频识别 overlay", isOn: $practiceAudioRecognitionDebugOverlayEnabled)
