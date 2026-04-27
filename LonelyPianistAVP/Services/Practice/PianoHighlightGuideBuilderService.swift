@@ -23,18 +23,15 @@ struct PianoHighlightGuideBuilderService {
     private struct SourceNoteKey: Hashable {
         let midiNote: Int
         let staff: Int
+        let voice: Int
         let tick: Int
     }
 
     private struct SpanKey: Hashable {
         let midiNote: Int
         let staff: Int
+        let voice: Int
         let onTick: Int
-    }
-
-    private struct ReleaseEvent {
-        let tick: Int
-        let note: PianoHighlightNote
     }
 
     private let playableRange = 21 ... 108
@@ -57,18 +54,19 @@ struct PianoHighlightGuideBuilderService {
             for stepNote in step.notes {
                 let onTick = step.tick + stepNote.onTickOffset
                 let staff = stepNote.staff ?? 1
-                let source = sourceNotesByKey[SourceNoteKey(midiNote: stepNote.midiNote, staff: staff, tick: onTick)]
-                    ?? sourceNotesByKey[SourceNoteKey(midiNote: stepNote.midiNote, staff: staff, tick: step.tick)]
-                let voice = source?.voice ?? 1
-                let span = spanByKey[SpanKey(midiNote: stepNote.midiNote, staff: staff, onTick: onTick)]
-                    ?? spanByKey[SpanKey(midiNote: stepNote.midiNote, staff: staff, onTick: step.tick)]
+                let voice = stepNote.voice ?? 1
+                let source = sourceNotesByKey[SourceNoteKey(midiNote: stepNote.midiNote, staff: staff, voice: voice, tick: onTick)]
+                    ?? sourceNotesByKey[SourceNoteKey(midiNote: stepNote.midiNote, staff: staff, voice: voice, tick: step.tick)]
+                let span = spanByKey[SpanKey(midiNote: stepNote.midiNote, staff: staff, voice: voice, onTick: onTick)]
+                    ?? spanByKey[SpanKey(midiNote: stepNote.midiNote, staff: staff, voice: voice, onTick: step.tick)]
+                let resolvedVoice = source?.voice ?? voice
                 let offTick = max(onTick, span?.offTick ?? (onTick + max(1, source?.durationTicks ?? 1)))
                 occurrenceCounter += 1
                 let note = PianoHighlightNote(
-                    occurrenceID: "h-\(occurrenceCounter)-\(stepNote.midiNote)-\(onTick)-\(staff)-\(voice)",
+                    occurrenceID: "h-\(occurrenceCounter)-\(stepNote.midiNote)-\(onTick)-\(staff)-\(resolvedVoice)",
                     midiNote: stepNote.midiNote,
                     staff: stepNote.staff,
-                    voice: voice,
+                    voice: resolvedVoice,
                     velocity: stepNote.velocity,
                     onTick: onTick,
                     offTick: offTick,
@@ -131,7 +129,11 @@ struct PianoHighlightGuideBuilderService {
                 durationTicks: durationTicks,
                 practiceStepIndex: practiceStepIndex,
                 activeNotes: activeNotes,
-                triggeredNotes: triggers.sorted { $0.midiNote < $1.midiNote },
+                triggeredNotes: triggers.sorted { lhs, rhs in
+                    if lhs.midiNote != rhs.midiNote { return lhs.midiNote < rhs.midiNote }
+                    if (lhs.staff ?? 0) != (rhs.staff ?? 0) { return (lhs.staff ?? 0) < (rhs.staff ?? 0) }
+                    return (lhs.voice ?? 0) < (rhs.voice ?? 0)
+                },
                 releasedMIDINotes: releasedMIDINotes
             ))
         }
@@ -146,7 +148,7 @@ struct PianoHighlightGuideBuilderService {
                     occurrenceID: "fallback-\(index)-\(noteIndex)-\(stepNote.midiNote)",
                     midiNote: stepNote.midiNote,
                     staff: stepNote.staff,
-                    voice: nil,
+                    voice: stepNote.voice,
                     velocity: stepNote.velocity,
                     onTick: step.tick + stepNote.onTickOffset,
                     offTick: step.tick + stepNote.onTickOffset,
@@ -179,7 +181,8 @@ struct PianoHighlightGuideBuilderService {
             if note.isGrace, expressivity.graceEnabled == false { continue }
             guard let midiNote = note.midiNote else { continue }
             let staff = note.staff ?? 1
-            let key = SourceNoteKey(midiNote: midiNote, staff: staff, tick: note.tick)
+            let voice = note.voice ?? 1
+            let key = SourceNoteKey(midiNote: midiNote, staff: staff, voice: voice, tick: note.tick)
             if result[key] == nil {
                 result[key] = note
             }
@@ -193,7 +196,7 @@ struct PianoHighlightGuideBuilderService {
         result.reserveCapacity(spans.count)
 
         for span in spans {
-            let key = SpanKey(midiNote: span.midiNote, staff: span.staff, onTick: span.onTick)
+            let key = SpanKey(midiNote: span.midiNote, staff: span.staff, voice: span.voice, onTick: span.onTick)
             if let existing = result[key] {
                 if span.offTick > existing.offTick {
                     result[key] = span

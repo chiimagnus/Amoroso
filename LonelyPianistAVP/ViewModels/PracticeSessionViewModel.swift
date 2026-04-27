@@ -353,7 +353,7 @@ final class PracticeSessionViewModel {
             prepareAudioRecognitionSuppressWindowForPlayback()
         }
         do {
-            try noteAudioPlayer?.play(midiNotes: currentStep.notes.map(\.midiNote))
+            try noteAudioPlayer?.play(midiNotes: uniqueMIDINotes(in: currentStep))
         } catch {
             recordPlaybackError(error)
         }
@@ -391,7 +391,7 @@ final class PracticeSessionViewModel {
                 exactPressedNotes: detected
             )
             if autoplayState == .off, let currentStep {
-                let expected = currentStep.notes.map(\.midiNote)
+                let expected = uniqueMIDINotes(in: currentStep)
                 let isMatched = chordAttemptAccumulator.register(
                     pressedNotes: detected,
                     expectedNotes: expected,
@@ -455,7 +455,7 @@ final class PracticeSessionViewModel {
     private func startAutoplayTaskIfNeeded() {
         guard autoplayState == .playing else { return }
         guard case .guiding = state else { return }
-        guard steps.count >= 2 else { return }
+        guard steps.isEmpty == false else { return }
 
         if autoplayTask != nil {
             return
@@ -473,21 +473,28 @@ final class PracticeSessionViewModel {
                 guard case .guiding = state else { break }
 
                 let index = currentStepIndex
-                guard index + 1 < steps.count else { break }
-
-                let nextStepTick = steps[index + 1].tick
+                let nextStepTick = steps.indices.contains(index + 1) ? steps[index + 1].tick : Int.max
                 let nextPedalChange = pedalTimeline?.nextChange(afterTick: currentTick)
                 let nextPedalTick = nextPedalChange?.tick ?? Int.max
                 let nextPedalReleaseTick = pedalTimeline?.nextReleaseEdge(afterTick: currentTick) ?? Int.max
                 let nextNoteOffTick = activeNoteOffTickByMIDI.values.min() ?? Int.max
                 let nextNoteOnTick = pendingAutoplayOnsetsByTick.keys.min() ?? Int.max
+                let nextGuideTick = nextHighlightGuideTick(after: currentTick)
                 let nextEventTick = min(
                     nextStepTick,
                     nextPedalTick,
                     nextPedalReleaseTick,
                     nextNoteOffTick,
-                    nextNoteOnTick
+                    nextNoteOnTick,
+                    nextGuideTick
                 )
+
+                if nextEventTick == Int.max {
+                    if index + 1 >= steps.count {
+                        advanceToNextStep()
+                    }
+                    break
+                }
 
                 let waitSeconds = tempoMap.durationSeconds(fromTick: currentTick, toTick: nextEventTick)
 
@@ -595,6 +602,12 @@ final class PracticeSessionViewModel {
         }
         currentHighlightGuideIndex = index
     }
+    private func nextHighlightGuideTick(after tick: Int) -> Int {
+        highlightGuides.first { guide in
+            guide.tick > tick
+        }?.tick ?? Int.max
+    }
+
     private func resolvedTempoMap() -> MusicXMLTempoMap {
         tempoMap ?? MusicXMLTempoMap(tempoEvents: [])
     }
@@ -621,24 +634,39 @@ final class PracticeSessionViewModel {
         guard let noteOutput else { return }
         guard audioPlaybackErrorMessage == nil else { return }
 
-        pendingAutoplayOnsetsByTick = Dictionary(
-            grouping: currentStep.notes,
-            by: { currentStep.tick + $0.onTickOffset }
-        )
+        pendingAutoplayOnsetsByTick = makePendingAutoplayOnsetsByTick(for: currentStep)
 
-        for note in currentStep.notes {
-            noteOffTasksByMIDI[note.midiNote]?.cancel()
-            noteOffTasksByMIDI[note.midiNote] = nil
+        for midiNote in uniqueMIDINotes(in: currentStep) {
+            noteOffTasksByMIDI[midiNote]?.cancel()
+            noteOffTasksByMIDI[midiNote] = nil
 
-            if activeNoteOffTickByMIDI[note.midiNote] != nil || pendingReleaseOffTickByMIDI[note.midiNote] != nil {
-                noteOutput.noteOff(midi: note.midiNote)
+            if activeNoteOffTickByMIDI[midiNote] != nil || pendingReleaseOffTickByMIDI[midiNote] != nil {
+                noteOutput.noteOff(midi: midiNote)
             }
 
-            activeNoteOffTickByMIDI[note.midiNote] = nil
-            pendingReleaseOffTickByMIDI[note.midiNote] = nil
+            activeNoteOffTickByMIDI[midiNote] = nil
+            pendingReleaseOffTickByMIDI[midiNote] = nil
         }
 
         playPendingAutoplayOnsetsIfDue(atTick: currentStep.tick)
+    }
+
+    private func makePendingAutoplayOnsetsByTick(for step: PracticeStep) -> [Int: [PracticeStepNote]] {
+        var notesByTickAndMIDI: [Int: [Int: PracticeStepNote]] = [:]
+        for note in step.notes {
+            let tick = step.tick + note.onTickOffset
+            if let existing = notesByTickAndMIDI[tick]?[note.midiNote], existing.velocity >= note.velocity {
+                continue
+            }
+            notesByTickAndMIDI[tick, default: [:]][note.midiNote] = note
+        }
+        return notesByTickAndMIDI.mapValues { notesByMIDI in
+            notesByMIDI.keys.sorted().compactMap { notesByMIDI[-e] }
+        }
+    }
+
+    private func uniqueMIDINotes(in step: PracticeStep) -> [Int] {
+        Set(step.notes.map(\.midiNote)).sorted()
     }
 
     private func playPendingAutoplayOnsetsIfDue(atTick tick: Int) {
@@ -802,7 +830,7 @@ final class PracticeSessionViewModel {
             return
         }
 
-        let expectedMIDINotes = currentStep.notes.map(\.midiNote)
+        let expectedMIDINotes = uniqueMIDINotes(in: currentStep)
         let wrongMIDINotes = makeWrongCandidateMIDINotes(expectedMIDINotes)
         audioRecognitionService.configureDetectorMode(
             practiceAudioRecognitionDetectorModeSnapshot,
@@ -905,7 +933,7 @@ final class PracticeSessionViewModel {
         }
         guard let currentStep else { return }
 
-        let expectedMIDINotes = currentStep.notes.map(\.midiNote)
+        let expectedMIDINotes = uniqueMIDINotes(in: currentStep)
         let wrongMIDINotes = Set(makeWrongCandidateMIDINotes(expectedMIDINotes))
 
         audioStepAttemptAccumulator.register(event: event)

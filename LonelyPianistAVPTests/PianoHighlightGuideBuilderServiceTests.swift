@@ -120,3 +120,22 @@ private func makeRest(tick: Int, duration: Int) -> MusicXMLNoteEvent {
         voice: 1
     )
 }
+
+@Test
+func highlightGuideBuilderPreservesSameMidiSameStaffDifferentVoices() {
+    let score = MusicXMLScore(notes: [
+        makeNote(tick: 0, duration: 2, midi: 60, staff: 1, voice: 1),
+        makeNote(tick: 0, duration: 3, midi: 60, isChord: true, staff: 1, voice: 2),
+    ])
+    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes)
+
+    let guides = PianoHighlightGuideBuilderService().buildGuides(
+        input: PianoHighlightGuideBuildInput(score: score, steps: steps, noteSpans: spans)
+    )
+
+    let trigger = guides.first { $0.kind == .trigger }
+    #expect(trigger?.triggeredNotes.count == 2)
+    #expect(Set(trigger?.triggeredNotes.compactMap(\.voice) ?? []) == [1, 2])
+    #expect(Set(trigger?.triggeredNotes.map(\.offTick) ?? []) == [2, 3])
+}

@@ -278,3 +278,19 @@ func buildStepsCarriesFingeringTextIntoStepNotes() {
     #expect(result.steps[0].notes.count == 1)
     #expect(result.steps[0].notes[0].fingeringText == "1")
 }
+
+@Test
+func buildStepsPreservesSameMidiAcrossStaffAndVoiceIdentities() {
+    let score = MusicXMLScore(notes: [
+        MusicXMLNoteEvent(partID: "P1", measureNumber: 1, tick: 0, durationTicks: 2, midiNote: 60, isRest: false, isChord: false, tieStart: false, tieStop: false, staff: 1, voice: 1),
+        MusicXMLNoteEvent(partID: "P1", measureNumber: 1, tick: 0, durationTicks: 3, midiNote: 60, isRest: false, isChord: true, tieStart: false, tieStop: false, staff: 2, voice: 2),
+    ])
+
+    let result = PracticeStepBuilder().buildSteps(from: score)
+
+    #expect(result.steps.count == 1)
+    #expect(result.steps[0].notes.count == 2)
+    #expect(result.steps[0].notes.map(\.midiNote) == [60, 60])
+    #expect(result.steps[0].notes.map { $0.staff ?? -1 } == [1, 2])
+    #expect(result.steps[0].notes.map { $0.voice ?? -1 } == [1, 2])
+}
