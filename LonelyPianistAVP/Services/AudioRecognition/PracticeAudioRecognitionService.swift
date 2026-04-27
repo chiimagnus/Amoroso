@@ -20,18 +20,35 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         }
     }
 
-    var events: AsyncStream<DetectedNoteEvent> { eventsStream }
-    var statusUpdates: AsyncStream<PracticeAudioRecognitionStatus> { statusStream }
-    var debugSnapshots: AsyncStream<PracticeAudioRecognitionDebugSnapshot> { debugStream }
+    var events: AsyncStream<DetectedNoteEvent> {
+        eventsStream
+    }
+
+    var statusUpdates: AsyncStream<PracticeAudioRecognitionStatus> {
+        statusStream
+    }
+
+    var debugSnapshots: AsyncStream<PracticeAudioRecognitionDebugSnapshot> {
+        debugStream
+    }
 
     private let audioEngine: AVAudioEngine
     private let spectrumAnalyzer: any AudioSpectrumAnalyzing
     private let harmonicDetector: any HarmonicTemplateDetecting
-    private let processingQueue = DispatchQueue(label: "com.lonelypianist.audio.recognition.processing", qos: .userInitiated)
+    private let processingQueue = DispatchQueue(
+        label: "com.lonelypianist.audio.recognition.processing",
+        qos: .userInitiated
+    )
     private let lock = NSLock()
     private let detectorLock = NSLock()
-    private let recognitionLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP", category: "Step3AudioRecognition")
-    private let performanceLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP", category: "Step3AudioPerformance")
+    private let recognitionLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "Step3AudioRecognition"
+    )
+    private let performanceLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "Step3AudioPerformance"
+    )
 
     private let eventsStream: AsyncStream<DetectedNoteEvent>
     private let statusStream: AsyncStream<PracticeAudioRecognitionStatus>
@@ -105,7 +122,12 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
             statusContinuation.yield(.engineFailed(reason: "invalid input format"))
             throw ServiceError.invalidInputFormat
         }
-        replaceRecognitionTargets(expectedMIDINotes: expectedMIDINotes, wrongCandidateMIDINotes: wrongCandidateMIDINotes, generation: generation, suppressUntil: suppressUntil)
+        replaceRecognitionTargets(
+            expectedMIDINotes: expectedMIDINotes,
+            wrongCandidateMIDINotes: wrongCandidateMIDINotes,
+            generation: generation,
+            suppressUntil: suppressUntil
+        )
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: inputFormat) { [weak self] buffer, _ in
             guard let self else { return }
             guard let samples = Self.monoSamples(from: buffer), samples.isEmpty == false else { return }
@@ -184,14 +206,39 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         let now = Date()
         let suppressing = suppressUntil.map { now < $0 } ?? false
         let startedAt = Date().timeIntervalSinceReferenceDate
-        let frame: TargetedHarmonicDetectionFrame
-        switch mode {
+        let frame: TargetedHarmonicDetectionFrame = switch mode {
             case .simpleGoertzel:
-                frame = processGoertzelFrame(samples: analysisWindow, sampleRate: sampleRate, expectedMIDINotes: expectedMIDINotes, wrongCandidateMIDINotes: wrongCandidateMIDINotes, generation: generation, suppressing: suppressing, requestedMode: requestedMode, fallbackReason: fallbackReason, startedAt: startedAt)
+                processGoertzelFrame(
+                    samples: analysisWindow,
+                    sampleRate: sampleRate,
+                    expectedMIDINotes: expectedMIDINotes,
+                    wrongCandidateMIDINotes: wrongCandidateMIDINotes,
+                    generation: generation,
+                    suppressing: suppressing,
+                    requestedMode: requestedMode,
+                    fallbackReason: fallbackReason,
+                    startedAt: startedAt
+                )
             case .harmonicTemplate, .automatic:
-                frame = processHarmonicFrame(samples: analysisWindow, sampleRate: sampleRate, expectedMIDINotes: expectedMIDINotes, wrongCandidateMIDINotes: wrongCandidateMIDINotes, generation: generation, suppressing: suppressing, requestedMode: requestedMode, profile: profile, startedAt: startedAt)
+                processHarmonicFrame(
+                    samples: analysisWindow,
+                    sampleRate: sampleRate,
+                    expectedMIDINotes: expectedMIDINotes,
+                    wrongCandidateMIDINotes: wrongCandidateMIDINotes,
+                    generation: generation,
+                    suppressing: suppressing,
+                    requestedMode: requestedMode,
+                    profile: profile,
+                    startedAt: startedAt
+                )
         }
-        publish(frame: frame, inputLevel: rms(analysisWindow), expectedMIDINotes: expectedMIDINotes, generation: generation, suppressing: suppressing)
+        publish(
+            frame: frame,
+            inputLevel: rms(analysisWindow),
+            expectedMIDINotes: expectedMIDINotes,
+            generation: generation,
+            suppressing: suppressing
+        )
     }
 
     private func processHarmonicFrame(
@@ -221,11 +268,29 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
             if elapsed > profile.slowProcessingThresholdMs {
                 performanceLogger.debug("harmonic detector slow ms=\(elapsed, privacy: .public)")
             }
-            frame = TargetedHarmonicDetectionFrame(events: frame.events, templateMatchResults: frame.templateMatchResults, processingDurationMs: elapsed, suppressing: suppressing, fallbackReason: lastFallbackReason, activeDetectorMode: .harmonicTemplate, rollingWindowSize: spectrum.windowSize)
+            frame = TargetedHarmonicDetectionFrame(
+                events: frame.events,
+                templateMatchResults: frame.templateMatchResults,
+                processingDurationMs: elapsed,
+                suppressing: suppressing,
+                fallbackReason: lastFallbackReason,
+                activeDetectorMode: .harmonicTemplate,
+                rollingWindowSize: spectrum.windowSize
+            )
             return frame
         } catch {
             updateFallbackCounters(elapsedMs: 0, error: error, profile: profile)
-            return processGoertzelFrame(samples: samples, sampleRate: sampleRate, expectedMIDINotes: expectedMIDINotes, wrongCandidateMIDINotes: wrongCandidateMIDINotes, generation: generation, suppressing: suppressing, requestedMode: requestedMode, fallbackReason: lastFallbackReason ?? error.localizedDescription, startedAt: startedAt)
+            return processGoertzelFrame(
+                samples: samples,
+                sampleRate: sampleRate,
+                expectedMIDINotes: expectedMIDINotes,
+                wrongCandidateMIDINotes: wrongCandidateMIDINotes,
+                generation: generation,
+                suppressing: suppressing,
+                requestedMode: requestedMode,
+                fallbackReason: lastFallbackReason ?? error.localizedDescription,
+                startedAt: startedAt
+            )
         }
     }
 
@@ -236,20 +301,49 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         wrongCandidateMIDINotes: [Int],
         generation: Int,
         suppressing: Bool,
-        requestedMode: PracticeAudioRecognitionDetectorMode,
+        requestedMode _: PracticeAudioRecognitionDetectorMode,
         fallbackReason: String?,
         startedAt: TimeInterval
     ) -> TargetedHarmonicDetectionFrame {
         detectorLock.lock()
-        let detections = goertzelDetector.detect(samples: samples, sampleRate: sampleRate, candidateMIDINotes: expectedMIDINotes + wrongCandidateMIDINotes, debugLoggingEnabled: false)
+        let detections = goertzelDetector.detect(
+            samples: samples,
+            sampleRate: sampleRate,
+            candidateMIDINotes: expectedMIDINotes + wrongCandidateMIDINotes,
+            debugLoggingEnabled: false
+        )
         detectorLock.unlock()
         let events = suppressing ? [] : detections.filter { $0.confidence >= 0.2 }.map { detection in
-            DetectedNoteEvent(midiNote: detection.midiNote, confidence: detection.confidence, onsetScore: detection.onsetScore, isOnset: detection.isOnset, timestamp: Date(), generation: generation, source: .audio)
+            DetectedNoteEvent(
+                midiNote: detection.midiNote,
+                confidence: detection.confidence,
+                onsetScore: detection.onsetScore,
+                isOnset: detection.isOnset,
+                timestamp: Date(),
+                generation: generation,
+                source: .audio
+            )
         }
         let matches = detections.map { detection in
-            TemplateMatchResult(midiNote: detection.midiNote, role: expectedMIDINotes.contains(detection.midiNote) ? .expected : .wrongCandidate, confidence: detection.confidence, harmonicScore: detection.rawEnergy, tonalRatio: detection.confidence, dominanceOverWrong: 1, strongestPartials: [])
+            TemplateMatchResult(
+                midiNote: detection.midiNote,
+                role: expectedMIDINotes.contains(detection.midiNote) ? .expected : .wrongCandidate,
+                confidence: detection.confidence,
+                harmonicScore: detection.rawEnergy,
+                tonalRatio: detection.confidence,
+                dominanceOverWrong: 1,
+                strongestPartials: []
+            )
         }
-        return TargetedHarmonicDetectionFrame(events: events, templateMatchResults: matches, processingDurationMs: ((Date().timeIntervalSinceReferenceDate) - startedAt) * 1000, suppressing: suppressing, fallbackReason: fallbackReason, activeDetectorMode: .simpleGoertzel, rollingWindowSize: samples.count)
+        return TargetedHarmonicDetectionFrame(
+            events: events,
+            templateMatchResults: matches,
+            processingDurationMs: ((Date().timeIntervalSinceReferenceDate) - startedAt) * 1000,
+            suppressing: suppressing,
+            fallbackReason: fallbackReason,
+            activeDetectorMode: .simpleGoertzel,
+            rollingWindowSize: samples.count
+        )
     }
 
     private func updateFallbackCounters(elapsedMs: Double, error: Error?, profile: HarmonicTemplateTuningProfile) {
@@ -265,15 +359,22 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
             }
         }
         if requestedDetectorMode == .automatic,
-           (consecutiveSlowFrames >= profile.slowFallbackCount || consecutiveDetectorErrors >= profile.errorFallbackCount)
+           consecutiveSlowFrames >= profile.slowFallbackCount || consecutiveDetectorErrors >= profile.errorFallbackCount
         {
             activeDetectorMode = .simpleGoertzel
-            lastFallbackReason = consecutiveDetectorErrors >= profile.errorFallbackCount ? "harmonicTemplate repeated errors" : "harmonicTemplate repeated slow frames"
+            lastFallbackReason = consecutiveDetectorErrors >= profile
+                .errorFallbackCount ? "harmonicTemplate repeated errors" : "harmonicTemplate repeated slow frames"
         }
         lock.unlock()
     }
 
-    private func publish(frame: TargetedHarmonicDetectionFrame, inputLevel: Double, expectedMIDINotes: [Int], generation: Int, suppressing: Bool) {
+    private func publish(
+        frame: TargetedHarmonicDetectionFrame,
+        inputLevel: Double,
+        expectedMIDINotes: [Int],
+        generation: Int,
+        suppressing: Bool
+    ) {
         for event in frame.events {
             eventsContinuation.yield(event)
         }
@@ -305,7 +406,12 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         )
     }
 
-    private func replaceRecognitionTargets(expectedMIDINotes: [Int], wrongCandidateMIDINotes: [Int], generation: Int, suppressUntil: Date?) {
+    private func replaceRecognitionTargets(
+        expectedMIDINotes: [Int],
+        wrongCandidateMIDINotes: [Int],
+        generation: Int,
+        suppressUntil: Date?
+    ) {
         lock.lock()
         self.expectedMIDINotes = expectedMIDINotes
         self.wrongCandidateMIDINotes = wrongCandidateMIDINotes
@@ -333,7 +439,9 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         var result = Array(repeating: Float.zero, count: frameLength)
         for channel in 0 ..< channelCount {
             let values = UnsafeBufferPointer(start: channelData[channel], count: frameLength)
-            for index in 0 ..< frameLength { result[index] += values[index] / Float(channelCount) }
+            for index in 0 ..< frameLength {
+                result[index] += values[index] / Float(channelCount)
+            }
         }
         return result
     }

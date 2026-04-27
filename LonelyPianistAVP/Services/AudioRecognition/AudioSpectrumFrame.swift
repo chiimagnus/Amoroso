@@ -1,6 +1,6 @@
 import Foundation
 
-struct AudioSpectrumFrame: Sendable, Equatable, HarmonicBandEnergyProviding {
+struct AudioSpectrumFrame: Equatable, HarmonicBandEnergyProviding {
     let sampleRate: Double
     let windowSize: Int
     let rms: Double
@@ -38,7 +38,9 @@ struct AudioSpectrumFrame: Sendable, Equatable, HarmonicBandEnergyProviding {
         guard frequencyBins.isEmpty == false, frequencyBins.count == magnitudes.count else { return 0 }
         let range = frequencyRange(centerFrequency: centerFrequency, toleranceCents: toleranceCents, multiplier: 1.0)
         var energy = 0.0
-        for index in frequencyBins.indices where frequencyBins[index] >= range.lower && frequencyBins[index] <= range.upper {
+        for index in frequencyBins.indices
+            where frequencyBins[index] >= range.lower && frequencyBins[index] <= range.upper
+        {
             energy += magnitudes[index]
         }
         if energy > 0 { return energy }
@@ -55,14 +57,20 @@ struct AudioSpectrumFrame: Sendable, Equatable, HarmonicBandEnergyProviding {
         let inner = frequencyRange(centerFrequency: centerFrequency, toleranceCents: toleranceCents, multiplier: 1.0)
         let outer = frequencyRange(centerFrequency: centerFrequency, toleranceCents: toleranceCents, multiplier: 3.0)
         var energy = 0.0
-        for index in frequencyBins.indices where frequencyBins[index] >= outer.lower && frequencyBins[index] <= outer.upper {
-            if frequencyBins[index] >= inner.lower && frequencyBins[index] <= inner.upper { continue }
+        for index in frequencyBins.indices
+            where frequencyBins[index] >= outer.lower && frequencyBins[index] <= outer.upper
+        {
+            if frequencyBins[index] >= inner.lower, frequencyBins[index] <= inner.upper { continue }
             energy += magnitudes[index]
         }
         return energy
     }
 
-    private func frequencyRange(centerFrequency: Double, toleranceCents: Double, multiplier: Double) -> (lower: Double, upper: Double) {
+    private func frequencyRange(
+        centerFrequency: Double,
+        toleranceCents: Double,
+        multiplier: Double
+    ) -> (lower: Double, upper: Double) {
         let centLower = centerFrequency * pow(2.0, -abs(toleranceCents) * multiplier / 1200.0)
         let centUpper = centerFrequency * pow(2.0, abs(toleranceCents) * multiplier / 1200.0)
         let centHalfWidth = max((centUpper - centLower) / 2.0, 0)

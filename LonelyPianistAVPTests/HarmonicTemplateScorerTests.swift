@@ -1,10 +1,14 @@
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 struct HarmonicTemplateScorerTests {
     @Test func expectedDominatesWrongCandidate() {
         let profile = HarmonicTemplateTuningProfile.lowLatencyDefault
-        let templates = HarmonicTemplateFactory().makeTemplates(expectedMIDINotes: [60], wrongCandidateMIDINotes: [61], profile: profile)
+        let templates = HarmonicTemplateFactory().makeTemplates(
+            expectedMIDINotes: [60],
+            wrongCandidateMIDINotes: [61],
+            profile: profile
+        )
         var provider = FakeHarmonicBandEnergyProvider()
         for template in templates {
             for partial in template.partials {
@@ -22,16 +26,23 @@ struct HarmonicTemplateScorerTests {
 
     @Test func octaveDebugTemplatesAreDebugOnly() {
         let profile = HarmonicTemplateTuningProfile.lowLatencyDefault
-        let templates = HarmonicTemplateFactory().makeTemplates(expectedMIDINotes: [60], wrongCandidateMIDINotes: [], profile: profile)
+        let templates = HarmonicTemplateFactory().makeTemplates(
+            expectedMIDINotes: [60],
+            wrongCandidateMIDINotes: [],
+            profile: profile
+        )
         #expect(templates.filter { $0.role == .octaveDebug }.isEmpty == false)
     }
 }
 
-
 extension HarmonicTemplateScorerTests {
     @Test func incompleteBroadbandLikeEnergyReducesConfidence() {
         let profile = HarmonicTemplateTuningProfile.lowLatencyDefault
-        let templates = HarmonicTemplateFactory().makeTemplates(expectedMIDINotes: [60], wrongCandidateMIDINotes: [61], profile: profile)
+        let templates = HarmonicTemplateFactory().makeTemplates(
+            expectedMIDINotes: [60],
+            wrongCandidateMIDINotes: [61],
+            profile: profile
+        )
         var provider = FakeHarmonicBandEnergyProvider(rms: 0.05, noiseFloor: 0.02)
         for template in templates {
             for partial in template.partials {

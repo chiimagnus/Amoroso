@@ -9,6 +9,11 @@ protocol HarmonicBandEnergyProviding: Sendable {
 }
 
 extension HarmonicBandEnergyProviding {
-    var rms: Double { 0 }
-    var noiseFloor: Double { 0 }
+    var rms: Double {
+        0
+    }
+
+    var noiseFloor: Double {
+        0
+    }
 }

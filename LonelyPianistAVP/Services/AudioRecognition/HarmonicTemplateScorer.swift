@@ -1,6 +1,6 @@
 import Foundation
 
-struct HarmonicTemplateScorer: Sendable {
+struct HarmonicTemplateScorer {
     private let epsilon = 1e-9
 
     func score(
@@ -30,10 +30,16 @@ struct HarmonicTemplateScorer: Sendable {
             let harmonicBandEnergy = partials.reduce(0.0) { $0 + $1.bandEnergy }
             let surroundingEnergy = partials.reduce(0.0) { $0 + $1.surroundingEnergy }
             let tonalRatio = harmonicBandEnergy / max(surroundingEnergy, epsilon)
-            let activePartialCount = partials.filter { partial in
+            let activePartialCount = partials.count(where: { partial in
                 partial.bandEnergy > max(partial.surroundingEnergy * profile.minimumTonalRatio, epsilon)
-            }.count
-            return (template: template, partials: partials, harmonicScore: harmonicScore, tonalRatio: tonalRatio, activePartialCount: activePartialCount)
+            })
+            return (
+                template: template,
+                partials: partials,
+                harmonicScore: harmonicScore,
+                tonalRatio: tonalRatio,
+                activePartialCount: activePartialCount
+            )
         }
 
         let maxWrongScore = partialSummaries
@@ -47,14 +53,13 @@ struct HarmonicTemplateScorer: Sendable {
         let globalMax = max(partialSummaries.map(\.harmonicScore).max() ?? 0, epsilon)
 
         return partialSummaries.map { summary in
-            let dominance: Double
-            switch summary.template.role {
+            let dominance: Double = switch summary.template.role {
                 case .expected:
-                    dominance = summary.harmonicScore / max(maxWrongScore, epsilon)
+                    summary.harmonicScore / max(maxWrongScore, epsilon)
                 case .wrongCandidate:
-                    dominance = summary.harmonicScore / max(maxExpectedScore, epsilon)
+                    summary.harmonicScore / max(maxExpectedScore, epsilon)
                 case .octaveDebug:
-                    dominance = summary.harmonicScore / globalMax
+                    summary.harmonicScore / globalMax
             }
             let normalizedHarmonic = min(1.0, summary.harmonicScore / globalMax)
             let tonalFactor = min(1.0, summary.tonalRatio / max(profile.minimumTonalRatio, epsilon))
@@ -63,7 +68,14 @@ struct HarmonicTemplateScorer: Sendable {
             let completenessFactor = min(1.0, Double(summary.activePartialCount) / Double(requiredActivePartials))
             let noiseGateFactor = min(1.0, energyProvider.rms / max(profile.minimumRMS, epsilon))
             let roleFactor = summary.template.role == .octaveDebug ? 0.75 : 1.0
-            let confidence = max(0, min(1.0, normalizedHarmonic * tonalFactor * dominanceFactor * completenessFactor * noiseGateFactor * roleFactor))
+            let confidence = max(
+                0,
+                min(
+                    1.0,
+                    normalizedHarmonic * tonalFactor * dominanceFactor * completenessFactor * noiseGateFactor *
+                        roleFactor
+                )
+            )
             return TemplateMatchResult(
                 midiNote: summary.template.midiNote,
                 role: summary.template.role,
@@ -71,7 +83,8 @@ struct HarmonicTemplateScorer: Sendable {
                 harmonicScore: summary.harmonicScore,
                 tonalRatio: summary.tonalRatio,
                 dominanceOverWrong: dominance,
-                strongestPartials: summary.partials.sorted { $0.weightedEnergy > $1.weightedEnergy }.prefix(5).map { $0 }
+                strongestPartials: summary.partials.sorted { $0.weightedEnergy > $1.weightedEnergy }.prefix(5)
+                    .map(\.self)
             )
         }
         .sorted { lhs, rhs in

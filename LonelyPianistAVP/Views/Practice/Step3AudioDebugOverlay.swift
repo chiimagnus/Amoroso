@@ -16,7 +16,10 @@ struct Step3AudioDebugOverlay: View {
             row("Input", text: String(format: "%.3f", snapshot.inputLevel))
             row("Expected", text: notesText(snapshot.expectedMIDINotes))
             row("Progress", text: snapshot.matchProgress.ifEmpty("-"))
-            row("Window", text: "\(snapshot.rollingWindowSize) / \(String(format: "%.1f", snapshot.processingDurationMs))ms")
+            row(
+                "Window",
+                text: "\(snapshot.rollingWindowSize) / \(String(format: "%.1f", snapshot.processingDurationMs))ms"
+            )
             row("Hand Gate", text: handGateText)
             row("Suppress", text: suppressText)
             row("Autoplay", text: isAutoplayEnabled ? "isolating" : "off")
@@ -44,7 +47,14 @@ struct Step3AudioDebugOverlay: View {
                 ForEach(Array(snapshot.recentDetectedNotes.suffix(4).enumerated()), id: \.offset) { _, note in
                     row(
                         "N\(note.midiNote)",
-                        text: String(format: "c=%.2f o=%.2f %@ g=%d %@", note.confidence, note.onsetScore, note.isOnset ? "on" : "sustain", note.generation, "\(note.source)")
+                        text: String(
+                            format: "c=%.2f o=%.2f %@ g=%d %@",
+                            note.confidence,
+                            note.onsetScore,
+                            note.isOnset ? "on" : "sustain",
+                            note.generation,
+                            "\(note.source)"
+                        )
                     )
                 }
             }

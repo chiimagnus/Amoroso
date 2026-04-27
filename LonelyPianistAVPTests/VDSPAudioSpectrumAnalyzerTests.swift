@@ -1,25 +1,25 @@
 import Foundation
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 struct VDSPAudioSpectrumAnalyzerTests {
     @Test func attackWindowProducesOnset() throws {
         let samples = SyntheticAudioFixtures.harmonic(midiNote: 60, attack: true)
-        let frame = try VDSPAudioSpectrumAnalyzer().analyze(samples: samples, sampleRate: 48_000, timestamp: .now)
+        let frame = try VDSPAudioSpectrumAnalyzer().analyze(samples: samples, sampleRate: 48000, timestamp: .now)
         #expect(frame.isOnset)
         #expect(frame.onsetScore >= 0.25)
     }
 
     @Test func sustainedWindowDoesNotBecomeOnset() throws {
         let samples = SyntheticAudioFixtures.harmonic(midiNote: 60, attack: false)
-        let frame = try VDSPAudioSpectrumAnalyzer().analyze(samples: samples, sampleRate: 48_000, timestamp: .now)
+        let frame = try VDSPAudioSpectrumAnalyzer().analyze(samples: samples, sampleRate: 48000, timestamp: .now)
         #expect(frame.isOnset == false)
         #expect(frame.onsetScore < 0.25)
     }
 
     @Test func bandEnergyUsesNearestBinWhenCentsBandFallsBetweenBins() {
         let frame = AudioSpectrumFrame(
-            sampleRate: 48_000,
+            sampleRate: 48000,
             windowSize: 2048,
             rms: 0.03,
             noiseFloor: 0.001,

@@ -1,6 +1,6 @@
 import Foundation
 
-struct AudioSampleRollingBuffer: Sendable, Equatable {
+struct AudioSampleRollingBuffer: Equatable {
     private(set) var capacity: Int
     private var samples: [Float] = []
 
@@ -28,7 +28,9 @@ struct AudioSampleRollingBuffer: Sendable, Equatable {
         return Array(samples.suffix(size))
     }
 
-    var count: Int { samples.count }
+    var count: Int {
+        samples.count
+    }
 
     private mutating func trimToCapacity() {
         if samples.count > capacity {

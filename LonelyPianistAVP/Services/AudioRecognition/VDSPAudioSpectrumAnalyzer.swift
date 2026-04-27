@@ -1,6 +1,6 @@
 import Foundation
 #if canImport(Accelerate)
-import Accelerate
+    import Accelerate
 #endif
 
 protocol AudioSpectrumAnalyzing: Sendable {
@@ -10,7 +10,9 @@ protocol AudioSpectrumAnalyzing: Sendable {
 struct VDSPAudioSpectrumAnalyzer: AudioSpectrumAnalyzing {
     enum AnalyzerError: LocalizedError {
         case invalidInput
-        var errorDescription: String? { "Invalid audio samples for spectrum analysis." }
+        var errorDescription: String? {
+            "Invalid audio samples for spectrum analysis."
+        }
     }
 
     init() {}
@@ -56,50 +58,60 @@ struct VDSPAudioSpectrumAnalyzer: AudioSpectrumAnalyzing {
         return absoluteValues[index]
     }
 
-    private static func magnitudeSpectrum(samples: [Float], sampleRate: Double) -> (frequencies: [Double], magnitudes: [Double]) {
+    private static func magnitudeSpectrum(
+        samples: [Float],
+        sampleRate: Double
+    ) -> (frequencies: [Double], magnitudes: [Double]) {
         #if canImport(Accelerate)
-        if let accelerated = accelerateMagnitudeSpectrum(samples: samples, sampleRate: sampleRate) {
-            return accelerated
-        }
+            if let accelerated = accelerateMagnitudeSpectrum(samples: samples, sampleRate: sampleRate) {
+                return accelerated
+            }
         #endif
         return naiveMagnitudeSpectrum(samples: samples, sampleRate: sampleRate)
     }
 
     #if canImport(Accelerate)
-    private static func accelerateMagnitudeSpectrum(samples: [Float], sampleRate: Double) -> (frequencies: [Double], magnitudes: [Double])? {
-        let count = samples.count
-        guard count >= 2, count.isPowerOfTwo else { return nil }
-        let halfCount = count / 2
-        let log2n = vDSP_Length(log2(Double(count)))
-        guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return nil }
-        defer { vDSP_destroy_fftsetup(setup) }
+        private static func accelerateMagnitudeSpectrum(
+            samples: [Float],
+            sampleRate: Double
+        ) -> (frequencies: [Double], magnitudes: [Double])? {
+            let count = samples.count
+            guard count >= 2, count.isPowerOfTwo else { return nil }
+            let halfCount = count / 2
+            let log2n = vDSP_Length(log2(Double(count)))
+            guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return nil }
+            defer { vDSP_destroy_fftsetup(setup) }
 
-        var window = [Float](repeating: 0, count: count)
-        vDSP_hann_window(&window, vDSP_Length(count), Int32(vDSP_HANN_NORM))
-        var windowed = [Float](repeating: 0, count: count)
-        vDSP_vmul(samples, 1, window, 1, &windowed, 1, vDSP_Length(count))
+            var window = [Float](repeating: 0, count: count)
+            vDSP_hann_window(&window, vDSP_Length(count), Int32(vDSP_HANN_NORM))
+            var windowed = [Float](repeating: 0, count: count)
+            vDSP_vmul(samples, 1, window, 1, &windowed, 1, vDSP_Length(count))
 
-        var real = [Float](repeating: 0, count: halfCount)
-        var imag = [Float](repeating: 0, count: halfCount)
-        return real.withUnsafeMutableBufferPointer { realPtr in
-            imag.withUnsafeMutableBufferPointer { imagPtr in
-                var split = DSPSplitComplex(realp: realPtr.baseAddress!, imagp: imagPtr.baseAddress!)
-                windowed.withUnsafeBufferPointer { windowedPtr in
-                    windowedPtr.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: halfCount) { complexPtr in
-                        vDSP_ctoz(complexPtr, 2, &split, 1, vDSP_Length(halfCount))
+            var real = [Float](repeating: 0, count: halfCount)
+            var imag = [Float](repeating: 0, count: halfCount)
+            return real.withUnsafeMutableBufferPointer { realPtr in
+                imag.withUnsafeMutableBufferPointer { imagPtr in
+                    var split = DSPSplitComplex(realp: realPtr.baseAddress!, imagp: imagPtr.baseAddress!)
+                    windowed.withUnsafeBufferPointer { windowedPtr in
+                        windowedPtr.baseAddress!
+                            .withMemoryRebound(to: DSPComplex.self, capacity: halfCount) { complexPtr in
+                                vDSP_ctoz(complexPtr, 2, &split, 1, vDSP_Length(halfCount))
+                            }
                     }
+                    vDSP_fft_zrip(setup, &split, 1, log2n, FFTDirection(FFT_FORWARD))
+                    var magnitudes = [Float](repeating: 0, count: halfCount)
+                    vDSP_zvmags(&split, 1, &magnitudes, 1, vDSP_Length(halfCount))
+                    let frequencies = (0 ..< halfCount).map { Double($0) * sampleRate / Double(count) }
+                    return (frequencies, magnitudes.map(Double.init))
                 }
-                vDSP_fft_zrip(setup, &split, 1, log2n, FFTDirection(FFT_FORWARD))
-                var magnitudes = [Float](repeating: 0, count: halfCount)
-                vDSP_zvmags(&split, 1, &magnitudes, 1, vDSP_Length(halfCount))
-                let frequencies = (0..<halfCount).map { Double($0) * sampleRate / Double(count) }
-                return (frequencies, magnitudes.map(Double.init))
             }
         }
-    }
     #endif
 
-    private static func naiveMagnitudeSpectrum(samples: [Float], sampleRate: Double) -> (frequencies: [Double], magnitudes: [Double]) {
+    private static func naiveMagnitudeSpectrum(
+        samples: [Float],
+        sampleRate: Double
+    ) -> (frequencies: [Double], magnitudes: [Double]) {
         let count = samples.count
         guard count > 1 else { return ([], []) }
         let binCount = count / 2

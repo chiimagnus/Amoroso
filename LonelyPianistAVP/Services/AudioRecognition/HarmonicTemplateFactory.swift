@@ -1,6 +1,6 @@
 import Foundation
 
-struct HarmonicTemplateFactory: Sendable {
+struct HarmonicTemplateFactory {
     func makeTemplates(
         expectedMIDINotes: [Int],
         wrongCandidateMIDINotes: [Int],
@@ -10,11 +10,14 @@ struct HarmonicTemplateFactory: Sendable {
         for note in expectedMIDINotes {
             rolesByNote[note] = .expected
         }
-        for note in wrongCandidateMIDINotes where rolesByNote[note] == nil || rolesByNote[note]!.priority < HarmonicTemplateCandidateRole.wrongCandidate.priority {
+        for note in wrongCandidateMIDINotes
+            where rolesByNote[note] == nil || rolesByNote[note]!.priority < HarmonicTemplateCandidateRole.wrongCandidate
+            .priority
+        {
             rolesByNote[note] = .wrongCandidate
         }
         for note in expectedMIDINotes {
-            for octaveNote in [note - 12, note + 12] where (21...108).contains(octaveNote) {
+            for octaveNote in [note - 12, note + 12] where (21 ... 108).contains(octaveNote) {
                 if rolesByNote[octaveNote] == nil {
                     rolesByNote[octaveNote] = .octaveDebug
                 }

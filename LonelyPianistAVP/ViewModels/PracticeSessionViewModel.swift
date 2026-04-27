@@ -752,7 +752,10 @@ final class PracticeSessionViewModel {
 
         let expectedMIDINotes = currentStep.notes.map(\.midiNote)
         let wrongMIDINotes = makeWrongCandidateMIDINotes(expectedMIDINotes)
-        audioRecognitionService.configureDetectorMode(practiceAudioRecognitionDetectorModeSnapshot, profile: harmonicTemplateTuningProfileSnapshot)
+        audioRecognitionService.configureDetectorMode(
+            practiceAudioRecognitionDetectorModeSnapshot,
+            profile: harmonicTemplateTuningProfileSnapshot
+        )
         audioStepAttemptAccumulator.setMode(.lowLatency)
         audioRecognitionGeneration += 1
         audioStepAttemptAccumulator.resetForNewStep(generation: audioRecognitionGeneration)
@@ -764,7 +767,7 @@ final class PracticeSessionViewModel {
                 generation: audioRecognitionGeneration
             )
             applyPendingAudioRecognitionSuppressIfNeeded(generation: audioRecognitionGeneration)
-            decisionLogger.debug("audio generation update=\(self.audioRecognitionGeneration, privacy: .public)")
+            decisionLogger.debug("audio generation update=\(audioRecognitionGeneration, privacy: .public)")
             return
         }
 
@@ -803,7 +806,10 @@ final class PracticeSessionViewModel {
         practiceAudioRecognitionEnabledSnapshot = Self.readPracticeAudioRecognitionEnabled()
         practiceAudioRecognitionDetectorModeSnapshot = Self.readPracticeAudioRecognitionDetectorMode()
         harmonicTemplateTuningProfileSnapshot = Self.profile(for: practiceAudioRecognitionDetectorModeSnapshot)
-        audioRecognitionService?.configureDetectorMode(practiceAudioRecognitionDetectorModeSnapshot, profile: harmonicTemplateTuningProfileSnapshot)
+        audioRecognitionService?.configureDetectorMode(
+            practiceAudioRecognitionDetectorModeSnapshot,
+            profile: harmonicTemplateTuningProfileSnapshot
+        )
         refreshAudioRecognitionForCurrentState()
     }
 
@@ -916,11 +922,11 @@ final class PracticeSessionViewModel {
     private static func profile(for mode: PracticeAudioRecognitionDetectorMode) -> HarmonicTemplateTuningProfile {
         switch mode {
             case .simpleGoertzel:
-                return .lowLatencyDefault
+                .lowLatencyDefault
             case .harmonicTemplate:
-                return .lowLatencyDefault
+                .lowLatencyDefault
             case .automatic:
-                return .lowLatencyDefault
+                .lowLatencyDefault
         }
     }
 }

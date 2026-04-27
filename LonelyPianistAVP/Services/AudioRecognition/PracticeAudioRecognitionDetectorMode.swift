@@ -1,6 +1,6 @@
 import Foundation
 
-enum PracticeAudioRecognitionDetectorMode: String, CaseIterable, Sendable, Equatable {
+enum PracticeAudioRecognitionDetectorMode: String, CaseIterable, Equatable {
     case automatic
     case harmonicTemplate
     case simpleGoertzel

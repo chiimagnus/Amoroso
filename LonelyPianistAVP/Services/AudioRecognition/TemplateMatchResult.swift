@@ -1,6 +1,6 @@
 import Foundation
 
-struct TemplateMatchResult: Sendable, Equatable {
+struct TemplateMatchResult: Equatable {
     let midiNote: Int
     let role: HarmonicTemplateCandidateRole
     let confidence: Double

@@ -1,5 +1,5 @@
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 struct HarmonicTemplateModelTests {
     @Test func defaultProfilesContainValidPartials() {

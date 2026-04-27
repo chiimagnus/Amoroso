@@ -1,5 +1,5 @@
-import Testing
 @testable import LonelyPianistAVP
+import Testing
 
 struct AudioSampleRollingBufferTests {
     @Test func rollingBufferKeepsLatestWindow() {
@@ -12,7 +12,6 @@ struct AudioSampleRollingBufferTests {
         #expect(buffer.window(size: 1) == nil)
     }
 }
-
 
 extension AudioSampleRollingBufferTests {
     @Test func lowRegisterWindowRequiresEnoughSamplesAndUsesLatest4096() {
