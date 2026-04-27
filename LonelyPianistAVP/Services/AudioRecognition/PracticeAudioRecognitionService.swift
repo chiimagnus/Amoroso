@@ -282,7 +282,9 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
                 consecutiveSlowFrames = 0
             }
         }
-        if consecutiveSlowFrames >= profile.slowFallbackCount || consecutiveDetectorErrors >= profile.errorFallbackCount {
+        if consecutiveSlowFrames >= profile.slowFallbackCount || consecutiveDetectorErrors >= profile
+            .errorFallbackCount
+        {
             lastFallbackReason = consecutiveDetectorErrors >= profile
                 .errorFallbackCount ? "harmonicTemplate repeated errors" : "harmonicTemplate repeated slow frames"
         } else {

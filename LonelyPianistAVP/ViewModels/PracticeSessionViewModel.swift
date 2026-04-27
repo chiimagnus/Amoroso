@@ -782,12 +782,12 @@ final class PracticeSessionViewModel {
                     expectedMIDINotes: startExpectedMIDINotes,
                     wrongCandidateMIDINotes: startWrongMIDINotes,
                     generation: startGeneration,
-                    suppressUntil: self.audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
+                    suppressUntil: audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
                 )
-                guard self.audioRecognitionGeneration == startGeneration,
-                      self.autoplayState == .off,
-                      self.isPracticeAudioRecognitionEnabled,
-                      case .guiding = self.state
+                guard audioRecognitionGeneration == startGeneration,
+                      autoplayState == .off,
+                      isPracticeAudioRecognitionEnabled,
+                      case .guiding = state
                 else {
                     stopAudioRecognition()
                     return
@@ -919,7 +919,7 @@ final class PracticeSessionViewModel {
         return .harmonicTemplate
     }
 
-    private static func profile(for mode: PracticeAudioRecognitionDetectorMode) -> HarmonicTemplateTuningProfile {
+    private static func profile(for _: PracticeAudioRecognitionDetectorMode) -> HarmonicTemplateTuningProfile {
         .lowLatencyDefault
     }
 }
