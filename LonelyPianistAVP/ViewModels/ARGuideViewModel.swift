@@ -242,6 +242,51 @@ final class ARGuideViewModel {
         }
     }
 
+    var step3ARStatusText: String {
+        let worldState = arTrackingService.providerStateByName["world"] ?? .idle
+        switch worldState {
+            case .running:
+                return "AR 定位：可用"
+            case .unsupported:
+                return "AR 定位：不可用（设备/环境不支持）"
+            case let .failed(reason):
+                return "AR 定位：失败（\(reason)）"
+            default:
+                return "AR 定位：初始化中"
+        }
+    }
+
+    var step3HandAssistStatusText: String {
+        let handState = arTrackingService.providerStateByName["hand"] ?? .idle
+        switch handState {
+            case .running:
+                return "手势辅助：可用（boost + fallback）"
+            case .unauthorized:
+                return "手势辅助：不可用（未授权）"
+            case let .failed(reason):
+                return "手势辅助：不可用（\(reason)）"
+            default:
+                return "手势辅助：初始化中"
+        }
+    }
+
+    var step3AudioStatusText: String {
+        switch practiceSessionViewModel.audioRecognitionStatus {
+            case .idle:
+                "音频识别：空闲"
+            case .requestingPermission:
+                "音频识别：请求麦克风权限"
+            case .permissionDenied:
+                "音频识别：权限被拒绝"
+            case .running:
+                "音频识别：运行中"
+            case let .engineFailed(reason):
+                "音频识别：引擎失败（\(reason)）"
+            case .stopped:
+                "音频识别：已停止"
+        }
+    }
+
     func practiceEntryBlockingReason() -> PracticeLocalizationFailure? {
         if hasImportedSteps == false {
             return .missingImportedSteps
@@ -666,9 +711,7 @@ final class ARGuideViewModel {
             }
 
             let worldState = arTrackingService.providerStateByName["world"] ?? .idle
-            let handState = arTrackingService.providerStateByName["hand"] ?? .idle
-
-            if worldState == .running, handState == .running {
+            if worldState == .running {
                 return nil
             }
 
@@ -687,12 +730,6 @@ final class ARGuideViewModel {
             return .worldTrackingUnsupported
         }
 
-        if let handAuthorizationStatus = arTrackingService.authorizationStatusByType[.handTracking],
-           handAuthorizationStatus != .allowed
-        {
-            return .handTrackingDenied
-        }
-
         if let worldState = arTrackingService.providerStateByName["world"] {
             switch worldState {
                 case .unsupported:
@@ -701,17 +738,6 @@ final class ARGuideViewModel {
                     return .providerNotRunning(state: currentProviderStateSummary())
                 case let .failed(reason):
                     return .providerNotRunning(state: "world=failed(\(reason))")
-                default:
-                    break
-            }
-        }
-
-        if let handState = arTrackingService.providerStateByName["hand"] {
-            switch handState {
-                case .unauthorized:
-                    return .handTrackingDenied
-                case let .failed(reason):
-                    return .providerNotRunning(state: "hand=failed(\(reason))")
                 default:
                     break
             }

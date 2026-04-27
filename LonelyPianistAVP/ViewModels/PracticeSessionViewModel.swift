@@ -1,10 +1,16 @@
 import Foundation
 import Observation
+import os
 import simd
 
 @MainActor
 @Observable
 final class PracticeSessionViewModel {
+    private let decisionLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "Step3AudioDecision"
+    )
+
     enum VisualFeedbackState: Equatable {
         case none
         case correct
@@ -32,7 +38,20 @@ final class PracticeSessionViewModel {
     private(set) var feedbackState: VisualFeedbackState = .none
     private(set) var isSustainPedalDown = false
     private(set) var autoplayHighlightedMIDINotes: Set<Int> = []
-    private(set) var audioErrorMessage: String?
+    private(set) var audioRecognitionErrorMessage: String?
+    private(set) var audioPlaybackErrorMessage: String?
+    var audioErrorMessage: String? {
+        audioRecognitionErrorMessage ?? audioPlaybackErrorMessage
+    }
+
+    private(set) var audioRecognitionStatus: PracticeAudioRecognitionStatus = .idle
+    private(set) var audioRecognitionDebugSnapshot: PracticeAudioRecognitionDebugSnapshot = .empty
+    private(set) var handGateState = HandGateState(
+        isNearKeyboard: false,
+        hasDownwardMotion: false,
+        exactPressedNotes: [],
+        confidenceBoost: 0
+    )
     var noteMatchTolerance: Int = 1
 
     private let pressDetectionService: PressDetectionServiceProtocol
@@ -40,8 +59,14 @@ final class PracticeSessionViewModel {
     private let sleeper: SleeperProtocol
     private let noteAudioPlayer: PracticeNoteAudioPlayerProtocol?
     private let noteOutput: PracticeMIDINoteOutputProtocol?
+    private let audioRecognitionService: PracticeAudioRecognitionServiceProtocol?
+    private let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
+    private let handPianoActivityGate: HandPianoActivityGate
     private var feedbackResetTask: Task<Void, Never>?
     private var autoplayTask: Task<Void, Never>?
+    private var audioRecognitionEventsTask: Task<Void, Never>?
+    private var audioRecognitionStatusTask: Task<Void, Never>?
+    private var audioRecognitionDebugTask: Task<Void, Never>?
     private var noteOffTasksByMIDI: [Int: Task<Void, Never>] = [:]
     private var tempoMap: MusicXMLTempoMap?
     private var pedalTimeline: MusicXMLPedalTimeline?
@@ -52,19 +77,31 @@ final class PracticeSessionViewModel {
     private var activeNoteOffTickByMIDI: [Int: Int] = [:]
     private var pendingReleaseOffTickByMIDI: [Int: Int] = [:]
     private var pendingAutoplayOnsetsByTick: [Int: [PracticeStepNote]] = [:]
+    private var audioRecognitionGeneration = 0
+    private var isAudioRecognitionRunning = false
+    private var audioRecognitionSuppressUntil: Date?
+    private let audioRecognitionSuppressDuration: TimeInterval = 0.6
+    private var practiceAudioRecognitionEnabledSnapshot = true
 
     init(
         pressDetectionService: PressDetectionServiceProtocol,
         chordAttemptAccumulator: ChordAttemptAccumulatorProtocol,
         sleeper: SleeperProtocol,
         noteAudioPlayer: PracticeNoteAudioPlayerProtocol?,
-        noteOutput: PracticeMIDINoteOutputProtocol? = nil
+        noteOutput: PracticeMIDINoteOutputProtocol? = nil,
+        audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil,
+        audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil,
+        handPianoActivityGate: HandPianoActivityGate? = nil
     ) {
         self.pressDetectionService = pressDetectionService
         self.chordAttemptAccumulator = chordAttemptAccumulator
         self.sleeper = sleeper
         self.noteAudioPlayer = noteAudioPlayer
         self.noteOutput = noteOutput ?? (noteAudioPlayer as? PracticeMIDINoteOutputProtocol)
+        self.audioRecognitionService = audioRecognitionService
+        self.audioStepAttemptAccumulator = audioStepAttemptAccumulator ?? AudioStepAttemptAccumulator()
+        self.handPianoActivityGate = handPianoActivityGate ?? HandPianoActivityGate()
+        bindAudioRecognitionStreamsIfNeeded()
     }
 
     convenience init() {
@@ -72,7 +109,8 @@ final class PracticeSessionViewModel {
             pressDetectionService: PressDetectionService(),
             chordAttemptAccumulator: ChordAttemptAccumulator(),
             sleeper: TaskSleeper(),
-            noteAudioPlayer: SoundFontPracticeNoteAudioPlayer(soundFontResourceName: "SalC5Light2")
+            noteAudioPlayer: SoundFontPracticeNoteAudioPlayer(soundFontResourceName: "SalC5Light2"),
+            audioRecognitionService: PracticeAudioRecognitionService()
         )
     }
 
@@ -173,6 +211,7 @@ final class PracticeSessionViewModel {
         feedbackResetTask = nil
         stopAutoplayTask()
         stopAutoplayAudio()
+        stopAudioRecognition()
         chordAttemptAccumulator.reset()
         self.steps = steps
         self.tempoMap = tempoMap
@@ -197,6 +236,8 @@ final class PracticeSessionViewModel {
         } else if state != .completed {
             state = .ready
         }
+
+        refreshAudioRecognitionForCurrentState()
     }
 
     func applyKeyboardGeometry(_ keyboardGeometry: PianoKeyboardGeometry, calibration: PianoCalibration) {
@@ -211,6 +252,13 @@ final class PracticeSessionViewModel {
         calibration = nil
         keyboardGeometry = nil
         pressedNotes.removeAll()
+        handPianoActivityGate.reset()
+        handGateState = HandGateState(
+            isNearKeyboard: false,
+            hasDownwardMotion: false,
+            exactPressedNotes: [],
+            confidenceBoost: 0
+        )
     }
 
     func resetSession() {
@@ -218,6 +266,7 @@ final class PracticeSessionViewModel {
         feedbackResetTask = nil
         stopAutoplayTask()
         stopAutoplayAudio()
+        stopAudioRecognition()
         chordAttemptAccumulator.reset()
         steps = []
         tempoMap = nil
@@ -231,14 +280,23 @@ final class PracticeSessionViewModel {
         pressedNotes.removeAll()
         feedbackState = .none
         isSustainPedalDown = false
-        audioErrorMessage = nil
+        audioRecognitionErrorMessage = nil
+        audioPlaybackErrorMessage = nil
         currentStepIndex = 0
         state = .idle
         pendingAutoplayOnsetsByTick = [:]
+        handPianoActivityGate.reset()
+        handGateState = HandGateState(
+            isNearKeyboard: false,
+            hasDownwardMotion: false,
+            exactPressedNotes: [],
+            confidenceBoost: 0
+        )
     }
 
     func clearAudioError() {
-        audioErrorMessage = nil
+        audioRecognitionErrorMessage = nil
+        audioPlaybackErrorMessage = nil
     }
 
     func startGuidingIfReady() {
@@ -246,9 +304,12 @@ final class PracticeSessionViewModel {
         currentStepIndex = 0
         state = .guiding(stepIndex: currentStepIndex)
         if autoplayState == .playing {
+            refreshAudioRecognitionForCurrentState()
             prepareAutoplayOnsetsForCurrentStep()
         } else {
-            playCurrentStepSound()
+            prepareAudioRecognitionSuppressWindowForPlayback()
+            refreshAudioRecognitionForCurrentState()
+            playCurrentStepSound(applyRecognitionSuppress: false)
         }
         startAutoplayTaskIfNeeded()
     }
@@ -261,12 +322,19 @@ final class PracticeSessionViewModel {
     }
 
     func playCurrentStepSound() {
+        playCurrentStepSound(applyRecognitionSuppress: true)
+    }
+
+    private func playCurrentStepSound(applyRecognitionSuppress: Bool) {
         guard let currentStep else { return }
-        guard audioErrorMessage == nil else { return }
+        guard audioPlaybackErrorMessage == nil else { return }
+        if applyRecognitionSuppress {
+            prepareAudioRecognitionSuppressWindowForPlayback()
+        }
         do {
             try noteAudioPlayer?.play(midiNotes: currentStep.notes.map(\.midiNote))
         } catch {
-            recordAudioError(error)
+            recordPlaybackError(error)
         }
     }
 
@@ -284,6 +352,7 @@ final class PracticeSessionViewModel {
             stopAutoplayTask()
             stopAutoplayAudio()
         }
+        refreshAudioRecognitionForCurrentState()
     }
 
     func handleFingerTipPositions(_ fingerTips: [String: SIMD3<Float>], at timestamp: Date = .now) -> Set<Int> {
@@ -295,6 +364,11 @@ final class PracticeSessionViewModel {
         )
         if detected.isEmpty == false {
             pressedNotes = detected
+            handGateState = handPianoActivityGate.evaluate(
+                fingerTips: fingerTips,
+                keyboardGeometry: keyboardGeometry,
+                exactPressedNotes: detected
+            )
             if let currentStep {
                 let expected = currentStep.notes.map(\.midiNote)
                 let isMatched = chordAttemptAccumulator.register(
@@ -317,6 +391,12 @@ final class PracticeSessionViewModel {
                     }
                 }
             }
+        } else {
+            handGateState = handPianoActivityGate.evaluate(
+                fingerTips: fingerTips,
+                keyboardGeometry: keyboardGeometry,
+                exactPressedNotes: []
+            )
         }
         return detected
     }
@@ -331,9 +411,12 @@ final class PracticeSessionViewModel {
             currentStepIndex += 1
             state = .guiding(stepIndex: currentStepIndex)
             if autoplayState == .playing {
+                refreshAudioRecognitionForCurrentState()
                 prepareAutoplayOnsetsForCurrentStep()
             } else {
-                playCurrentStepSound()
+                prepareAudioRecognitionSuppressWindowForPlayback()
+                refreshAudioRecognitionForCurrentState()
+                playCurrentStepSound(applyRecognitionSuppress: false)
             }
         } else {
             currentStepIndex = steps.count
@@ -341,6 +424,7 @@ final class PracticeSessionViewModel {
             state = .completed
             stopAutoplayTask()
             stopAutoplayAudio()
+            stopAudioRecognition()
         }
     }
 
@@ -461,7 +545,7 @@ final class PracticeSessionViewModel {
         guard let currentStep else { return }
         guard autoplayState == .playing else { return }
         guard let noteOutput else { return }
-        guard audioErrorMessage == nil else { return }
+        guard audioPlaybackErrorMessage == nil else { return }
 
         pendingAutoplayOnsetsByTick = Dictionary(
             grouping: currentStep.notes,
@@ -488,7 +572,7 @@ final class PracticeSessionViewModel {
     private func playPendingAutoplayOnsetsIfDue(atTick tick: Int) {
         guard autoplayState == .playing else { return }
         guard let noteOutput else { return }
-        guard audioErrorMessage == nil else { return }
+        guard audioPlaybackErrorMessage == nil else { return }
         guard let notes = pendingAutoplayOnsetsByTick.removeValue(forKey: tick) else { return }
 
         for note in notes {
@@ -497,7 +581,7 @@ final class PracticeSessionViewModel {
                 let offTick = resolveOffTick(midi: note.midiNote, staff: note.staff, onTick: tick)
                 activeNoteOffTickByMIDI[note.midiNote] = offTick
             } catch {
-                recordAudioError(error)
+                recordPlaybackError(error)
                 break
             }
         }
@@ -584,16 +668,23 @@ final class PracticeSessionViewModel {
         let staff: Int
     }
 
-    private func recordAudioError(_ error: Error) {
-        guard audioErrorMessage == nil else { return }
+    private func recordPlaybackError(_ error: Error) {
+        guard audioPlaybackErrorMessage == nil else { return }
+        audioPlaybackErrorMessage = audioErrorText(for: error)
+    }
 
+    private func recordAudioRecognitionError(_ error: Error) {
+        guard audioRecognitionErrorMessage == nil else { return }
+        audioRecognitionErrorMessage = audioErrorText(for: error)
+    }
+
+    private func audioErrorText(for error: Error) -> String {
         if let localized = error as? LocalizedError, let description = localized.errorDescription,
            description.isEmpty == false
         {
-            audioErrorMessage = description
-        } else {
-            audioErrorMessage = String(describing: error)
+            return description
         }
+        return String(describing: error)
     }
 
     private func setFeedback(_ state: VisualFeedbackState, duration: TimeInterval = 0.25) {
@@ -605,5 +696,214 @@ final class PracticeSessionViewModel {
             guard Task.isCancelled == false else { return }
             feedbackState = .none
         }
+    }
+
+    private func bindAudioRecognitionStreamsIfNeeded() {
+        guard let audioRecognitionService else { return }
+        guard audioRecognitionEventsTask == nil else { return }
+
+        audioRecognitionEventsTask = Task { [weak self] in
+            for await event in audioRecognitionService.events {
+                await MainActor.run {
+                    self?.handleAudioRecognitionEvent(event)
+                }
+            }
+        }
+
+        audioRecognitionStatusTask = Task { [weak self] in
+            for await status in audioRecognitionService.statusUpdates {
+                await MainActor.run {
+                    self?.audioRecognitionStatus = status
+                    if case .permissionDenied = status {
+                        self?.audioRecognitionErrorMessage = "未授予麦克风权限"
+                    }
+                    if case let .engineFailed(reason) = status {
+                        self?.audioRecognitionErrorMessage = reason
+                    }
+                }
+            }
+        }
+
+        audioRecognitionDebugTask = Task { [weak self] in
+            for await snapshot in audioRecognitionService.debugSnapshots {
+                await MainActor.run {
+                    self?.audioRecognitionDebugSnapshot = snapshot
+                }
+            }
+        }
+    }
+
+    private func refreshAudioRecognitionForCurrentState() {
+        guard let audioRecognitionService else { return }
+        guard isPracticeAudioRecognitionEnabled else {
+            stopAudioRecognition()
+            return
+        }
+        guard autoplayState == .off else {
+            stopAudioRecognition()
+            return
+        }
+        guard case .guiding = state, let currentStep else {
+            stopAudioRecognition()
+            return
+        }
+
+        let expectedMIDINotes = currentStep.notes.map(\.midiNote)
+        let wrongMIDINotes = makeWrongCandidateMIDINotes(expectedMIDINotes)
+        audioStepAttemptAccumulator.setMode(step3AudioRecognitionMode)
+        audioRecognitionGeneration += 1
+        audioStepAttemptAccumulator.resetForNewStep(generation: audioRecognitionGeneration)
+
+        if isAudioRecognitionRunning {
+            audioRecognitionService.updateExpectedNotes(
+                expectedMIDINotes,
+                wrongCandidateMIDINotes: wrongMIDINotes,
+                generation: audioRecognitionGeneration
+            )
+            applyPendingAudioRecognitionSuppressIfNeeded(generation: audioRecognitionGeneration)
+            decisionLogger.debug("audio generation update=\(self.audioRecognitionGeneration, privacy: .public)")
+            return
+        }
+
+        isAudioRecognitionRunning = true
+        let startGeneration = audioRecognitionGeneration
+        let startExpectedMIDINotes = expectedMIDINotes
+        let startWrongMIDINotes = wrongMIDINotes
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await audioRecognitionService.start(
+                    expectedMIDINotes: startExpectedMIDINotes,
+                    wrongCandidateMIDINotes: startWrongMIDINotes,
+                    generation: startGeneration,
+                    suppressUntil: audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
+                )
+                guard audioRecognitionGeneration == startGeneration,
+                      autoplayState == .off,
+                      isPracticeAudioRecognitionEnabled,
+                      case .guiding = state
+                else {
+                    stopAudioRecognition()
+                    return
+                }
+                applyPendingAudioRecognitionSuppressIfNeeded(generation: startGeneration)
+                decisionLogger.info("audio service started generation=\(startGeneration, privacy: .public)")
+            } catch {
+                isAudioRecognitionRunning = false
+                decisionLogger.error("audio service failed start generation=\(startGeneration, privacy: .public)")
+                recordAudioRecognitionError(error)
+            }
+        }
+    }
+
+    func refreshAudioRecognitionFromSettings() {
+        practiceAudioRecognitionEnabledSnapshot = Self.readPracticeAudioRecognitionEnabled()
+        refreshAudioRecognitionForCurrentState()
+    }
+
+    private func stopAudioRecognition() {
+        guard let audioRecognitionService else { return }
+        audioRecognitionGeneration += 1
+        audioStepAttemptAccumulator.resetForNewStep(generation: audioRecognitionGeneration)
+        audioRecognitionService.stop()
+        isAudioRecognitionRunning = false
+        audioRecognitionStatus = .stopped
+        decisionLogger.debug("audio service stopped by lifecycle")
+    }
+
+    private func prepareAudioRecognitionSuppressWindowForPlayback() -> Date {
+        let suppressUntil = Date().addingTimeInterval(audioRecognitionSuppressDuration)
+        audioRecognitionSuppressUntil = suppressUntil
+        audioRecognitionService?.suppressRecognition(
+            until: suppressUntil,
+            generation: audioRecognitionGeneration
+        )
+        return suppressUntil
+    }
+
+    private func applyPendingAudioRecognitionSuppressIfNeeded(generation: Int) {
+        guard let audioRecognitionService else { return }
+        guard let audioRecognitionSuppressUntil else { return }
+        guard audioRecognitionSuppressUntil > Date() else { return }
+        audioRecognitionService.suppressRecognition(
+            until: audioRecognitionSuppressUntil,
+            generation: generation
+        )
+    }
+
+    private func handleAudioRecognitionEvent(_ event: DetectedNoteEvent) {
+        guard isPracticeAudioRecognitionEnabled else { return }
+        guard autoplayState == .off else { return }
+        guard event.generation == audioRecognitionGeneration else { return }
+        if let audioRecognitionSuppressUntil, event.timestamp <= audioRecognitionSuppressUntil {
+            decisionLogger.debug("audio event suppressed generation=\(event.generation, privacy: .public)")
+            return
+        }
+        guard let currentStep else { return }
+
+        let expectedMIDINotes = currentStep.notes.map(\.midiNote)
+        let wrongMIDINotes = Set(makeWrongCandidateMIDINotes(expectedMIDINotes))
+
+        audioStepAttemptAccumulator.register(event: event)
+        let matchResult = audioStepAttemptAccumulator.evaluate(
+            expectedMIDINotes: expectedMIDINotes,
+            wrongCandidateMIDINotes: wrongMIDINotes,
+            generation: audioRecognitionGeneration,
+            at: event.timestamp,
+            handGateBoost: handGateState.isNearKeyboard || handGateState.hasDownwardMotion
+        )
+
+        switch matchResult {
+            case .matched:
+                audioStepAttemptAccumulator.markMatchedAndRequireRearm(
+                    expectedMIDINotes: expectedMIDINotes,
+                    at: event.timestamp
+                )
+                setFeedback(.correct)
+                advanceToNextStep()
+                decisionLogger.debug("audio matched advanced generation=\(event.generation, privacy: .public)")
+            case .wrong:
+                setFeedback(.wrong)
+                decisionLogger.debug("audio wrong feedback generation=\(event.generation, privacy: .public)")
+            case .insufficient:
+                break
+        }
+    }
+
+    private func makeWrongCandidateMIDINotes(_ expectedMIDINotes: [Int]) -> [Int] {
+        var result: Set<Int> = []
+        for note in expectedMIDINotes {
+            result.insert(note - 2)
+            result.insert(note - 1)
+            result.insert(note + 1)
+            result.insert(note + 2)
+        }
+        result.subtract(expectedMIDINotes)
+        return result.sorted()
+    }
+
+    private var isPracticeAudioRecognitionEnabled: Bool {
+        practiceAudioRecognitionEnabledSnapshot
+    }
+
+    private static func readPracticeAudioRecognitionEnabled() -> Bool {
+        if UserDefaults.standard.object(forKey: "practiceAudioRecognitionEnabled") == nil {
+            return true
+        }
+        return UserDefaults.standard.bool(forKey: "practiceAudioRecognitionEnabled")
+    }
+
+    var audioRecognitionSuppressRemainingSeconds: TimeInterval {
+        guard let audioRecognitionSuppressUntil else { return 0 }
+        return max(0, audioRecognitionSuppressUntil.timeIntervalSinceNow)
+    }
+
+    private var step3AudioRecognitionMode: Step3AudioRecognitionMode {
+        if let rawValue = UserDefaults.standard.string(forKey: "practiceStep3AudioRecognitionMode"),
+           let mode = Step3AudioRecognitionMode(rawValue: rawValue)
+        {
+            return mode
+        }
+        return .lowLatency
     }
 }

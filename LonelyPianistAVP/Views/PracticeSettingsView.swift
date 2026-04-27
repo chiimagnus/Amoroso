@@ -8,6 +8,13 @@ struct PracticeSettingsView: View {
     @AppStorage("practiceMusicXMLFermataEnabled") private var isMusicXMLFermataEnabled = false
     @AppStorage("practiceMusicXMLArpeggiateEnabled") private var isMusicXMLArpeggiateEnabled = false
     @AppStorage("practiceMusicXMLWordsSemanticsEnabled") private var isMusicXMLWordsSemanticsEnabled = false
+    @AppStorage("practiceAudioRecognitionEnabled") private var practiceAudioRecognitionEnabled = true
+    @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var practiceAudioRecognitionDebugOverlayEnabled =
+        false
+    @AppStorage("practiceStep3AudioRecognitionMode") private var practiceStep3AudioRecognitionMode =
+        Step3AudioRecognitionMode
+            .lowLatency
+            .rawValue
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
 
     var body: some View {
@@ -37,6 +44,19 @@ struct PracticeSettingsView: View {
             Text("默认关闭。仅在自动播放时生效，用于更贴合谱面的听感与提示。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+
+            Divider()
+
+            Toggle("启用 Step3 音频识别", isOn: $practiceAudioRecognitionEnabled)
+            Picker(
+                "Step3 音频识别模式",
+                selection: $practiceStep3AudioRecognitionMode
+            ) {
+                Text("低延迟").tag(Step3AudioRecognitionMode.lowLatency.rawValue)
+                Text("更严格").tag(Step3AudioRecognitionMode.stricter.rawValue)
+            }
+            .pickerStyle(.segmented)
+            Toggle("调试：显示音频识别 overlay", isOn: $practiceAudioRecognitionDebugOverlayEnabled)
 
             Divider()
 

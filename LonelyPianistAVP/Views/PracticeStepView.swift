@@ -14,6 +14,10 @@ struct PracticeStepView: View {
     @State private var isAudioErrorAlertPresented = false
 
     @AppStorage("practiceStep3AutoplayEnabled") private var isAutoplayEnabled = false
+    @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var isAudioDebugOverlayEnabled = false
+    @AppStorage("practiceAudioRecognitionEnabled") private var isAudioRecognitionEnabled = true
+    @AppStorage("practiceStep3AudioRecognitionMode") private var step3AudioRecognitionMode = Step3AudioRecognitionMode
+        .lowLatency.rawValue
 
     var body: some View {
         PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes, fingeringByMIDINote: fingeringByMIDINote)
@@ -22,8 +26,17 @@ struct PracticeStepView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, 18)
             .overlay {
-                Step3WindowGeometryHint()
-                    .frame(width: 0, height: 0)
+                ZStack(alignment: .topTrailing) {
+                    Step3WindowGeometryHint()
+                        .frame(width: 0, height: 0)
+                    if isAudioDebugOverlayEnabled {
+                        Step3AudioDebugOverlay(
+                            sessionViewModel: viewModel.practiceSessionViewModel,
+                            isAutoplayEnabled: isAutoplayEnabled
+                        )
+                        .padding(12)
+                    }
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .bottomOrnament) {
@@ -98,6 +111,7 @@ struct PracticeStepView: View {
                 hasRequestedImmersiveOpen = true
 
                 Task { @MainActor in
+                    viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
                     viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
                     await viewModel.enterPracticeStep(
                         using: openImmersiveSpace,
@@ -112,6 +126,12 @@ struct PracticeStepView: View {
             }
             .onChange(of: isAutoplayEnabled) {
                 viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
+            }
+            .onChange(of: isAudioRecognitionEnabled) {
+                viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
+            }
+            .onChange(of: step3AudioRecognitionMode) {
+                viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
             }
             .onChange(of: viewModel.practiceSessionViewModel.audioErrorMessage) {
                 isAudioErrorAlertPresented = viewModel.practiceSessionViewModel.audioErrorMessage != nil
@@ -159,6 +179,18 @@ struct PracticeStepView: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(viewModel.practiceLocalizationStatusText ?? "进入后会自动定位钢琴。")
                 .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            Text(viewModel.step3ARStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(viewModel.step3HandAssistStatusText)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(viewModel.step3AudioStatusText)
+                .font(.caption)
                 .foregroundStyle(.secondary)
 
             Text("提示：即使定位失败或环境不支持，你也可以直接使用下方 2D 键盘的“下一步”继续练习。")
