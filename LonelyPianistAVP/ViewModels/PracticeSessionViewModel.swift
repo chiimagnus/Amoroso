@@ -82,6 +82,8 @@ final class PracticeSessionViewModel {
     private var audioRecognitionSuppressUntil: Date?
     private let audioRecognitionSuppressDuration: TimeInterval = 0.6
     private var practiceAudioRecognitionEnabledSnapshot = true
+    private var practiceAudioRecognitionDetectorModeSnapshot: PracticeAudioRecognitionDetectorMode = .harmonicTemplate
+    private var harmonicTemplateTuningProfileSnapshot: HarmonicTemplateTuningProfile = .lowLatencyDefault
 
     init(
         pressDetectionService: PressDetectionServiceProtocol,
@@ -750,7 +752,11 @@ final class PracticeSessionViewModel {
 
         let expectedMIDINotes = currentStep.notes.map(\.midiNote)
         let wrongMIDINotes = makeWrongCandidateMIDINotes(expectedMIDINotes)
-        audioStepAttemptAccumulator.setMode(step3AudioRecognitionMode)
+        audioRecognitionService.configureDetectorMode(
+            practiceAudioRecognitionDetectorModeSnapshot,
+            profile: harmonicTemplateTuningProfileSnapshot
+        )
+        audioStepAttemptAccumulator.setMode(.lowLatency)
         audioRecognitionGeneration += 1
         audioStepAttemptAccumulator.resetForNewStep(generation: audioRecognitionGeneration)
 
@@ -798,6 +804,12 @@ final class PracticeSessionViewModel {
 
     func refreshAudioRecognitionFromSettings() {
         practiceAudioRecognitionEnabledSnapshot = Self.readPracticeAudioRecognitionEnabled()
+        practiceAudioRecognitionDetectorModeSnapshot = Self.readPracticeAudioRecognitionDetectorMode()
+        harmonicTemplateTuningProfileSnapshot = Self.profile(for: practiceAudioRecognitionDetectorModeSnapshot)
+        audioRecognitionService?.configureDetectorMode(
+            practiceAudioRecognitionDetectorModeSnapshot,
+            profile: harmonicTemplateTuningProfileSnapshot
+        )
         refreshAudioRecognitionForCurrentState()
     }
 
@@ -898,12 +910,16 @@ final class PracticeSessionViewModel {
         return max(0, audioRecognitionSuppressUntil.timeIntervalSinceNow)
     }
 
-    private var step3AudioRecognitionMode: Step3AudioRecognitionMode {
+    private static func readPracticeAudioRecognitionDetectorMode() -> PracticeAudioRecognitionDetectorMode {
         if let rawValue = UserDefaults.standard.string(forKey: "practiceStep3AudioRecognitionMode"),
-           let mode = Step3AudioRecognitionMode(rawValue: rawValue)
+           let mode = PracticeAudioRecognitionDetectorMode(rawValue: rawValue)
         {
             return mode
         }
-        return .lowLatency
+        return .harmonicTemplate
+    }
+
+    private static func profile(for _: PracticeAudioRecognitionDetectorMode) -> HarmonicTemplateTuningProfile {
+        .lowLatencyDefault
     }
 }

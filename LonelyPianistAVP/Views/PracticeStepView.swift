@@ -16,8 +16,6 @@ struct PracticeStepView: View {
     @AppStorage("practiceStep3AutoplayEnabled") private var isAutoplayEnabled = false
     @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var isAudioDebugOverlayEnabled = false
     @AppStorage("practiceAudioRecognitionEnabled") private var isAudioRecognitionEnabled = true
-    @AppStorage("practiceStep3AudioRecognitionMode") private var step3AudioRecognitionMode = Step3AudioRecognitionMode
-        .lowLatency.rawValue
 
     var body: some View {
         PianoKeyboard88View(highlightedMIDINotes: highlightedMIDINotes, fingeringByMIDINote: fingeringByMIDINote)
@@ -128,9 +126,6 @@ struct PracticeStepView: View {
                 viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
             }
             .onChange(of: isAudioRecognitionEnabled) {
-                viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
-            }
-            .onChange(of: step3AudioRecognitionMode) {
                 viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
             }
             .onChange(of: viewModel.practiceSessionViewModel.audioErrorMessage) {
