@@ -490,9 +490,6 @@ final class PracticeSessionViewModel {
                 )
 
                 if nextEventTick == Int.max {
-                    if index + 1 >= steps.count {
-                        advanceToNextStep()
-                    }
                     break
                 }
 
