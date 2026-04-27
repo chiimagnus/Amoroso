@@ -48,4 +48,4 @@ LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2
 
 ## Step3 Targeted Harmonic Template Matching
 
-Step3 音频识别支持 `automatic`、`harmonicTemplate`、`simpleGoertzel` 三种 detector mode。V2 的谐波模板方案只围绕当前 step 的 expected notes 与少量 wrong candidates 检测，不做完整转谱。调参说明见 `Documentation/Step3HarmonicTemplateTuning.md`，方案说明见 `Documentation/Step3TargetedHarmonicTemplateMatching.md`。
+Step3 音频识别当前使用 `harmonicTemplate` detector。V2 的谐波模板方案只围绕当前 step 的 expected notes 与少量 wrong candidates 检测，不做完整转谱。调参说明见 `Documentation/Step3HarmonicTemplateTuning.md`，方案说明见 `Documentation/Step3TargetedHarmonicTemplateMatching.md`。

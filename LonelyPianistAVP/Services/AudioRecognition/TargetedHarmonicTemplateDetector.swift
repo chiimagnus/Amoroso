@@ -57,7 +57,7 @@ struct TargetedHarmonicTemplateDetector: HarmonicTemplateDetecting {
             processingDurationMs: ((Date().timeIntervalSinceReferenceDate) - startedAt) * 1000,
             suppressing: suppressing,
             fallbackReason: nil,
-            activeDetectorMode: requestedMode == .automatic ? .harmonicTemplate : requestedMode,
+            activeDetectorMode: requestedMode,
             rollingWindowSize: spectrumFrame.windowSize
         )
     }

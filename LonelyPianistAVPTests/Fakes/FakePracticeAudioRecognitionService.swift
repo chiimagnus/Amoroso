@@ -43,7 +43,7 @@ final class FakePracticeAudioRecognitionService: PracticeAudioRecognitionService
     private(set) var startCalls: [StartCall] = []
     private(set) var updateCalls: [UpdateCall] = []
     private(set) var suppressCalls: [SuppressCall] = []
-    private(set) var configuredDetectorMode: PracticeAudioRecognitionDetectorMode = .automatic
+    private(set) var configuredDetectorMode: PracticeAudioRecognitionDetectorMode = .harmonicTemplate
     private(set) var configuredProfile: HarmonicTemplateTuningProfile = .lowLatencyDefault
     private(set) var stopCallCount = 0
     private var currentGeneration = 0

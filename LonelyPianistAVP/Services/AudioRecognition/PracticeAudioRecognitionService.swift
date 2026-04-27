@@ -40,7 +40,6 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         qos: .userInitiated
     )
     private let lock = NSLock()
-    private let detectorLock = NSLock()
     private let recognitionLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
         category: "Step3AudioRecognition"
@@ -57,9 +56,8 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
     private let statusContinuation: AsyncStream<PracticeAudioRecognitionStatus>.Continuation
     private let debugContinuation: AsyncStream<PracticeAudioRecognitionDebugSnapshot>.Continuation
 
-    private var goertzelDetector = GoertzelNoteDetector()
     private var rollingBuffer = AudioSampleRollingBuffer(capacity: 4096)
-    private var requestedDetectorMode: PracticeAudioRecognitionDetectorMode = .automatic
+    private var requestedDetectorMode: PracticeAudioRecognitionDetectorMode = .harmonicTemplate
     private var activeDetectorMode: PracticeAudioRecognitionDetectorMode = .harmonicTemplate
     private var tuningProfile: HarmonicTemplateTuningProfile = .lowLatencyDefault
     private var consecutiveSlowFrames = 0
@@ -95,7 +93,7 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         lock.lock()
         requestedDetectorMode = mode
         tuningProfile = profile
-        activeDetectorMode = mode == .automatic ? .harmonicTemplate : mode
+        activeDetectorMode = mode
         consecutiveSlowFrames = 0
         consecutiveDetectorErrors = 0
         lastFallbackReason = nil
@@ -156,9 +154,6 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         currentGeneration = generation
         recentDetectedNotes.removeAll()
         rollingBuffer.reset()
-        detectorLock.lock()
-        goertzelDetector = GoertzelNoteDetector()
-        detectorLock.unlock()
         lock.unlock()
     }
 
@@ -193,9 +188,7 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         let generation = currentGeneration
         let suppressUntil = suppressUntil
         let requestedMode = requestedDetectorMode
-        let mode = activeDetectorMode
         let profile = tuningProfile
-        let fallbackReason = lastFallbackReason
         let preferredWindowSize = profile.preferredWindowSize(for: expectedMIDINotes)
         rollingBuffer.setCapacity(max(preferredWindowSize, profile.lowRegisterWindowSize))
         rollingBuffer.append(samples)
@@ -206,32 +199,17 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         let now = Date()
         let suppressing = suppressUntil.map { now < $0 } ?? false
         let startedAt = Date().timeIntervalSinceReferenceDate
-        let frame: TargetedHarmonicDetectionFrame = switch mode {
-            case .simpleGoertzel:
-                processGoertzelFrame(
-                    samples: analysisWindow,
-                    sampleRate: sampleRate,
-                    expectedMIDINotes: expectedMIDINotes,
-                    wrongCandidateMIDINotes: wrongCandidateMIDINotes,
-                    generation: generation,
-                    suppressing: suppressing,
-                    requestedMode: requestedMode,
-                    fallbackReason: fallbackReason,
-                    startedAt: startedAt
-                )
-            case .harmonicTemplate, .automatic:
-                processHarmonicFrame(
-                    samples: analysisWindow,
-                    sampleRate: sampleRate,
-                    expectedMIDINotes: expectedMIDINotes,
-                    wrongCandidateMIDINotes: wrongCandidateMIDINotes,
-                    generation: generation,
-                    suppressing: suppressing,
-                    requestedMode: requestedMode,
-                    profile: profile,
-                    startedAt: startedAt
-                )
-        }
+        let frame = processHarmonicFrame(
+            samples: analysisWindow,
+            sampleRate: sampleRate,
+            expectedMIDINotes: expectedMIDINotes,
+            wrongCandidateMIDINotes: wrongCandidateMIDINotes,
+            generation: generation,
+            suppressing: suppressing,
+            requestedMode: requestedMode,
+            profile: profile,
+            startedAt: startedAt
+        )
         publish(
             frame: frame,
             inputLevel: rms(analysisWindow),
@@ -280,70 +258,16 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
             return frame
         } catch {
             updateFallbackCounters(elapsedMs: 0, error: error, profile: profile)
-            return processGoertzelFrame(
-                samples: samples,
-                sampleRate: sampleRate,
-                expectedMIDINotes: expectedMIDINotes,
-                wrongCandidateMIDINotes: wrongCandidateMIDINotes,
-                generation: generation,
+            return TargetedHarmonicDetectionFrame(
+                events: [],
+                templateMatchResults: [],
+                processingDurationMs: ((Date().timeIntervalSinceReferenceDate) - startedAt) * 1000,
                 suppressing: suppressing,
-                requestedMode: requestedMode,
                 fallbackReason: lastFallbackReason ?? error.localizedDescription,
-                startedAt: startedAt
+                activeDetectorMode: .harmonicTemplate,
+                rollingWindowSize: samples.count
             )
         }
-    }
-
-    private func processGoertzelFrame(
-        samples: [Float],
-        sampleRate: Double,
-        expectedMIDINotes: [Int],
-        wrongCandidateMIDINotes: [Int],
-        generation: Int,
-        suppressing: Bool,
-        requestedMode _: PracticeAudioRecognitionDetectorMode,
-        fallbackReason: String?,
-        startedAt: TimeInterval
-    ) -> TargetedHarmonicDetectionFrame {
-        detectorLock.lock()
-        let detections = goertzelDetector.detect(
-            samples: samples,
-            sampleRate: sampleRate,
-            candidateMIDINotes: expectedMIDINotes + wrongCandidateMIDINotes,
-            debugLoggingEnabled: false
-        )
-        detectorLock.unlock()
-        let events = suppressing ? [] : detections.filter { $0.confidence >= 0.2 }.map { detection in
-            DetectedNoteEvent(
-                midiNote: detection.midiNote,
-                confidence: detection.confidence,
-                onsetScore: detection.onsetScore,
-                isOnset: detection.isOnset,
-                timestamp: Date(),
-                generation: generation,
-                source: .audio
-            )
-        }
-        let matches = detections.map { detection in
-            TemplateMatchResult(
-                midiNote: detection.midiNote,
-                role: expectedMIDINotes.contains(detection.midiNote) ? .expected : .wrongCandidate,
-                confidence: detection.confidence,
-                harmonicScore: detection.rawEnergy,
-                tonalRatio: detection.confidence,
-                dominanceOverWrong: 1,
-                strongestPartials: []
-            )
-        }
-        return TargetedHarmonicDetectionFrame(
-            events: events,
-            templateMatchResults: matches,
-            processingDurationMs: ((Date().timeIntervalSinceReferenceDate) - startedAt) * 1000,
-            suppressing: suppressing,
-            fallbackReason: fallbackReason,
-            activeDetectorMode: .simpleGoertzel,
-            rollingWindowSize: samples.count
-        )
     }
 
     private func updateFallbackCounters(elapsedMs: Double, error: Error?, profile: HarmonicTemplateTuningProfile) {
@@ -358,12 +282,11 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
                 consecutiveSlowFrames = 0
             }
         }
-        if requestedDetectorMode == .automatic,
-           consecutiveSlowFrames >= profile.slowFallbackCount || consecutiveDetectorErrors >= profile.errorFallbackCount
-        {
-            activeDetectorMode = .simpleGoertzel
+        if consecutiveSlowFrames >= profile.slowFallbackCount || consecutiveDetectorErrors >= profile.errorFallbackCount {
             lastFallbackReason = consecutiveDetectorErrors >= profile
                 .errorFallbackCount ? "harmonicTemplate repeated errors" : "harmonicTemplate repeated slow frames"
+        } else {
+            lastFallbackReason = nil
         }
         lock.unlock()
     }
@@ -419,13 +342,10 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         self.suppressUntil = suppressUntil
         recentDetectedNotes.removeAll()
         rollingBuffer.reset()
-        activeDetectorMode = requestedDetectorMode == .automatic ? .harmonicTemplate : requestedDetectorMode
+        activeDetectorMode = requestedDetectorMode
         consecutiveSlowFrames = 0
         consecutiveDetectorErrors = 0
         lastFallbackReason = nil
-        detectorLock.lock()
-        goertzelDetector = GoertzelNoteDetector()
-        detectorLock.unlock()
         lock.unlock()
     }
 

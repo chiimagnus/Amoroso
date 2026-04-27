@@ -82,7 +82,7 @@ final class PracticeSessionViewModel {
     private var audioRecognitionSuppressUntil: Date?
     private let audioRecognitionSuppressDuration: TimeInterval = 0.6
     private var practiceAudioRecognitionEnabledSnapshot = true
-    private var practiceAudioRecognitionDetectorModeSnapshot: PracticeAudioRecognitionDetectorMode = .automatic
+    private var practiceAudioRecognitionDetectorModeSnapshot: PracticeAudioRecognitionDetectorMode = .harmonicTemplate
     private var harmonicTemplateTuningProfileSnapshot: HarmonicTemplateTuningProfile = .lowLatencyDefault
 
     init(
@@ -767,7 +767,7 @@ final class PracticeSessionViewModel {
                 generation: audioRecognitionGeneration
             )
             applyPendingAudioRecognitionSuppressIfNeeded(generation: audioRecognitionGeneration)
-            decisionLogger.debug("audio generation update=\(audioRecognitionGeneration, privacy: .public)")
+            decisionLogger.debug("audio generation update=\(self.audioRecognitionGeneration, privacy: .public)")
             return
         }
 
@@ -782,12 +782,12 @@ final class PracticeSessionViewModel {
                     expectedMIDINotes: startExpectedMIDINotes,
                     wrongCandidateMIDINotes: startWrongMIDINotes,
                     generation: startGeneration,
-                    suppressUntil: audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
+                    suppressUntil: self.audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
                 )
-                guard audioRecognitionGeneration == startGeneration,
-                      autoplayState == .off,
-                      isPracticeAudioRecognitionEnabled,
-                      case .guiding = state
+                guard self.audioRecognitionGeneration == startGeneration,
+                      self.autoplayState == .off,
+                      self.isPracticeAudioRecognitionEnabled,
+                      case .guiding = self.state
                 else {
                     stopAudioRecognition()
                     return
@@ -916,17 +916,10 @@ final class PracticeSessionViewModel {
         {
             return mode
         }
-        return .automatic
+        return .harmonicTemplate
     }
 
     private static func profile(for mode: PracticeAudioRecognitionDetectorMode) -> HarmonicTemplateTuningProfile {
-        switch mode {
-            case .simpleGoertzel:
-                .lowLatencyDefault
-            case .harmonicTemplate:
-                .lowLatencyDefault
-            case .automatic:
-                .lowLatencyDefault
-        }
+        .lowLatencyDefault
     }
 }
