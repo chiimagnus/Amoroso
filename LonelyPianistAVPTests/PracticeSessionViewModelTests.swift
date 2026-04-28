@@ -795,7 +795,14 @@ func autoplayAdvancesHighlightGuidesByTick() async {
         pedalTimeline: nil,
         noteSpans: [],
         highlightGuides: [
-            makeHighlightGuide(id: 1, kind: .trigger, tick: 0, practiceStepIndex: 0, midiNotes: [60]),
+            makeHighlightGuide(
+                id: 1,
+                kind: .trigger,
+                tick: 0,
+                practiceStepIndex: 0,
+                midiNotes: [60],
+                noteDurationTicks: 480
+            ),
             makeHighlightGuide(id: 2, kind: .gap, tick: 120, practiceStepIndex: nil, midiNotes: [], released: [60]),
             makeHighlightGuide(id: 3, kind: .trigger, tick: 480, practiceStepIndex: 1, midiNotes: [62]),
         ]
@@ -910,29 +917,32 @@ func autoplayDefersNoteOffWhilePedalIsDownAndReleasesOnPedalUp() async {
         ],
         tempoMap: tempoMap,
         pedalTimeline: pedalTimeline,
-        noteSpans: [
-            MusicXMLNoteSpan(midiNote: 60, staff: 1, voice: 1, onTick: 0, offTick: 480),
+        noteSpans: [],
+        highlightGuides: [
+            makeHighlightGuide(
+                id: 1,
+                kind: .trigger,
+                tick: 0,
+                practiceStepIndex: 0,
+                midiNotes: [60],
+                noteDurationTicks: 480
+            ),
         ]
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
 
+    #expect(output.recordedNoteOns.map(\.midi) == [60])
+    #expect(output.recordedNoteOffs.contains(60) == false)
 
-    for _ in 0 ..< 2 {
-        await sleeper.resumeOldestPending()
-        await settleTaskQueue()
-    }
+    await sleeper.resumeOldestPending()
+    await settleTaskQueue()
 
     #expect(output.recordedNoteOffs.contains(60) == false)
 
-    for _ in 0 ..< 6 {
-        await sleeper.resumeOldestPending()
-        await settleTaskQueue()
-        if output.recordedNoteOffs.contains(60) {
-            break
-        }
-    }
+    await sleeper.resumeOldestPending()
+    await settleTaskQueue()
 
     #expect(output.recordedNoteOffs.contains(60) == true)
 }
@@ -991,8 +1001,16 @@ func autoplayReleasesPendingNotesOnPedalChangeTickEvenIfPedalStaysDown() async {
         ],
         tempoMap: tempoMap,
         pedalTimeline: pedalTimeline,
-        noteSpans: [
-            MusicXMLNoteSpan(midiNote: 60, staff: 1, voice: 1, onTick: 0, offTick: 480),
+        noteSpans: [],
+        highlightGuides: [
+            makeHighlightGuide(
+                id: 1,
+                kind: .trigger,
+                tick: 0,
+                practiceStepIndex: 0,
+                midiNotes: [60],
+                noteDurationTicks: 480
+            ),
         ]
     )
     viewModel.setAutoplayEnabled(true)
@@ -1004,14 +1022,6 @@ func autoplayReleasesPendingNotesOnPedalChangeTickEvenIfPedalStaysDown() async {
 
     await sleeper.resumeOldestPending()
     await settleTaskQueue()
-
-    for _ in 0 ..< 10 {
-        await sleeper.resumeOldestPending()
-        await settleTaskQueue()
-        if output.recordedNoteOffs.contains(60) {
-            break
-        }
-    }
 
     #expect(output.recordedNoteOffs.contains(60) == true)
     #expect(viewModel.isSustainPedalDown == true)
@@ -1089,6 +1099,26 @@ private func makeHighlightGuide(
     midiNotes: Set<Int>,
     released: Set<Int> = []
 ) -> PianoHighlightGuide {
+    makeHighlightGuide(
+        id: id,
+        kind: kind,
+        tick: tick,
+        practiceStepIndex: practiceStepIndex,
+        midiNotes: midiNotes,
+        released: released,
+        noteDurationTicks: 1
+    )
+}
+
+private func makeHighlightGuide(
+    id: Int,
+    kind: PianoHighlightGuideKind,
+    tick: Int,
+    practiceStepIndex: Int?,
+    midiNotes: Set<Int>,
+    released: Set<Int> = [],
+    noteDurationTicks: Int
+) -> PianoHighlightGuide {
     let notes = midiNotes.sorted().enumerated().map { index, midi in
         PianoHighlightNote(
             occurrenceID: "test-\(id)-\(tick)-\(index)-\(midi)",
@@ -1097,7 +1127,7 @@ private func makeHighlightGuide(
             voice: 1,
             velocity: 96,
             onTick: tick,
-            offTick: tick + 1,
+            offTick: tick + max(1, noteDurationTicks),
             fingeringText: nil
         )
     }
