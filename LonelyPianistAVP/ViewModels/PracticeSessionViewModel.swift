@@ -721,9 +721,12 @@ final class PracticeSessionViewModel {
         var advanceStepCount: Int = 0
         var advanceGuideCount: Int = 0
         var pauseSecondsExecuted: TimeInterval = 0
+        var processingSeconds: TimeInterval = 0
     }
 
     private func processAutoplayEventsWithStats(atTick tick: Int) async -> AutoplayTickStats {
+        let clock = ContinuousClock()
+        let startInstant = clock.now
         var stats = AutoplayTickStats()
         while currentAutoplayEventIndex < autoplayTimeline.events.count,
               autoplayTimeline.events[currentAutoplayEventIndex].tick == tick
@@ -757,6 +760,7 @@ final class PracticeSessionViewModel {
                 processAutoplayEvent(event)
             }
         }
+        stats.processingSeconds = Self.durationSeconds(startInstant.duration(to: clock.now))
         return stats
     }
 
