@@ -22,7 +22,8 @@ func practiceEntryBlockingReasonIsMissingStoredCalibrationWhenStepsExist() {
     let appModel = AppModel()
     appModel.setImportedSteps(
         [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
-        file: nil
+        file: nil,
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
     )
 
     let viewModel = ARGuideViewModel(appModel: appModel)
@@ -40,7 +41,8 @@ func practiceEntryBlockingReasonIsNilWhenPreconditionsAreReady() {
     )
     appModel.setImportedSteps(
         [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
-        file: nil
+        file: nil,
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
     )
 
     let viewModel = ARGuideViewModel(appModel: appModel)
