@@ -10,6 +10,15 @@ final class PracticeSessionViewModel {
         subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
         category: "Step3AudioDecision"
     )
+    private let timingLogger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "Step3PracticeTiming"
+    )
+
+    private static func durationSeconds(_ duration: Duration) -> TimeInterval {
+        let components = duration.components
+        return TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
+    }
 
     enum VisualFeedbackState: Equatable {
         case none
@@ -545,20 +554,35 @@ final class PracticeSessionViewModel {
         let generation = autoplayTaskGeneration
         resetAutoplayCursorForCurrentStep()
         let tempoMapSnapshot = tempoMap
+        let isTimingDebugEnabled = UserDefaults.standard.bool(forKey: "practiceTimingDebugEnabled")
+        let timingClock = ContinuousClock()
+        let timingStartInstant = timingClock.now
+        var timingExpectedElapsed: TimeInterval = 0
+        var timingLoopCount = 0
 
         autoplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var currentTick = currentStep?.tick ?? 0
             isSustainPedalDown = pedalTimeline?.isDown(atTick: currentTick) ?? false
-            await processAutoplayEvents(atTick: currentTick)
+            let initialStats = await processAutoplayEventsWithStats(atTick: currentTick)
+            timingExpectedElapsed += initialStats.pauseSecondsExecuted
+            if isTimingDebugEnabled {
+                let wallElapsed = Self.durationSeconds(timingStartInstant.duration(to: timingClock.now))
+                let driftSeconds = wallElapsed - timingExpectedElapsed
+                timingLogger.debug(
+                    "autoplay start tick=\(currentTick, privacy: .public) expected=\(timingExpectedElapsed, privacy: .public)s wall=\(wallElapsed, privacy: .public)s drift=\(driftSeconds, privacy: .public)s events=\(initialStats.eventCount, privacy: .public) pause=\(initialStats.pauseSecondsExecuted, privacy: .public)s"
+                )
+            }
 
             while Task.isCancelled == false {
                 guard autoplayState == .playing else { break }
                 guard case .guiding = state else { break }
                 guard currentAutoplayEventIndex < autoplayTimeline.events.count else { break }
 
+                timingLoopCount += 1
                 let nextTick = autoplayTimeline.events[currentAutoplayEventIndex].tick
                 let waitSeconds = tempoMapSnapshot.durationSeconds(fromTick: currentTick, toTick: nextTick)
+                let deltaTicks = nextTick - currentTick
 
                 if waitSeconds > 0 {
                     try? await sleeper.sleep(for: .seconds(waitSeconds))
@@ -571,7 +595,17 @@ final class PracticeSessionViewModel {
                 guard case .guiding = state else { break }
 
                 currentTick = nextTick
-                await processAutoplayEvents(atTick: currentTick)
+                let stats = await processAutoplayEventsWithStats(atTick: currentTick)
+                timingExpectedElapsed += waitSeconds + stats.pauseSecondsExecuted
+                if isTimingDebugEnabled {
+                    let wallElapsed = Self.durationSeconds(timingStartInstant.duration(to: timingClock.now))
+                    let driftSeconds = wallElapsed - timingExpectedElapsed
+                    if stats.pauseSecondsExecuted > 0 || driftSeconds > 0.05 || timingLoopCount.isMultiple(of: 50) {
+                        timingLogger.debug(
+                            "autoplay tick=\(currentTick, privacy: .public) Δtick=\(deltaTicks, privacy: .public) wait=\(waitSeconds, privacy: .public)s pause=\(stats.pauseSecondsExecuted, privacy: .public)s expected=\(timingExpectedElapsed, privacy: .public)s wall=\(wallElapsed, privacy: .public)s drift=\(driftSeconds, privacy: .public)s events=\(stats.eventCount, privacy: .public) on=\(stats.noteOnCount, privacy: .public) off=\(stats.noteOffCount, privacy: .public) step=\(stats.advanceStepCount, privacy: .public) guide=\(stats.advanceGuideCount, privacy: .public)"
+                        )
+                    }
+                }
             }
 
             guard self.autoplayTaskGeneration == generation else { return }
@@ -676,22 +710,54 @@ final class PracticeSessionViewModel {
     }
 
     private func processAutoplayEvents(atTick tick: Int) async {
+        // Deprecated: kept for source compatibility only.
+        _ = await processAutoplayEventsWithStats(atTick: tick)
+    }
+
+    private struct AutoplayTickStats: Equatable {
+        var eventCount: Int = 0
+        var noteOnCount: Int = 0
+        var noteOffCount: Int = 0
+        var advanceStepCount: Int = 0
+        var advanceGuideCount: Int = 0
+        var pauseSecondsExecuted: TimeInterval = 0
+    }
+
+    private func processAutoplayEventsWithStats(atTick tick: Int) async -> AutoplayTickStats {
+        var stats = AutoplayTickStats()
         while currentAutoplayEventIndex < autoplayTimeline.events.count,
               autoplayTimeline.events[currentAutoplayEventIndex].tick == tick
         {
             let event = autoplayTimeline.events[currentAutoplayEventIndex]
             currentAutoplayEventIndex += 1
+            stats.eventCount += 1
 
             if case let .pauseSeconds(seconds) = event.kind {
                 if seconds > 0 {
+                    stats.pauseSecondsExecuted += seconds
                     try? await sleeper.sleep(for: .seconds(seconds))
-                    guard Task.isCancelled == false else { return }
-                    guard autoplayState == .playing else { return }
+                    guard Task.isCancelled == false else { return stats }
+                    guard autoplayState == .playing else { return stats }
                 }
             } else {
+                switch event.kind {
+                    case .noteOn:
+                        stats.noteOnCount += 1
+                    case .noteOff:
+                        stats.noteOffCount += 1
+                    case .advanceStep:
+                        stats.advanceStepCount += 1
+                    case .advanceGuide:
+                        stats.advanceGuideCount += 1
+                    case .pauseSeconds:
+                        break
+                    case .pedalDown, .pedalUp:
+                        break
+                }
                 processAutoplayEvent(event)
             }
         }
+        return stats
     }
 
     private func processAutoplayEvent(_ event: AutoplayPerformanceTimeline.Event) {
@@ -803,6 +869,11 @@ final class PracticeSessionViewModel {
         moveToStep(startIndex, shouldPlaySound: false)
 
         let tempoMapSnapshot = tempoMap
+        let isTimingDebugEnabled = UserDefaults.standard.bool(forKey: "practiceTimingDebugEnabled")
+        let timingClock = ContinuousClock()
+        let timingStartInstant = timingClock.now
+        var timingExpectedElapsed: TimeInterval = 0
+        var timingLoopCount = 0
         manualReplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var completedReplay = false
@@ -825,6 +896,7 @@ final class PracticeSessionViewModel {
             for index in plan.stepRange {
                 guard Task.isCancelled == false else { return }
                 guard self.steps.indices.contains(index) else { return }
+                timingLoopCount += 1
                 self.currentStepIndex = index
                 self.state = .guiding(stepIndex: index)
                 self.setCurrentHighlightGuideForStepIndex(index)
@@ -840,6 +912,17 @@ final class PracticeSessionViewModel {
                     try? await self.sleeper.sleep(for: .seconds(waitSeconds))
                 } else {
                     await Task.yield()
+                }
+                timingExpectedElapsed += waitSeconds
+                if isTimingDebugEnabled {
+                    let wallElapsed = Self.durationSeconds(timingStartInstant.duration(to: timingClock.now))
+                    let driftSeconds = wallElapsed - timingExpectedElapsed
+                    if driftSeconds > 0.05 || timingLoopCount.isMultiple(of: 50) {
+                        let deltaTicks = self.steps[nextIndex].tick - self.steps[index].tick
+                        timingLogger.debug(
+                            "manual replay step=\(index, privacy: .public) tick=\(self.steps[index].tick, privacy: .public) Δtick=\(deltaTicks, privacy: .public) wait=\(waitSeconds, privacy: .public)s expected=\(timingExpectedElapsed, privacy: .public)s wall=\(wallElapsed, privacy: .public)s drift=\(driftSeconds, privacy: .public)s"
+                        )
+                    }
                 }
             }
             completedReplay = true
