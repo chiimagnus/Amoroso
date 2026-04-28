@@ -160,7 +160,7 @@ struct PianoHighlightGuideBuilderService {
             let notes = step.notes.enumerated().map { noteIndex, stepNote in
                 let onTick = step.tick + stepNote.onTickOffset
                 let offTick = max(onTick + 1, nextStepTick ?? (onTick + 1))
-                PianoHighlightNote(
+                return PianoHighlightNote(
                     occurrenceID: "fallback-\(index)-\(noteIndex)-\(stepNote.midiNote)",
                     midiNote: stepNote.midiNote,
                     staff: stepNote.staff,
