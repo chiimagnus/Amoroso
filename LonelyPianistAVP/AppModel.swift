@@ -36,6 +36,7 @@ class AppModel {
 
     var importedFile: ImportedMusicXMLFile?
     var importedSteps: [PracticeStep] = []
+    var importedMeasureSpans: [MusicXMLMeasureSpan] = []
     var importErrorMessage: String?
 
     var storedCalibration: StoredWorldAnchorCalibration?
@@ -100,15 +101,17 @@ class AppModel {
     func setImportedSteps(
         _ steps: [PracticeStep],
         file: ImportedMusicXMLFile?,
-        tempoMap: MusicXMLTempoMap? = nil,
+        tempoMap: MusicXMLTempoMap,
         pedalTimeline: MusicXMLPedalTimeline? = nil,
         fermataTimeline: MusicXMLFermataTimeline? = nil,
         attributeTimeline: MusicXMLAttributeTimeline? = nil,
         slurTimeline: MusicXMLSlurTimeline? = nil,
         noteSpans: [MusicXMLNoteSpan] = [],
-        highlightGuides: [PianoHighlightGuide] = []
+        highlightGuides: [PianoHighlightGuide] = [],
+        measureSpans: [MusicXMLMeasureSpan] = []
     ) {
         importedSteps = steps
+        importedMeasureSpans = measureSpans
         importedFile = file
         importErrorMessage = nil
         practiceSessionViewModel.setSteps(
@@ -119,7 +122,8 @@ class AppModel {
             attributeTimeline: attributeTimeline,
             slurTimeline: slurTimeline,
             noteSpans: noteSpans,
-            highlightGuides: highlightGuides
+            highlightGuides: highlightGuides,
+            measureSpans: measureSpans
         )
         applySessionIfPossible()
     }
@@ -189,7 +193,8 @@ class AppModel {
                 attributeTimeline: attributeTimeline,
                 slurTimeline: slurTimeline,
                 noteSpans: noteSpans,
-                highlightGuides: highlightGuides
+                highlightGuides: highlightGuides,
+                measureSpans: practiceScore.measures
             )
         } catch {
             importErrorMessage = "导入失败：\(error.localizedDescription)"
