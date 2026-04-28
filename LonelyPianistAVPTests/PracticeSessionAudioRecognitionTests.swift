@@ -62,7 +62,9 @@ func guidingStartsAudioRecognitionService() async {
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -80,7 +82,9 @@ func switchingStepUpdatesGenerationAndExpectedNotes() async {
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
         PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -102,7 +106,9 @@ func staleGenerationEventDoesNotAdvanceStep() async {
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
         PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -133,7 +139,9 @@ func matchingAudioEventAdvancesStep() async {
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
         PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -171,7 +179,9 @@ func suppressWindowBlocksThenAllowsAdvance() async {
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
         PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
     let generation = fakeService.startCalls.first?.generation ?? 0
@@ -316,7 +326,9 @@ func permissionFailureStatusDoesNotAdvanceAndSetsError() async {
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
         PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -399,7 +411,9 @@ func startGuidingPassesPlaybackSuppressDeadlineIntoAudioServiceStart() async {
     )
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -423,7 +437,9 @@ func microphonePermissionFailureDoesNotBlockPlaybackFallback() async {
     )
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
 
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -443,7 +459,9 @@ func disablingAudioRecognitionSettingStopsRunningService() async {
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
 
@@ -462,7 +480,9 @@ func disablingAudioRecognitionSettingIgnoresQueuedEvents() async {
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
         PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
-    ])
+    ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
     let generation = fakeService.startCalls.first?.generation ?? 0

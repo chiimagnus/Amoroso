@@ -118,8 +118,9 @@ private func makeAppModel(
     if hasImportedSteps {
         appModel.setImportedSteps(
             [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
-            file: nil
-        )
+            file: nil,
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
     }
 
     return appModel
