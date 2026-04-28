@@ -101,6 +101,53 @@ func skipDuringAutoplayCancelsPendingEventsAndRestartsAtNextStep() async {
     #expect(output.recordedNoteOns.map(\.midi).contains(62))
 }
 
+@Test
+@MainActor
+func skipDoesNotLetCancelledAutoplayTaskClearNewTaskReference() async {
+    let sleeper = ControllableSleeper()
+    let tempoMap = MusicXMLTempoMap(
+        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: defaultTempoScope)]
+    )
+    let output = CapturingMIDINoteOutput()
+    let viewModel = PracticeSessionViewModel(
+        pressDetectionService: NoopPressDetectionService(),
+        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
+        sleeper: sleeper,
+        noteAudioPlayer: nil,
+        noteOutput: output
+    )
+
+    viewModel.setSteps(
+        [
+            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)]),
+            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1)]),
+        ],
+        tempoMap: tempoMap,
+        pedalTimeline: nil,
+        highlightGuides: [
+            makeHighlightGuide(id: 1, kind: .trigger, tick: 0, practiceStepIndex: 0, midiNotes: [60], noteDurationTicks: 480),
+            makeHighlightGuide(id: 2, kind: .trigger, tick: 480, practiceStepIndex: 1, midiNotes: [62], noteDurationTicks: 480),
+        ]
+    )
+    viewModel.setAutoplayEnabled(true)
+    viewModel.startGuidingIfReady()
+    await settleTaskQueue()
+
+    #expect(await sleeper.callCount() == 1)
+
+    viewModel.skip()
+    await settleTaskQueue()
+
+    #expect(await sleeper.cancellationCount() == 1)
+    #expect(await sleeper.callCount() == 2)
+
+    viewModel.setAutoplayEnabled(true)
+    await settleTaskQueue()
+
+    #expect(await sleeper.callCount() == 2)
+    #expect(viewModel.autoplayState == .playing)
+}
+
 
 @Test
 @MainActor

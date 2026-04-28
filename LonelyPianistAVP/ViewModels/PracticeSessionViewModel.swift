@@ -63,6 +63,7 @@ final class PracticeSessionViewModel {
     private let handPianoActivityGate: HandPianoActivityGate
     private var feedbackResetTask: Task<Void, Never>?
     private var autoplayTask: Task<Void, Never>?
+    private var autoplayTaskGeneration = 0
     private var audioRecognitionEventsTask: Task<Void, Never>?
     private var audioRecognitionStatusTask: Task<Void, Never>?
     private var audioRecognitionDebugTask: Task<Void, Never>?
@@ -458,6 +459,8 @@ final class PracticeSessionViewModel {
             return
         }
 
+        autoplayTaskGeneration += 1
+        let generation = autoplayTaskGeneration
         resetAutoplayCursorForCurrentStep()
         let tempoMap = resolvedTempoMap()
 
@@ -489,7 +492,8 @@ final class PracticeSessionViewModel {
                 await processAutoplayEvents(atTick: currentTick)
             }
 
-            autoplayTask = nil
+            guard self.autoplayTaskGeneration == generation else { return }
+            self.autoplayTask = nil
         }
     }
 
@@ -652,6 +656,7 @@ final class PracticeSessionViewModel {
     }
 
     private func stopAutoplayTask() {
+        autoplayTaskGeneration += 1
         autoplayTask?.cancel()
         autoplayTask = nil
     }
