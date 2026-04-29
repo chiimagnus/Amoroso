@@ -11,6 +11,7 @@ final class AppServices {
     let arTrackingService: ARTrackingServiceProtocol
     let calibrationCaptureService: CalibrationPointCaptureService
     let practicePreparationService: PracticePreparationServiceProtocol
+    let calibrationRepository: CalibrationRepositoryProtocol
 
     init(
         worldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol? = nil,
@@ -20,7 +21,8 @@ final class AppServices {
         stepBuilder: PracticeStepBuilderProtocol? = nil,
         arTrackingService: ARTrackingServiceProtocol? = nil,
         calibrationCaptureService: CalibrationPointCaptureService? = nil,
-        practicePreparationService: PracticePreparationServiceProtocol? = nil
+        practicePreparationService: PracticePreparationServiceProtocol? = nil,
+        calibrationRepository: CalibrationRepositoryProtocol? = nil
     ) {
         self.worldAnchorCalibrationStore = worldAnchorCalibrationStore ?? WorldAnchorCalibrationStore()
         self.keyGeometryService = keyGeometryService ?? PianoKeyGeometryService()
@@ -31,5 +33,7 @@ final class AppServices {
         self.calibrationCaptureService = calibrationCaptureService ?? CalibrationPointCaptureService()
         self.practicePreparationService = practicePreparationService
             ?? PracticePreparationService(parser: self.parser, stepBuilder: self.stepBuilder)
+        self.calibrationRepository = calibrationRepository
+            ?? CalibrationRepository(worldAnchorCalibrationStore: self.worldAnchorCalibrationStore)
     }
 }
