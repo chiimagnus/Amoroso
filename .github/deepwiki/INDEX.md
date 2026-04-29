@@ -66,6 +66,7 @@
 - [modules/lonelypianist-avp-musicxml.md](modules/lonelypianist-avp-musicxml.md)
 - [modules/lonelypianist-avp-tracking.md](modules/lonelypianist-avp-tracking.md)
 - [modules/lonelypianist-avp-practice.md](modules/lonelypianist-avp-practice.md)
+- [modules/lonelypianist-avp-practice-audio.md](modules/lonelypianist-avp-practice-audio.md)
 
 ### Python 对话服务
 - [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md)
