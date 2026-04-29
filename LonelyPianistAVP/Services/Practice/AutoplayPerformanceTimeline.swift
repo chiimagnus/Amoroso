@@ -52,7 +52,7 @@ nonisolated struct AutoplayPerformanceTimeline: Equatable {
         return low
     }
 
-    static func build(
+    @MainActor static func build(
         guides: [PianoHighlightGuide],
         steps: [PracticeStep],
         pedalTimeline: MusicXMLPedalTimeline,
