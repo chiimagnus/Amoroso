@@ -145,18 +145,7 @@ final class SongLibraryViewModel {
                 return false
             }
 
-            appState.setImportedSteps(
-                prepared.steps,
-                file: prepared.file,
-                tempoMap: prepared.tempoMap,
-                pedalTimeline: prepared.pedalTimeline,
-                fermataTimeline: prepared.fermataTimeline,
-                attributeTimeline: prepared.attributeTimeline,
-                slurTimeline: prepared.slurTimeline,
-                noteSpans: prepared.noteSpans,
-                highlightGuides: prepared.highlightGuides,
-                measureSpans: prepared.measureSpans
-            )
+            appState.setImportedSteps(from: prepared)
 
             var updatedIndex = index
             updatedIndex.lastSelectedEntryID = entry.id

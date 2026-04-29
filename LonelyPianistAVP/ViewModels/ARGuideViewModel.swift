@@ -65,6 +65,7 @@ final class ARGuideViewModel {
     }
 
     private let appState: AppState
+    let practiceSessionViewModel: PracticeSessionViewModel
     private var handTrackingConsumerTask: Task<Void, Never>?
     private var calibrationAnchorCaptureTask: Task<Void, Never>?
     private var calibrationFlowBootstrapTask: Task<Void, Never>?
@@ -80,8 +81,37 @@ final class ARGuideViewModel {
     private(set) var practiceLocalizationState: PracticeLocalizationState = .idle
     private(set) var calibrationPhase: CalibrationPhase = .capturingA0
 
-    init(appState: AppState) {
+    init(appState: AppState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
         self.appState = appState
+        self.practiceSessionViewModel = practiceSessionViewModel ?? PracticeSessionViewModel()
+        setupAppStateCallbacks()
+    }
+
+    private func setupAppStateCallbacks() {
+        appState.onStepsImported = { [weak self] prepared in
+            guard let self else { return }
+            self.practiceSessionViewModel.setSteps(
+                prepared.steps,
+                tempoMap: prepared.tempoMap,
+                pedalTimeline: prepared.pedalTimeline,
+                fermataTimeline: prepared.fermataTimeline,
+                attributeTimeline: prepared.attributeTimeline,
+                slurTimeline: prepared.slurTimeline,
+                noteSpans: prepared.noteSpans,
+                highlightGuides: prepared.highlightGuides,
+                measureSpans: prepared.measureSpans
+            )
+            self.appState.applySessionIfPossible()
+        }
+        appState.onCalibrationCleared = { [weak self] in
+            self?.practiceSessionViewModel.clearCalibration()
+        }
+        appState.onSessionReset = { [weak self] in
+            self?.practiceSessionViewModel.resetSession()
+        }
+        appState.onApplyKeyboardGeometry = { [weak self] geometry, calibration in
+            self?.practiceSessionViewModel.applyKeyboardGeometry(geometry, calibration: calibration)
+        }
     }
 
     var calibration: PianoCalibration? {
@@ -114,10 +144,6 @@ final class ARGuideViewModel {
 
     var calibrationCaptureService: CalibrationPointCaptureService {
         appState.calibrationCaptureService
-    }
-
-    var practiceSessionViewModel: PracticeSessionViewModel {
-        appState.practiceSessionViewModel
     }
 
     var arTrackingService: ARTrackingServiceProtocol {

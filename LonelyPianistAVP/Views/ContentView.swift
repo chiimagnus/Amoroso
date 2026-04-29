@@ -162,14 +162,22 @@ private struct StepOrbLink: View {
         c8: SIMD3<Float>(0.7, 0.8, -1.0),
         planeHeight: 0.8
     )
-    appState.setImportedSteps(
-        [
+    appState.setImportedSteps(from: PreparedPractice(
+        steps: [
             PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
             PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 64, staff: nil)]),
         ],
-        file: nil,
-        tempoMap: MusicXMLTempoMap(tempoEvents: [])
-    )
+        file: ImportedMusicXMLFile(fileName: "Preview", storedURL: URL(fileURLWithPath: "/dev/null"), importedAt: Date()),
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        pedalTimeline: nil,
+        fermataTimeline: nil,
+        attributeTimeline: nil,
+        slurTimeline: nil,
+        noteSpans: [],
+        highlightGuides: [],
+        measureSpans: [],
+        unsupportedNoteCount: 0
+    ))
     return ContentView(
         homeViewModel: HomeViewModel(appState: appState),
         arGuideViewModel: ARGuideViewModel(appState: appState),

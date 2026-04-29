@@ -31,7 +31,6 @@ class AppState {
     var immersiveSpaceState = ImmersiveSpaceState.closed
     var immersiveMode: ImmersiveMode = .practice
 
-    let practiceSessionViewModel: PracticeSessionViewModel
     let arTrackingService: ARTrackingServiceProtocol
 
     var importedFile: ImportedMusicXMLFile?
@@ -59,7 +58,6 @@ class AppState {
         keyGeometryService: PianoKeyGeometryServiceProtocol? = nil,
         importService: MusicXMLImportServiceProtocol? = nil,
         practicePreparationService: PracticePreparationServiceProtocol? = nil,
-        practiceSessionViewModel: PracticeSessionViewModel? = nil,
         arTrackingService: ARTrackingServiceProtocol? = nil,
         calibrationCaptureService: CalibrationPointCaptureService? = nil
     ) {
@@ -67,7 +65,6 @@ class AppState {
         self.keyGeometryService = keyGeometryService ?? PianoKeyGeometryService()
         self.importService = importService ?? MusicXMLImportService()
         self.practicePreparationService = practicePreparationService ?? PracticePreparationService()
-        self.practiceSessionViewModel = practiceSessionViewModel ?? PracticeSessionViewModel()
         self.arTrackingService = arTrackingService ?? ARTrackingService()
         self.calibrationCaptureService = calibrationCaptureService ?? CalibrationPointCaptureService()
     }
@@ -97,35 +94,15 @@ class AppState {
         }
     }
 
-    func setImportedSteps(
-        _ steps: [PracticeStep],
-        file: ImportedMusicXMLFile?,
-        tempoMap: MusicXMLTempoMap,
-        pedalTimeline: MusicXMLPedalTimeline? = nil,
-        fermataTimeline: MusicXMLFermataTimeline? = nil,
-        attributeTimeline: MusicXMLAttributeTimeline? = nil,
-        slurTimeline: MusicXMLSlurTimeline? = nil,
-        noteSpans: [MusicXMLNoteSpan] = [],
-        highlightGuides: [PianoHighlightGuide] = [],
-        measureSpans: [MusicXMLMeasureSpan] = []
-    ) {
-        importedSteps = steps
-        importedMeasureSpans = measureSpans
-        importedFile = file
+    func setImportedSteps(from prepared: PreparedPractice) {
+        importedSteps = prepared.steps
+        importedMeasureSpans = prepared.measureSpans
+        importedFile = prepared.file
         importErrorMessage = nil
-        practiceSessionViewModel.setSteps(
-            steps,
-            tempoMap: tempoMap,
-            pedalTimeline: pedalTimeline,
-            fermataTimeline: fermataTimeline,
-            attributeTimeline: attributeTimeline,
-            slurTimeline: slurTimeline,
-            noteSpans: noteSpans,
-            highlightGuides: highlightGuides,
-            measureSpans: measureSpans
-        )
-        applySessionIfPossible()
+        onStepsImported?(prepared)
     }
+
+    var onStepsImported: ((PreparedPractice) -> Void)?
 
     func importMusicXML(from selectedURL: URL) {
         do {
@@ -136,18 +113,7 @@ class AppState {
             } else {
                 importErrorMessage = nil
             }
-            setImportedSteps(
-                prepared.steps,
-                file: prepared.file,
-                tempoMap: prepared.tempoMap,
-                pedalTimeline: prepared.pedalTimeline,
-                fermataTimeline: prepared.fermataTimeline,
-                attributeTimeline: prepared.attributeTimeline,
-                slurTimeline: prepared.slurTimeline,
-                noteSpans: prepared.noteSpans,
-                highlightGuides: prepared.highlightGuides,
-                measureSpans: prepared.measureSpans
-            )
+            setImportedSteps(from: prepared)
         } catch {
             importErrorMessage = "导入失败：\(error.localizedDescription)"
         }
@@ -207,8 +173,10 @@ class AppState {
 
     func clearRuntimeCalibrationForPracticeRelocation() {
         calibration = nil
-        practiceSessionViewModel.clearCalibration()
+        onCalibrationCleared?()
     }
+
+    var onCalibrationCleared: (() -> Void)?
 
     func resolveRuntimeCalibrationFromTrackedAnchors() -> PracticeCalibrationResolutionResult {
         guard let storedCalibration else {
@@ -296,14 +264,18 @@ class AppState {
         calibrationStatusMessage = "请重新校准"
         calibration = nil
         calibrationCaptureService.reset()
-        practiceSessionViewModel.resetSession()
+        onSessionReset?()
     }
 
-    private func applySessionIfPossible() {
+    var onSessionReset: (() -> Void)?
+
+    func applySessionIfPossible() {
         guard let calibration else { return }
         guard let keyboardGeometry = keyGeometryService.generateKeyboardGeometry(from: calibration) else { return }
-        practiceSessionViewModel.applyKeyboardGeometry(keyboardGeometry, calibration: calibration)
+        onApplyKeyboardGeometry?(keyboardGeometry, calibration)
     }
+
+    var onApplyKeyboardGeometry: ((PianoKeyboardGeometry, PianoCalibration) -> Void)?
 
     private func worldAnchorPoint(from anchor: WorldAnchor) -> SIMD3<Float> {
         let transform = anchor.originFromAnchorTransform
