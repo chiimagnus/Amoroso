@@ -7,11 +7,12 @@ import Testing
 @MainActor
 func manualReplayBlocksGestureAdvance() async {
     let sleeper = PendingManualReplaySleeper()
+    let playbackService = ManualReplaySequencerPlaybackService(currentSeconds: 0)
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: ManualReplayConstantPressDetectionService(pressedNotes: [60]),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
+        sequencerPlaybackService: playbackService,
         manualAdvanceModeProvider: { .measure }
     )
     viewModel.setSteps(makeReplaySteps(), tempoMap: makeReplayTempoMap(), measureSpans: makeReplayMeasures())
@@ -34,11 +35,12 @@ func manualReplayBlocksGestureAdvance() async {
 func manualReplayBlocksAudioRecognitionAdvance() async {
     let sleeper = PendingManualReplaySleeper()
     let audioRecognitionService = FakePracticeAudioRecognitionService()
+    let playbackService = ManualReplaySequencerPlaybackService(currentSeconds: 0)
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: ManualReplayNoopPressDetectionService(),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
+        sequencerPlaybackService: playbackService,
         audioRecognitionService: audioRecognitionService,
         manualAdvanceModeProvider: { .measure }
     )
@@ -72,11 +74,12 @@ func manualReplayBlocksAudioRecognitionAdvance() async {
 @Test
 @MainActor
 func completedManualReplayReturnsProgressToMeasureStart() async {
+    let playbackService = ManualReplaySequencerPlaybackService(currentSeconds: 99)
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: ManualReplayNoopPressDetectionService(),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: ImmediateManualReplaySleeper(),
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
+        sequencerPlaybackService: playbackService,
         manualAdvanceModeProvider: { .measure }
     )
     viewModel.setSteps(makeReplaySteps(), tempoMap: makeReplayTempoMap(), measureSpans: makeReplayMeasures())
@@ -105,11 +108,12 @@ func completedManualReplayReturnsProgressToMeasureStart() async {
 func restartingManualReplayDoesNotResumeAudioRecognitionBetweenGenerations() async {
     let sleeper = PendingManualReplaySleeper()
     let audioRecognitionService = FakePracticeAudioRecognitionService()
+    let playbackService = ManualReplaySequencerPlaybackService(currentSeconds: 0)
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: ManualReplayNoopPressDetectionService(),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
+        sequencerPlaybackService: playbackService,
         audioRecognitionService: audioRecognitionService,
         manualAdvanceModeProvider: { .measure }
     )
@@ -163,8 +167,38 @@ private struct PendingManualReplaySleeper: SleeperProtocol {
     }
 }
 
-private final class ManualReplaySilentAudioPlayer: PracticeNoteAudioPlayerProtocol {
-    func play(midiNotes _: [Int]) throws {}
+private final class ManualReplaySequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+    private let currentSecondsValue: TimeInterval
+    private(set) var warmUpCount = 0
+    private(set) var stopCount = 0
+    private(set) var loadedSequences: [PracticeSequencerSequence] = []
+    private(set) var playStarts: [TimeInterval] = []
+
+    init(currentSeconds: TimeInterval) {
+        currentSecondsValue = currentSeconds
+    }
+
+    func warmUp() throws {
+        warmUpCount += 1
+    }
+
+    func stop() {
+        stopCount += 1
+    }
+
+    func load(sequence: PracticeSequencerSequence) throws {
+        loadedSequences.append(sequence)
+    }
+
+    func play(fromSeconds start: TimeInterval) throws {
+        playStarts.append(start)
+    }
+
+    func currentSeconds() -> TimeInterval {
+        currentSecondsValue
+    }
+
+    func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {}
 }
 
 private struct ManualReplayNoopPressDetectionService: PressDetectionServiceProtocol {

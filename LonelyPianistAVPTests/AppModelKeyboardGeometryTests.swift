@@ -19,8 +19,7 @@ func appModelAppliesKeyboardGeometryWhenAvailable() throws {
     let practiceSessionViewModel = PracticeSessionViewModel(
         pressDetectionService: PressDetectionService(),
         chordAttemptAccumulator: ChordAttemptAccumulator(),
-        sleeper: TaskSleeper(),
-        noteAudioPlayer: nil
+        sleeper: TaskSleeper()
     )
 
     let appModel = AppModel(
@@ -48,8 +47,7 @@ func appModelDoesNotApplyKeyboardGeometryWhenGenerationFails() {
     let practiceSessionViewModel = PracticeSessionViewModel(
         pressDetectionService: PressDetectionService(),
         chordAttemptAccumulator: ChordAttemptAccumulator(),
-        sleeper: TaskSleeper(),
-        noteAudioPlayer: nil
+        sleeper: TaskSleeper()
     )
 
     let appModel = AppModel(

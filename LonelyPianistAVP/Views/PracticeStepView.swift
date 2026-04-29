@@ -14,7 +14,7 @@ struct PracticeStepView: View {
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
 
-    @AppStorage("practiceStep3AutoplayEnabled") private var isAutoplayEnabled = false
+    @State private var isAutoplayEnabled = false
     @AppStorage("practiceManualAdvanceMode") private var manualAdvanceModeRawValue = ManualAdvanceMode.step.rawValue
     @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var isAudioDebugOverlayEnabled = false
 
@@ -70,7 +70,10 @@ struct PracticeStepView: View {
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.roundedRectangle)
                         .hoverEffect()
-                        .disabled(viewModel.practiceSessionViewModel.currentStep == nil)
+                        .disabled(
+                            viewModel.practiceSessionViewModel.state == .ready ||
+                                viewModel.practiceSessionViewModel.currentStep == nil
+                        )
                     }
 
                     Toggle("自动播放", isOn: $isAutoplayEnabled)

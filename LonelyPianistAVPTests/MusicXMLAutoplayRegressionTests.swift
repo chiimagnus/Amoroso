@@ -37,13 +37,12 @@ func realScoreAutoplayTimelineKeepsNoteOnAndGuideAdvanceSynchronized() throws {
 func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
     let model = try makeAutoplayRegressionModel()
     let sleeper = RegressionControllableSleeper()
-    let output = RegressionCapturingMIDINoteOutput()
+    let playbackService = RegressionCapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: RegressionNoopPressDetectionService(),
         chordAttemptAccumulator: RegressionNoopChordAttemptAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: nil,
-        noteOutput: output
+        sequencerPlaybackService: playbackService
     )
 
     viewModel.setSteps(
@@ -58,11 +57,22 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
     viewModel.startGuidingIfReady()
     await settleRegressionTasks()
 
-    let beforeSkip = output.allNotesOffCount
+    let beforeSkip = playbackService.stopCount
     viewModel.skip()
     await settleRegressionTasks(iterations: 8)
 
-    #expect(output.allNotesOffCount == beforeSkip + 1)
+    #expect(playbackService.stopCount == beforeSkip + 1)
+}
+
+private final class RegressionCapturingSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+    private(set) var stopCount = 0
+
+    func warmUp() throws {}
+    func stop() { stopCount += 1 }
+    func load(sequence _: PracticeSequencerSequence) throws {}
+    func play(fromSeconds _: TimeInterval) throws {}
+    func currentSeconds() -> TimeInterval { 0 }
+    func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {}
 }
 
 private struct AutoplayRegressionModel {
@@ -157,24 +167,6 @@ private final class RegressionNoopChordAttemptAccumulator: ChordAttemptAccumulat
     }
 
     func reset() {}
-}
-
-private final class RegressionCapturingMIDINoteOutput: PracticeMIDINoteOutputProtocol {
-    private(set) var recordedNoteOns: [(midi: Int, velocity: UInt8)] = []
-    private(set) var recordedNoteOffs: [Int] = []
-    private(set) var allNotesOffCount = 0
-
-    func noteOn(midi: Int, velocity: UInt8) throws {
-        recordedNoteOns.append((midi: midi, velocity: velocity))
-    }
-
-    func noteOff(midi: Int) {
-        recordedNoteOffs.append(midi)
-    }
-
-    func allNotesOff() {
-        allNotesOffCount += 1
-    }
 }
 
 private actor RegressionControllableSleeper: SleeperProtocol {

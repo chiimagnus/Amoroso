@@ -51,11 +51,12 @@ private func makeManualAdvanceContext(currentStepIndex: Int) -> ManualAdvanceCon
 @Test
 @MainActor
 func appModelPassesMeasureSpansToPracticeSession() {
+    let playbackService = ManualAdvanceNoopPlaybackService()
     let sessionViewModel = PracticeSessionViewModel(
         pressDetectionService: ManualAdvanceNoopPressDetectionService(),
         chordAttemptAccumulator: ManualAdvanceNoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: ManualAdvanceSilentAudioPlayer(),
+        sequencerPlaybackService: playbackService,
         manualAdvanceModeProvider: { .measure }
     )
     let appModel = AppModel(practiceSessionViewModel: sessionViewModel)
@@ -73,6 +74,9 @@ func appModelPassesMeasureSpansToPracticeSession() {
         ]
     )
 
+    // First "next" begins the practice session at step 1.
+    sessionViewModel.skip()
+    // Next advances by measure.
     sessionViewModel.skip()
 
     #expect(sessionViewModel.currentStepIndex == 2)
@@ -87,6 +91,12 @@ private final class ManualAdvanceNoopChordAttemptAccumulator: ChordAttemptAccumu
     func reset() {}
 }
 
-private final class ManualAdvanceSilentAudioPlayer: PracticeNoteAudioPlayerProtocol {
-    func play(midiNotes _: [Int]) throws {}
+private final class ManualAdvanceNoopPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+    func warmUp() throws {}
+    func stop() {}
+    func load(sequence _: PracticeSequencerSequence) throws {}
+    func play(fromSeconds _: TimeInterval) throws {}
+    func currentSeconds() -> TimeInterval { 0 }
+
+    func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {}
 }

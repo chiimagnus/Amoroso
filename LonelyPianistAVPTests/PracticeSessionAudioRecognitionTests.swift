@@ -168,12 +168,12 @@ func matchingAudioEventAdvancesStep() async {
 func suppressWindowBlocksThenAllowsAdvance() async {
     UserDefaults.standard.set(true, forKey: "practiceAudioRecognitionEnabled")
     let fakeService = FakePracticeAudioRecognitionService()
-    let audioPlayer = CapturingAudioPlayer()
+    let playbackService = CapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: audioPlayer,
+        sequencerPlaybackService: playbackService,
         audioRecognitionService: fakeService
     )
     viewModel.setSteps([
@@ -184,7 +184,15 @@ func suppressWindowBlocksThenAllowsAdvance() async {
     )
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
-    let generation = fakeService.startCalls.first?.generation ?? 0
+    guard let startCall = fakeService.startCalls.first else {
+        #expect(Bool(false), "Expected audio recognition to start")
+        return
+    }
+    guard let suppressUntil = startCall.suppressUntil else {
+        #expect(Bool(false), "Expected suppressUntil to be set")
+        return
+    }
+    let generation = startCall.generation
 
     fakeService.emitEvent(
         DetectedNoteEvent(
@@ -192,7 +200,7 @@ func suppressWindowBlocksThenAllowsAdvance() async {
             confidence: 0.9,
             onsetScore: 0.8,
             isOnset: true,
-            timestamp: Date(),
+            timestamp: suppressUntil.addingTimeInterval(-0.1),
             generation: generation,
             source: .audio
         )
@@ -206,7 +214,7 @@ func suppressWindowBlocksThenAllowsAdvance() async {
             confidence: 0.9,
             onsetScore: 0.8,
             isOnset: true,
-            timestamp: Date().addingTimeInterval(0.8),
+            timestamp: suppressUntil.addingTimeInterval(0.2),
             generation: generation,
             source: .audio
         )
@@ -343,12 +351,12 @@ func permissionFailureStatusDoesNotAdvanceAndSetsError() async {
 private func makeViewModel(
     audioRecognitionService: PracticeAudioRecognitionServiceProtocol
 ) -> PracticeSessionViewModel {
-    PracticeSessionViewModel(
+    let playbackService = CapturingSequencerPlaybackService()
+    return PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: nil,
-        noteOutput: NoopMIDINoteOutput(),
+        sequencerPlaybackService: playbackService,
         audioRecognitionService: audioRecognitionService
     )
 }
@@ -382,17 +390,17 @@ private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     func reset() {}
 }
 
-private final class NoopMIDINoteOutput: PracticeMIDINoteOutputProtocol {
-    func noteOn(midi _: Int, velocity _: UInt8) throws {}
-    func noteOff(midi _: Int) {}
-    func allNotesOff() {}
-}
+private final class CapturingSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+    private(set) var oneShots: [[Int]] = []
 
-private final class CapturingAudioPlayer: PracticeNoteAudioPlayerProtocol {
-    private(set) var playCalls: [[Int]] = []
+    func warmUp() throws {}
+    func stop() {}
+    func load(sequence _: PracticeSequencerSequence) throws {}
+    func play(fromSeconds _: TimeInterval) throws {}
+    func currentSeconds() -> TimeInterval { 0 }
 
-    func play(midiNotes: [Int]) throws {
-        playCalls.append(midiNotes)
+    func playOneShot(midiNotes: [Int], durationSeconds _: TimeInterval) throws {
+        oneShots.append(midiNotes)
     }
 }
 
@@ -401,12 +409,12 @@ private final class CapturingAudioPlayer: PracticeNoteAudioPlayerProtocol {
 func startGuidingPassesPlaybackSuppressDeadlineIntoAudioServiceStart() async {
     UserDefaults.standard.set(true, forKey: "practiceAudioRecognitionEnabled")
     let fakeService = FakePracticeAudioRecognitionService()
-    let audioPlayer = CapturingAudioPlayer()
+    let playbackService = CapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: audioPlayer,
+        sequencerPlaybackService: playbackService,
         audioRecognitionService: fakeService
     )
     viewModel.setSteps([
@@ -419,7 +427,7 @@ func startGuidingPassesPlaybackSuppressDeadlineIntoAudioServiceStart() async {
     await settleTaskQueue()
 
     #expect(fakeService.startCalls.first?.suppressUntil != nil)
-    #expect(audioPlayer.playCalls == [[60]])
+    #expect(playbackService.oneShots == [[60]])
 }
 
 @Test
@@ -427,12 +435,12 @@ func startGuidingPassesPlaybackSuppressDeadlineIntoAudioServiceStart() async {
 func microphonePermissionFailureDoesNotBlockPlaybackFallback() async {
     UserDefaults.standard.set(true, forKey: "practiceAudioRecognitionEnabled")
     let fakeService = FakePracticeAudioRecognitionService()
-    let audioPlayer = CapturingAudioPlayer()
+    let playbackService = CapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: audioPlayer,
+        sequencerPlaybackService: playbackService,
         audioRecognitionService: fakeService
     )
     viewModel.setSteps([
@@ -448,7 +456,7 @@ func microphonePermissionFailureDoesNotBlockPlaybackFallback() async {
     viewModel.playCurrentStepSound()
 
     #expect(viewModel.audioRecognitionErrorMessage == "未授予麦克风权限")
-    #expect(audioPlayer.playCalls.count >= 2)
+    #expect(playbackService.oneShots.count >= 2)
 }
 
 @Test
