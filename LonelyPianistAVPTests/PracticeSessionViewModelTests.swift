@@ -1283,6 +1283,53 @@ private func makeDummyKeyboardGeometry() -> PianoKeyboardGeometry {
     return PianoKeyboardGeometry(frame: frame, keys: [])
 }
 
+@Test
+@MainActor
+func enablingAutoplayStopsManualReplayWithoutResumingAudioRecognition() async {
+    UserDefaults.standard.set(true, forKey: "practiceAudioRecognitionEnabled")
+    let sleeper = PendingSleeper()
+    let audioRecognitionService = FakePracticeAudioRecognitionService()
+    let playbackService = CapturingSequencerPlaybackService()
+    playbackService.currentSecondsValue = 0
+
+    let viewModel = PracticeSessionViewModel(
+        pressDetectionService: NoopPressDetectionService(),
+        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
+        sleeper: sleeper,
+        sequencerPlaybackService: playbackService,
+        audioRecognitionService: audioRecognitionService,
+        manualAdvanceModeProvider: { .measure }
+    )
+    viewModel.setSteps(
+        [
+            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)]),
+            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1)]),
+        ],
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        pedalTimeline: MusicXMLPedalTimeline(events: []),
+        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
+        highlightGuides: [
+            PianoHighlightGuide(id: 1, kind: .trigger, tick: 0, durationTicks: nil, practiceStepIndex: 0, activeNotes: [], triggeredNotes: [], releasedMIDINotes: []),
+            PianoHighlightGuide(id: 2, kind: .trigger, tick: 480, durationTicks: nil, practiceStepIndex: 1, activeNotes: [], triggeredNotes: [], releasedMIDINotes: []),
+        ],
+        measureSpans: [MusicXMLMeasureSpan(partID: "P1", measureNumber: 1, startTick: 0, endTick: 960)]
+    )
+    viewModel.startGuidingIfReady()
+    await settleTaskQueue()
+    #expect(audioRecognitionService.startCalls.isEmpty == false)
+
+    viewModel.replayCurrentUnit()
+    await settleTaskQueue()
+    #expect(viewModel.isManualReplayPlaying)
+
+    viewModel.setAutoplayEnabled(true)
+    await settleTaskQueue()
+
+    #expect(viewModel.isManualReplayPlaying == false)
+    #expect(viewModel.autoplayState == .playing)
+    #expect(audioRecognitionService.stopCallCount > 0)
+}
+
 private struct NoopPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: [String: SIMD3<Float>],
@@ -1290,6 +1337,12 @@ private struct NoopPressDetectionService: PressDetectionServiceProtocol {
         at _: Date
     ) -> Set<Int> {
         []
+    }
+}
+
+private struct PendingSleeper: SleeperProtocol {
+    func sleep(for _: Duration) async throws {
+        try await Task.sleep(for: .seconds(60))
     }
 }
 
