@@ -37,13 +37,14 @@ func realScoreAutoplayTimelineKeepsNoteOnAndGuideAdvanceSynchronized() throws {
 func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
     let model = try makeAutoplayRegressionModel()
     let sleeper = RegressionControllableSleeper()
-    let output = RegressionCapturingMIDINoteOutput()
+    let playbackService = RegressionCapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: RegressionNoopPressDetectionService(),
         chordAttemptAccumulator: RegressionNoopChordAttemptAccumulator(),
         sleeper: sleeper,
         noteAudioPlayer: nil,
-        noteOutput: output
+        noteOutput: nil,
+        sequencerPlaybackService: playbackService
     )
 
     viewModel.setSteps(
@@ -58,11 +59,22 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
     viewModel.startGuidingIfReady()
     await settleRegressionTasks()
 
-    let beforeSkip = output.allNotesOffCount
+    let beforeSkip = playbackService.stopCount
     viewModel.skip()
     await settleRegressionTasks(iterations: 8)
 
-    #expect(output.allNotesOffCount == beforeSkip + 1)
+    #expect(playbackService.stopCount == beforeSkip + 1)
+}
+
+private final class RegressionCapturingSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+    private(set) var stopCount = 0
+
+    func warmUp() throws {}
+    func stop() { stopCount += 1 }
+    func load(sequence _: PracticeSequencerSequence) throws {}
+    func play(fromSeconds _: TimeInterval) throws {}
+    func currentSeconds() -> TimeInterval { 0 }
+    func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {}
 }
 
 private struct AutoplayRegressionModel {

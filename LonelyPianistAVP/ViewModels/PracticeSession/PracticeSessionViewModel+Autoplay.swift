@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 extension PracticeSessionViewModel {
     func startAutoplayTaskIfNeeded() {
@@ -15,66 +14,88 @@ extension PracticeSessionViewModel {
 
         autoplayTaskGeneration += 1
         let generation = autoplayTaskGeneration
-        resetAutoplayCursorForCurrentStep()
+        let timelineSnapshot = autoplayTimeline
         let tempoMapSnapshot = tempoMap
-        let isTimingDebugEnabled = UserDefaults.standard.bool(forKey: "practiceTimingDebugEnabled")
-        let timingStartWallSeconds = timingClock.nowSeconds()
         let timingBaseTick = currentStep?.tick ?? 0
-        let timingBaseTempoSeconds = tempoMapSnapshot.timeSeconds(atTick: timingBaseTick)
-        var timingPauseOffsetSeconds: TimeInterval = 0
-        var timingLoopCount = 0
 
         autoplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            var currentTick = timingBaseTick
-            isSustainPedalDown = pedalTimeline?.isDown(atTick: currentTick) ?? false
-            let initialStats = await processAutoplayEventsWithStats(atTick: currentTick, timingDebugEnabled: isTimingDebugEnabled)
-            timingPauseOffsetSeconds += initialStats.pauseSecondsExecuted
-            if isTimingDebugEnabled {
-                let wallElapsed = timingClock.nowSeconds() - timingStartWallSeconds
-                let expectedElapsed = (tempoMapSnapshot.timeSeconds(atTick: currentTick) - timingBaseTempoSeconds)
-                    + timingPauseOffsetSeconds
-                let driftSeconds = wallElapsed - expectedElapsed
-                timingLogger.debug(
-                    "autoplay start tick=\(currentTick, privacy: .public) expected=\(expectedElapsed, privacy: .public)s wall=\(wallElapsed, privacy: .public)s drift=\(driftSeconds, privacy: .public)s events=\(initialStats.eventCount, privacy: .public) pause=\(initialStats.pauseSecondsExecuted, privacy: .public)s proc=\(initialStats.processingSeconds, privacy: .public)s"
-                )
+            isSustainPedalDown = pedalTimeline?.isDown(atTick: timingBaseTick) ?? false
+
+            do {
+                try sequencerPlaybackService.warmUp()
+            } catch {
+                recordPlaybackError(error)
+                stopAutoplayWithError(audioPlaybackErrorMessage ?? "无法自动播放：音频服务初始化失败。")
+                return
             }
+
+            let sequence: PracticeSequencerSequence
+            do {
+                let builder = PracticeSequencerSequenceBuilder()
+                let schedule = builder.buildAudioEventSchedule(
+                    timeline: timelineSnapshot,
+                    tempoMap: tempoMapSnapshot,
+                    startTick: timingBaseTick
+                )
+                sequence = try builder.buildSequence(from: schedule)
+            } catch {
+                recordPlaybackError(error)
+                stopAutoplayWithError(audioPlaybackErrorMessage ?? "无法自动播放：构建 MIDI 序列失败。")
+                return
+            }
+
+            do {
+                try sequencerPlaybackService.load(sequence: sequence)
+                try sequencerPlaybackService.play(fromSeconds: 0)
+            } catch {
+                recordPlaybackError(error)
+                stopAutoplayWithError(audioPlaybackErrorMessage ?? "无法自动播放：播放服务启动失败。")
+                return
+            }
+
+            var cursor = AutoplayTimelineTimeCursor(
+                timeline: timelineSnapshot,
+                tickToSeconds: { tempoMapSnapshot.timeSeconds(atTick: $0) },
+                startTick: timingBaseTick
+            )
+            var pedalCursor = AutoplayTimelinePedalTimeCursor(
+                timeline: timelineSnapshot,
+                tickToSeconds: { tempoMapSnapshot.timeSeconds(atTick: $0) },
+                startTick: timingBaseTick,
+                initialIsDown: isSustainPedalDown
+            )
+            let sequenceEndSeconds = max(0, sequence.durationSeconds)
 
             while Task.isCancelled == false {
                 guard autoplayState == .playing else { break }
                 guard case .guiding = state else { break }
-                guard currentAutoplayEventIndex < autoplayTimeline.events.count else { break }
 
-                timingLoopCount += 1
-                let nextTick = autoplayTimeline.events[currentAutoplayEventIndex].tick
-                let deltaTicks = nextTick - currentTick
-                let expectedElapsed = (tempoMapSnapshot.timeSeconds(atTick: nextTick) - timingBaseTempoSeconds)
-                    + timingPauseOffsetSeconds
-                let wallElapsed = timingClock.nowSeconds() - timingStartWallSeconds
-                let waitSeconds = expectedElapsed - wallElapsed
+                let nowSeconds = sequencerPlaybackService.currentSeconds()
 
-                if waitSeconds >= 0.01 {
-                    try? await sleeper.sleep(for: .seconds(waitSeconds))
+                if let isDown = pedalCursor.advance(toSeconds: nowSeconds) {
+                    isSustainPedalDown = isDown
                 }
 
-                guard Task.isCancelled == false else { break }
-                guard autoplayState == .playing else { break }
-                guard case .guiding = state else { break }
-
-                currentTick = nextTick
-                let stats = await processAutoplayEventsWithStats(atTick: currentTick, timingDebugEnabled: isTimingDebugEnabled)
-                timingPauseOffsetSeconds += stats.pauseSecondsExecuted
-                if isTimingDebugEnabled {
-                    let wallElapsedAfter = timingClock.nowSeconds() - timingStartWallSeconds
-                    let expectedElapsedAfter = (tempoMapSnapshot.timeSeconds(atTick: currentTick) - timingBaseTempoSeconds)
-                        + timingPauseOffsetSeconds
-                    let driftSeconds = wallElapsedAfter - expectedElapsedAfter
-                    if stats.pauseSecondsExecuted > 0 || driftSeconds > 0.05 || timingLoopCount.isMultiple(of: 50) {
-                        timingLogger.debug(
-                            "autoplay tick=\(currentTick, privacy: .public) Δtick=\(deltaTicks, privacy: .public) wait=\(waitSeconds, privacy: .public)s pause=\(stats.pauseSecondsExecuted, privacy: .public)s expected=\(expectedElapsedAfter, privacy: .public)s wall=\(wallElapsedAfter, privacy: .public)s drift=\(driftSeconds, privacy: .public)s events=\(stats.eventCount, privacy: .public) on=\(stats.noteOnCount, privacy: .public) off=\(stats.noteOffCount, privacy: .public) step=\(stats.advanceStepCount, privacy: .public) guide=\(stats.advanceGuideCount, privacy: .public) proc=\(stats.processingSeconds, privacy: .public)s"
-                        )
+                let events = cursor.advance(toSeconds: nowSeconds)
+                for event in events {
+                    switch event {
+                        case let .step(index):
+                            advanceAutoplayStep(to: index)
+                        case let .guide(index, _):
+                            currentHighlightGuideIndex = index
                     }
                 }
+
+                if nowSeconds >= sequenceEndSeconds, pedalCursor.isFinished, cursor.isFinished {
+                    break
+                }
+
+                try? await Task.sleep(for: .milliseconds(33))
+            }
+
+            if Task.isCancelled == false {
+                sequencerPlaybackService.stop()
             }
 
             guard self.autoplayTaskGeneration == generation else { return }
@@ -83,9 +104,6 @@ extension PracticeSessionViewModel {
     }
 
     private func autoplayStartErrorMessage() -> String? {
-        guard noteOutput != nil else {
-            return "无法自动播放：音频输出未就绪。请重启 App 或重新打开曲目。"
-        }
         guard pedalTimeline != nil else {
             return "无法自动播放：缺少踏板信息。请重新导入这份 MusicXML。"
         }
@@ -158,7 +176,6 @@ extension PracticeSessionViewModel {
             highlightGuides.isEmpty == false
         else {
             autoplayTimeline = .empty
-            resetAutoplayCursorForCurrentStep()
             return
         }
 
@@ -169,148 +186,76 @@ extension PracticeSessionViewModel {
             fermataTimeline: fermataTimeline,
             tempoMap: tempoMap
         )
-        resetAutoplayCursorForCurrentStep()
     }
 
-    func resetAutoplayCursorForCurrentStep() {
-        let tick = currentStep?.tick ?? 0
-        currentAutoplayEventIndex = autoplayTimeline.firstEventIndex(atOrAfter: tick)
-    }
-
-    private struct AutoplayTickStats: Equatable {
-        var eventCount: Int = 0
-        var noteOnCount: Int = 0
-        var noteOffCount: Int = 0
-        var advanceStepCount: Int = 0
-        var advanceGuideCount: Int = 0
-        var pauseSecondsExecuted: TimeInterval = 0
-        var processingSeconds: TimeInterval = 0
-    }
-
-    private func processAutoplayEventsWithStats(atTick tick: Int, timingDebugEnabled: Bool) async -> AutoplayTickStats {
-        if timingDebugEnabled == false {
-            var stats = AutoplayTickStats()
-            while currentAutoplayEventIndex < autoplayTimeline.events.count,
-                  autoplayTimeline.events[currentAutoplayEventIndex].tick == tick
-            {
-                let event = autoplayTimeline.events[currentAutoplayEventIndex]
-                currentAutoplayEventIndex += 1
-
-                if case let .pauseSeconds(seconds) = event.kind {
-                    if seconds > 0 {
-                        stats.pauseSecondsExecuted += seconds
-                        try? await sleeper.sleep(for: .seconds(seconds))
-                        guard Task.isCancelled == false else { return stats }
-                        guard autoplayState == .playing else { return stats }
-                    }
-                } else {
-                    processAutoplayEvent(event)
-                }
-            }
-            return stats
+    private struct AutoplayTimelinePedalTimeCursor: Equatable, Sendable {
+        private struct TimedPedal: Equatable, Sendable {
+            let timeSeconds: TimeInterval
+            let isDown: Bool
         }
 
-        let clock = ContinuousClock()
-        let startInstant = clock.now
-        var stats = AutoplayTickStats()
-        while currentAutoplayEventIndex < autoplayTimeline.events.count,
-              autoplayTimeline.events[currentAutoplayEventIndex].tick == tick
-        {
-            let event = autoplayTimeline.events[currentAutoplayEventIndex]
-            currentAutoplayEventIndex += 1
-            stats.eventCount += 1
+        private let scheduled: [TimedPedal]
+        private var nextIndex: Int
+        private var latestIsDown: Bool
 
-            if case let .pauseSeconds(seconds) = event.kind {
-                if seconds > 0 {
-                    stats.pauseSecondsExecuted += seconds
-                    try? await sleeper.sleep(for: .seconds(seconds))
-                    guard Task.isCancelled == false else { return stats }
-                    guard autoplayState == .playing else { return stats }
-                }
-            } else {
+        init(
+            timeline: AutoplayPerformanceTimeline,
+            tickToSeconds: (Int) -> TimeInterval,
+            startTick: Int,
+            initialIsDown: Bool
+        ) {
+            let baseTick = max(0, startTick)
+            let baseSeconds = tickToSeconds(baseTick)
+
+            let startIndex = timeline.firstEventIndex(atOrAfter: baseTick)
+            var pausePrefixSeconds: TimeInterval = 0
+
+            var scheduled: [TimedPedal] = []
+            scheduled.reserveCapacity(32)
+
+            for event in timeline.events[startIndex...] {
                 switch event.kind {
-                    case .noteOn:
-                        stats.noteOnCount += 1
-                    case .noteOff:
-                        stats.noteOffCount += 1
-                    case .advanceStep:
-                        stats.advanceStepCount += 1
-                    case .advanceGuide:
-                        stats.advanceGuideCount += 1
-                    case .pauseSeconds:
-                        break
-                    case .pedalDown, .pedalUp:
-                        break
+                    case let .pauseSeconds(seconds):
+                        pausePrefixSeconds += seconds
+
+                    case .pedalDown:
+                        scheduled.append(
+                            TimedPedal(
+                                timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds,
+                                isDown: true
+                            )
+                        )
+
+                    case .pedalUp:
+                        scheduled.append(
+                            TimedPedal(
+                                timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds,
+                                isDown: false
+                            )
+                        )
+
+                    case .noteOn, .noteOff, .advanceStep, .advanceGuide:
+                        continue
                 }
-                processAutoplayEvent(event)
             }
-        }
-        stats.processingSeconds = Self.durationSeconds(startInstant.duration(to: clock.now))
-        return stats
-    }
 
-    private func processAutoplayEvent(_ event: AutoplayPerformanceTimeline.Event) {
-        guard autoplayState == .playing else { return }
-
-        switch event.kind {
-            case .pauseSeconds:
-                break
-            case let .noteOff(midi):
-                handleAutoplayNoteOff(midi: midi, atTick: event.tick)
-            case .pedalDown:
-                isSustainPedalDown = true
-            case .pedalUp:
-                isSustainPedalDown = false
-                releasePendingAutoplayNotes(atTick: event.tick)
-            case let .noteOn(midi, velocity):
-                handleAutoplayNoteOn(midi: midi, velocity: velocity)
-            case let .advanceStep(index):
-                advanceAutoplayStep(to: index)
-            case let .advanceGuide(index, _):
-                currentHighlightGuideIndex = index
-        }
-    }
-
-    private func handleAutoplayNoteOn(midi: Int, velocity: UInt8) {
-        guard let noteOutput else { return }
-        guard audioPlaybackErrorMessage == nil else { return }
-
-        if activeAutoplayMIDINotes.contains(midi) {
-            noteOutput.noteOff(midi: midi)
-            activeAutoplayMIDINotes.remove(midi)
-            pendingPedalReleaseOffTickByMIDI[midi] = nil
+            self.scheduled = scheduled
+            nextIndex = 0
+            latestIsDown = initialIsDown
         }
 
-        do {
-            try noteOutput.noteOn(midi: midi, velocity: velocity)
-            activeAutoplayMIDINotes.insert(midi)
-        } catch {
-            recordPlaybackError(error)
-        }
-    }
-
-    private func handleAutoplayNoteOff(midi: Int, atTick tick: Int) {
-        guard activeAutoplayMIDINotes.contains(midi) else { return }
-
-        if isSustainPedalDown {
-            pendingPedalReleaseOffTickByMIDI[midi] = tick
-        } else {
-            noteOutput?.noteOff(midi: midi)
-            activeAutoplayMIDINotes.remove(midi)
-        }
-    }
-
-    private func releasePendingAutoplayNotes(atTick tick: Int) {
-        let releasable = pendingPedalReleaseOffTickByMIDI.filter { _, offTick in
-            offTick <= tick
+        var isFinished: Bool {
+            nextIndex >= scheduled.count
         }
 
-        for (midi, _) in releasable {
-            pendingPedalReleaseOffTickByMIDI[midi] = nil
-            if activeAutoplayMIDINotes.contains(midi) {
-                noteOutput?.noteOff(midi: midi)
-                activeAutoplayMIDINotes.remove(midi)
+        mutating func advance(toSeconds now: TimeInterval) -> Bool? {
+            var updated = false
+            while nextIndex < scheduled.count, scheduled[nextIndex].timeSeconds <= now {
+                latestIsDown = scheduled[nextIndex].isDown
+                nextIndex += 1
+                updated = true
             }
+            return updated ? latestIsDown : nil
         }
     }
 
@@ -330,9 +275,6 @@ extension PracticeSessionViewModel {
     }
 
     func stopAutoplayAudio() {
-        activeAutoplayMIDINotes = []
-        pendingPedalReleaseOffTickByMIDI = [:]
-        resetAutoplayCursorForCurrentStep()
-        noteOutput?.allNotesOff()
+        sequencerPlaybackService.stop()
     }
 }

@@ -58,6 +58,10 @@ struct AutoplayTimelineTimeCursor: Equatable, Sendable {
         nextIndex = 0
     }
 
+    var isFinished: Bool {
+        nextIndex >= scheduled.count
+    }
+
     mutating func advance(toSeconds now: TimeInterval) -> [AutoplayCursorEvent] {
         var emitted: [AutoplayCursorEvent] = []
         while nextIndex < scheduled.count, scheduled[nextIndex].timeSeconds <= now {
@@ -67,4 +71,3 @@ struct AutoplayTimelineTimeCursor: Equatable, Sendable {
         return emitted
     }
 }
-

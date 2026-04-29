@@ -69,6 +69,7 @@ final class PracticeSessionViewModel {
     let timingClock: PracticeTimingClockProtocol
     private let noteAudioPlayer: PracticeNoteAudioPlayerProtocol?
     let noteOutput: PracticeMIDINoteOutputProtocol?
+    let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let audioRecognitionService: PracticeAudioRecognitionServiceProtocol?
     private let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
     private let handPianoActivityGate: HandPianoActivityGate
@@ -90,9 +91,6 @@ final class PracticeSessionViewModel {
     private var attributeTimeline: MusicXMLAttributeTimeline?
     private var slurTimeline: MusicXMLSlurTimeline?
     var autoplayTimeline: AutoplayPerformanceTimeline = .empty
-    var currentAutoplayEventIndex = 0
-    var activeAutoplayMIDINotes: Set<Int> = []
-    var pendingPedalReleaseOffTickByMIDI: [Int: Int] = [:]
     private(set) var highlightGuides: [PianoHighlightGuide] = []
     var currentHighlightGuideIndex: Int?
     var manualHighlightTransitionTask: Task<Void, Never>?
@@ -111,6 +109,7 @@ final class PracticeSessionViewModel {
         timingClock: PracticeTimingClockProtocol? = nil,
         noteAudioPlayer: PracticeNoteAudioPlayerProtocol?,
         noteOutput: PracticeMIDINoteOutputProtocol? = nil,
+        sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol? = nil,
         audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil,
         audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil,
         handPianoActivityGate: HandPianoActivityGate? = nil,
@@ -124,6 +123,9 @@ final class PracticeSessionViewModel {
         self.timingClock = timingClock ?? ContinuousPracticeTimingClock()
         self.noteAudioPlayer = noteAudioPlayer
         self.noteOutput = noteOutput
+        self.sequencerPlaybackService = sequencerPlaybackService ?? AVAudioSequencerPracticePlaybackService(
+            soundFontResourceName: "SalC5Light2"
+        )
         self.audioRecognitionService = audioRecognitionService
         self.audioStepAttemptAccumulator = audioStepAttemptAccumulator ?? AudioStepAttemptAccumulator()
         self.handPianoActivityGate = handPianoActivityGate ?? HandPianoActivityGate()
@@ -132,13 +134,14 @@ final class PracticeSessionViewModel {
     }
 
     convenience init() {
-        let player = SoundFontPracticeNoteAudioPlayer(soundFontResourceName: "SalC5Light2")
+        let playbackService = AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2")
         self.init(
             pressDetectionService: PressDetectionService(),
             chordAttemptAccumulator: ChordAttemptAccumulator(),
             sleeper: TaskSleeper(),
-            noteAudioPlayer: player,
-            noteOutput: player,
+            noteAudioPlayer: nil,
+            noteOutput: nil,
+            sequencerPlaybackService: playbackService,
             audioRecognitionService: PracticeAudioRecognitionService()
         )
     }
@@ -272,7 +275,6 @@ final class PracticeSessionViewModel {
         self.highlightGuides = highlightGuides
         rebuildAutoplayTimeline()
         currentHighlightGuideIndex = nil
-        resetAutoplayCursorForCurrentStep()
 
         if shouldResetProgress {
             currentStepIndex = 0
@@ -344,9 +346,6 @@ final class PracticeSessionViewModel {
         currentStepIndex = 0
         state = .idle
         autoplayTimeline = .empty
-        resetAutoplayCursorForCurrentStep()
-        activeAutoplayMIDINotes = []
-        pendingPedalReleaseOffTickByMIDI = [:]
         handPianoActivityGate.reset()
         handGateState = HandGateState(
             isNearKeyboard: false,
@@ -405,7 +404,10 @@ final class PracticeSessionViewModel {
             _ = prepareAudioRecognitionSuppressWindowForPlayback()
         }
         do {
-            try noteAudioPlayer?.play(midiNotes: uniqueMIDINotes(in: currentStep))
+            try sequencerPlaybackService.playOneShot(
+                midiNotes: uniqueMIDINotes(in: currentStep),
+                durationSeconds: 0.35
+            )
         } catch {
             recordPlaybackError(error)
         }
@@ -415,7 +417,7 @@ final class PracticeSessionViewModel {
         if isEnabled {
             stopManualReplayTask()
             do {
-                try (noteOutput as? PracticeMIDINoteOutputWarmupProtocol)?.warmUp()
+                try sequencerPlaybackService.warmUp()
             } catch {
                 recordPlaybackError(error)
             }

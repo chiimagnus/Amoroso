@@ -10,7 +10,7 @@ extension PracticeSessionViewModel {
         guard plan.stepRange.isEmpty == false else { return }
         guard steps.indices.contains(plan.stepRange.lowerBound) else { return }
         do {
-            try (noteOutput as? PracticeMIDINoteOutputWarmupProtocol)?.warmUp()
+            try sequencerPlaybackService.warmUp()
         } catch {
             recordPlaybackError(error)
         }
