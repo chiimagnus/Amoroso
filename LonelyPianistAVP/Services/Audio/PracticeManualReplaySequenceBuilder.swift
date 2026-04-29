@@ -3,10 +3,12 @@ import Foundation
 nonisolated struct PracticeManualReplaySequenceBuilder: Sendable {
     private let chordDurationSeconds: TimeInterval
     private let velocity: UInt8
+    private let leadInSeconds: TimeInterval
 
-    init(chordDurationSeconds: TimeInterval = 0.35, velocity: UInt8 = 96) {
+    init(chordDurationSeconds: TimeInterval = 0.35, velocity: UInt8 = 96, leadInSeconds: TimeInterval = 0) {
         self.chordDurationSeconds = chordDurationSeconds
         self.velocity = velocity
+        self.leadInSeconds = leadInSeconds
     }
 
     func buildSequence(
@@ -35,7 +37,7 @@ nonisolated struct PracticeManualReplaySequenceBuilder: Sendable {
         for index in stepRange {
             guard steps.indices.contains(index) else { break }
             let step = steps[index]
-            let stepSeconds = tempoMap.timeSeconds(atTick: step.tick) - baseSeconds
+            let stepSeconds = tempoMap.timeSeconds(atTick: step.tick) - baseSeconds + leadInSeconds
 
             schedule.append(
                 PracticeSequencerMIDIEvent(

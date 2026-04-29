@@ -17,7 +17,8 @@ nonisolated struct AutoplayTimelineTimeCursor: Equatable, Sendable {
     init(
         timeline: AutoplayPerformanceTimeline,
         tickToSeconds: (Int) -> TimeInterval,
-        startTick: Int
+        startTick: Int,
+        leadInSeconds: TimeInterval = 0
     ) {
         let baseTick = max(0, startTick)
         let baseSeconds = tickToSeconds(baseTick)
@@ -36,7 +37,7 @@ nonisolated struct AutoplayTimelineTimeCursor: Equatable, Sendable {
                 case let .advanceStep(index):
                     scheduled.append(
                         TimedEvent(
-                            timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds,
+                            timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                             event: .step(index: index)
                         )
                     )
@@ -44,7 +45,7 @@ nonisolated struct AutoplayTimelineTimeCursor: Equatable, Sendable {
                 case let .advanceGuide(index, guideID):
                     scheduled.append(
                         TimedEvent(
-                            timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds,
+                            timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                             event: .guide(index: index, guideID: guideID)
                         )
                     )

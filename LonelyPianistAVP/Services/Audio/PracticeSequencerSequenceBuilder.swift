@@ -47,6 +47,7 @@ nonisolated struct PracticeSequencerSequenceBuilder: Sendable {
         tempoMap: MusicXMLTempoMap,
         startTick: Int,
         initialSustainPedalDown: Bool = false,
+        leadInSeconds: TimeInterval = 0,
         endTick: Int? = nil
     ) -> [PracticeSequencerMIDIEvent] {
         let baseTick = max(0, startTick)
@@ -61,7 +62,7 @@ nonisolated struct PracticeSequencerSequenceBuilder: Sendable {
         if initialSustainPedalDown {
             schedule.append(
                 PracticeSequencerMIDIEvent(
-                    timeSeconds: 0,
+                    timeSeconds: max(0, leadInSeconds),
                     kind: .controlChange(controller: 64, value: 127)
                 )
             )
@@ -77,7 +78,7 @@ nonisolated struct PracticeSequencerSequenceBuilder: Sendable {
                 case let .noteOff(midi):
                     schedule.append(
                         PracticeSequencerMIDIEvent(
-                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds,
+                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                             kind: .noteOff(midi: midi)
                         )
                     )
@@ -85,7 +86,7 @@ nonisolated struct PracticeSequencerSequenceBuilder: Sendable {
                 case .pedalDown:
                     schedule.append(
                         PracticeSequencerMIDIEvent(
-                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds,
+                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                             kind: .controlChange(controller: 64, value: 127)
                         )
                     )
@@ -93,7 +94,7 @@ nonisolated struct PracticeSequencerSequenceBuilder: Sendable {
                 case .pedalUp:
                     schedule.append(
                         PracticeSequencerMIDIEvent(
-                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds,
+                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                             kind: .controlChange(controller: 64, value: 0)
                         )
                     )
@@ -101,7 +102,7 @@ nonisolated struct PracticeSequencerSequenceBuilder: Sendable {
                 case let .noteOn(midi, velocity):
                     schedule.append(
                         PracticeSequencerMIDIEvent(
-                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds,
+                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                             kind: .noteOn(midi: midi, velocity: velocity)
                         )
                     )

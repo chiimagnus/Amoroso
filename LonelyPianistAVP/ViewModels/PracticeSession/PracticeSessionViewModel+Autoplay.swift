@@ -1,5 +1,6 @@
 import Dispatch
 import Foundation
+import os
 
 extension PracticeSessionViewModel {
     func startAutoplayTaskIfNeeded() {
@@ -23,6 +24,7 @@ extension PracticeSessionViewModel {
             guard let self else { return }
             let initialSustainPedalDown = pedalTimeline?.isDown(atTick: timingBaseTick) ?? false
             isSustainPedalDown = initialSustainPedalDown
+            let leadInSeconds: TimeInterval = 0.05
 
             do {
                 try sequencerPlaybackService.warmUp()
@@ -42,7 +44,8 @@ extension PracticeSessionViewModel {
                                 timeline: timelineSnapshot,
                                 tempoMap: tempoMapSnapshot,
                                 startTick: timingBaseTick,
-                                initialSustainPedalDown: initialSustainPedalDown
+                                initialSustainPedalDown: initialSustainPedalDown,
+                                leadInSeconds: leadInSeconds
                             )
                             continuation.resume(returning: try builder.buildSequence(from: schedule))
                         } catch {
@@ -65,16 +68,22 @@ extension PracticeSessionViewModel {
                 return
             }
 
+            decisionLogger.debug(
+                "autoplay sequencer started leadIn=\(leadInSeconds, privacy: .public)s now=\(sequencerPlaybackService.currentSeconds(), privacy: .public)s"
+            )
+
             var cursor = AutoplayTimelineTimeCursor(
                 timeline: timelineSnapshot,
                 tickToSeconds: { tempoMapSnapshot.timeSeconds(atTick: $0) },
-                startTick: timingBaseTick
+                startTick: timingBaseTick,
+                leadInSeconds: leadInSeconds
             )
             var pedalCursor = AutoplayTimelinePedalTimeCursor(
                 timeline: timelineSnapshot,
                 tickToSeconds: { tempoMapSnapshot.timeSeconds(atTick: $0) },
                 startTick: timingBaseTick,
-                initialIsDown: isSustainPedalDown
+                initialIsDown: isSustainPedalDown,
+                leadInSeconds: leadInSeconds
             )
             let sequenceEndSeconds = max(0, sequence.durationSeconds)
 
@@ -171,7 +180,8 @@ extension PracticeSessionViewModel {
             timeline: AutoplayPerformanceTimeline,
             tickToSeconds: (Int) -> TimeInterval,
             startTick: Int,
-            initialIsDown: Bool
+            initialIsDown: Bool,
+            leadInSeconds: TimeInterval = 0
         ) {
             let baseTick = max(0, startTick)
             let baseSeconds = tickToSeconds(baseTick)
@@ -190,7 +200,7 @@ extension PracticeSessionViewModel {
                     case .pedalDown:
                         scheduled.append(
                             TimedPedal(
-                                timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds,
+                                timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                                 isDown: true
                             )
                         )
@@ -198,7 +208,7 @@ extension PracticeSessionViewModel {
                     case .pedalUp:
                         scheduled.append(
                             TimedPedal(
-                                timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds,
+                                timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
                                 isDown: false
                             )
                         )

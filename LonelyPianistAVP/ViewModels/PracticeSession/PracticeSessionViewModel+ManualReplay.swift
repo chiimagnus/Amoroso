@@ -49,12 +49,14 @@ extension PracticeSessionViewModel {
                 return
             }
 
+            let leadInSeconds: TimeInterval = 0.05
+
             let sequence: PracticeSequencerSequence
             do {
                 sequence = try await withCheckedThrowingContinuation { continuation in
                     DispatchQueue.global(qos: .userInitiated).async {
                         do {
-                            let builder = PracticeManualReplaySequenceBuilder()
+                            let builder = PracticeManualReplaySequenceBuilder(leadInSeconds: leadInSeconds)
                             continuation.resume(returning: try builder.buildSequence(
                                 steps: stepsSnapshot,
                                 tempoMap: tempoMapSnapshot,
@@ -79,10 +81,15 @@ extension PracticeSessionViewModel {
                 return
             }
 
+            decisionLogger.debug(
+                "manual replay sequencer started leadIn=\(leadInSeconds, privacy: .public)s now=\(sequencerPlaybackService.currentSeconds(), privacy: .public)s"
+            )
+
             var cursor = ManualReplayTimeCursor(
                 steps: stepsSnapshot,
                 tempoMap: tempoMapSnapshot,
-                stepRange: stepRangeSnapshot
+                stepRange: stepRangeSnapshot,
+                leadInSeconds: leadInSeconds
             )
             let sequenceEndSeconds = max(0, sequence.durationSeconds)
 
@@ -135,7 +142,12 @@ private struct ManualReplayTimeCursor: Equatable, Sendable {
         nextIndex >= scheduledSeconds.count
     }
 
-    init(steps: [PracticeStep], tempoMap: MusicXMLTempoMap, stepRange: Range<Int>) {
+    init(
+        steps: [PracticeStep],
+        tempoMap: MusicXMLTempoMap,
+        stepRange: Range<Int>,
+        leadInSeconds: TimeInterval = 0
+    ) {
         guard stepRange.isEmpty == false, steps.indices.contains(stepRange.lowerBound) else {
             scheduledStepIndices = []
             scheduledSeconds = []
@@ -154,7 +166,7 @@ private struct ManualReplayTimeCursor: Equatable, Sendable {
         for index in stepRange {
             guard steps.indices.contains(index) else { break }
             indices.append(index)
-            seconds.append(tempoMap.timeSeconds(atTick: steps[index].tick) - baseSeconds)
+            seconds.append(tempoMap.timeSeconds(atTick: steps[index].tick) - baseSeconds + leadInSeconds)
         }
 
         scheduledStepIndices = indices
