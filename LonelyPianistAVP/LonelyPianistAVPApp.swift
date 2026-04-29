@@ -7,9 +7,16 @@ struct LonelyPianistAVPApp: App {
     @State private var arGuideViewModel: ARGuideViewModel
 
     init() {
-        let appState = AppState()
-        appState.loadStoredCalibrationIfPossible()
         let services = AppServices()
+        let appState = AppState(
+            arTrackingService: services.arTrackingService,
+            calibrationCaptureService: services.calibrationCaptureService,
+            calibrationRepository: services.calibrationRepository,
+            keyGeometryService: services.keyGeometryService,
+            importService: services.importService,
+            practicePreparationService: services.practicePreparationService
+        )
+        appState.loadStoredCalibrationIfPossible()
 
         _appState = State(initialValue: appState)
         _services = State(initialValue: services)

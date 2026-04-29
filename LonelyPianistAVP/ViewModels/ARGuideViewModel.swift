@@ -587,19 +587,6 @@ final class ARGuideViewModel {
         arTrackingService.stop()
     }
 
-    var practiceStatusText: String {
-        switch practiceSessionViewModel.state {
-            case .idle:
-                "练习：空闲"
-            case .ready:
-                "练习：就绪"
-            case let .guiding(index):
-                "练习：引导中（第 \(index + 1) 步）"
-            case .completed:
-                "练习：已完成"
-        }
-    }
-
     var practiceProgressText: String {
         guard appState.importedSteps.isEmpty == false else { return "0 / 0" }
         let total = appState.importedSteps.count

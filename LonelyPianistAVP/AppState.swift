@@ -1,6 +1,6 @@
 import ARKit
+import Observation
 import simd
-import SwiftUI
 
 /// Maintains app-wide state
 @MainActor
@@ -53,19 +53,34 @@ class AppState {
     private let practicePreparationService: PracticePreparationServiceProtocol
 
     init(
-        calibrationRepository: CalibrationRepositoryProtocol? = nil,
-        keyGeometryService: PianoKeyGeometryServiceProtocol? = nil,
-        importService: MusicXMLImportServiceProtocol? = nil,
-        practicePreparationService: PracticePreparationServiceProtocol? = nil,
-        arTrackingService: ARTrackingServiceProtocol? = nil,
-        calibrationCaptureService: CalibrationPointCaptureService? = nil
+        arTrackingService: ARTrackingServiceProtocol,
+        calibrationCaptureService: CalibrationPointCaptureService,
+        calibrationRepository: CalibrationRepositoryProtocol,
+        keyGeometryService: PianoKeyGeometryServiceProtocol,
+        importService: MusicXMLImportServiceProtocol,
+        practicePreparationService: PracticePreparationServiceProtocol
     ) {
-        self.calibrationRepository = calibrationRepository ?? CalibrationRepository()
-        self.keyGeometryService = keyGeometryService ?? PianoKeyGeometryService()
-        self.importService = importService ?? MusicXMLImportService()
-        self.practicePreparationService = practicePreparationService ?? PracticePreparationService()
-        self.arTrackingService = arTrackingService ?? ARTrackingService()
-        self.calibrationCaptureService = calibrationCaptureService ?? CalibrationPointCaptureService()
+        self.arTrackingService = arTrackingService
+        self.calibrationCaptureService = calibrationCaptureService
+        self.calibrationRepository = calibrationRepository
+        self.keyGeometryService = keyGeometryService
+        self.importService = importService
+        self.practicePreparationService = practicePreparationService
+    }
+
+    /// Convenience init for tests/previews that don't need to control service instances.
+    convenience init(
+        keyGeometryService: PianoKeyGeometryServiceProtocol? = nil,
+        arTrackingService: ARTrackingServiceProtocol? = nil
+    ) {
+        self.init(
+            arTrackingService: arTrackingService ?? ARTrackingService(),
+            calibrationCaptureService: CalibrationPointCaptureService(),
+            calibrationRepository: CalibrationRepository(),
+            keyGeometryService: keyGeometryService ?? PianoKeyGeometryService(),
+            importService: MusicXMLImportService(),
+            practicePreparationService: PracticePreparationService()
+        )
     }
 
     func beginCalibrationRecapture() {
