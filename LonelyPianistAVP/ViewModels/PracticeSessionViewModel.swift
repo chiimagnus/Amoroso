@@ -79,8 +79,6 @@ final class PracticeSessionViewModel {
     var manualReplayGeneration = 0
     var isManualReplayPlaying = false
     var shouldResumeAudioRecognitionAfterManualReplay = false
-    private var oneShotResumeAudioRecognitionTask: Task<Void, Never>?
-    private var oneShotResumeAudioRecognitionGeneration = 0
     var pedalTimeline: MusicXMLPedalTimeline?
     var fermataTimeline: MusicXMLFermataTimeline?
     private var attributeTimeline: MusicXMLAttributeTimeline?
@@ -369,7 +367,9 @@ final class PracticeSessionViewModel {
     func skip() {
         stopManualReplayTask()
         stopAutoplayTask()
-        stopAutoplayAudio()
+        if autoplayState == .playing || isManualReplayPlaying {
+            stopAutoplayAudio()
+        }
         advanceToNextManualUnit()
         startAutoplayTaskIfNeeded()
     }
@@ -387,33 +387,15 @@ final class PracticeSessionViewModel {
     func playCurrentStepSound(applyRecognitionSuppress: Bool) {
         guard let currentStep else { return }
         guard audioPlaybackErrorMessage == nil else { return }
-
-        oneShotResumeAudioRecognitionTask?.cancel()
-        oneShotResumeAudioRecognitionTask = nil
-        oneShotResumeAudioRecognitionGeneration += 1
-        let resumeGeneration = oneShotResumeAudioRecognitionGeneration
-        let shouldResumeRecognitionAfterOneShot = isAudioRecognitionRunning
-
         if applyRecognitionSuppress {
-            stopAudioRecognition()
+            _ = prepareAudioRecognitionSuppressWindowForPlayback()
         }
 
         do {
-            let durationSeconds: TimeInterval = 0.35
             try sequencerPlaybackService.playOneShot(
                 midiNotes: uniqueMIDINotes(in: currentStep),
-                durationSeconds: durationSeconds
+                durationSeconds: 0.35
             )
-
-            if applyRecognitionSuppress, shouldResumeRecognitionAfterOneShot {
-                oneShotResumeAudioRecognitionTask = Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    try? await sleeper.sleep(for: .seconds(durationSeconds + 0.1))
-                    guard Task.isCancelled == false else { return }
-                    guard self.oneShotResumeAudioRecognitionGeneration == resumeGeneration else { return }
-                    self.refreshAudioRecognitionForCurrentState()
-                }
-            }
         } catch {
             recordPlaybackError(error)
         }
