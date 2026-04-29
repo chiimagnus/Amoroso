@@ -16,6 +16,7 @@ enum PracticeSequencerSequenceBuilderError: LocalizedError, Equatable {
     case musicSequenceCreateFailed
     case musicTrackCreateFailed(status: OSStatus)
     case tempoTrackMissing
+    case trackEventInsertFailed(status: OSStatus)
     case midiExportFailed(status: OSStatus)
 
     var errorDescription: String? {
@@ -26,6 +27,8 @@ enum PracticeSequencerSequenceBuilderError: LocalizedError, Equatable {
                 "MusicTrack 创建失败：\(status)"
             case .tempoTrackMissing:
                 "Tempo track 缺失。"
+            case let .trackEventInsertFailed(status):
+                "写入 MIDI event 失败：\(status)"
             case let .midiExportFailed(status):
                 "导出 MIDI data 失败：\(status)"
         }
@@ -113,7 +116,10 @@ struct PracticeSequencerSequenceBuilder {
         guard let tempoTrack else {
             throw PracticeSequencerSequenceBuilderError.tempoTrackMissing
         }
-        _ = MusicTrackNewExtendedTempoEvent(tempoTrack, 0, 60)
+        let tempoStatus = MusicTrackNewExtendedTempoEvent(tempoTrack, 0, 60)
+        guard tempoStatus == noErr else {
+            throw PracticeSequencerSequenceBuilderError.trackEventInsertFailed(status: tempoStatus)
+        }
 
         var track: MusicTrack?
         let newTrackStatus = MusicSequenceNewTrack(musicSequence, &track)
@@ -127,7 +133,10 @@ struct PracticeSequencerSequenceBuilder {
 
             var message = midiChannelMessage(for: event.kind)
             let timeStamp = MusicTimeStamp(max(0, event.timeSeconds))
-            _ = MusicTrackNewMIDIChannelEvent(track, timeStamp, &message)
+            let insertStatus = MusicTrackNewMIDIChannelEvent(track, timeStamp, &message)
+            guard insertStatus == noErr else {
+                throw PracticeSequencerSequenceBuilderError.trackEventInsertFailed(status: insertStatus)
+            }
         }
 
         var exportedData: Unmanaged<CFData>?
