@@ -42,8 +42,6 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
         pressDetectionService: RegressionNoopPressDetectionService(),
         chordAttemptAccumulator: RegressionNoopChordAttemptAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: nil,
-        noteOutput: nil,
         sequencerPlaybackService: playbackService
     )
 

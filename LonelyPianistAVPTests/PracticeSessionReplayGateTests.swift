@@ -12,7 +12,6 @@ func manualReplayBlocksGestureAdvance() async {
         pressDetectionService: ManualReplayConstantPressDetectionService(pressedNotes: [60]),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
         sequencerPlaybackService: playbackService,
         manualAdvanceModeProvider: { .measure }
     )
@@ -41,7 +40,6 @@ func manualReplayBlocksAudioRecognitionAdvance() async {
         pressDetectionService: ManualReplayNoopPressDetectionService(),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
         sequencerPlaybackService: playbackService,
         audioRecognitionService: audioRecognitionService,
         manualAdvanceModeProvider: { .measure }
@@ -81,7 +79,6 @@ func completedManualReplayReturnsProgressToMeasureStart() async {
         pressDetectionService: ManualReplayNoopPressDetectionService(),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: ImmediateManualReplaySleeper(),
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
         sequencerPlaybackService: playbackService,
         manualAdvanceModeProvider: { .measure }
     )
@@ -116,7 +113,6 @@ func restartingManualReplayDoesNotResumeAudioRecognitionBetweenGenerations() asy
         pressDetectionService: ManualReplayNoopPressDetectionService(),
         chordAttemptAccumulator: ManualReplayAlwaysMatchAccumulator(),
         sleeper: sleeper,
-        noteAudioPlayer: ManualReplaySilentAudioPlayer(),
         sequencerPlaybackService: playbackService,
         audioRecognitionService: audioRecognitionService,
         manualAdvanceModeProvider: { .measure }
@@ -169,10 +165,6 @@ private struct PendingManualReplaySleeper: SleeperProtocol {
     func sleep(for _: Duration) async throws {
         try await Task.sleep(for: .seconds(60))
     }
-}
-
-private final class ManualReplaySilentAudioPlayer: PracticeNoteAudioPlayerProtocol {
-    func play(midiNotes _: [Int]) throws {}
 }
 
 private final class ManualReplaySequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {

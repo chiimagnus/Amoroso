@@ -10,10 +10,6 @@ final class PracticeSessionViewModel {
         subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
         category: "Step3AudioDecision"
     )
-    let timingLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
-        category: "Step3PracticeTiming"
-    )
 
     static func durationSeconds(_ duration: Duration) -> TimeInterval {
         let components = duration.components
@@ -66,9 +62,6 @@ final class PracticeSessionViewModel {
     private let pressDetectionService: PressDetectionServiceProtocol
     let chordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     let sleeper: SleeperProtocol
-    let timingClock: PracticeTimingClockProtocol
-    private let noteAudioPlayer: PracticeNoteAudioPlayerProtocol?
-    let noteOutput: PracticeMIDINoteOutputProtocol?
     let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let audioRecognitionService: PracticeAudioRecognitionServiceProtocol?
     private let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
@@ -106,9 +99,6 @@ final class PracticeSessionViewModel {
         pressDetectionService: PressDetectionServiceProtocol,
         chordAttemptAccumulator: ChordAttemptAccumulatorProtocol,
         sleeper: SleeperProtocol,
-        timingClock: PracticeTimingClockProtocol? = nil,
-        noteAudioPlayer: PracticeNoteAudioPlayerProtocol?,
-        noteOutput: PracticeMIDINoteOutputProtocol? = nil,
         sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol? = nil,
         audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil,
         audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil,
@@ -120,9 +110,6 @@ final class PracticeSessionViewModel {
         self.pressDetectionService = pressDetectionService
         self.chordAttemptAccumulator = chordAttemptAccumulator
         self.sleeper = sleeper
-        self.timingClock = timingClock ?? ContinuousPracticeTimingClock()
-        self.noteAudioPlayer = noteAudioPlayer
-        self.noteOutput = noteOutput
         self.sequencerPlaybackService = sequencerPlaybackService ?? AVAudioSequencerPracticePlaybackService(
             soundFontResourceName: "SalC5Light2"
         )
@@ -139,8 +126,6 @@ final class PracticeSessionViewModel {
             pressDetectionService: PressDetectionService(),
             chordAttemptAccumulator: ChordAttemptAccumulator(),
             sleeper: TaskSleeper(),
-            noteAudioPlayer: nil,
-            noteOutput: nil,
             sequencerPlaybackService: playbackService,
             audioRecognitionService: PracticeAudioRecognitionService()
         )

@@ -74,8 +74,6 @@ func skipDuringAutoplayCancelsPendingEventsAndRestartsAtNextStep() async {
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: nil,
-        noteOutput: nil,
         sequencerPlaybackService: playbackService
     )
 
@@ -119,8 +117,6 @@ func skipDoesNotLetCancelledAutoplayTaskClearNewTaskReference() async {
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: nil,
-        noteOutput: nil,
         sequencerPlaybackService: playbackService
     )
 
@@ -322,8 +318,7 @@ func applyingCalibrationDoesNotResetProgress() {
     let viewModel = makePracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
-        sleeper: TaskSleeper(),
-        noteAudioPlayer: nil
+        sleeper: TaskSleeper()
     )
 
     viewModel.setSteps([
@@ -1154,8 +1149,6 @@ func disablingAutoplayStopsAudioAndClearsPendingScheduling() async {
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: nil,
-        noteOutput: nil,
         sequencerPlaybackService: playbackService
     )
 
@@ -1211,18 +1204,12 @@ private func makePracticeSessionViewModel(
     pressDetectionService: PressDetectionServiceProtocol,
     chordAttemptAccumulator: ChordAttemptAccumulatorProtocol,
     sleeper: SleeperProtocol,
-    timingClock: PracticeTimingClockProtocol = ContinuousPracticeTimingClock(),
-    noteAudioPlayer: PracticeNoteAudioPlayerProtocol? = nil,
-    noteOutput: PracticeMIDINoteOutputProtocol? = nil,
     sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol? = nil
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
         pressDetectionService: pressDetectionService,
         chordAttemptAccumulator: chordAttemptAccumulator,
         sleeper: sleeper,
-        timingClock: timingClock,
-        noteAudioPlayer: noteAudioPlayer,
-        noteOutput: noteOutput ?? CapturingMIDINoteOutput(),
         sequencerPlaybackService: sequencerPlaybackService ?? CapturingSequencerPlaybackService()
     )
 }

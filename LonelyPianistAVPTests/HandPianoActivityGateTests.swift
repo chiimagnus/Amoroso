@@ -36,8 +36,7 @@ func exactHitFallbackStillAdvancesStep() {
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: ConstantPressDetectionService(pressedNotes: [60]),
         chordAttemptAccumulator: AlwaysMatchChordAttemptAccumulator(),
-        sleeper: TaskSleeper(),
-        noteAudioPlayer: nil
+        sleeper: TaskSleeper()
     )
     viewModel.setSteps([
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)]),
@@ -64,7 +63,6 @@ func gateInactiveStillAllowsAudioMatchedAdvance() async {
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: nil,
         audioRecognitionService: fakeService,
         handPianoActivityGate: HandPianoActivityGate()
     )

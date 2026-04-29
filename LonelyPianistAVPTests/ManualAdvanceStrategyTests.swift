@@ -55,7 +55,6 @@ func appModelPassesMeasureSpansToPracticeSession() {
         pressDetectionService: ManualAdvanceNoopPressDetectionService(),
         chordAttemptAccumulator: ManualAdvanceNoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
-        noteAudioPlayer: ManualAdvanceSilentAudioPlayer(),
         manualAdvanceModeProvider: { .measure }
     )
     let appModel = AppModel(practiceSessionViewModel: sessionViewModel)
@@ -85,8 +84,4 @@ private struct ManualAdvanceNoopPressDetectionService: PressDetectionServiceProt
 private final class ManualAdvanceNoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
     func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], tolerance _: Int, at _: Date) -> Bool { false }
     func reset() {}
-}
-
-private final class ManualAdvanceSilentAudioPlayer: PracticeNoteAudioPlayerProtocol {
-    func play(midiNotes _: [Int]) throws {}
 }
