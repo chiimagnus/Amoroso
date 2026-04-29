@@ -1,0 +1,61 @@
+import Foundation
+
+struct PracticeManualReplaySequenceBuilder {
+    private let chordDurationSeconds: TimeInterval
+    private let velocity: UInt8
+
+    init(chordDurationSeconds: TimeInterval = 0.35, velocity: UInt8 = 96) {
+        self.chordDurationSeconds = chordDurationSeconds
+        self.velocity = velocity
+    }
+
+    func buildSequence(
+        steps: [PracticeStep],
+        tempoMap: MusicXMLTempoMap,
+        stepRange: Range<Int>
+    ) throws -> PracticeSequencerSequence {
+        guard stepRange.isEmpty == false else {
+            return try PracticeSequencerSequenceBuilder().buildSequence(from: [])
+        }
+        guard steps.indices.contains(stepRange.lowerBound) else {
+            return try PracticeSequencerSequenceBuilder().buildSequence(from: [])
+        }
+
+        let baseTick = steps[stepRange.lowerBound].tick
+        let baseSeconds = tempoMap.timeSeconds(atTick: baseTick)
+
+        var schedule: [PracticeSequencerMIDIEvent] = []
+        schedule.reserveCapacity(stepRange.count * 8)
+
+        for index in stepRange {
+            guard steps.indices.contains(index) else { break }
+            let step = steps[index]
+            let stepSeconds = tempoMap.timeSeconds(atTick: step.tick) - baseSeconds
+
+            schedule.append(
+                PracticeSequencerMIDIEvent(
+                    timeSeconds: stepSeconds,
+                    kind: .controlChange(controller: 123, value: 0)
+                )
+            )
+
+            let uniqueMIDINotes = Set(step.notes.map(\.midiNote)).sorted()
+            for midi in uniqueMIDINotes {
+                schedule.append(
+                    PracticeSequencerMIDIEvent(
+                        timeSeconds: stepSeconds,
+                        kind: .noteOn(midi: midi, velocity: velocity)
+                    )
+                )
+                schedule.append(
+                    PracticeSequencerMIDIEvent(
+                        timeSeconds: stepSeconds + chordDurationSeconds,
+                        kind: .noteOff(midi: midi)
+                    )
+                )
+            }
+        }
+
+        return try PracticeSequencerSequenceBuilder().buildSequence(from: schedule)
+    }
+}

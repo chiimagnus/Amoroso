@@ -9,12 +9,6 @@ extension PracticeSessionViewModel {
         stopManualReplayTask(restoreAudioRecognition: false)
         guard plan.stepRange.isEmpty == false else { return }
         guard steps.indices.contains(plan.stepRange.lowerBound) else { return }
-        do {
-            try sequencerPlaybackService.warmUp()
-        } catch {
-            recordPlaybackError(error)
-        }
-
         shouldResumeAudioRecognitionAfterManualReplay = shouldResumeRecognitionWhenReplayEnds
         stopAudioRecognition()
         feedbackResetTask?.cancel()
@@ -23,15 +17,11 @@ extension PracticeSessionViewModel {
         manualReplayGeneration += 1
         let generation = manualReplayGeneration
         let startIndex = plan.stepRange.lowerBound
+        let stepRangeSnapshot = plan.stepRange
+        let stepsSnapshot = steps
+        let tempoMapSnapshot = tempoMap
         isManualReplayPlaying = true
         moveToStep(startIndex, shouldPlaySound: false)
-
-        let tempoMapSnapshot = tempoMap
-        let isTimingDebugEnabled = UserDefaults.standard.bool(forKey: "practiceTimingDebugEnabled")
-        let timingStartWallSeconds = timingClock.nowSeconds()
-        let timingBaseTick = steps[startIndex].tick
-        let timingBaseTempoSeconds = tempoMapSnapshot.timeSeconds(atTick: timingBaseTick)
-        var timingLoopCount = 0
         manualReplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var completedReplay = false
@@ -51,36 +41,63 @@ extension PracticeSessionViewModel {
                 }
             }
 
-            for index in plan.stepRange {
-                guard Task.isCancelled == false else { return }
-                guard self.steps.indices.contains(index) else { return }
-                timingLoopCount += 1
-                self.currentStepIndex = index
-                self.state = .guiding(stepIndex: index)
-                self.setCurrentHighlightGuideForStepIndex(index)
-                self.playCurrentStepSound(applyRecognitionSuppress: false)
-
-                let nextIndex = index + 1
-                guard plan.stepRange.contains(nextIndex), self.steps.indices.contains(nextIndex) else { continue }
-                let nextTick = self.steps[nextIndex].tick
-                let expectedElapsed = tempoMapSnapshot.timeSeconds(atTick: nextTick) - timingBaseTempoSeconds
-                let wallElapsed = timingClock.nowSeconds() - timingStartWallSeconds
-                let waitSeconds = expectedElapsed - wallElapsed
-
-                if waitSeconds >= 0.01 {
-                    try? await self.sleeper.sleep(for: .seconds(waitSeconds))
-                }
-                if isTimingDebugEnabled {
-                    let wallElapsedAfter = timingClock.nowSeconds() - timingStartWallSeconds
-                    let driftSeconds = wallElapsedAfter - expectedElapsed
-                    if driftSeconds > 0.05 || timingLoopCount.isMultiple(of: 50) {
-                        let deltaTicks = self.steps[nextIndex].tick - self.steps[index].tick
-                        timingLogger.debug(
-                            "manual replay step=\(index, privacy: .public) tick=\(self.steps[index].tick, privacy: .public) Δtick=\(deltaTicks, privacy: .public) wait=\(waitSeconds, privacy: .public)s expected=\(expectedElapsed, privacy: .public)s wall=\(wallElapsedAfter, privacy: .public)s drift=\(driftSeconds, privacy: .public)s"
-                        )
-                    }
-                }
+            do {
+                try sequencerPlaybackService.warmUp()
+            } catch {
+                recordPlaybackError(error)
+                return
             }
+
+            let sequence: PracticeSequencerSequence
+            do {
+                let builder = PracticeManualReplaySequenceBuilder()
+                sequence = try builder.buildSequence(
+                    steps: stepsSnapshot,
+                    tempoMap: tempoMapSnapshot,
+                    stepRange: stepRangeSnapshot
+                )
+            } catch {
+                recordPlaybackError(error)
+                return
+            }
+
+            do {
+                sequencerPlaybackService.stop()
+                try sequencerPlaybackService.load(sequence: sequence)
+                try sequencerPlaybackService.play(fromSeconds: 0)
+            } catch {
+                recordPlaybackError(error)
+                return
+            }
+
+            var cursor = ManualReplayTimeCursor(
+                steps: stepsSnapshot,
+                tempoMap: tempoMapSnapshot,
+                stepRange: stepRangeSnapshot
+            )
+            let sequenceEndSeconds = max(0, sequence.durationSeconds)
+
+            while Task.isCancelled == false {
+                guard isManualReplayPlaying else { break }
+                let nowSeconds = sequencerPlaybackService.currentSeconds()
+
+                if let stepIndex = cursor.advance(toSeconds: nowSeconds) {
+                    currentStepIndex = stepIndex
+                    state = .guiding(stepIndex: stepIndex)
+                    setCurrentHighlightGuideForStepIndex(stepIndex)
+                }
+
+                if nowSeconds >= sequenceEndSeconds, cursor.isFinished {
+                    break
+                }
+
+                try? await sleeper.sleep(for: .milliseconds(33))
+            }
+
+            if Task.isCancelled == false {
+                sequencerPlaybackService.stop()
+            }
+
             completedReplay = true
         }
     }
@@ -91,10 +108,58 @@ extension PracticeSessionViewModel {
         manualReplayTask = nil
         if isManualReplayPlaying {
             isManualReplayPlaying = false
+            sequencerPlaybackService.stop()
             if restoreAudioRecognition, shouldResumeAudioRecognitionAfterManualReplay {
                 refreshAudioRecognitionForCurrentState()
             }
         }
         shouldResumeAudioRecognitionAfterManualReplay = false
+    }
+}
+
+private struct ManualReplayTimeCursor: Equatable, Sendable {
+    private let scheduledStepIndices: [Int]
+    private let scheduledSeconds: [TimeInterval]
+    private var nextIndex: Int
+
+    var isFinished: Bool {
+        nextIndex >= scheduledSeconds.count
+    }
+
+    init(steps: [PracticeStep], tempoMap: MusicXMLTempoMap, stepRange: Range<Int>) {
+        guard stepRange.isEmpty == false, steps.indices.contains(stepRange.lowerBound) else {
+            scheduledStepIndices = []
+            scheduledSeconds = []
+            nextIndex = 0
+            return
+        }
+
+        let baseTick = steps[stepRange.lowerBound].tick
+        let baseSeconds = tempoMap.timeSeconds(atTick: baseTick)
+
+        var indices: [Int] = []
+        var seconds: [TimeInterval] = []
+        indices.reserveCapacity(stepRange.count)
+        seconds.reserveCapacity(stepRange.count)
+
+        for index in stepRange {
+            guard steps.indices.contains(index) else { break }
+            indices.append(index)
+            seconds.append(tempoMap.timeSeconds(atTick: steps[index].tick) - baseSeconds)
+        }
+
+        scheduledStepIndices = indices
+        scheduledSeconds = seconds
+        nextIndex = 0
+    }
+
+    mutating func advance(toSeconds nowSeconds: TimeInterval) -> Int? {
+        var latestIndex: Int?
+        while nextIndex < scheduledSeconds.count {
+            if nowSeconds + 0.000_5 < scheduledSeconds[nextIndex] { break }
+            latestIndex = scheduledStepIndices[nextIndex]
+            nextIndex += 1
+        }
+        return latestIndex
     }
 }
