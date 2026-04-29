@@ -46,6 +46,7 @@ extension PracticeSessionViewModel {
         let startGeneration = audioRecognitionGeneration
         let startExpectedMIDINotes = expectedMIDINotes
         let startWrongMIDINotes = wrongMIDINotes
+        let startSuppressUntil = audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
         Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -53,7 +54,7 @@ extension PracticeSessionViewModel {
                     expectedMIDINotes: startExpectedMIDINotes,
                     wrongCandidateMIDINotes: startWrongMIDINotes,
                     generation: startGeneration,
-                    suppressUntil: audioRecognitionSuppressUntil.flatMap { $0 > Date() ? $0 : nil }
+                    suppressUntil: startSuppressUntil
                 )
                 guard audioRecognitionGeneration == startGeneration,
                       autoplayState == .off,

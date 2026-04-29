@@ -127,8 +127,16 @@ struct PracticeSequencerSequenceBuilder {
             throw PracticeSequencerSequenceBuilderError.musicTrackCreateFailed(status: newTrackStatus)
         }
 
+        let sortedSchedule = schedule.sorted { lhs, rhs in
+            if lhs.timeSeconds != rhs.timeSeconds { return lhs.timeSeconds < rhs.timeSeconds }
+            if eventPriority(lhs.kind) != eventPriority(rhs.kind) {
+                return eventPriority(lhs.kind) < eventPriority(rhs.kind)
+            }
+            return tieBreaker(lhs.kind) < tieBreaker(rhs.kind)
+        }
+
         var durationSeconds: TimeInterval = 0
-        for event in schedule {
+        for event in sortedSchedule {
             durationSeconds = max(durationSeconds, event.timeSeconds)
 
             var message = midiChannelMessage(for: event.kind)
@@ -182,6 +190,28 @@ struct PracticeSequencerSequenceBuilder {
                     data2: value,
                     reserved: 0
                 )
+        }
+    }
+
+    private func eventPriority(_ kind: PracticeSequencerMIDIEvent.Kind) -> Int {
+        switch kind {
+            case .controlChange:
+                0
+            case .noteOff:
+                1
+            case .noteOn:
+                2
+        }
+    }
+
+    private func tieBreaker(_ kind: PracticeSequencerMIDIEvent.Kind) -> String {
+        switch kind {
+            case let .noteOn(midi, velocity):
+                return "on-\(midi)-\(velocity)"
+            case let .noteOff(midi):
+                return "off-\(midi)"
+            case let .controlChange(controller, value):
+                return "cc-\(controller)-\(value)"
         }
     }
 }

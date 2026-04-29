@@ -32,13 +32,6 @@ struct PracticeManualReplaySequenceBuilder {
             let step = steps[index]
             let stepSeconds = tempoMap.timeSeconds(atTick: step.tick) - baseSeconds
 
-            schedule.append(
-                PracticeSequencerMIDIEvent(
-                    timeSeconds: stepSeconds,
-                    kind: .controlChange(controller: 123, value: 0)
-                )
-            )
-
             let uniqueMIDINotes = Set(step.notes.map(\.midiNote)).sorted()
             for midi in uniqueMIDINotes {
                 schedule.append(
