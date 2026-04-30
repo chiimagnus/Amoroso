@@ -122,12 +122,17 @@ final class PracticeSessionViewModel {
 
     convenience init() {
         let playbackService = AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2")
+#if targetEnvironment(simulator)
+        let audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil
+#else
+        let audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = PracticeAudioRecognitionService()
+#endif
         self.init(
             pressDetectionService: PressDetectionService(),
             chordAttemptAccumulator: ChordAttemptAccumulator(),
             sleeper: TaskSleeper(),
             sequencerPlaybackService: playbackService,
-            audioRecognitionService: PracticeAudioRecognitionService()
+            audioRecognitionService: audioRecognitionService
         )
     }
 
