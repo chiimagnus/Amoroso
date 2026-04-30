@@ -237,8 +237,14 @@ final class ARGuideViewModel {
         isVirtualPianoEnabled = isEnabled
         if isEnabled {
             cancelPracticeLocalizationTask()
+            #if DEBUG && targetEnvironment(simulator)
+            practiceLocalizationState = .ready
+            virtualPianoPlacement.placeAtDefaultPosition()
+            applyVirtualPianoGeometry()
+            #else
             practiceLocalizationState = .idle
             virtualPianoPlacement.startPlacing()
+            #endif
         } else {
             practiceSessionViewModel.stopVirtualPianoInput()
             virtualPianoPlacement.reset()
