@@ -28,8 +28,10 @@ struct VirtualPianoKeyGeometryService {
         let whiteKeyWidth = Self.whiteKeyWidthMeters
         let whiteKeySpacing = Self.whiteKeySpacingMeters
 
-        let zOffset = Self.whiteKeyDepthMeters / 2
-        let whiteKeyCenterZ: Float = zOffset
+        // Convention for virtual keyboard geometry:
+        // - Keyboard-local front edge is z = 0 (closest to the user).
+        // - Keys extend "into" the keyboard along -Z.
+        let whiteKeyCenterZ: Float = -Self.whiteKeyDepthMeters / 2
 
         let layout = Self.makeLayoutMaps()
 
@@ -81,7 +83,7 @@ struct VirtualPianoKeyGeometryService {
                     let blackWidth = whiteKeyWidth * Self.blackKeyWidthScale
                     let localSize = SIMD3<Float>(blackWidth, Self.whiteKeyThicknessMeters, blackDepth)
 
-                    let z = Self.whiteKeyDepthMeters * Self.blackKeyFrontInsetScale + blackDepth / 2
+                    let z = -(Self.whiteKeyDepthMeters * Self.blackKeyFrontInsetScale + blackDepth / 2)
                     let localCenter = SIMD3<Float>(x, surfaceLocalY - localSize.y / 2, z)
 
                     let beamFootprintSizeLocal = SIMD2<Float>(

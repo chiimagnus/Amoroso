@@ -669,7 +669,9 @@ final class ARGuideViewModel {
         dismissImmersiveSpace: DismissImmersiveSpaceAction
     ) async {
         cancelPracticeLocalizationTask()
-        appState.clearRuntimeCalibrationForPracticeRelocation()
+        if isVirtualPianoEnabled == false {
+            appState.clearRuntimeCalibrationForPracticeRelocation()
+        }
 
         guard let blockingReason = practiceEntryBlockingReason() else {
             practiceLocalizationState = .openingImmersive

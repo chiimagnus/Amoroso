@@ -74,12 +74,13 @@ final class VirtualPianoOverlayController {
         let totalLength = VirtualPianoKeyGeometryService.totalKeyboardLengthMeters
         let keyDepth = VirtualPianoKeyGeometryService.whiteKeyDepthMeters
         let collisionSize = SIMD3<Float>(totalLength, 0.05, keyDepth)
-        let collisionCenter = SIMD3<Float>(totalLength / 2, -0.01, keyDepth / 2)
+        let collisionCenter = SIMD3<Float>(totalLength / 2, -0.01, -keyDepth / 2)
         let collisionShape = ShapeResource.generateBox(size: collisionSize)
             .offsetBy(translation: collisionCenter)
         kbRoot.components.set(CollisionComponent(shapes: [collisionShape]))
         kbRoot.components.set(InputTargetComponent())
         kbRoot.components.set(ManipulationComponent())
+        kbRoot.components.set(PhysicsBodyComponent(mode: .kinematic))
 
         rootEntity.addChild(kbRoot)
         keyboardRootEntity = kbRoot
@@ -102,6 +103,7 @@ final class VirtualPianoOverlayController {
     }
 
     func currentKeyboardWorldFromKeyboard() -> simd_float4x4? {
-        keyboardRootEntity?.transform.matrix
+        guard let keyboardRootEntity else { return nil }
+        return keyboardRootEntity.transformMatrix(relativeTo: nil)
     }
 }

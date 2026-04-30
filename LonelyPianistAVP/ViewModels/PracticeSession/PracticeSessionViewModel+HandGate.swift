@@ -73,11 +73,13 @@ extension PracticeSessionViewModel {
 
         let shouldPlayLiveNotes = autoplayState == .off && isManualReplayPlaying == false
 
-        if shouldPlayLiveNotes, result.started.isEmpty == false {
-            try? sequencerPlaybackService.startLiveNotes(midiNotes: result.started)
-        }
-        if result.ended.isEmpty == false {
-            sequencerPlaybackService.stopLiveNotes(midiNotes: result.ended)
+        if shouldPlayLiveNotes {
+            if result.started.isEmpty == false {
+                try? sequencerPlaybackService.startLiveNotes(midiNotes: result.started)
+            }
+            if result.ended.isEmpty == false {
+                sequencerPlaybackService.stopLiveNotes(midiNotes: result.ended)
+            }
         }
 
         pressedNotes = result.down
