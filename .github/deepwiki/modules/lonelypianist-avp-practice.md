@@ -74,6 +74,12 @@ flowchart TD
 2. `ARGuideViewModel.setPracticeVirtualPianoEnabled(true)` 取消正在进行的定位，启动放置状态机。
 3. 关闭开关或离开练习页时自动停止所有 live notes 并重置放置状态。
 
+#### Simulator 自动放置
+
+在 `#if DEBUG && targetEnvironment(simulator)` 环境下，打开虚拟钢琴开关时跳过手势放置流程，直接以默认位置 `(0, 1.0, -1.0)`（键盘中心）放置 3D 键盘并立即生成几何数据。这使得 Simulator 中可以调试光柱引导、step 推进和 autoplay 功能。
+
+Simulator 限制：`HandTrackingProvider.isSupported` 为 `false`，手部追踪循环不启动，因此**无法通过手势弹奏虚拟琴键**。键盘渲染和光柱引导正常工作。
+
 ### 虚拟钢琴数据流
 
 ```mermaid
@@ -355,9 +361,11 @@ struct PianoHighlightGuideBuildInput {
 - 音频识别的调试快照和 fallback 状态仍需要在真机上验证其有效性。
 - 虚拟钢琴的 3D 渲染效果（琴键大小、间距、材质）和交互体验（ManipulationComponent 拖拽/缩放）需要 Vision Pro 真机验证。
 - `KeyContactDetectionService` 的迟滞阈值（press 2mm / release 8mm）需要真机调优，simulator 无法验证手势精度。
+- Simulator 中虚拟钢琴可渲染和显示光柱引导，但因 `HandTrackingProvider.isSupported` 为 `false`，无法通过手势弹奏。
 
 ## 更新记录（Update Notes）
 - 2026-04-25: 引入 `PianoKeyboardGeometry` 作为统一几何真源，并将 RealityKit 引导从 cylinder 光柱迁移为单几何体四侧面 atlas 的暖金丁达尔光束。
 - 2026-04-28: 新增 `AutoplayPerformanceTimeline` 统一自动播放调度；新增 `PianoHighlightGuideBuilderService` 优化高亮引导构建；新增 `PianoHighlightParsedElementCoverageService` 用于诊断；实现 strict autoplay prerequisites 和 UI 错误提示；修复音频识别相关问题；新增 `Fallbacks.md` 专题页面。
 - 2026-04-29: 同步 Step 3 练习页进入不自动开始（`ready` -> 点击下一步才开始）与进度显示语义；更正练习音频后端对象名为 `PracticeSequencerPlaybackServiceProtocol` / `AVAudioSequencerPracticePlaybackService`。
 - 2026-04-30: 新增虚拟钢琴模式：放置状态机、88 键几何生成、迟滞按键检测、live note on/off 实时发声、3D 键盘渲染、安全清音机制。新增 `VirtualPianoTests.swift` 测试覆盖。
+- 2026-04-30: Simulator 中虚拟钢琴自动放置（`#if DEBUG && targetEnvironment(simulator)`），跳过手势放置直接以默认位置渲染键盘，便于 Simulator 调试光柱引导和 step 推进。
