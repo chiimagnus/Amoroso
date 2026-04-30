@@ -11,6 +11,11 @@ struct KeyboardFrame {
     let worldFromKeyboard: simd_float4x4
     let keyboardFromWorld: simd_float4x4
 
+    init(worldFromKeyboard: simd_float4x4) {
+        self.worldFromKeyboard = worldFromKeyboard
+        self.keyboardFromWorld = simd_inverse(worldFromKeyboard)
+    }
+
     init?(a0World: SIMD3<Float>, c8World: SIMD3<Float>, planeHeight: Float) {
         let xCandidate = SIMD3<Float>(c8World.x - a0World.x, 0, c8World.z - a0World.z)
         let xLen = simd_length(xCandidate)
