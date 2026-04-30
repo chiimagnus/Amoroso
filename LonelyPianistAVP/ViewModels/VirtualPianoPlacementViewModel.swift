@@ -6,7 +6,7 @@ import simd
 final class VirtualPianoPlacementViewModel {
     enum PlacementState: Equatable {
         case disabled
-        case placing(reticlePoint: SIMD3<Float>, isReadyToConfirm: Bool)
+        case placing(reticlePoint: SIMD3<Float>)
         case placed(worldFromKeyboard: simd_float4x4, scale: Float)
     }
 
@@ -34,29 +34,24 @@ final class VirtualPianoPlacementViewModel {
     }
 
     func startPlacing() {
-        state = .placing(reticlePoint: .zero, isReadyToConfirm: false)
+        state = .placing(reticlePoint: .zero)
     }
 
-    func update(
-        fingerTips: [String: SIMD3<Float>],
-        nowUptime _: TimeInterval
-    ) {
+    func update(fingerTips: [String: SIMD3<Float>]) {
         guard case .placing = state else { return }
 
         guard let reticlePoint = fingerTips["right_indexFinger_tip"] ?? fingerTips["left_indexFinger_tip"] else {
             return
         }
 
-        let isReady = true
-
         let isPinching = checkPinch(fingerTips: fingerTips)
         let shouldConfirm = isPinching && wasPinching == false
         wasPinching = isPinching
 
-        if shouldConfirm, isReady {
+        if shouldConfirm {
             confirmPlacement(at: reticlePoint)
         } else {
-            state = .placing(reticlePoint: reticlePoint, isReadyToConfirm: isReady)
+            state = .placing(reticlePoint: reticlePoint)
         }
     }
 

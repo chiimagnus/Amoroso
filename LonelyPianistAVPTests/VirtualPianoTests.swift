@@ -111,6 +111,134 @@ func physicalPianoPathUnaffectedByVirtualPiano() {
     _ = detected
 }
 
+// MARK: - KeyContactDetectionService Tests
+
+@MainActor
+@Test
+func keyContactDetectionStartedEndedHysteresis() {
+    let service = KeyContactDetectionService()
+    let geometry = makeTestKeyboardGeometry()
+    let c4Key = geometry.key(for: 60)!
+
+    let atSurface: [String: SIMD3<Float>] = [
+        "right_indexFinger_tip": SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY, c4Key.hitCenterLocal.z),
+    ]
+    let result1 = service.detect(fingerTips: atSurface, keyboardGeometry: geometry)
+    #expect(result1.started.contains(60))
+    #expect(result1.down.contains(60))
+
+    let betweenThresholds: [String: SIMD3<Float>] = [
+        "right_indexFinger_tip": SIMD3<Float>(
+            c4Key.hitCenterLocal.x,
+            c4Key.surfaceLocalY + (KeyContactDetectionService.pressThresholdMeters + KeyContactDetectionService.releaseThresholdMeters) / 2,
+            c4Key.hitCenterLocal.z
+        ),
+    ]
+    let result2 = service.detect(fingerTips: betweenThresholds, keyboardGeometry: geometry)
+    #expect(result2.down.contains(60), "Between press/release threshold: should stay down (hysteresis)")
+    #expect(result2.started.isEmpty)
+    #expect(result2.ended.isEmpty)
+
+    let aboveRelease: [String: SIMD3<Float>] = [
+        "right_indexFinger_tip": SIMD3<Float>(
+            c4Key.hitCenterLocal.x,
+            c4Key.surfaceLocalY + KeyContactDetectionService.releaseThresholdMeters + 0.001,
+            c4Key.hitCenterLocal.z
+        ),
+    ]
+    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry)
+    #expect(result3.ended.contains(60))
+    #expect(result3.down.isEmpty)
+}
+
+@MainActor
+@Test
+func keyContactDetectionBlackKeyPriority() {
+    let service = KeyContactDetectionService()
+    let geometry = makeTestKeyboardGeometry()
+
+    let blackKey = geometry.keys.first { $0.kind == .black }!
+    let fingerTips: [String: SIMD3<Float>] = [
+        "right_indexFinger_tip": SIMD3<Float>(blackKey.hitCenterLocal.x, -0.001, blackKey.hitCenterLocal.z),
+    ]
+    let result = service.detect(fingerTips: fingerTips, keyboardGeometry: geometry)
+    #expect(result.down.contains(blackKey.midiNote))
+}
+
+@MainActor
+@Test
+func keyContactDetectionNoFingerNoDown() {
+    let service = KeyContactDetectionService()
+    let geometry = makeTestKeyboardGeometry()
+
+    let result = service.detect(fingerTips: [:], keyboardGeometry: geometry)
+    #expect(result.down.isEmpty)
+    #expect(result.started.isEmpty)
+    #expect(result.ended.isEmpty)
+}
+
+// MARK: - VirtualPianoPlacementViewModel Tests
+
+@Test
+@MainActor
+func placementStateTransitions() {
+    let vm = VirtualPianoPlacementViewModel()
+    #expect(vm.state == .disabled)
+    #expect(vm.isPlaced == false)
+    #expect(vm.worldFromKeyboard == nil)
+
+    vm.startPlacing()
+    if case let .placing(reticlePoint) = vm.state {
+        #expect(reticlePoint == .zero)
+    } else {
+        Issue.record("Expected .placing state")
+    }
+
+    vm.update(fingerTips: [
+        "right_indexFinger_tip": SIMD3<Float>(0.5, 0, 0),
+        "right_thumb_tip": SIMD3<Float>(0.5, 0, 0),
+    ])
+    #expect(vm.isPlaced)
+    #expect(vm.worldFromKeyboard != nil)
+}
+
+@Test
+@MainActor
+func placementResetGoesToDisabled() {
+    let vm = VirtualPianoPlacementViewModel()
+    vm.startPlacing()
+    vm.update(fingerTips: [
+        "right_indexFinger_tip": SIMD3<Float>(0, 0, 0),
+        "right_thumb_tip": SIMD3<Float>(0, 0, 0),
+    ])
+    #expect(vm.isPlaced)
+
+    vm.reset()
+    #expect(vm.state == .disabled)
+    #expect(vm.isPlaced == false)
+}
+
+@Test
+@MainActor
+func placementConfirmSetsOriginAtKeyboardLeftEnd() {
+    let vm = VirtualPianoPlacementViewModel()
+    vm.startPlacing()
+
+    let reticlePoint = SIMD3<Float>(1.0, 0, 0)
+    vm.update(fingerTips: [
+        "right_indexFinger_tip": reticlePoint,
+        "right_thumb_tip": reticlePoint,
+    ])
+
+    guard let transform = vm.worldFromKeyboard else {
+        Issue.record("Expected placement to succeed")
+        return
+    }
+    let origin = SIMD3<Float>(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
+    let halfLength = VirtualPianoKeyGeometryService.totalKeyboardLengthMeters / 2
+    #expect(abs(origin.x - (reticlePoint.x - halfLength)) < 0.001)
+}
+
 // MARK: - Helpers
 
 private func makeTestKeyboardGeometry() -> PianoKeyboardGeometry {

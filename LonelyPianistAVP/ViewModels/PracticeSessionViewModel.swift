@@ -336,6 +336,7 @@ final class PracticeSessionViewModel {
         calibration = nil
         keyboardGeometry = nil
         pressedNotes.removeAll()
+        keyContactDetectionService.reset()
         feedbackState = .none
         isSustainPedalDown = false
         audioRecognitionErrorMessage = nil

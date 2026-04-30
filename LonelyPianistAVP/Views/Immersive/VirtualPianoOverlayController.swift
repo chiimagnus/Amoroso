@@ -9,7 +9,7 @@ final class VirtualPianoOverlayController {
     private var hasAttachedRoot = false
     private var reticleEntity: ModelEntity?
     private var keyboardRootEntity: Entity?
-    private var builtForGeometryKey: Int?
+    private var builtForTransformHash: Int?
 
     func update(
         placementState: VirtualPianoPlacementViewModel.PlacementState,
@@ -26,7 +26,7 @@ final class VirtualPianoOverlayController {
                 clearReticle()
                 clearKeyboard()
 
-            case let .placing(reticlePoint, _):
+            case let .placing(reticlePoint):
                 clearKeyboard()
                 showReticle(at: reticlePoint)
 
@@ -58,9 +58,8 @@ final class VirtualPianoOverlayController {
     }
 
     private func showKeyboard(geometry: PianoKeyboardGeometry) {
-        let geometryKey = geometry.keys.count
-        if builtForGeometryKey == geometryKey, keyboardRootEntity != nil {
-            keyboardRootEntity?.transform = Transform(matrix: geometry.frame.worldFromKeyboard)
+        let transformHash = Self.hashTransform(geometry.frame.worldFromKeyboard)
+        if builtForTransformHash == transformHash, keyboardRootEntity != nil {
             return
         }
 
@@ -86,13 +85,24 @@ final class VirtualPianoOverlayController {
 
         rootEntity.addChild(kbRoot)
         keyboardRootEntity = kbRoot
-        builtForGeometryKey = geometryKey
+        builtForTransformHash = transformHash
     }
 
     private func clearKeyboard() {
         keyboardRootEntity?.removeFromParent()
         keyboardRootEntity = nil
-        builtForGeometryKey = nil
+        builtForTransformHash = nil
+    }
+
+    private static func hashTransform(_ m: simd_float4x4) -> Int {
+        var hasher = Hasher()
+        for col in [m.columns.0, m.columns.1, m.columns.2, m.columns.3] {
+            hasher.combine(col.x)
+            hasher.combine(col.y)
+            hasher.combine(col.z)
+            hasher.combine(col.w)
+        }
+        return hasher.finalize()
     }
 
     private func makeKeyEntity(for key: PianoKeyGeometry) -> ModelEntity {

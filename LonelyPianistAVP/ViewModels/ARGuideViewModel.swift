@@ -469,10 +469,7 @@ final class ARGuideViewModel {
                     case .practice:
                         if isVirtualPianoEnabled {
                             let wasPlaced = virtualPianoPlacement.isPlaced
-                            virtualPianoPlacement.update(
-                                fingerTips: fingerTips,
-                                nowUptime: ProcessInfo.processInfo.systemUptime
-                            )
+                            virtualPianoPlacement.update(fingerTips: fingerTips)
                             if wasPlaced == false, virtualPianoPlacement.isPlaced {
                                 applyVirtualPianoGeometry()
                             }
