@@ -37,6 +37,29 @@ final class VirtualPianoPlacementViewModel {
         state = .placing(reticlePoint: .zero)
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    /// Simulator 自动放置：以默认位置直接进入 placed 状态，跳过手势放置。
+    func placeAtDefaultPosition() {
+        let xAxisWorld = SIMD3<Float>(1, 0, 0)
+        let yAxisWorld = SIMD3<Float>(0, 1, 0)
+        let zAxis = simd_normalize(simd_cross(xAxisWorld, yAxisWorld))
+        let xAxis = simd_normalize(simd_cross(yAxisWorld, zAxis))
+
+        // 默认位置：在用户面前约 1m 处，键盘水平放置
+        let centerPoint = SIMD3<Float>(0, 1.0, -1.0)
+        let originWorld = centerPoint - xAxis * (Self.totalKeyboardLengthMeters / 2)
+
+        let transform = simd_float4x4(columns: (
+            SIMD4<Float>(xAxis, 0),
+            SIMD4<Float>(yAxisWorld, 0),
+            SIMD4<Float>(zAxis, 0),
+            SIMD4<Float>(originWorld, 1)
+        ))
+
+        state = .placed(worldFromKeyboard: transform, scale: 1.0)
+    }
+    #endif
+
     func update(fingerTips: [String: SIMD3<Float>]) {
         guard case .placing = state else { return }
 
