@@ -240,6 +240,7 @@ final class ARGuideViewModel {
             practiceLocalizationState = .idle
             virtualPianoPlacement.startPlacing()
         } else {
+            practiceSessionViewModel.stopVirtualPianoInput()
             virtualPianoPlacement.reset()
         }
     }

@@ -358,6 +358,12 @@ final class PracticeSessionViewModel {
         audioPlaybackErrorMessage = nil
     }
 
+    func stopVirtualPianoInput() {
+        sequencerPlaybackService.stopAllLiveNotes()
+        keyContactDetectionService.reset()
+        pressedNotes.removeAll()
+    }
+
     func clearAutoplayError() {
         autoplayErrorMessage = nil
     }
@@ -421,6 +427,7 @@ final class PracticeSessionViewModel {
     func setAutoplayEnabled(_ isEnabled: Bool) {
         if isEnabled {
             stopManualReplayTask()
+            stopVirtualPianoInput()
             do {
                 try sequencerPlaybackService.warmUp()
             } catch {
