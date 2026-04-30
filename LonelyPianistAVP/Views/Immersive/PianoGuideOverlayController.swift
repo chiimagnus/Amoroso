@@ -22,6 +22,7 @@ final class PianoGuideOverlayController {
         highlightGuide: PianoHighlightGuide?,
         keyboardGeometry: PianoKeyboardGeometry?,
         feedbackState: PracticeSessionViewModel.VisualFeedbackState,
+        isAutoplayEnabled: Bool,
         content: RealityViewContent
     ) {
         if hasAttachedRoot == false {
@@ -37,7 +38,10 @@ final class PianoGuideOverlayController {
 
         keyboardRootEntity.transform = Transform(matrix: keyboardGeometry.frame.worldFromKeyboard)
 
-        if let highlightGuide, highlightGuide.triggeredNotes.isEmpty == false {
+        if isAutoplayEnabled == false {
+            lastTriggerTimestampByMIDINote.removeAll()
+            lastTriggerGuideIDByMIDINote.removeAll()
+        } else if let highlightGuide, highlightGuide.triggeredNotes.isEmpty == false {
             let now = ProcessInfo.processInfo.systemUptime
             for note in highlightGuide.triggeredNotes {
                 if lastTriggerGuideIDByMIDINote[note.midiNote] != highlightGuide.id {
