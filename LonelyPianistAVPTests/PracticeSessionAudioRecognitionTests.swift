@@ -414,6 +414,9 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
     func playOneShot(midiNotes: [Int], durationSeconds _: TimeInterval) throws {
         oneShots.append(midiNotes)
     }
+    func startLiveNotes(midiNotes _: Set<Int>) throws {}
+    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func stopAllLiveNotes() {}
 }
 
 @Test
