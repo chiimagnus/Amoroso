@@ -9,8 +9,6 @@ final class PianoGuideOverlayController {
     private var hasAttachedRoot = false
     private var activeBeamEntitiesByMIDINote: [Int: ModelEntity] = [:]
     private var lastGuideIDByMIDINote: [Int: Int] = [:]
-    private var didAttemptAtlasTextureLoad = false
-    private var atlasTexture: TextureResource?
 
     func updateHighlights(
         highlightGuide: PianoHighlightGuide?,
@@ -57,7 +55,7 @@ final class PianoGuideOverlayController {
                 beam = existing
             } else {
                 activeBeamEntitiesByMIDINote[descriptor.midiNote]?.removeFromParent()
-                beam = ModelEntity(mesh: PianoGuideBeamMeshFactory.unitPrismShellMesh, materials: [])
+                beam = ModelEntity(mesh: PianoGuideDecalMeshFactory.unitTopDecalMesh, materials: [])
                 activeBeamEntitiesByMIDINote[descriptor.midiNote] = beam
                 lastGuideIDByMIDINote[descriptor.midiNote] = descriptor.guideID
                 keyboardRootEntity.addChild(beam)
@@ -72,14 +70,9 @@ final class PianoGuideOverlayController {
     private func beamMaterial(for descriptor: PianoGuideBeamDescriptor) -> UnlitMaterial {
         let tintColor = AVPOverlayPalette.guideColor
         let tinted = tintColor.withAlphaComponent(CGFloat(max(0, min(1, descriptor.alpha))))
-        let texture = loadAtlasTextureIfNeeded()
 
         var material = UnlitMaterial()
-        if let texture {
-            material.color = .init(tint: tinted, texture: .init(texture))
-        } else {
-            material.color = .init(tint: tinted)
-        }
+        material.color = .init(tint: tinted)
         return material
     }
 
@@ -91,13 +84,5 @@ final class PianoGuideOverlayController {
         lastGuideIDByMIDINote.removeAll()
     }
 
-    private func loadAtlasTextureIfNeeded() -> TextureResource? {
-        if didAttemptAtlasTextureLoad {
-            return atlasTexture
-        }
-
-        didAttemptAtlasTextureLoad = true
-        atlasTexture = try? TextureResource.load(named: "KeyBeamFourSideAtlas")
-        return atlasTexture
-    }
+    // Texture is attached in P2-T3 via a separate decal image set.
 }

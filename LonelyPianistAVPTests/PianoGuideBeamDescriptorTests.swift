@@ -39,8 +39,8 @@ func descriptorsDeduplicateNotesAndAlignToSurface() {
     #expect(descriptor?.midiNote == 60)
 
     let key = geometry.key(for: 60)
-    let beamHeight: Float = 0.18
-    #expect(abs((descriptor?.positionLocal.y ?? -1) - ((key?.surfaceLocalY ?? 0) + beamHeight / 2)) < 1e-6)
+    let epsilonMeters: Float = 0.0015
+    #expect(abs((descriptor?.positionLocal.y ?? -1) - ((key?.surfaceLocalY ?? 0) + epsilonMeters)) < 1e-6)
 }
 
 @Test
@@ -54,8 +54,11 @@ func descriptorUsesFootprintAndMinimumSizes() {
     )
 
     let descriptor = result.first
-    #expect(descriptor?.sizeLocal.x ?? 0 >= 0.010)
-    #expect(descriptor?.sizeLocal.z ?? 0 >= 0.018)
+    let insetScale: Float = 0.98
+    let thicknessMeters: Float = 0.001
+    #expect(abs((descriptor?.sizeLocal.x ?? 0) - (0.02 * insetScale)) < 1e-6)
+    #expect(abs((descriptor?.sizeLocal.y ?? 0) - thicknessMeters) < 1e-6)
+    #expect(abs((descriptor?.sizeLocal.z ?? 0) - (0.14 * insetScale)) < 1e-6)
 }
 
 @Test
