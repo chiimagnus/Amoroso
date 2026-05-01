@@ -49,7 +49,7 @@ func gazePlaneHitTestRejectsOverTiltPlane() {
 }
 
 @Test
-func gazePlaneHitTestChoosesNearestPlane() {
+func gazePlaneHitTestChoosesPlaneClosestToPreferredDistance() {
     let nearID = UUID()
     let farID = UUID()
 
@@ -67,8 +67,13 @@ func gazePlaneHitTestChoosesNearestPlane() {
     let farPlane = makePlane(id: farID, y: -1)
 
     let ray = GazeRay(originWorld: SIMD3<Float>(0, 1, 0), directionWorld: SIMD3<Float>(0, -1, -1))
-    let service = GazePlaneHitTestService(configuration: .init(maxAngleFromUpDegrees: 10, minDistanceMeters: 0.1, maxDistanceMeters: 5))
+    let service = GazePlaneHitTestService(configuration: .init(
+        maxAngleFromUpDegrees: 10,
+        minDistanceMeters: 0.1,
+        maxDistanceMeters: 5,
+        preferredDistanceMeters: 2.7
+    ))
 
     let hit = service.hitTest(ray: ray, planes: [farPlane, nearPlane])
-    #expect(hit?.id == nearID)
+    #expect(hit?.id == farID)
 }

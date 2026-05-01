@@ -4,8 +4,11 @@ import simd
 struct GazePlaneHitTestService {
     struct Configuration: Equatable {
         var maxAngleFromUpDegrees: Float = 10
-        var minDistanceMeters: Float = 0.15
+        // Avoid picking a too-near plane which feels "in your face".
+        var minDistanceMeters: Float = 0.30
         var maxDistanceMeters: Float = 2.0
+        // Prefer a plane hit distance that feels like a reachable tabletop.
+        var preferredDistanceMeters: Float = 0.60
     }
 
     private let configuration: Configuration
@@ -21,6 +24,7 @@ struct GazePlaneHitTestService {
         let cosThreshold = cos(configuration.maxAngleFromUpDegrees * .pi / 180)
 
         var best: PlaneHit?
+        var bestDistanceError: Float?
 
         for plane in planes {
             let planeOrigin = plane.originWorld
@@ -44,16 +48,18 @@ struct GazePlaneHitTestService {
                 distanceMeters: t
             )
 
-            if let bestExisting = best {
-                if hit.distanceMeters < bestExisting.distanceMeters {
+            let error = abs(t - configuration.preferredDistanceMeters)
+            if let currentBestError = bestDistanceError, let currentBest = best {
+                if error < currentBestError || (error == currentBestError && hit.distanceMeters < currentBest.distanceMeters) {
                     best = hit
+                    bestDistanceError = error
                 }
             } else {
                 best = hit
+                bestDistanceError = error
             }
         }
 
         return best
     }
 }
-
