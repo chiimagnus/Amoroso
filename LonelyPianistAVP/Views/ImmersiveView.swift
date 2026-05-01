@@ -37,7 +37,6 @@ struct ImmersiveView: View {
             overlayController.updateHighlights(
                 highlightGuide: viewModel.practiceSessionViewModel.currentPianoHighlightGuide,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
-                isAutoplayEnabled: viewModel.practiceSessionViewModel.autoplayState == .playing,
                 content: content
             )
             virtualPianoOverlayController.update(
@@ -65,7 +64,6 @@ struct ImmersiveView: View {
             overlayController.updateHighlights(
                 highlightGuide: viewModel.practiceSessionViewModel.currentPianoHighlightGuide,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
-                isAutoplayEnabled: viewModel.practiceSessionViewModel.autoplayState == .playing,
                 content: content
             )
             virtualPianoOverlayController.update(
