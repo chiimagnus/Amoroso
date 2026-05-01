@@ -44,9 +44,11 @@ struct ImmersiveView: View {
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
-            viewModel.syncVirtualPianoTableWorldFromAnchor(
-                virtualPianoOverlayController.currentTableWorldFromAnchor()
-            )
+            if viewModel.isVirtualPianoEnabled {
+                viewModel.syncVirtualPianoTableWorldFromAnchor(
+                    virtualPianoOverlayController.currentTableWorldFromAnchor()
+                )
+            }
         } update: { content in
             calibrationOverlayController.update(
                 showsReticle: shouldShowCalibrationReticle,
@@ -71,9 +73,11 @@ struct ImmersiveView: View {
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
-            viewModel.syncVirtualPianoTableWorldFromAnchor(
-                virtualPianoOverlayController.currentTableWorldFromAnchor()
-            )
+            if viewModel.isVirtualPianoEnabled {
+                viewModel.syncVirtualPianoTableWorldFromAnchor(
+                    virtualPianoOverlayController.currentTableWorldFromAnchor()
+                )
+            }
         }
         .onAppear {
             viewModel.onImmersiveAppear()

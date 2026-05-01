@@ -1,4 +1,3 @@
-import Foundation
 import RealityKit
 import simd
 import SwiftUI
@@ -21,18 +20,19 @@ final class VirtualPianoOverlayController {
             hasAttachedRoot = true
         }
 
-        ensureTableAnchor()
-
         switch placementState {
             case .disabled:
                 clearGlowOrbs()
                 clearKeyboard()
+                clearTableAnchor()
 
             case .waitingForTableAnchor:
+                ensureTableAnchor()
                 clearKeyboard()
                 clearGlowOrbs()
 
             case .waitingForHandsStable:
+                ensureTableAnchor()
                 clearKeyboard()
                 if tableAnchorEntity?.isAnchored == true {
                     showGlowOrbsIfNeeded()
@@ -49,6 +49,7 @@ final class VirtualPianoOverlayController {
                 }
 
             case .failed:
+                ensureTableAnchor()
                 clearKeyboard()
                 if tableAnchorEntity?.isAnchored == true {
                     showGlowOrbsIfNeeded()
@@ -66,6 +67,11 @@ final class VirtualPianoOverlayController {
         )
         rootEntity.addChild(anchor)
         tableAnchorEntity = anchor
+    }
+
+    private func clearTableAnchor() {
+        tableAnchorEntity?.removeFromParent()
+        tableAnchorEntity = nil
     }
 
     private func showGlowOrbsIfNeeded() {
