@@ -13,9 +13,6 @@ extension PracticeSessionViewModel {
         guard steps.indices.contains(plan.stepRange.lowerBound) else { return }
         shouldResumeAudioRecognitionAfterManualReplay = shouldResumeRecognitionWhenReplayEnds
         stopAudioRecognition()
-        feedbackResetTask?.cancel()
-        feedbackResetTask = nil
-        feedbackState = .none
         manualReplayGeneration += 1
         let generation = manualReplayGeneration
         let startIndex = plan.stepRange.lowerBound

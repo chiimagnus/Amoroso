@@ -16,12 +16,6 @@ final class PracticeSessionViewModel {
         return TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
 
-    enum VisualFeedbackState: Equatable {
-        case none
-        case correct
-        case wrong
-    }
-
     enum PracticeState: Equatable {
         case idle
         case ready
@@ -40,7 +34,6 @@ final class PracticeSessionViewModel {
     private(set) var calibration: PianoCalibration?
     private(set) var keyboardGeometry: PianoKeyboardGeometry?
     var pressedNotes: Set<Int> = []
-    var feedbackState: VisualFeedbackState = .none
     var isSustainPedalDown = false
     var audioRecognitionErrorMessage: String?
     private(set) var audioPlaybackErrorMessage: String?
@@ -68,7 +61,6 @@ final class PracticeSessionViewModel {
     let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
     let handPianoActivityGate: HandPianoActivityGate
     private let manualAdvanceModeProvider: () -> ManualAdvanceMode
-    var feedbackResetTask: Task<Void, Never>?
     var autoplayTask: Task<Void, Never>?
     var autoplayTaskGeneration = 0
     var audioRecognitionEventsTask: Task<Void, Never>?
@@ -246,9 +238,6 @@ final class PracticeSessionViewModel {
         }
 
         let shouldResetProgress = self.steps != steps
-
-        feedbackResetTask?.cancel()
-        feedbackResetTask = nil
         stopManualReplayTask()
         stopAutoplayTask()
         stopAutoplayAudio()
@@ -271,7 +260,6 @@ final class PracticeSessionViewModel {
             currentStepIndex = 0
             currentHighlightGuideIndex = nil
             pressedNotes.removeAll()
-            feedbackState = .none
         }
 
         let tick = steps.indices.contains(currentStepIndex) ? steps[currentStepIndex].tick : 0
@@ -315,8 +303,6 @@ final class PracticeSessionViewModel {
     }
 
     func resetSession() {
-        feedbackResetTask?.cancel()
-        feedbackResetTask = nil
         stopManualReplayTask()
         stopAutoplayTask()
         stopAutoplayAudio()
@@ -337,7 +323,6 @@ final class PracticeSessionViewModel {
         keyboardGeometry = nil
         pressedNotes.removeAll()
         keyContactDetectionService.reset()
-        feedbackState = .none
         isSustainPedalDown = false
         audioRecognitionErrorMessage = nil
         audioPlaybackErrorMessage = nil
@@ -533,16 +518,5 @@ final class PracticeSessionViewModel {
             return description
         }
         return String(describing: error)
-    }
-
-    func setFeedback(_ state: VisualFeedbackState, duration: TimeInterval = 0.25) {
-        feedbackState = state
-        feedbackResetTask?.cancel()
-        feedbackResetTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            try? await sleeper.sleep(for: .seconds(duration))
-            guard Task.isCancelled == false else { return }
-            feedbackState = .none
-        }
     }
 }
