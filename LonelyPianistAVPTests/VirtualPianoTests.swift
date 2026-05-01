@@ -206,8 +206,8 @@ func tablePlacementNotReadyWithoutTableAnchor() {
     vm.update(
         tableWorldFromAnchor: nil,
         fingerTips: [
-            "left-indexFingerTip": SIMD3<Float>(0, 0, 0),
-            "right-indexFingerTip": SIMD3<Float>(0, 0, 0),
+            "left-palmCenter": SIMD3<Float>(0, 0, 0),
+            "right-palmCenter": SIMD3<Float>(0, 0, 0),
         ],
         deviceWorldTransform: nil,
         nowUptime: 0
@@ -244,8 +244,8 @@ func tablePlacementStableForThreeSecondsBecomesReady() {
 
     let tableWorldFromAnchor = matrix_identity_float4x4
     let fingerTips: [String: SIMD3<Float>] = [
-        "left-indexFingerTip": SIMD3<Float>(0.2, 0, 0.1),
-        "right-indexFingerTip": SIMD3<Float>(0.2, 0, 0.1),
+        "left-palmCenter": SIMD3<Float>(0.2, 0, 0.1),
+        "right-palmCenter": SIMD3<Float>(0.2, 0, 0.1),
     ]
 
     vm.update(
@@ -292,8 +292,8 @@ func tablePlacementMovementResetsProgress() {
 
     let tableWorldFromAnchor = matrix_identity_float4x4
     let fingerTipsStable: [String: SIMD3<Float>] = [
-        "left-indexFingerTip": SIMD3<Float>(0.2, 0, 0.1),
-        "right-indexFingerTip": SIMD3<Float>(0.2, 0, 0.1),
+        "left-palmCenter": SIMD3<Float>(0.2, 0, 0.1),
+        "right-palmCenter": SIMD3<Float>(0.2, 0, 0.1),
     ]
 
     vm.update(
@@ -316,8 +316,8 @@ func tablePlacementMovementResetsProgress() {
     }
 
     let fingerTipsMoved: [String: SIMD3<Float>] = [
-        "left-indexFingerTip": SIMD3<Float>(0.25, 0, 0.1),
-        "right-indexFingerTip": SIMD3<Float>(0.25, 0, 0.1),
+        "left-palmCenter": SIMD3<Float>(0.25, 0, 0.1),
+        "right-palmCenter": SIMD3<Float>(0.25, 0, 0.1),
     ]
 
     vm.update(

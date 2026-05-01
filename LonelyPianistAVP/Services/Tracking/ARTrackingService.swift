@@ -312,15 +312,17 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         var tips: [String: SIMD3<Float>] = [:]
         var indexFingerTip: SIMD3<Float>?
         var thumbTip: SIMD3<Float>?
-        for jointName in jointNames {
+        var palmCandidates: [SIMD3<Float>] = []
+
+        func recordIfTracked(_ jointName: HandSkeleton.JointName) -> SIMD3<Float>? {
             let joint = handSkeleton.joint(jointName)
-            guard joint.isTracked else { continue }
+            guard joint.isTracked else { return nil }
             let worldTransform = anchor.originFromAnchorTransform * joint.anchorFromJointTransform
-            let point = SIMD3<Float>(
-                worldTransform.columns.3.x,
-                worldTransform.columns.3.y,
-                worldTransform.columns.3.z
-            )
+            return SIMD3<Float>(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z)
+        }
+
+        for jointName in jointNames {
+            guard let point = recordIfTracked(jointName) else { continue }
             tips["\(anchor.chirality)-\(jointName)"] = point
             switch jointName {
                 case .indexFingerTip:
@@ -330,6 +332,26 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 default:
                     break
             }
+        }
+
+        // 更稳定的“掌心中心点”用于放置确认：比 fingertip 更不易丢失且抖动更小。
+        // 说明：ARKit hand skeleton 没有显式 palm joint，这里用 wrist + 各指 metacarpal/knuckle 近似。
+        let palmJointNames: [HandSkeleton.JointName] = [
+            .wrist,
+            .thumbKnuckle,
+            .indexFingerMetacarpal,
+            .middleFingerMetacarpal,
+            .ringFingerMetacarpal,
+            .littleFingerMetacarpal,
+        ]
+        for jointName in palmJointNames {
+            if let point = recordIfTracked(jointName) {
+                palmCandidates.append(point)
+            }
+        }
+        if palmCandidates.isEmpty == false {
+            let center = palmCandidates.reduce(SIMD3<Float>(0, 0, 0), +) / Float(palmCandidates.count)
+            tips["\(anchor.chirality)-palmCenter"] = center
         }
         return (tips, indexFingerTip, thumbTip)
     }

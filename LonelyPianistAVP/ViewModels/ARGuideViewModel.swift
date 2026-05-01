@@ -83,6 +83,7 @@ final class ARGuideViewModel {
     private(set) var isVirtualPianoEnabled = false
     let virtualPianoTablePlacement = VirtualPianoTablePlacementViewModel()
     private var virtualPianoTableWorldFromAnchor: simd_float4x4?
+    private var virtualPianoTableWorldFromAnchorLastSeenUptime: TimeInterval?
 
     init(appState: AppState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
         self.appState = appState
@@ -241,6 +242,7 @@ final class ARGuideViewModel {
             practiceSessionViewModel.clearCalibration()
             cancelPracticeLocalizationTask()
             virtualPianoTableWorldFromAnchor = nil
+            virtualPianoTableWorldFromAnchorLastSeenUptime = nil
             virtualPianoTablePlacement.start()
             #if DEBUG && targetEnvironment(simulator)
             practiceLocalizationState = .ready
@@ -257,6 +259,7 @@ final class ARGuideViewModel {
             practiceLocalizationState = .idle
             virtualPianoTablePlacement.reset()
             virtualPianoTableWorldFromAnchor = nil
+            virtualPianoTableWorldFromAnchorLastSeenUptime = nil
         }
     }
 
@@ -315,6 +318,7 @@ final class ARGuideViewModel {
         practiceSessionViewModel.clearCalibration()
 
         virtualPianoTableWorldFromAnchor = nil
+        virtualPianoTableWorldFromAnchorLastSeenUptime = nil
         virtualPianoTablePlacement.start()
 
         #if DEBUG && targetEnvironment(simulator)
@@ -575,7 +579,26 @@ final class ARGuideViewModel {
     }
 
     func syncVirtualPianoTableWorldFromAnchor(_ tableWorldFromAnchor: simd_float4x4?) {
-        virtualPianoTableWorldFromAnchor = tableWorldFromAnchor
+        // RealityKit 的 table plane anchor 可能出现短暂 isAnchored=false（导致传入 nil）。
+        // 为避免 placement 状态机/UI 频繁在 “waiting table”/“waiting hands” 间跳变，这里做一个短暂保留。
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        let graceSeconds: TimeInterval = 0.5
+
+        if let tableWorldFromAnchor {
+            virtualPianoTableWorldFromAnchor = tableWorldFromAnchor
+            virtualPianoTableWorldFromAnchorLastSeenUptime = nowUptime
+            return
+        }
+
+        if
+            let virtualPianoTableWorldFromAnchorLastSeenUptime,
+            nowUptime - virtualPianoTableWorldFromAnchorLastSeenUptime <= graceSeconds
+        {
+            return
+        }
+
+        virtualPianoTableWorldFromAnchor = nil
+        virtualPianoTableWorldFromAnchorLastSeenUptime = nil
     }
 
     private func handleCalibrationHandUpdates() {

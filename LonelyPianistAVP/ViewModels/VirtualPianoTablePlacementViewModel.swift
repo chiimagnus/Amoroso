@@ -15,22 +15,26 @@ final class VirtualPianoTablePlacementViewModel {
 
     private static let stableDurationSeconds: TimeInterval = 3.0
     private static let stableThresholdMeters: Float = 0.005
+    private static let missingHandsGraceSeconds: TimeInterval = 0.25
 
     private(set) var state: State = .disabled
 
     private var stableStartUptime: TimeInterval?
     private var stableReferenceHandPointOnPlaneWorld: SIMD3<Float>?
+    private var lastBothHandsSeenUptime: TimeInterval?
 
     func reset() {
         state = .disabled
         stableStartUptime = nil
         stableReferenceHandPointOnPlaneWorld = nil
+        lastBothHandsSeenUptime = nil
     }
 
     func start() {
         state = .waitingForTableAnchor
         stableStartUptime = nil
         stableReferenceHandPointOnPlaneWorld = nil
+        lastBothHandsSeenUptime = nil
     }
 
     #if DEBUG && targetEnvironment(simulator)
@@ -71,25 +75,29 @@ final class VirtualPianoTablePlacementViewModel {
             state = .waitingForTableAnchor
             stableStartUptime = nil
             stableReferenceHandPointOnPlaneWorld = nil
+            lastBothHandsSeenUptime = nil
             return
         }
 
-        let leftTips = fingerTips
-            .filter { $0.key.hasPrefix("left-") }
-            .map(\.value)
-        let rightTips = fingerTips
-            .filter { $0.key.hasPrefix("right-") }
-            .map(\.value)
+        // 放置确认不再使用 fingertip 平均值（抖动大、且容易因 tip 丢失造成闪烁）；
+        // 改为使用每只手的 palmCenter（在 ARTrackingService 中由 wrist + metacarpal/knuckle 近似得到）。
+        let leftPalm = fingerTips["left-palmCenter"]
+        let rightPalm = fingerTips["right-palmCenter"]
 
-        guard leftTips.isEmpty == false, rightTips.isEmpty == false else {
+        guard let leftPalm, let rightPalm else {
+            if let lastBothHandsSeenUptime, nowUptime - lastBothHandsSeenUptime <= Self.missingHandsGraceSeconds {
+                // Hand tracking 偶发丢一帧时不立刻清零，避免 UI 进度闪烁。
+                return
+            }
             state = .waitingForHandsStable(progress: 0)
             stableStartUptime = nil
             stableReferenceHandPointOnPlaneWorld = nil
+            lastBothHandsSeenUptime = nil
             return
         }
+        lastBothHandsSeenUptime = nowUptime
 
-        let allTips = leftTips + rightTips
-        let handCenterWorld = allTips.reduce(SIMD3<Float>(0, 0, 0), +) / Float(allTips.count)
+        let handCenterWorld = (leftPalm + rightPalm) / 2
 
         let tableOriginWorld = SIMD3<Float>(tableWorldFromAnchor.columns.3.x, tableWorldFromAnchor.columns.3.y, tableWorldFromAnchor.columns.3.z)
         let yAxisWorld = simd_normalize(SIMD3<Float>(tableWorldFromAnchor.columns.1.x, tableWorldFromAnchor.columns.1.y, tableWorldFromAnchor.columns.1.z))
