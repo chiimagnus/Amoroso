@@ -19,18 +19,18 @@ final class VirtualPianoTablePlacementViewModel {
     private(set) var state: State = .disabled
 
     private var stableStartUptime: TimeInterval?
-    private var lastStableHandPointOnPlaneWorld: SIMD3<Float>?
+    private var stableReferenceHandPointOnPlaneWorld: SIMD3<Float>?
 
     func reset() {
         state = .disabled
         stableStartUptime = nil
-        lastStableHandPointOnPlaneWorld = nil
+        stableReferenceHandPointOnPlaneWorld = nil
     }
 
     func start() {
         state = .waitingForTableAnchor
         stableStartUptime = nil
-        lastStableHandPointOnPlaneWorld = nil
+        stableReferenceHandPointOnPlaneWorld = nil
     }
 
     func update(
@@ -46,7 +46,7 @@ final class VirtualPianoTablePlacementViewModel {
         guard let tableWorldFromAnchor else {
             state = .waitingForTableAnchor
             stableStartUptime = nil
-            lastStableHandPointOnPlaneWorld = nil
+            stableReferenceHandPointOnPlaneWorld = nil
             return
         }
 
@@ -60,7 +60,7 @@ final class VirtualPianoTablePlacementViewModel {
         guard leftTips.isEmpty == false, rightTips.isEmpty == false else {
             state = .waitingForHandsStable(progress: 0)
             stableStartUptime = nil
-            lastStableHandPointOnPlaneWorld = nil
+            stableReferenceHandPointOnPlaneWorld = nil
             return
         }
 
@@ -76,19 +76,16 @@ final class VirtualPianoTablePlacementViewModel {
             planeNormalWorld: yAxisWorld
         )
 
-        let isStillStable: Bool = {
-            guard let lastStableHandPointOnPlaneWorld else { return true }
-            let delta = handPointOnPlaneWorld - lastStableHandPointOnPlaneWorld
-            let deltaOnPlane = delta - yAxisWorld * simd_dot(delta, yAxisWorld)
-            return simd_length(deltaOnPlane) < Self.stableThresholdMeters
-        }()
-
-        if isStillStable {
-            lastStableHandPointOnPlaneWorld = handPointOnPlaneWorld
-            stableStartUptime = stableStartUptime ?? nowUptime
-        } else {
+        if stableStartUptime == nil {
             stableStartUptime = nowUptime
-            lastStableHandPointOnPlaneWorld = handPointOnPlaneWorld
+            stableReferenceHandPointOnPlaneWorld = handPointOnPlaneWorld
+        } else if let stableReferenceHandPointOnPlaneWorld {
+            let delta = handPointOnPlaneWorld - stableReferenceHandPointOnPlaneWorld
+            let deltaOnPlane = delta - yAxisWorld * simd_dot(delta, yAxisWorld)
+            if simd_length(deltaOnPlane) >= Self.stableThresholdMeters {
+                stableStartUptime = nowUptime
+                self.stableReferenceHandPointOnPlaneWorld = handPointOnPlaneWorld
+            }
         }
 
         let stableFor = nowUptime - (stableStartUptime ?? nowUptime)

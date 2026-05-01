@@ -278,10 +278,9 @@ func tablePlacementStableForThreeSecondsBecomesReady() {
         deviceWorldTransform: nil,
         nowUptime: 3.0
     )
-    if case .ready = vm.state {
-        #expect(true)
-    } else {
+    guard case .ready = vm.state else {
         Issue.record("Expected ready(worldFromKeyboard:)")
+        return
     }
 }
 
