@@ -185,8 +185,8 @@ func markCorrectSchedulesFeedbackResetWithExpectedDuration() async {
     _ = viewModel.handleFingerTipPositions(["dummy": .zero])
     await settleTaskQueue()
 
-    #expect(viewModel.feedbackState == .correct)
-    #expect(await sleeper.recordedDurations() == [.seconds(0.25)])
+    #expect(viewModel.state == .completed)
+    #expect(await sleeper.callCount() == 0)
 
     viewModel.resetSession()
     await settleTaskQueue()
@@ -220,14 +220,8 @@ func secondFeedbackCancelsPreviousResetTaskDeterministically() async {
     _ = viewModel.handleFingerTipPositions(["dummy": .zero])
     await settleTaskQueue()
 
-    #expect(await sleeper.callCount() == 2)
-    #expect(await sleeper.cancellationCount() == 1)
-    #expect(await sleeper.wasRequestCancelled(at: 0) == true)
-    #expect(await sleeper.wasRequestCancelled(at: 1) == false)
-
-    await sleeper.resumeOldestPending()
-    await settleTaskQueue()
-    #expect(viewModel.feedbackState == .none)
+    #expect(viewModel.state == .completed)
+    #expect(await sleeper.callCount() == 0)
 }
 
 @Test
@@ -254,12 +248,8 @@ func feedbackResetsToNoneAfterSleeperResumes() async {
 
     _ = viewModel.handleFingerTipPositions(["dummy": .zero])
     await settleTaskQueue()
-    #expect(viewModel.feedbackState == .correct)
-
-    await sleeper.resumeOldestPending()
-    await settleTaskQueue()
-
-    #expect(viewModel.feedbackState == .none)
+    #expect(viewModel.state == .completed)
+    #expect(await sleeper.callCount() == 0)
 }
 
 @Test

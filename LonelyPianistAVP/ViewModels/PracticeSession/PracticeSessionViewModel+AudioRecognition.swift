@@ -187,11 +187,9 @@ extension PracticeSessionViewModel {
                     expectedMIDINotes: expectedMIDINotes,
                     at: event.timestamp
                 )
-                setFeedback(.correct)
                 advanceToNextStep()
                 decisionLogger.debug("audio matched advanced generation=\(event.generation, privacy: .public)")
             case .wrong:
-                setFeedback(.wrong)
                 decisionLogger.debug("audio wrong feedback generation=\(event.generation, privacy: .public)")
             case .insufficient:
                 break

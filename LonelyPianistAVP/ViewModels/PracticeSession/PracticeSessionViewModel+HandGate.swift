@@ -38,7 +38,6 @@ extension PracticeSessionViewModel {
                     at: timestamp
                 )
                 if isMatched {
-                    setFeedback(.correct)
                     if autoplayState == .off {
                         advanceToNextStep()
                     }
@@ -47,7 +46,6 @@ extension PracticeSessionViewModel {
                         expected.contains(where: { abs($0 - pressed) <= noteMatchTolerance }) == false
                     }
                     if unrelatedPressDetected {
-                        setFeedback(.wrong)
                     }
                 }
             }
@@ -102,14 +100,12 @@ extension PracticeSessionViewModel {
                 at: timestamp
             )
             if isMatched {
-                setFeedback(.correct)
                 advanceToNextStep()
             } else {
                 let unrelatedPressDetected = result.started.contains { pressed in
                     expected.contains(where: { abs($0 - pressed) <= noteMatchTolerance }) == false
                 }
                 if unrelatedPressDetected {
-                    setFeedback(.wrong)
                 }
             }
         }
