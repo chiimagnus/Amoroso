@@ -29,7 +29,11 @@ final class VirtualPianoOverlayController {
             case .waitingForTableAnchor:
                 ensureTableAnchor()
                 clearKeyboard()
-                clearGlowOrbs()
+                if tableAnchorEntity?.isAnchored == true {
+                    showGlowOrbsIfNeeded()
+                } else {
+                    clearGlowOrbs()
+                }
 
             case .waitingForHandsStable:
                 ensureTableAnchor()
