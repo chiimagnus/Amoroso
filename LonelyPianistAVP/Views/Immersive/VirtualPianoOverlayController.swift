@@ -6,12 +6,10 @@ import SwiftUI
 final class VirtualPianoOverlayController {
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
-    private var tableAnchorEntity: AnchorEntity?
-    private var glowOrbEntities: [ModelEntity] = []
     private var keyboardRootEntity: Entity?
 
     func update(
-        placementState: VirtualPianoTablePlacementViewModel.State,
+        isEnabled: Bool,
         keyboardGeometry: PianoKeyboardGeometry?,
         content: RealityViewContent?
     ) {
@@ -20,89 +18,12 @@ final class VirtualPianoOverlayController {
             hasAttachedRoot = true
         }
 
-        switch placementState {
-            case .disabled:
-                clearGlowOrbs()
-                clearKeyboard()
-                clearTableAnchor()
-
-            case .waitingForTableAnchor:
-                ensureTableAnchor()
-                clearKeyboard()
-                if tableAnchorEntity?.isAnchored == true {
-                    showGlowOrbsIfNeeded()
-                } else {
-                    clearGlowOrbs()
-                }
-
-            case .waitingForHandsStable:
-                ensureTableAnchor()
-                clearKeyboard()
-                if tableAnchorEntity?.isAnchored == true {
-                    showGlowOrbsIfNeeded()
-                } else {
-                    clearGlowOrbs()
-                }
-
-            case .ready:
-                clearGlowOrbs()
-                if let keyboardGeometry {
-                    showKeyboard(geometry: keyboardGeometry)
-                } else {
-                    clearKeyboard()
-                }
-
-            case .failed:
-                ensureTableAnchor()
-                clearKeyboard()
-                if tableAnchorEntity?.isAnchored == true {
-                    showGlowOrbsIfNeeded()
-                } else {
-                    clearGlowOrbs()
-                }
+        guard isEnabled, let keyboardGeometry else {
+            clearKeyboard()
+            return
         }
-    }
 
-    private func ensureTableAnchor() {
-        guard tableAnchorEntity == nil else { return }
-        let anchor = AnchorEntity(
-            .plane(.horizontal, classification: .table, minimumBounds: [0.3, 0.3]),
-            trackingMode: .continuous
-        )
-        rootEntity.addChild(anchor)
-        tableAnchorEntity = anchor
-    }
-
-    private func clearTableAnchor() {
-        tableAnchorEntity?.removeFromParent()
-        tableAnchorEntity = nil
-    }
-
-    private func showGlowOrbsIfNeeded() {
-        guard glowOrbEntities.isEmpty else { return }
-        guard let tableAnchorEntity else { return }
-
-        let mesh = MeshResource.generateSphere(radius: 0.02)
-        let material = SimpleMaterial(color: UIColor.systemCyan.withAlphaComponent(0.75), isMetallic: false)
-        let positions: [SIMD3<Float>] = [
-            SIMD3<Float>(-0.08, 0.01, 0.00),
-            SIMD3<Float>(0.00, 0.01, 0.00),
-            SIMD3<Float>(0.08, 0.01, 0.00),
-        ]
-
-        glowOrbEntities = positions.map { position in
-            let orb = ModelEntity(mesh: mesh, materials: [material])
-            orb.position = position
-            tableAnchorEntity.addChild(orb)
-            return orb
-        }
-    }
-
-    private func clearGlowOrbs() {
-        for orb in glowOrbEntities {
-            orb.removeFromParent()
-        }
-        glowOrbEntities.removeAll(keepingCapacity: true)
+        showKeyboard(geometry: keyboardGeometry)
     }
 
     private func showKeyboard(geometry: PianoKeyboardGeometry) {
@@ -134,11 +55,5 @@ final class VirtualPianoOverlayController {
         let entity = ModelEntity(mesh: mesh, materials: [material])
         entity.position = key.localCenter
         return entity
-    }
-
-    func currentTableWorldFromAnchor() -> simd_float4x4? {
-        guard let tableAnchorEntity else { return nil }
-        guard tableAnchorEntity.isAnchored else { return nil }
-        return tableAnchorEntity.transformMatrix(relativeTo: nil)
     }
 }

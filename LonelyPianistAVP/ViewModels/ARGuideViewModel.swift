@@ -82,11 +82,8 @@ final class ARGuideViewModel {
     private(set) var practiceLocalizationState: PracticeLocalizationState = .idle
     private(set) var calibrationPhase: CalibrationPhase = .capturingA0
     private(set) var isVirtualPianoEnabled = false
-    let virtualPianoTablePlacement = VirtualPianoTablePlacementViewModel()
     let gazePlaneDiskConfirmation = GazePlaneDiskConfirmationViewModel()
     private let gazePlaneHitTestService = GazePlaneHitTestService()
-    private var virtualPianoTableWorldFromAnchor: simd_float4x4?
-    private var virtualPianoTableWorldFromAnchorLastSeenUptime: TimeInterval?
     private var latestGazePlaneHit: PlaneHit?
 
     init(appState: AppState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
@@ -245,18 +242,12 @@ final class ARGuideViewModel {
             practiceSessionViewModel.stopVirtualPianoInput()
             practiceSessionViewModel.clearCalibration()
             cancelPracticeLocalizationTask()
-            virtualPianoTableWorldFromAnchor = nil
-            virtualPianoTableWorldFromAnchorLastSeenUptime = nil
-            virtualPianoTablePlacement.start()
             gazePlaneDiskConfirmation.reset()
             latestGazePlaneHit = nil
             startVirtualPianoGuidanceIfNeeded()
             #if DEBUG && targetEnvironment(simulator)
             practiceLocalizationState = .ready
-            virtualPianoTablePlacement.placeAtDefaultPosition()
-            if case let .ready(worldFromKeyboard) = virtualPianoTablePlacement.state {
-                applyVirtualPianoGeometry(worldFromKeyboard: worldFromKeyboard)
-            }
+            applyVirtualPianoGeometryAtDefaultPositionForSimulator()
             #else
             practiceLocalizationState = .idle
             #endif
@@ -264,9 +255,6 @@ final class ARGuideViewModel {
             practiceSessionViewModel.stopVirtualPianoInput()
             practiceSessionViewModel.clearCalibration()
             practiceLocalizationState = .idle
-            virtualPianoTablePlacement.reset()
-            virtualPianoTableWorldFromAnchor = nil
-            virtualPianoTableWorldFromAnchorLastSeenUptime = nil
             gazePlaneDiskConfirmation.reset()
             latestGazePlaneHit = nil
             stopVirtualPianoGuidance()
@@ -328,54 +316,17 @@ final class ARGuideViewModel {
         }
     }
 
-    var virtualPianoPlacementStatusText: String? {
-        guard isVirtualPianoEnabled else { return nil }
-        if case .ready = virtualPianoTablePlacement.state { return nil }
-
-        let handState = arTrackingService.providerStateByName["hand"] ?? .idle
-        switch handState {
-            case .unsupported:
-                return "虚拟钢琴不可用：此设备不支持手部追踪。"
-            case .unauthorized:
-                return "虚拟钢琴不可用：请在系统设置中允许本 App 使用 Hand Tracking。"
-            case let .failed(reason):
-                return "虚拟钢琴不可用：手部追踪启动失败（\(reason)）。"
-            default:
-                break
-        }
-
-        switch virtualPianoTablePlacement.state {
-            case .disabled:
-                return nil
-            case .waitingForTableAnchor:
-                return "虚拟钢琴：看向桌面以检测桌子…"
-            case let .waitingForHandsStable(progress):
-                let percent = Int((progress * 100).rounded())
-                return "虚拟钢琴：双手放桌面静止 3 秒（\(percent)%）"
-            case .ready:
-                return nil
-            case let .failed(message):
-                return message
-        }
-    }
-
     func retryVirtualPianoPlacement() {
         guard isVirtualPianoEnabled else { return }
 
         practiceSessionViewModel.stopVirtualPianoInput()
         practiceSessionViewModel.clearCalibration()
 
-        virtualPianoTableWorldFromAnchor = nil
-        virtualPianoTableWorldFromAnchorLastSeenUptime = nil
-        virtualPianoTablePlacement.start()
         gazePlaneDiskConfirmation.reset()
         latestGazePlaneHit = nil
 
         #if DEBUG && targetEnvironment(simulator)
-        virtualPianoTablePlacement.placeAtDefaultPosition()
-        if case let .ready(worldFromKeyboard) = virtualPianoTablePlacement.state {
-            applyVirtualPianoGeometry(worldFromKeyboard: worldFromKeyboard)
-        }
+        applyVirtualPianoGeometryAtDefaultPositionForSimulator()
         #endif
     }
 
@@ -611,28 +562,26 @@ final class ARGuideViewModel {
         }
     }
 
-    func syncVirtualPianoTableWorldFromAnchor(_ tableWorldFromAnchor: simd_float4x4?) {
-        // RealityKit 的 table plane anchor 可能出现短暂 isAnchored=false（导致传入 nil）。
-        // 为避免 placement 状态机/UI 频繁在 “waiting table”/“waiting hands” 间跳变，这里做一个短暂保留。
-        let nowUptime = ProcessInfo.processInfo.systemUptime
-        let graceSeconds: TimeInterval = 0.5
+    #if DEBUG && targetEnvironment(simulator)
+    private func applyVirtualPianoGeometryAtDefaultPositionForSimulator() {
+        let xAxisWorld = SIMD3<Float>(1, 0, 0)
+        let yAxisWorld = SIMD3<Float>(0, 1, 0)
+        let zAxis = simd_normalize(simd_cross(xAxisWorld, yAxisWorld))
+        let xAxis = simd_normalize(simd_cross(yAxisWorld, zAxis))
 
-        if let tableWorldFromAnchor {
-            virtualPianoTableWorldFromAnchor = tableWorldFromAnchor
-            virtualPianoTableWorldFromAnchorLastSeenUptime = nowUptime
-            return
-        }
+        let centerPoint = SIMD3<Float>(0, 1.0, -1.0)
+        let originWorld = centerPoint - xAxis * (VirtualPianoKeyGeometryService.totalKeyboardLengthMeters / 2)
 
-        if
-            let virtualPianoTableWorldFromAnchorLastSeenUptime,
-            nowUptime - virtualPianoTableWorldFromAnchorLastSeenUptime <= graceSeconds
-        {
-            return
-        }
+        let worldFromKeyboard = simd_float4x4(columns: (
+            SIMD4<Float>(xAxis, 0),
+            SIMD4<Float>(yAxisWorld, 0),
+            SIMD4<Float>(zAxis, 0),
+            SIMD4<Float>(originWorld, 1)
+        ))
 
-        virtualPianoTableWorldFromAnchor = nil
-        virtualPianoTableWorldFromAnchorLastSeenUptime = nil
+        applyVirtualPianoGeometry(worldFromKeyboard: worldFromKeyboard)
     }
+    #endif
 
     private func handleCalibrationHandUpdates() {
         let nowUptime = ProcessInfo.processInfo.systemUptime
