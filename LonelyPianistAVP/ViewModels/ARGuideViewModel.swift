@@ -263,6 +263,9 @@ final class ARGuideViewModel {
 
     var gazePlaneDiskStatusText: String? {
         guard isVirtualPianoEnabled else { return nil }
+        if practiceSessionViewModel.keyboardGeometry != nil {
+            return nil
+        }
 
         let planeState = arTrackingService.providerStateByName["plane"] ?? .idle
         switch planeState {
@@ -292,11 +295,14 @@ final class ARGuideViewModel {
     }
 
     var isGazePlaneDiskVisible: Bool {
-        isVirtualPianoEnabled && gazePlaneDiskConfirmation.isDiskVisible
+        isVirtualPianoEnabled &&
+            practiceSessionViewModel.keyboardGeometry == nil &&
+            gazePlaneDiskConfirmation.isDiskVisible
     }
 
     var gazePlaneDiskWorldTransform: simd_float4x4? {
-        gazePlaneDiskConfirmation.diskWorldTransform
+        guard isGazePlaneDiskVisible else { return nil }
+        return gazePlaneDiskConfirmation.diskWorldTransform
     }
 
     var practiceLocalizationStatusText: String? {
