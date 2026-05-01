@@ -275,6 +275,51 @@ final class ARGuideViewModel {
         }
     }
 
+    var virtualPianoPlacementStatusText: String? {
+        guard isVirtualPianoEnabled else { return nil }
+        if case .ready = virtualPianoTablePlacement.state { return nil }
+
+        let handState = arTrackingService.providerStateByName["hand"] ?? .idle
+        switch handState {
+            case .unsupported:
+                return "虚拟钢琴不可用：此设备不支持手部追踪。"
+            case .unauthorized:
+                return "虚拟钢琴不可用：请在系统设置中允许本 App 使用 Hand Tracking。"
+            case let .failed(reason):
+                return "虚拟钢琴不可用：手部追踪启动失败（\(reason)）。"
+            default:
+                break
+        }
+
+        switch virtualPianoTablePlacement.state {
+            case .disabled:
+                return nil
+            case .waitingForTableAnchor:
+                return "虚拟钢琴：看向桌面以检测桌子…"
+            case let .waitingForHandsStable(progress):
+                let percent = Int((progress * 100).rounded())
+                return "虚拟钢琴：双手放桌面静止 3 秒（\(percent)%）"
+            case .ready:
+                return nil
+            case let .failed(message):
+                return message
+        }
+    }
+
+    func retryVirtualPianoPlacement() {
+        guard isVirtualPianoEnabled else { return }
+
+        virtualPianoTableWorldFromAnchor = nil
+        virtualPianoTablePlacement.start()
+
+        #if DEBUG && targetEnvironment(simulator)
+        virtualPianoTablePlacement.placeAtDefaultPosition()
+        if case let .ready(worldFromKeyboard) = virtualPianoTablePlacement.state {
+            applyVirtualPianoGeometry(worldFromKeyboard: worldFromKeyboard)
+        }
+        #endif
+    }
+
     var canRetryPracticeLocalization: Bool {
         if case .failed = practiceLocalizationState {
             return true
