@@ -305,6 +305,11 @@ final class ARGuideViewModel {
         return gazePlaneDiskConfirmation.diskWorldTransform
     }
 
+    var gazePlaneDiskOverlayText: String? {
+        guard isGazePlaneDiskVisible else { return nil }
+        return gazePlaneDiskConfirmation.statusText
+    }
+
     var practiceLocalizationStatusText: String? {
         switch practiceLocalizationState {
             case .idle:

@@ -93,7 +93,8 @@ final class GazePlaneDiskConfirmationViewModel {
         let stableFor = max(0, nowUptime - (stableStartUptime ?? nowUptime))
         let progress = min(1.0, stableFor / Self.stableDurationSeconds)
         confirmationProgress = progress
-        statusText = "保持不动 \(Int(progress * 100))%"
+        let remainingSeconds = max(0, Int(ceil(Self.stableDurationSeconds - stableFor)))
+        statusText = remainingSeconds > 0 ? "保持不动 \(remainingSeconds)s" : "已确认"
 
         if progress >= 1.0 {
             isConfirmed = true
@@ -151,4 +152,3 @@ final class GazePlaneDiskConfirmationViewModel {
         return pointWorld - planeNormalWorld * distanceAlongNormal
     }
 }
-
