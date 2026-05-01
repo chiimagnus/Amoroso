@@ -103,7 +103,7 @@ struct PracticeStepView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                if isAutoplayEnabled == false, isVirtualPianoEnabled, let status = viewModel.virtualPianoPlacementStatusText {
+                if isAutoplayEnabled == false, isVirtualPianoEnabled, let status = viewModel.gazePlaneDiskStatusText {
                     Text(status)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -270,14 +270,14 @@ struct PracticeStepView: View {
                 Divider()
                     .padding(.horizontal, 16)
 
-                if let status = viewModel.virtualPianoPlacementStatusText {
+                if let status = viewModel.gazePlaneDiskStatusText {
                     Text(status)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 16)
                 }
 
-                Button("重试找桌面", systemImage: "arrow.clockwise") {
+                Button("重试放置", systemImage: "arrow.clockwise") {
                     viewModel.retryVirtualPianoPlacement()
                 }
                 .buttonStyle(.borderedProminent)

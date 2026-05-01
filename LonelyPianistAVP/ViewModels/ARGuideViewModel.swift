@@ -368,6 +368,8 @@ final class ARGuideViewModel {
         virtualPianoTableWorldFromAnchor = nil
         virtualPianoTableWorldFromAnchorLastSeenUptime = nil
         virtualPianoTablePlacement.start()
+        gazePlaneDiskConfirmation.reset()
+        latestGazePlaneHit = nil
 
         #if DEBUG && targetEnvironment(simulator)
         virtualPianoTablePlacement.placeAtDefaultPosition()

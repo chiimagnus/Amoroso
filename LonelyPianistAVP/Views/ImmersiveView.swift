@@ -7,6 +7,7 @@ struct ImmersiveView: View {
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
     @State private var virtualPianoOverlayController = VirtualPianoOverlayController()
+    @State private var gazePlaneDiskOverlayController = GazePlaneDiskOverlayController()
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
 
     private var shouldShowCalibrationReticle: Bool {
@@ -39,6 +40,11 @@ struct ImmersiveView: View {
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
+            gazePlaneDiskOverlayController.update(
+                isVisible: viewModel.isGazePlaneDiskVisible,
+                diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
+                content: content
+            )
             virtualPianoOverlayController.update(
                 placementState: viewModel.virtualPianoTablePlacement.state,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
@@ -66,6 +72,11 @@ struct ImmersiveView: View {
             overlayController.updateHighlights(
                 highlightGuide: viewModel.practiceSessionViewModel.currentPianoHighlightGuide,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
+                content: content
+            )
+            gazePlaneDiskOverlayController.update(
+                isVisible: viewModel.isGazePlaneDiskVisible,
+                diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
                 content: content
             )
             virtualPianoOverlayController.update(
