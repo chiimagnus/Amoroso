@@ -21,7 +21,6 @@ final class PianoGuideOverlayController {
     func updateHighlights(
         highlightGuide: PianoHighlightGuide?,
         keyboardGeometry: PianoKeyboardGeometry?,
-        feedbackState: PracticeSessionViewModel.VisualFeedbackState,
         isAutoplayEnabled: Bool,
         content: RealityViewContent
     ) {
@@ -53,8 +52,7 @@ final class PianoGuideOverlayController {
 
         let descriptors = PianoGuideBeamDescriptor.makeDescriptors(
             highlightGuide: highlightGuide,
-            keyboardGeometry: keyboardGeometry,
-            feedbackState: feedbackState
+            keyboardGeometry: keyboardGeometry
         )
         guard descriptors.isEmpty == false else {
             clearBeams()
@@ -109,14 +107,7 @@ final class PianoGuideOverlayController {
     }
 
     private func beamMaterial(for descriptor: PianoGuideBeamDescriptor, pulse: Float) -> UnlitMaterial {
-        let tintColor: UIColor = switch descriptor.baseColor {
-            case .guide:
-                AVPOverlayPalette.feedbackNoneColor
-            case .correct:
-                AVPOverlayPalette.feedbackCorrectColor
-            case .wrong:
-                AVPOverlayPalette.feedbackWrongColor
-        }
+        let tintColor = AVPOverlayPalette.guideColor
         let pulsedAlpha = max(0, min(1, descriptor.alpha + max(0, min(1, pulse)) * pulseAlphaBoost))
         let tinted = tintColor.withAlphaComponent(CGFloat(pulsedAlpha))
         let texture = loadAtlasTextureIfNeeded()

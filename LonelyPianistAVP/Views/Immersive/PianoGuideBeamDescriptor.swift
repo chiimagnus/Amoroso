@@ -1,11 +1,5 @@
 import simd
 
-enum BeamColorToken: Equatable {
-    case guide
-    case correct
-    case wrong
-}
-
 struct PianoGuideBeamDescriptor: Equatable, Identifiable {
     var id: String {
         "\(midiNote)-\(guideID)"
@@ -16,7 +10,6 @@ struct PianoGuideBeamDescriptor: Equatable, Identifiable {
     let positionLocal: SIMD3<Float>
     let sizeLocal: SIMD3<Float>
     let surfaceLocalY: Float
-    let baseColor: BeamColorToken
     let alpha: Float
 }
 
@@ -28,22 +21,12 @@ extension PianoGuideBeamDescriptor {
 
     static func makeDescriptors(
         highlightGuide: PianoHighlightGuide?,
-        keyboardGeometry: PianoKeyboardGeometry?,
-        feedbackState: PracticeSessionViewModel.VisualFeedbackState
+        keyboardGeometry: PianoKeyboardGeometry?
     ) -> [PianoGuideBeamDescriptor] {
         guard let highlightGuide, let keyboardGeometry else { return [] }
 
         let desiredNotes = highlightGuide.highlightedMIDINotes.sorted()
         guard desiredNotes.isEmpty == false else { return [] }
-
-        let baseColor: BeamColorToken = switch feedbackState {
-            case .none:
-                .guide
-            case .correct:
-                .correct
-            case .wrong:
-                .wrong
-        }
 
         return desiredNotes.compactMap { midiNote in
             guard let key = keyboardGeometry.key(for: midiNote) else { return nil }
@@ -64,7 +47,6 @@ extension PianoGuideBeamDescriptor {
                 positionLocal: positionLocal,
                 sizeLocal: SIMD3<Float>(width, height, depth),
                 surfaceLocalY: key.surfaceLocalY,
-                baseColor: baseColor,
                 alpha: beamAlpha
             )
         }
