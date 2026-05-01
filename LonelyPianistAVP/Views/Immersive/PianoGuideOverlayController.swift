@@ -9,6 +9,8 @@ final class PianoGuideOverlayController {
     private var hasAttachedRoot = false
     private var activeBeamEntitiesByMIDINote: [Int: ModelEntity] = [:]
     private var lastGuideIDByMIDINote: [Int: Int] = [:]
+    private var didAttemptDecalTextureLoad = false
+    private var decalTexture: TextureResource?
 
     func updateHighlights(
         highlightGuide: PianoHighlightGuide?,
@@ -70,9 +72,14 @@ final class PianoGuideOverlayController {
     private func beamMaterial(for descriptor: PianoGuideBeamDescriptor) -> UnlitMaterial {
         let tintColor = AVPOverlayPalette.guideColor
         let tinted = tintColor.withAlphaComponent(CGFloat(max(0, min(1, descriptor.alpha))))
+        let texture = loadDecalTextureIfNeeded()
 
         var material = UnlitMaterial()
-        material.color = .init(tint: tinted)
+        if let texture {
+            material.color = .init(tint: tinted, texture: .init(texture))
+        } else {
+            material.color = .init(tint: tinted)
+        }
         return material
     }
 
@@ -84,5 +91,13 @@ final class PianoGuideOverlayController {
         lastGuideIDByMIDINote.removeAll()
     }
 
-    // Texture is attached in P2-T3 via a separate decal image set.
+    private func loadDecalTextureIfNeeded() -> TextureResource? {
+        if didAttemptDecalTextureLoad {
+            return decalTexture
+        }
+
+        didAttemptDecalTextureLoad = true
+        decalTexture = try? TextureResource.load(named: "KeyDecalSoftRect")
+        return decalTexture
+    }
 }
