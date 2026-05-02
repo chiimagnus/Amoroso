@@ -6,12 +6,10 @@ import SwiftUI
 final class VirtualPianoOverlayController {
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
-    private var tableAnchorEntity: AnchorEntity?
-    private var glowOrbEntities: [ModelEntity] = []
     private var keyboardRootEntity: Entity?
 
     func update(
-        placementState: VirtualPianoTablePlacementViewModel.State,
+        isEnabled: Bool,
         keyboardGeometry: PianoKeyboardGeometry?,
         content: RealityViewContent?
     ) {
@@ -20,100 +18,51 @@ final class VirtualPianoOverlayController {
             hasAttachedRoot = true
         }
 
-        switch placementState {
-            case .disabled:
-                clearGlowOrbs()
-                clearKeyboard()
-                clearTableAnchor()
-
-            case .waitingForTableAnchor:
-                ensureTableAnchor()
-                clearKeyboard()
-                clearGlowOrbs()
-
-            case .waitingForHandsStable:
-                ensureTableAnchor()
-                clearKeyboard()
-                if tableAnchorEntity?.isAnchored == true {
-                    showGlowOrbsIfNeeded()
-                } else {
-                    clearGlowOrbs()
-                }
-
-            case .ready:
-                clearGlowOrbs()
-                if let keyboardGeometry {
-                    showKeyboard(geometry: keyboardGeometry)
-                } else {
-                    clearKeyboard()
-                }
-
-            case .failed:
-                ensureTableAnchor()
-                clearKeyboard()
-                if tableAnchorEntity?.isAnchored == true {
-                    showGlowOrbsIfNeeded()
-                } else {
-                    clearGlowOrbs()
-                }
+        guard isEnabled, let keyboardGeometry else {
+            clearKeyboard()
+            return
         }
-    }
 
-    private func ensureTableAnchor() {
-        guard tableAnchorEntity == nil else { return }
-        let anchor = AnchorEntity(
-            .plane(.horizontal, classification: .table, minimumBounds: [0.3, 0.3]),
-            trackingMode: .continuous
-        )
-        rootEntity.addChild(anchor)
-        tableAnchorEntity = anchor
-    }
-
-    private func clearTableAnchor() {
-        tableAnchorEntity?.removeFromParent()
-        tableAnchorEntity = nil
-    }
-
-    private func showGlowOrbsIfNeeded() {
-        guard glowOrbEntities.isEmpty else { return }
-        guard let tableAnchorEntity else { return }
-
-        let mesh = MeshResource.generateSphere(radius: 0.02)
-        let material = SimpleMaterial(color: UIColor.systemCyan.withAlphaComponent(0.75), isMetallic: false)
-        let positions: [SIMD3<Float>] = [
-            SIMD3<Float>(-0.08, 0.01, 0.00),
-            SIMD3<Float>(0.00, 0.01, 0.00),
-            SIMD3<Float>(0.08, 0.01, 0.00),
-        ]
-
-        glowOrbEntities = positions.map { position in
-            let orb = ModelEntity(mesh: mesh, materials: [material])
-            orb.position = position
-            tableAnchorEntity.addChild(orb)
-            return orb
-        }
-    }
-
-    private func clearGlowOrbs() {
-        for orb in glowOrbEntities {
-            orb.removeFromParent()
-        }
-        glowOrbEntities.removeAll(keepingCapacity: true)
+        showKeyboard(geometry: keyboardGeometry)
     }
 
     private func showKeyboard(geometry: PianoKeyboardGeometry) {
         guard keyboardRootEntity == nil else { return }
 
+        let totalLength = VirtualPianoKeyGeometryService.totalKeyboardLengthMeters
+        let keyDepth = VirtualPianoKeyGeometryService.whiteKeyDepthMeters
+        let keyboardCenterLocal = SIMD3<Float>(totalLength / 2, 0, -keyDepth / 2)
+
+        let worldFromKeyboard = geometry.frame.worldFromKeyboard
+        let xAxisWorld = SIMD3<Float>(worldFromKeyboard.columns.0.x, worldFromKeyboard.columns.0.y, worldFromKeyboard.columns.0.z)
+        let yAxisWorld = SIMD3<Float>(worldFromKeyboard.columns.1.x, worldFromKeyboard.columns.1.y, worldFromKeyboard.columns.1.z)
+        let zAxisWorld = SIMD3<Float>(worldFromKeyboard.columns.2.x, worldFromKeyboard.columns.2.y, worldFromKeyboard.columns.2.z)
+        let originWorld = SIMD3<Float>(worldFromKeyboard.columns.3.x, worldFromKeyboard.columns.3.y, worldFromKeyboard.columns.3.z)
+        let centerWorld = originWorld
+            + xAxisWorld * keyboardCenterLocal.x
+            + yAxisWorld * keyboardCenterLocal.y
+            + zAxisWorld * keyboardCenterLocal.z
+
+        var kbWorldFromCenter = worldFromKeyboard
+        kbWorldFromCenter.columns.3 = SIMD4<Float>(centerWorld, 1)
+
         let kbRoot = Entity()
-        kbRoot.transform = Transform(matrix: geometry.frame.worldFromKeyboard)
+        kbRoot.transform = Transform(matrix: kbWorldFromCenter)
+
+        let kbContent = Entity()
+        kbContent.position = -keyboardCenterLocal
 
         for key in geometry.keys {
             let keyEntity = makeKeyEntity(for: key)
-            kbRoot.addChild(keyEntity)
+            kbContent.addChild(keyEntity)
         }
+
+        kbRoot.addChild(kbContent)
 
         rootEntity.addChild(kbRoot)
         keyboardRootEntity = kbRoot
+
+        animateKeyboardIn(kbRoot)
     }
 
     private func clearKeyboard() {
@@ -132,9 +81,16 @@ final class VirtualPianoOverlayController {
         return entity
     }
 
-    func currentTableWorldFromAnchor() -> simd_float4x4? {
-        guard let tableAnchorEntity else { return nil }
-        guard tableAnchorEntity.isAnchored else { return nil }
-        return tableAnchorEntity.transformMatrix(relativeTo: nil)
+    private func animateKeyboardIn(_ keyboardRoot: Entity) {
+        let endTransform = keyboardRoot.transform
+        var startTransform = endTransform
+        startTransform.scale = SIMD3<Float>(0.001, 1, 1)
+        keyboardRoot.transform = startTransform
+        _ = keyboardRoot.move(
+            to: endTransform,
+            relativeTo: keyboardRoot.parent,
+            duration: 0.35,
+            timingFunction: .easeOut
+        )
     }
 }

@@ -11,6 +11,7 @@ protocol ARTrackingServiceProtocol: AnyObject {
     var rightIndexFingerTipPosition: SIMD3<Float>? { get }
     var rightThumbTipPosition: SIMD3<Float>? { get }
     var worldAnchorsByID: [UUID: WorldAnchor] { get }
+    var planeAnchorsByID: [UUID: PlaneAnchor] { get }
     var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] { get }
     var providerStateByName: [String: DataProviderState] { get }
     var isWorldTrackingSupported: Bool { get }
@@ -56,10 +57,12 @@ final class ARTrackingService: ARTrackingServiceProtocol {
     private(set) var rightIndexFingerTipPosition: SIMD3<Float>?
     private(set) var rightThumbTipPosition: SIMD3<Float>?
     private(set) var worldAnchorsByID: [UUID: WorldAnchor] = [:]
+    private(set) var planeAnchorsByID: [UUID: PlaneAnchor] = [:]
     private(set) var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] = [:]
     private(set) var providerStateByName: [String: DataProviderState] = [
         "hand": .idle,
         "world": .idle,
+        "plane": .idle,
     ]
 
     var isWorldTrackingSupported: Bool {
@@ -70,10 +73,12 @@ final class ARTrackingService: ARTrackingServiceProtocol {
 
     private let session = ARKitSession()
     private let handTrackingProvider = HandTrackingProvider()
+    private let planeDetectionProvider = PlaneDetectionProvider(alignments: [.horizontal])
 
     private var sessionTask: Task<Void, Never>?
     private var handUpdatesTask: Task<Void, Never>?
     private var worldAnchorUpdatesTask: Task<Void, Never>?
+    private var planeAnchorUpdatesTask: Task<Void, Never>?
 
     private var fingerTipUpdatesContinuation: AsyncStream<[String: SIMD3<Float>]>.Continuation?
 
@@ -95,6 +100,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
 
         let isHandSupported = HandTrackingProvider.isSupported
         let isWorldSupported = WorldTrackingProvider.isSupported
+        let isPlaneSupported = PlaneDetectionProvider.isSupported
 
         if isHandSupported == false {
             providerStateByName["hand"] = .unsupported
@@ -102,18 +108,23 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         if isWorldSupported == false {
             providerStateByName["world"] = .unsupported
         }
+        if isPlaneSupported == false {
+            providerStateByName["plane"] = .unsupported
+        }
 
-        guard isHandSupported || isWorldSupported else { return }
+        guard isHandSupported || isWorldSupported || isPlaneSupported else { return }
 
         sessionTask = Task { [weak self] in
             guard let self else { return }
 
             let handRequiredAuthorizations = isHandSupported ? HandTrackingProvider.requiredAuthorizations : []
             let worldRequiredAuthorizations = isWorldSupported ? WorldTrackingProvider.requiredAuthorizations : []
+            let planeRequiredAuthorizations = isPlaneSupported ? PlaneDetectionProvider.requiredAuthorizations : []
 
             let requiredAuthorizations = deduplicatedRequiredAuthorizations(
                 includeHand: isHandSupported,
-                includeWorld: isWorldSupported
+                includeWorld: isWorldSupported,
+                includePlane: isPlaneSupported
             )
             let statuses: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] =
                 requiredAuthorizations.isEmpty ? [:] : await session.requestAuthorization(for: requiredAuthorizations)
@@ -127,12 +138,19 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 requiredAuthorizations: worldRequiredAuthorizations,
                 statuses: statuses
             )
+            let isPlaneAllowed = isPlaneSupported && isAuthorized(
+                requiredAuthorizations: planeRequiredAuthorizations,
+                statuses: statuses
+            )
 
             if isHandSupported, isHandAllowed == false {
                 providerStateByName["hand"] = .unauthorized
             }
             if isWorldSupported, isWorldAllowed == false {
                 providerStateByName["world"] = .unauthorized
+            }
+            if isPlaneSupported, isPlaneAllowed == false {
+                providerStateByName["plane"] = .unauthorized
             }
 
             var providersToRun: [any DataProvider] = []
@@ -141,6 +159,9 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             }
             if isWorldAllowed {
                 providersToRun.append(worldTrackingProvider)
+            }
+            if isPlaneAllowed {
+                providersToRun.append(planeDetectionProvider)
             }
 
             guard providersToRun.isEmpty == false else {
@@ -152,6 +173,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 try await session.run(providersToRun)
                 if isHandAllowed { providerStateByName["hand"] = .running }
                 if isWorldAllowed { providerStateByName["world"] = .running }
+                if isPlaneAllowed { providerStateByName["plane"] = .running }
                 startUpdateTasks()
             } catch {
                 if error is CancellationError {
@@ -161,9 +183,13 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                     if case .running = providerStateByName["world"] {
                         providerStateByName["world"] = .stopped
                     }
+                    if case .running = providerStateByName["plane"] {
+                        providerStateByName["plane"] = .stopped
+                    }
                 } else {
                     if isHandAllowed { providerStateByName["hand"] = .failed(reason: error.localizedDescription) }
                     if isWorldAllowed { providerStateByName["world"] = .failed(reason: error.localizedDescription) }
+                    if isPlaneAllowed { providerStateByName["plane"] = .failed(reason: error.localizedDescription) }
                 }
             }
 
@@ -174,10 +200,12 @@ final class ARTrackingService: ARTrackingServiceProtocol {
     func stop() {
         handUpdatesTask?.cancel()
         worldAnchorUpdatesTask?.cancel()
+        planeAnchorUpdatesTask?.cancel()
         sessionTask?.cancel()
 
         handUpdatesTask = nil
         worldAnchorUpdatesTask = nil
+        planeAnchorUpdatesTask = nil
         sessionTask = nil
 
         fingerTipUpdatesContinuation?.finish()
@@ -188,12 +216,16 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         rightIndexFingerTipPosition = nil
         rightThumbTipPosition = nil
         worldAnchorsByID.removeAll()
+        planeAnchorsByID.removeAll()
 
         if case .running = providerStateByName["hand"] {
             providerStateByName["hand"] = .stopped
         }
         if case .running = providerStateByName["world"] {
             providerStateByName["world"] = .stopped
+        }
+        if case .running = providerStateByName["plane"] {
+            providerStateByName["plane"] = .stopped
         }
     }
 
@@ -260,11 +292,29 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 }
             }
         }
+
+        if planeAnchorUpdatesTask == nil, providerStateByName["plane"] == .running {
+            planeAnchorUpdatesTask = Task { [weak self] in
+                guard let self else { return }
+                for await update in planeDetectionProvider.anchorUpdates {
+                    guard Task.isCancelled == false else { return }
+                    switch update.event {
+                        case .removed:
+                            planeAnchorsByID.removeValue(forKey: update.anchor.id)
+                        case .added, .updated:
+                            planeAnchorsByID[update.anchor.id] = update.anchor
+                        @unknown default:
+                            planeAnchorsByID[update.anchor.id] = update.anchor
+                    }
+                }
+            }
+        }
     }
 
     private func deduplicatedRequiredAuthorizations(
         includeHand: Bool,
-        includeWorld: Bool
+        includeWorld: Bool,
+        includePlane: Bool
     ) -> [ARKitSession.AuthorizationType] {
         var seen: Set<ARKitSession.AuthorizationType> = []
         var ordered: [ARKitSession.AuthorizationType] = []
@@ -275,6 +325,9 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         }
         if includeWorld {
             required += WorldTrackingProvider.requiredAuthorizations
+        }
+        if includePlane {
+            required += PlaneDetectionProvider.requiredAuthorizations
         }
 
         for type in required {
@@ -312,15 +365,17 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         var tips: [String: SIMD3<Float>] = [:]
         var indexFingerTip: SIMD3<Float>?
         var thumbTip: SIMD3<Float>?
-        for jointName in jointNames {
+        var palmCandidates: [SIMD3<Float>] = []
+
+        func recordIfTracked(_ jointName: HandSkeleton.JointName) -> SIMD3<Float>? {
             let joint = handSkeleton.joint(jointName)
-            guard joint.isTracked else { continue }
+            guard joint.isTracked else { return nil }
             let worldTransform = anchor.originFromAnchorTransform * joint.anchorFromJointTransform
-            let point = SIMD3<Float>(
-                worldTransform.columns.3.x,
-                worldTransform.columns.3.y,
-                worldTransform.columns.3.z
-            )
+            return SIMD3<Float>(worldTransform.columns.3.x, worldTransform.columns.3.y, worldTransform.columns.3.z)
+        }
+
+        for jointName in jointNames {
+            guard let point = recordIfTracked(jointName) else { continue }
             tips["\(anchor.chirality)-\(jointName)"] = point
             switch jointName {
                 case .indexFingerTip:
@@ -330,6 +385,26 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 default:
                     break
             }
+        }
+
+        // 更稳定的“掌心中心点”用于放置确认：比 fingertip 更不易丢失且抖动更小。
+        // 说明：ARKit hand skeleton 没有显式 palm joint，这里用 wrist + 各指 metacarpal/knuckle 近似。
+        let palmJointNames: [HandSkeleton.JointName] = [
+            .wrist,
+            .thumbKnuckle,
+            .indexFingerMetacarpal,
+            .middleFingerMetacarpal,
+            .ringFingerMetacarpal,
+            .littleFingerMetacarpal,
+        ]
+        for jointName in palmJointNames {
+            if let point = recordIfTracked(jointName) {
+                palmCandidates.append(point)
+            }
+        }
+        if palmCandidates.isEmpty == false {
+            let center = palmCandidates.reduce(SIMD3<Float>(0, 0, 0), +) / Float(palmCandidates.count)
+            tips["\(anchor.chirality)-palmCenter"] = center
         }
         return (tips, indexFingerTip, thumbTip)
     }

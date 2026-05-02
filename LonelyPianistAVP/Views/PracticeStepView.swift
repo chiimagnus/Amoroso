@@ -14,7 +14,7 @@ struct PracticeStepView: View {
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
 
-    @State private var isVirtualPianoEnabled = false
+    @AppStorage("practiceVirtualPianoEnabled") private var isVirtualPianoEnabled = false
     @State private var isAutoplayEnabled = false
     @AppStorage("practiceManualAdvanceMode") private var manualAdvanceModeRawValue = ManualAdvanceMode.step.rawValue
     @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var isAudioDebugOverlayEnabled = false
@@ -103,7 +103,7 @@ struct PracticeStepView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
 
-                if isAutoplayEnabled == false, isVirtualPianoEnabled, let status = viewModel.virtualPianoPlacementStatusText {
+                if isVirtualPianoEnabled, let status = viewModel.gazePlaneDiskStatusText {
                     Text(status)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -125,12 +125,12 @@ struct PracticeStepView: View {
         .buttonBorderShape(.roundedRectangle)
         .onAppear {
             isStepVisible = true
-            isVirtualPianoEnabled = false
             guard hasRequestedImmersiveOpen == false else { return }
             hasRequestedImmersiveOpen = true
 
             Task { @MainActor in
                 viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
+                viewModel.setPracticeVirtualPianoEnabled(isVirtualPianoEnabled)
                 viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
                 await viewModel.enterPracticeStep(
                     using: openImmersiveSpace,
@@ -178,7 +178,6 @@ struct PracticeStepView: View {
         }
         .onDisappear {
             isStepVisible = false
-            isVirtualPianoEnabled = false
             hasRequestedImmersiveOpen = false
             viewModel.setPracticeAutoplayEnabled(false)
             viewModel.setPracticeVirtualPianoEnabled(false)
@@ -270,14 +269,14 @@ struct PracticeStepView: View {
                 Divider()
                     .padding(.horizontal, 16)
 
-                if let status = viewModel.virtualPianoPlacementStatusText {
+                if let status = viewModel.gazePlaneDiskStatusText {
                     Text(status)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 16)
                 }
 
-                Button("重试找桌面", systemImage: "arrow.clockwise") {
+                Button("重试放置", systemImage: "arrow.clockwise") {
                     viewModel.retryVirtualPianoPlacement()
                 }
                 .buttonStyle(.borderedProminent)

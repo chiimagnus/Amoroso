@@ -7,6 +7,7 @@ struct ImmersiveView: View {
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
     @State private var virtualPianoOverlayController = VirtualPianoOverlayController()
+    @State private var gazePlaneDiskOverlayController = GazePlaneDiskOverlayController()
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
 
     private var shouldShowCalibrationReticle: Bool {
@@ -39,16 +40,18 @@ struct ImmersiveView: View {
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
+            gazePlaneDiskOverlayController.update(
+                isVisible: viewModel.isGazePlaneDiskVisible,
+                diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
+                statusText: viewModel.gazePlaneDiskOverlayText,
+                cameraWorldPosition: viewModel.gazePlaneDiskCameraWorldPosition,
+                content: content
+            )
             virtualPianoOverlayController.update(
-                placementState: viewModel.virtualPianoTablePlacement.state,
+                isEnabled: viewModel.isVirtualPianoEnabled,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
-            if viewModel.isVirtualPianoEnabled {
-                viewModel.syncVirtualPianoTableWorldFromAnchor(
-                    virtualPianoOverlayController.currentTableWorldFromAnchor()
-                )
-            }
         } update: { content in
             calibrationOverlayController.update(
                 showsReticle: shouldShowCalibrationReticle,
@@ -68,16 +71,18 @@ struct ImmersiveView: View {
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
+            gazePlaneDiskOverlayController.update(
+                isVisible: viewModel.isGazePlaneDiskVisible,
+                diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
+                statusText: viewModel.gazePlaneDiskOverlayText,
+                cameraWorldPosition: viewModel.gazePlaneDiskCameraWorldPosition,
+                content: content
+            )
             virtualPianoOverlayController.update(
-                placementState: viewModel.virtualPianoTablePlacement.state,
+                isEnabled: viewModel.isVirtualPianoEnabled,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
-            if viewModel.isVirtualPianoEnabled {
-                viewModel.syncVirtualPianoTableWorldFromAnchor(
-                    virtualPianoOverlayController.currentTableWorldFromAnchor()
-                )
-            }
         }
         .onAppear {
             viewModel.onImmersiveAppear()
@@ -85,16 +90,16 @@ struct ImmersiveView: View {
         .onDisappear {
             viewModel.onImmersiveDisappear()
         }
-        .onChange(of: viewModel.virtualPianoTablePlacement.state) {
+        .onChange(of: viewModel.isVirtualPianoEnabled) {
             virtualPianoOverlayController.update(
-                placementState: viewModel.virtualPianoTablePlacement.state,
+                isEnabled: viewModel.isVirtualPianoEnabled,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: nil
             )
         }
         .onChange(of: viewModel.practiceSessionViewModel.keyboardGeometry) {
             virtualPianoOverlayController.update(
-                placementState: viewModel.virtualPianoTablePlacement.state,
+                isEnabled: viewModel.isVirtualPianoEnabled,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: nil
             )
