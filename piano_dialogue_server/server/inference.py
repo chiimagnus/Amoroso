@@ -13,6 +13,7 @@ from anticipation.config import TIME_RESOLUTION
 from anticipation.vocab import DUR_OFFSET, MAX_PITCH, NOTE_OFFSET, REST, TIME_OFFSET
 import anticipation.sample as sample
 
+from .midi_generation import NoteEvent, analyze_dialogue_notes, generate_expanded_midi
 from .protocol import DialogueNote, GenerateParams
 
 
@@ -132,6 +133,51 @@ def _events_to_notes(
     return notes
 
 
+def _dialogue_notes_to_note_events(notes: list[DialogueNote]) -> list[NoteEvent]:
+    return [
+        NoteEvent(
+            note=int(note.note),
+            velocity=int(note.velocity),
+            start=float(note.time),
+            duration=float(note.duration),
+            channel=0,
+            track=0,
+        )
+        for note in notes
+    ]
+
+
+def _note_events_to_dialogue_notes(notes: list[NoteEvent]) -> list[DialogueNote]:
+    return [
+        DialogueNote(
+            note=note.note,
+            velocity=note.velocity,
+            time=note.start,
+            duration=note.duration,
+        )
+        for note in notes
+    ]
+
+
+def _generate_deterministic_response(
+    notes: list[DialogueNote], params: GenerateParams, session_id: str | None
+) -> list[DialogueNote]:
+    del session_id
+
+    source_notes = _dialogue_notes_to_note_events(notes)
+    analysis = analyze_dialogue_notes(notes)
+    continuation_length = _derive_response_length_sec(params)
+    melody, _accompaniment = generate_expanded_midi(
+        source_notes,
+        analysis,
+        mode="continue",
+        extra_duration=continuation_length,
+        include_source=False,
+        seed=None,
+    )
+    return _note_events_to_dialogue_notes(melody)
+
+
 def _max_phrase_end_sec(notes: list[DialogueNote]) -> float:
     if not notes:
         return 0.0
@@ -140,9 +186,9 @@ def _max_phrase_end_sec(notes: list[DialogueNote]) -> float:
 
 def _derive_response_length_sec(params: GenerateParams) -> float:
     # Heuristic mapping: anticipation.generate is time-window based, but the protocol uses max_tokens.
-    # Map "tokens" to a short response window that is stable by default.
+    # Map "tokens" to a response window. 64 tokens ~= 1 second.
     sec = params.max_tokens / 64.0
-    return max(2.0, min(sec, 12.0))
+    return max(2.0, min(sec, 30.0))
 
 
 @dataclass(frozen=True)
