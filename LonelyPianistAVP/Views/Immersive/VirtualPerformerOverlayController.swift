@@ -215,7 +215,7 @@ final class VirtualPerformerOverlayController {
     }
 
     private func fitXiaochengToPlaceholder(entity: Entity) {
-        let desiredHeightMeters: Float = 0.70
+        let desiredHeightMeters: Float = 0.3
 
         let bounds = entity.visualBounds(recursive: true, relativeTo: entity)
         let currentHeight = max(0.001, bounds.extents.y)
