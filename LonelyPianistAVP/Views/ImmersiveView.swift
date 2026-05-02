@@ -14,62 +14,68 @@ struct ImmersiveView: View {
     @State private var panoramaLoadedFileName: String?
     @State private var panoramaLoadTask: Task<Void, Never>?
 
-    private var desiredPanoramaBaseName: String? {
-        guard let songName = viewModel.importedSongDisplayName, songName.isEmpty == false else {
-            return nil
-        }
-        return songName
-    }
+	    private var desiredPanoramaBaseName: String? {
+	        guard let songName = viewModel.importedSongDisplayName, songName.isEmpty == false else {
+	            return nil
+	        }
+	        return songName
+	    }
 
-    private func loadPanoramaIfNeeded() {
-        let desiredBaseName = desiredPanoramaBaseName
+	    private func loadPanoramaIfNeeded() {
+	        let desiredBaseName = desiredPanoramaBaseName
 
-        if panoramaLoadedFileName == desiredBaseName {
-            return
-        }
+	        if panoramaLoadedFileName == desiredBaseName {
+	            return
+	        }
 
-        panoramaLoadTask?.cancel()
-        panoramaLoadTask = nil
+	        let url: URL?
+	        if let desiredBaseName {
+	            url = Bundle.main.url(forResource: desiredBaseName, withExtension: "jpg", subdirectory: "fullspace")
+	                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpg")
+	                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpeg", subdirectory: "fullspace")
+	                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpeg")
+	                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "png", subdirectory: "fullspace")
+	                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "png")
+	        } else {
+	            url = nil
+	        }
+	        let requestedBaseName = desiredBaseName
 
-        let url: URL?
-        if let desiredBaseName {
-            url = Bundle.main.url(forResource: desiredBaseName, withExtension: "jpg", subdirectory: "fullspace")
-                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpg")
-                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpeg", subdirectory: "fullspace")
-                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpeg")
-                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "png", subdirectory: "fullspace")
-                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "png")
-        } else {
-            url = nil
-        }
+	        // RealityView's closures can be invoked during SwiftUI view updates. Defer @State
+	        // mutations to the next run loop to avoid "Modifying state during view update".
+	        Task { @MainActor in
+	            guard panoramaLoadedFileName != requestedBaseName else { return }
 
-        panoramaLoadedFileName = desiredBaseName
-        guard let url else {
-            if let panoramaBackgroundEntity {
-                var material = UnlitMaterial(color: UIColor.white)
-                material.faceCulling = .front
-                panoramaBackgroundEntity.model?.materials = [material]
-            }
-            return
-        }
+	            panoramaLoadTask?.cancel()
+	            panoramaLoadTask = nil
 
-        let requestedBaseName = desiredBaseName
-        panoramaLoadTask = Task { [weak panoramaBackgroundEntity] in
-            let texture = try? await TextureResource(contentsOf: url)
-            guard let texture else { return }
-            guard Task.isCancelled == false else { return }
+	            panoramaLoadedFileName = requestedBaseName
+	            guard let url else {
+	                if let panoramaBackgroundEntity {
+	                    var material = UnlitMaterial(color: UIColor.white)
+	                    material.faceCulling = .front
+	                    panoramaBackgroundEntity.model?.materials = [material]
+	                }
+	                return
+	            }
 
-            var texturedMaterial = UnlitMaterial()
-            texturedMaterial.color = .init(tint: UIColor.white, texture: .init(texture))
-            texturedMaterial.faceCulling = .front
+	            panoramaLoadTask = Task { [weak panoramaBackgroundEntity] in
+	                let texture = try? await TextureResource(contentsOf: url)
+	                guard let texture else { return }
+	                guard Task.isCancelled == false else { return }
 
-            await MainActor.run {
-                guard panoramaLoadedFileName == requestedBaseName else { return }
-                panoramaBackgroundEntity?.model?.materials = [texturedMaterial]
-                panoramaLoadTask = nil
-            }
-        }
-    }
+	                var texturedMaterial = UnlitMaterial()
+	                texturedMaterial.color = .init(tint: UIColor.white, texture: .init(texture))
+	                texturedMaterial.faceCulling = .front
+
+	                await MainActor.run {
+	                    guard panoramaLoadedFileName == requestedBaseName else { return }
+	                    panoramaBackgroundEntity?.model?.materials = [texturedMaterial]
+	                    panoramaLoadTask = nil
+	                }
+	            }
+	        }
+	    }
 
     private var shouldShowCalibrationReticle: Bool {
         guard viewModel.immersiveMode == .calibration else { return false }
