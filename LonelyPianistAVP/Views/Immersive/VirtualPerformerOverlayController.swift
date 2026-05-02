@@ -1,4 +1,5 @@
 import RealityKit
+import RealityKitContent
 import simd
 import SwiftUI
 import UIKit
@@ -22,6 +23,16 @@ final class VirtualPerformerOverlayController {
     private var latestSchedule: [PracticeSequencerMIDIEvent] = []
     private var wasPerforming = false
     private var nextNoteUsesLeftHand = true
+    private var performerEntity: Entity?
+    private var performerLoadTask: Task<Void, Never>?
+    private var xiaochengRig: XiaochengRig?
+
+    private struct XiaochengRig {
+        let modelEntity: ModelEntity
+        let restJointTransforms: [Transform]
+        let leftArmJointIndices: [Int]
+        let rightArmJointIndices: [Int]
+    }
 
     func update(
         isEnabled: Bool,
@@ -136,6 +147,8 @@ final class VirtualPerformerOverlayController {
 
     private func clearPerformer() {
         stopHandAnimation()
+        performerLoadTask?.cancel()
+        performerLoadTask = nil
         performerRootEntity?.removeFromParent()
         performerRootEntity = nil
         performerVisualRootEntity = nil
@@ -146,6 +159,8 @@ final class VirtualPerformerOverlayController {
         leftArmRestTransform = nil
         rightArmRootEntity = nil
         rightArmRestTransform = nil
+        performerEntity = nil
+        xiaochengRig = nil
         latestSchedule = []
         wasPerforming = false
     }
@@ -158,7 +173,10 @@ final class VirtualPerformerOverlayController {
         let piano = makePerformerPianoEntity(geometry: geometry)
         visualRoot.addChild(piano)
         performerPianoEntity = piano
-        visualRoot.addChild(makePerformerEntity())
+        let performer = makePerformerEntity()
+        visualRoot.addChild(performer)
+        performerEntity = performer
+        loadXiaochengIfNeeded(into: performer)
         return root
     }
 
@@ -219,6 +237,80 @@ final class VirtualPerformerOverlayController {
         return performer
     }
 
+    private func loadXiaochengIfNeeded(into placeholder: Entity) {
+        guard performerLoadTask == nil, xiaochengRig == nil else { return }
+
+        performerLoadTask = Task { @MainActor [weak self, weak placeholder] in
+            guard let self, let placeholder else { return }
+            defer { self.performerLoadTask = nil }
+
+            do {
+                let entity = try await Entity(named: "xiaocheng", in: realityKitContentBundle)
+                guard Task.isCancelled == false else { return }
+
+                self.fitXiaochengToPlaceholder(entity: entity)
+
+                guard let modelEntity = self.findFirstSkinnedModelEntity(in: entity),
+                      let rig = self.makeXiaochengRig(modelEntity: modelEntity)
+                else {
+                    return
+                }
+
+                placeholder.children.removeAll(preservingWorldTransforms: false)
+                placeholder.addChild(entity)
+                self.xiaochengRig = rig
+            } catch {
+                // Keep the placeholder stick figure if the model fails to load.
+            }
+        }
+    }
+
+    private func fitXiaochengToPlaceholder(entity: Entity) {
+        let desiredHeightMeters: Float = 0.70
+
+        let bounds = entity.visualBounds(recursive: true, relativeTo: entity)
+        let currentHeight = max(0.001, bounds.extents.y)
+        let scale = desiredHeightMeters / currentHeight
+        entity.scale = SIMD3<Float>(repeating: scale)
+
+        let scaledBounds = entity.visualBounds(recursive: true, relativeTo: entity)
+        let minY = scaledBounds.center.y - scaledBounds.extents.y / 2
+        entity.position.y -= minY
+    }
+
+    private func findFirstSkinnedModelEntity(in root: Entity) -> ModelEntity? {
+        if let model = root as? ModelEntity, model.jointNames.isEmpty == false {
+            return model
+        }
+
+        for child in root.children {
+            if let found = findFirstSkinnedModelEntity(in: child) {
+                return found
+            }
+        }
+        return nil
+    }
+
+    private func makeXiaochengRig(modelEntity: ModelEntity) -> XiaochengRig? {
+        let jointNames = modelEntity.jointNames
+        guard jointNames.isEmpty == false else { return nil }
+
+        func index(endsWith component: String) -> Int? {
+            jointNames.firstIndex { $0 == component || $0.hasSuffix("/\(component)") }
+        }
+
+        let leftIndices = [index(endsWith: "LeftShoulder"), index(endsWith: "LeftArm"), index(endsWith: "LeftForeArm")].compactMap { $0 }
+        let rightIndices = [index(endsWith: "RightShoulder"), index(endsWith: "RightArm"), index(endsWith: "RightForeArm")].compactMap { $0 }
+        guard leftIndices.isEmpty == false || rightIndices.isEmpty == false else { return nil }
+
+        return XiaochengRig(
+            modelEntity: modelEntity,
+            restJointTransforms: modelEntity.jointTransforms,
+            leftArmJointIndices: leftIndices,
+            rightArmJointIndices: rightIndices
+        )
+    }
+
     private func makeCapsuleEntity(height: Float, radius: Float, material: SimpleMaterial) -> Entity {
         let root = Entity()
         let cylinderHeight = max(0.001, height - radius * 2)
@@ -238,13 +330,21 @@ final class VirtualPerformerOverlayController {
     }
 
     private func animateHead(isPerforming: Bool) {
-        guard let headEntity else { return }
-        let baseTransform = headRestTransform ?? headEntity.transform
+        let nodEntity = xiaochengRig == nil ? headEntity : performerEntity
+        guard let nodEntity else { return }
+
+        let baseTransform: Transform
+        if xiaochengRig == nil {
+            baseTransform = headRestTransform ?? nodEntity.transform
+        } else {
+            baseTransform = nodEntity.transform
+        }
+
         var targetTransform = baseTransform
         targetTransform.rotation = simd_quatf(angle: isPerforming ? 0.6 : 0.0, axis: [1, 0, 0])
-        _ = headEntity.move(
+        _ = nodEntity.move(
             to: targetTransform,
-            relativeTo: headEntity.parent,
+            relativeTo: nodEntity.parent,
             duration: 0.25,
             timingFunction: .easeInOut
         )
@@ -300,6 +400,11 @@ final class VirtualPerformerOverlayController {
     }
 
     private func animateArmSwing(velocity: UInt8) {
+        if let xiaochengRig {
+            animateXiaochengArmSwing(velocity: velocity, rig: xiaochengRig)
+            return
+        }
+
         let isLeftArm = nextNoteUsesLeftHand
         let armEntity = isLeftArm ? leftArmRootEntity : rightArmRootEntity
         let baseTransform = isLeftArm ? leftArmRestTransform : rightArmRestTransform
@@ -351,7 +456,45 @@ final class VirtualPerformerOverlayController {
         }
     }
 
+    private func animateXiaochengArmSwing(velocity: UInt8, rig: XiaochengRig) {
+        let isLeftArm = nextNoteUsesLeftHand
+        nextNoteUsesLeftHand.toggle()
+
+        let jointIndices = isLeftArm ? rig.leftArmJointIndices : rig.rightArmJointIndices
+        guard jointIndices.isEmpty == false else { return }
+
+        let normalizedVelocity = min(1, max(0, Float(velocity) / 127))
+        let angleRadians: Float = -0.35 - normalizedVelocity * 0.5
+        let deltaRotation = simd_quatf(angle: angleRadians, axis: [1, 0, 0])
+
+        let task = Task { @MainActor in
+            rig.modelEntity.jointTransforms = rig.restJointTransforms
+
+            var transforms = rig.restJointTransforms
+            for index in jointIndices where index < transforms.count {
+                transforms[index].rotation = transforms[index].rotation * deltaRotation
+            }
+            rig.modelEntity.jointTransforms = transforms
+
+            try? await Task.sleep(for: .milliseconds(90))
+            rig.modelEntity.jointTransforms = rig.restJointTransforms
+        }
+
+        if isLeftArm {
+            leftArmPulseTask?.cancel()
+            leftArmPulseTask = task
+        } else {
+            rightArmPulseTask?.cancel()
+            rightArmPulseTask = task
+        }
+    }
+
     private func resetArmsToRest(animated: Bool) {
+        if let xiaochengRig {
+            xiaochengRig.modelEntity.jointTransforms = xiaochengRig.restJointTransforms
+            return
+        }
+
         guard let leftArmRootEntity, let leftArmRestTransform,
               let rightArmRootEntity, let rightArmRestTransform
         else { return }
