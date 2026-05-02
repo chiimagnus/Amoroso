@@ -14,7 +14,8 @@ struct PracticeStepView: View {
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
 
-    @AppStorage("practiceVirtualPianoEnabled") private var isVirtualPianoEnabled = false
+    @State private var isVirtualPianoEnabled = false
+    @State private var isVirtualPerformerEnabled = false
     @State private var isAutoplayEnabled = false
     @AppStorage("practiceManualAdvanceMode") private var manualAdvanceModeRawValue = ManualAdvanceMode.step.rawValue
     @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var isAudioDebugOverlayEnabled = false
@@ -59,7 +60,8 @@ struct PracticeStepView: View {
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
-                    .disabled(viewModel.hasImportedSteps == false || viewModel.practiceSessionViewModel
+                    .disabled(viewModel.isAIPerformanceActive || viewModel.hasImportedSteps == false || viewModel
+                        .practiceSessionViewModel
                         .state == .completed)
 
                     Button(manualAdvanceMode.replayButtonTitle, systemImage: "speaker.wave.2.fill") {
@@ -73,7 +75,8 @@ struct PracticeStepView: View {
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
                     .disabled(
-                        viewModel.practiceSessionViewModel.state == .ready ||
+                        viewModel.isAIPerformanceActive ||
+                            viewModel.practiceSessionViewModel.state == .ready ||
                             viewModel.practiceSessionViewModel.currentStep == nil
                     )
                 }
@@ -83,6 +86,7 @@ struct PracticeStepView: View {
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
+                    .disabled(viewModel.isAIPerformanceActive)
 
                 Button("设置", systemImage: "gearshape") {
                     isSettingsPopoverPresented.toggle()
@@ -90,6 +94,7 @@ struct PracticeStepView: View {
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
                 .hoverEffect()
+                .disabled(viewModel.isAIPerformanceActive)
                 .popover(isPresented: $isSettingsPopoverPresented) {
                     settingsPopover
                 }
@@ -116,6 +121,7 @@ struct PracticeStepView: View {
                     .buttonStyle(.borderedProminent)
                     .buttonBorderShape(.roundedRectangle)
                     .hoverEffect()
+                    .disabled(viewModel.isAIPerformanceActive)
                     .popover(isPresented: $isLocalizationPopoverPresented) {
                         localizationPopover
                     }
@@ -145,13 +151,15 @@ struct PracticeStepView: View {
         }
         .onChange(of: isVirtualPianoEnabled) {
             viewModel.setPracticeVirtualPianoEnabled(isVirtualPianoEnabled)
-            guard isVirtualPianoEnabled else { return }
             Task { @MainActor in
                 await viewModel.enterPracticeStep(
                     using: openImmersiveSpace,
                     dismissImmersiveSpace: dismissImmersiveSpace
                 )
             }
+        }
+        .onChange(of: isVirtualPerformerEnabled) {
+            viewModel.setPracticeVirtualPerformerEnabled(isVirtualPerformerEnabled)
         }
         .onChange(of: isAutoplayEnabled) {
             viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
@@ -179,8 +187,10 @@ struct PracticeStepView: View {
         .onDisappear {
             isStepVisible = false
             hasRequestedImmersiveOpen = false
+            isVirtualPerformerEnabled = false
             viewModel.setPracticeAutoplayEnabled(false)
             viewModel.setPracticeVirtualPianoEnabled(false)
+            viewModel.setPracticeVirtualPerformerEnabled(false)
             viewModel.resetPracticeLocalizationState()
             Task { @MainActor in
                 await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
@@ -242,6 +252,7 @@ struct PracticeStepView: View {
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.roundedRectangle)
                 .hoverEffect()
+                .disabled(viewModel.isAIPerformanceActive)
             }
 
             if viewModel.shouldSuggestCalibrationStep {
@@ -263,7 +274,26 @@ struct PracticeStepView: View {
 
     private var settingsPopover: some View {
         VStack(alignment: .leading, spacing: 12) {
-            PracticeSettingsView(virtualPianoEnabled: $isVirtualPianoEnabled)
+            PracticeSettingsView(
+                virtualPianoEnabled: $isVirtualPianoEnabled,
+                virtualPerformerEnabled: $isVirtualPerformerEnabled
+            )
+            .disabled(viewModel.isAIPerformanceActive)
+
+            #if DEBUG && targetEnvironment(simulator)
+            if isVirtualPerformerEnabled {
+                Divider()
+                Button("调试：触发 AI 演奏", systemImage: "play.fill") {
+                    Task { @MainActor in
+                        await viewModel.debugTriggerAIPerformance()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
+                .disabled(viewModel.isAIPerformanceActive)
+            }
+            #endif
 
             if isVirtualPianoEnabled {
                 Divider()
@@ -282,6 +312,7 @@ struct PracticeStepView: View {
                 .buttonStyle(.borderedProminent)
                 .buttonBorderShape(.roundedRectangle)
                 .hoverEffect()
+                .disabled(viewModel.isAIPerformanceActive)
                 .padding(.horizontal, 16)
             }
         }

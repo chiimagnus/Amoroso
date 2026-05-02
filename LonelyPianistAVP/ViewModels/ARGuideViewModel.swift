@@ -1,4 +1,5 @@
 import ARKit
+import Dispatch
 import Foundation
 import Observation
 import simd
@@ -73,6 +74,7 @@ final class ARGuideViewModel {
     private var calibrationGuidedFlowTask: Task<Void, Never>?
     private var calibrationSupportPollTask: Task<Void, Never>?
     private var practiceLocalizationTask: Task<Void, Never>?
+    private var aiSilencePollingTask: Task<Void, Never>?
     private var wasRightHandPinching = false
     private var wasLeftHandPinching = false
     private let providerStartupTimeoutSeconds = 5
@@ -82,6 +84,11 @@ final class ARGuideViewModel {
     private(set) var practiceLocalizationState: PracticeLocalizationState = .idle
     private(set) var calibrationPhase: CalibrationPhase = .capturingA0
     private(set) var isVirtualPianoEnabled = false
+    private(set) var isVirtualPerformerEnabled = false
+    private(set) var isAIPerformanceActive = false
+    private(set) var latestAIPerformanceSchedule: [PracticeSequencerMIDIEvent] = []
+    private(set) var latestDeviceWorldPosition: SIMD3<Float>?
+    private var silenceTrigger = NoteOnSilenceTrigger()
     let gazePlaneDiskConfirmation = GazePlaneDiskConfirmationViewModel()
     private let gazePlaneHitTestService = GazePlaneHitTestService()
     private var latestGazePlaneHit: PlaneHit?
@@ -108,6 +115,9 @@ final class ARGuideViewModel {
                 measureSpans: prepared.measureSpans
             )
             self.appState.applySessionIfPossible()
+            if self.isVirtualPerformerEnabled {
+                self.setPracticeVirtualPerformerEnabled(true)
+            }
         }
         appState.onCalibrationCleared = { [weak self] in
             self?.practiceSessionViewModel.clearCalibration()
@@ -267,6 +277,147 @@ final class ARGuideViewModel {
             gazePlaneDiskConfirmation.reset()
             latestGazePlaneHit = nil
             stopVirtualPianoGuidance()
+        }
+    }
+
+    func setPracticeVirtualPerformerEnabled(_ isEnabled: Bool) {
+        isVirtualPerformerEnabled = isEnabled
+        if isEnabled == false {
+            aiSilencePollingTask?.cancel()
+            aiSilencePollingTask = nil
+            isAIPerformanceActive = false
+            silenceTrigger.reset()
+            latestAIPerformanceSchedule = []
+            practiceSessionViewModel.stopVirtualPianoInput()
+            practiceSessionViewModel.sequencerPlaybackService.stop()
+            practiceSessionViewModel.refreshAudioRecognitionForCurrentState()
+        } else {
+            silenceTrigger.reset()
+            guard practiceSessionViewModel.currentStep != nil else { return }
+            aiSilencePollingTask?.cancel()
+            aiSilencePollingTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                while Task.isCancelled == false {
+                    guard self.isVirtualPerformerEnabled else { return }
+                    await self.pollAndPlayAIPerformanceIfNeeded()
+                    try? await Task.sleep(nanoseconds: 100_000_000)
+                }
+            }
+        }
+    }
+
+    private func pollAndPlayAIPerformanceIfNeeded() async {
+        guard isAIPerformanceActive == false else { return }
+        guard practiceSessionViewModel.autoplayState == .off else { return }
+        guard practiceSessionViewModel.isManualReplayPlaying == false else { return }
+
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        guard silenceTrigger.pollShouldTrigger(atUptime: nowUptime, timeoutSeconds: 2.0) else { return }
+
+        isAIPerformanceActive = true
+
+        guard let tickRange = practiceSessionViewModel.aiPerformanceTickRange(maxMeasures: 2) else {
+            isAIPerformanceActive = false
+            silenceTrigger.reset()
+            return
+        }
+
+        await playAIPerformanceTickRange(tickRange)
+        isAIPerformanceActive = false
+        silenceTrigger.reset()
+    }
+
+    #if DEBUG && targetEnvironment(simulator)
+    func debugTriggerAIPerformance() async {
+        guard isVirtualPerformerEnabled else { return }
+        guard isAIPerformanceActive == false else { return }
+        guard practiceSessionViewModel.autoplayState == .off else { return }
+        guard practiceSessionViewModel.isManualReplayPlaying == false else { return }
+        guard let tickRange = practiceSessionViewModel.aiPerformanceTickRange(maxMeasures: 2) else { return }
+
+        isAIPerformanceActive = true
+        await playAIPerformanceTickRange(tickRange)
+        isAIPerformanceActive = false
+        silenceTrigger.reset()
+    }
+    #endif
+
+    private func playAIPerformanceTickRange(_ tickRange: (startTick: Int, endTick: Int)) async {
+        practiceSessionViewModel.stopVirtualPianoInput()
+        practiceSessionViewModel.sequencerPlaybackService.stop()
+        practiceSessionViewModel.stopAudioRecognition()
+        latestAIPerformanceSchedule = []
+
+        var didStartPlayback = false
+        defer {
+            if didStartPlayback == false {
+                practiceSessionViewModel.sequencerPlaybackService.stop()
+                if isVirtualPerformerEnabled {
+                    practiceSessionViewModel.refreshAudioRecognitionForCurrentState()
+                }
+            }
+        }
+
+        let timelineSnapshot = practiceSessionViewModel.autoplayTimeline
+        let tempoMapSnapshot = practiceSessionViewModel.tempoMap
+        let initialSustainPedalDown = practiceSessionViewModel.pedalTimeline?.isDown(atTick: tickRange.startTick) ?? false
+        let leadInSeconds: TimeInterval = 0.05
+
+        do {
+            try practiceSessionViewModel.sequencerPlaybackService.warmUp()
+        } catch {
+            return
+        }
+
+        let scheduleAndSequence: (schedule: [PracticeSequencerMIDIEvent], sequence: PracticeSequencerSequence)
+        do {
+            scheduleAndSequence = try await withCheckedThrowingContinuation { continuation in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        let builder = PracticeSequencerSequenceBuilder()
+                        let schedule = builder.buildAudioEventSchedule(
+                            timeline: timelineSnapshot,
+                            tempoMap: tempoMapSnapshot,
+                            startTick: tickRange.startTick,
+                            initialSustainPedalDown: initialSustainPedalDown,
+                            leadInSeconds: leadInSeconds,
+                            endTick: tickRange.endTick
+                        )
+                        let sequence = try builder.buildSequence(from: schedule)
+                        continuation.resume(returning: (schedule, sequence))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } catch {
+            return
+        }
+        latestAIPerformanceSchedule = scheduleAndSequence.schedule
+
+        do {
+            try practiceSessionViewModel.sequencerPlaybackService.load(sequence: scheduleAndSequence.sequence)
+            try practiceSessionViewModel.sequencerPlaybackService.play(fromSeconds: 0)
+        } catch {
+            return
+        }
+        didStartPlayback = true
+
+        let sequenceEndSeconds = max(0, scheduleAndSequence.sequence.durationSeconds)
+
+        while Task.isCancelled == false {
+            guard isVirtualPerformerEnabled else { break }
+            let nowSeconds = practiceSessionViewModel.sequencerPlaybackService.currentSeconds()
+            if nowSeconds >= sequenceEndSeconds {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(33))
+        }
+
+        practiceSessionViewModel.sequencerPlaybackService.stop()
+        if isVirtualPerformerEnabled {
+            _ = practiceSessionViewModel.prepareAudioRecognitionSuppressWindowForPlayback()
+            practiceSessionViewModel.refreshAudioRecognitionForCurrentState()
         }
     }
 
@@ -569,21 +720,44 @@ final class ARGuideViewModel {
                     case .calibration:
                         handleCalibrationHandUpdates()
                     case .practice:
+                        let nowUptime = ProcessInfo.processInfo.systemUptime
+                        updateLatestDeviceWorldPosition(nowUptime: nowUptime)
+                        if isAIPerformanceActive {
+                            continue
+                        }
                         if isVirtualPianoEnabled {
-                            let nowUptime = ProcessInfo.processInfo.systemUptime
                             updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
                             if practiceSessionViewModel.keyboardGeometry != nil {
                                 _ = practiceSessionViewModel.handleFingerTipPositions(
                                     fingerTips,
                                     isVirtualPiano: true
                                 )
+                                if practiceSessionViewModel.latestNoteOnMIDINotes.isEmpty == false {
+                                    silenceTrigger.recordNoteOn(atUptime: nowUptime)
+                                }
                             }
                         } else {
                             _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                            if practiceSessionViewModel.latestNoteOnMIDINotes.isEmpty == false {
+                                silenceTrigger.recordNoteOn(atUptime: nowUptime)
+                            }
                         }
                 }
             }
         }
+    }
+
+    private func updateLatestDeviceWorldPosition(nowUptime: TimeInterval) {
+        guard
+            let deviceAnchor = arTrackingService.worldTrackingProvider.queryDeviceAnchor(atTimestamp: nowUptime),
+            deviceAnchor.isTracked
+        else { return }
+        let deviceWorldTransform = deviceAnchor.originFromAnchorTransform
+        latestDeviceWorldPosition = SIMD3<Float>(
+            deviceWorldTransform.columns.3.x,
+            deviceWorldTransform.columns.3.y,
+            deviceWorldTransform.columns.3.z
+        )
     }
 
     private func applyVirtualPianoGeometry(worldFromKeyboard: simd_float4x4) {

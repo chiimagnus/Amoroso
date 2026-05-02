@@ -8,6 +8,7 @@ struct ImmersiveView: View {
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
     @State private var virtualPianoOverlayController = VirtualPianoOverlayController()
     @State private var gazePlaneDiskOverlayController = GazePlaneDiskOverlayController()
+    @State private var virtualPerformerOverlayController = VirtualPerformerOverlayController()
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
     @State private var panoramaBackgroundEntity: ModelEntity?
     @State private var panoramaLoadedFileName: String?
@@ -23,7 +24,7 @@ struct ImmersiveView: View {
     private func loadPanoramaIfNeeded() {
         let desiredBaseName = desiredPanoramaBaseName
 
-        if panoramaLoadedFileName == desiredBaseName, panoramaLoadTask == nil {
+        if panoramaLoadedFileName == desiredBaseName {
             return
         }
 
@@ -52,16 +53,20 @@ struct ImmersiveView: View {
             return
         }
 
+        let requestedBaseName = desiredBaseName
         panoramaLoadTask = Task { [weak panoramaBackgroundEntity] in
             let texture = try? await TextureResource(contentsOf: url)
             guard let texture else { return }
+            guard Task.isCancelled == false else { return }
 
             var texturedMaterial = UnlitMaterial()
             texturedMaterial.color = .init(tint: UIColor.white, texture: .init(texture))
             texturedMaterial.faceCulling = .front
 
             await MainActor.run {
+                guard panoramaLoadedFileName == requestedBaseName else { return }
                 panoramaBackgroundEntity?.model?.materials = [texturedMaterial]
+                panoramaLoadTask = nil
             }
         }
     }
@@ -121,6 +126,14 @@ struct ImmersiveView: View {
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
                 content: content
             )
+            virtualPerformerOverlayController.update(
+                isEnabled: viewModel.isVirtualPerformerEnabled,
+                isPerforming: viewModel.isAIPerformanceActive,
+                keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
+                cameraWorldPosition: viewModel.latestDeviceWorldPosition,
+                performanceSchedule: viewModel.latestAIPerformanceSchedule,
+                content: content
+            )
         } update: { content in
             loadPanoramaIfNeeded()
 
@@ -152,6 +165,14 @@ struct ImmersiveView: View {
             virtualPianoOverlayController.update(
                 isEnabled: viewModel.isVirtualPianoEnabled,
                 keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
+                content: content
+            )
+            virtualPerformerOverlayController.update(
+                isEnabled: viewModel.isVirtualPerformerEnabled,
+                isPerforming: viewModel.isAIPerformanceActive,
+                keyboardGeometry: viewModel.practiceSessionViewModel.keyboardGeometry,
+                cameraWorldPosition: viewModel.latestDeviceWorldPosition,
+                performanceSchedule: viewModel.latestAIPerformanceSchedule,
                 content: content
             )
         }
