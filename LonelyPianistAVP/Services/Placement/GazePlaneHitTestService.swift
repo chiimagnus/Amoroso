@@ -4,11 +4,11 @@ import simd
 struct GazePlaneHitTestService {
     struct Configuration: Equatable {
         var maxAngleFromUpDegrees: Float = 10
-        // Avoid picking a too-near plane which feels "in your face".
-        var minDistanceMeters: Float = 0.30
+        // Allow a near hit so the user only needs a slight head tilt.
+        var minDistanceMeters: Float = 0.15
         var maxDistanceMeters: Float = 2.0
-        // Prefer a plane hit distance that feels like a reachable tabletop.
-        var preferredDistanceMeters: Float = 0.60
+        // Prefer a closer plane hit distance (comfortable slight head tilt).
+        var preferredDistanceMeters: Float = 0.45
     }
 
     private let configuration: Configuration
