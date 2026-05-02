@@ -19,12 +19,14 @@ extension PracticeSessionViewModel {
         let timelineSnapshot = autoplayTimeline
         let tempoMapSnapshot = tempoMap
         let timingBaseTick = currentStep?.tick ?? 0
+        autoplayTimingBaseTick = timingBaseTick
+        notationGuideScrollScheduleTaskGeneration = -1
 
         autoplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
             let initialSustainPedalDown = pedalTimeline?.isDown(atTick: timingBaseTick) ?? false
             isSustainPedalDown = initialSustainPedalDown
-            let leadInSeconds: TimeInterval = 0.05
+            let leadInSeconds = autoplayTimingLeadInSeconds
 
             do {
                 try sequencerPlaybackService.warmUp()
@@ -253,9 +255,96 @@ extension PracticeSessionViewModel {
         autoplayTaskGeneration += 1
         autoplayTask?.cancel()
         autoplayTask = nil
+        autoplayTimingBaseTick = nil
+        notationGuideScrollSchedule.removeAll()
+        notationGuideScrollScheduleTaskGeneration = -1
     }
 
     func stopAutoplayAudio() {
         sequencerPlaybackService.stop()
+    }
+
+    func smoothNotationScrollTick() -> Double? {
+        guard autoplayState == .playing, autoplayTask != nil else { return nil }
+        guard let baseTick = autoplayTimingBaseTick else { return nil }
+
+        let schedule = ensureNotationGuideScrollSchedule(baseTick: baseTick)
+        let fallbackTick = Double(currentPianoHighlightGuide?.tick ?? baseTick)
+        guard schedule.isEmpty == false else { return fallbackTick }
+
+        let nowSeconds = sequencerPlaybackService.currentSeconds()
+        guard nowSeconds.isFinite else { return fallbackTick }
+
+        if nowSeconds <= schedule[0].timeSeconds {
+            return Double(schedule[0].tick)
+        }
+        if let last = schedule.last, nowSeconds >= last.timeSeconds {
+            return Double(last.tick)
+        }
+
+        var low = 0
+        var high = schedule.count - 1
+        var best = 0
+        while low <= high {
+            let mid = (low + high) / 2
+            if schedule[mid].timeSeconds <= nowSeconds {
+                best = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+
+        let currentIndex = min(best, schedule.count - 1)
+        let nextIndex = min(currentIndex + 1, schedule.count - 1)
+        guard currentIndex != nextIndex else { return Double(schedule[currentIndex].tick) }
+
+        let currentPoint = schedule[currentIndex]
+        let nextPoint = schedule[nextIndex]
+        let duration = max(0.000_1, nextPoint.timeSeconds - currentPoint.timeSeconds)
+        let fraction = max(0, min(1, (nowSeconds - currentPoint.timeSeconds) / duration))
+        return Double(currentPoint.tick) + Double(nextPoint.tick - currentPoint.tick) * fraction
+    }
+
+    private func ensureNotationGuideScrollSchedule(baseTick: Int) -> [NotationGuideScrollPoint] {
+        if notationGuideScrollScheduleTaskGeneration == autoplayTaskGeneration,
+           notationGuideScrollScheduleBaseTick == baseTick,
+           notationGuideScrollScheduleTimelineEventCount == autoplayTimeline.events.count
+        {
+            return notationGuideScrollSchedule
+        }
+
+        let safeBaseTick = max(0, baseTick)
+        let baseSeconds = tempoMap.timeSeconds(atTick: safeBaseTick)
+        let startIndex = autoplayTimeline.firstEventIndex(atOrAfter: safeBaseTick)
+
+        var pausePrefixSeconds: TimeInterval = 0
+        var points: [NotationGuideScrollPoint] = []
+        points.reserveCapacity(max(16, highlightGuides.count))
+
+        for event in autoplayTimeline.events[startIndex...] {
+            switch event.kind {
+                case let .pauseSeconds(seconds):
+                    pausePrefixSeconds += seconds
+
+                case .advanceGuide:
+                    points.append(
+                        NotationGuideScrollPoint(
+                            timeSeconds: tempoMap.timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds +
+                                autoplayTimingLeadInSeconds,
+                            tick: event.tick
+                        )
+                    )
+
+                case .noteOn, .noteOff, .pedalDown, .pedalUp, .advanceStep:
+                    continue
+            }
+        }
+
+        notationGuideScrollSchedule = points
+        notationGuideScrollScheduleBaseTick = baseTick
+        notationGuideScrollScheduleTaskGeneration = autoplayTaskGeneration
+        notationGuideScrollScheduleTimelineEventCount = autoplayTimeline.events.count
+        return points
     }
 }

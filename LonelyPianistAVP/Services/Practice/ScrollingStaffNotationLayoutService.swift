@@ -37,7 +37,8 @@ struct ScrollingStaffNotationLayoutService {
         currentGuide: PianoHighlightGuide?,
         measureSpans: [MusicXMLMeasureSpan] = [],
         context: ScrollingStaffNotationContext? = nil,
-        halfWindowTicks: Int = 1_920
+        halfWindowTicks: Int = 1_920,
+        scrollTick: Double? = nil
     ) -> ScrollingStaffNotationLayout {
         guard guides.isEmpty == false else {
             return ScrollingStaffNotationLayout(
@@ -50,13 +51,13 @@ struct ScrollingStaffNotationLayoutService {
             )
         }
 
-        let currentTick = currentGuide?.tick ?? guides.first?.tick ?? 0
+        let currentTick: Double = scrollTick ?? Double(currentGuide?.tick ?? guides.first?.tick ?? 0)
         let safeHalfWindowTicks = max(1, halfWindowTicks)
         let currentGuideID = currentGuide?.id
 
         let rawItems = guides.flatMap { guide in
             guide.triggeredNotes.map { note in
-                let xPosition = 0.5 + Double(guide.tick - currentTick) / Double(safeHalfWindowTicks * 2)
+                let xPosition = 0.5 + (Double(guide.tick) - currentTick) / Double(safeHalfWindowTicks * 2)
                 return ScrollingStaffNotationItem(
                     occurrenceID: note.occurrenceID,
                     midiNote: note.midiNote,
@@ -283,13 +284,13 @@ struct ScrollingStaffNotationLayoutService {
 
     private func makeRests(
         guides: [PianoHighlightGuide],
-        currentTick: Int,
+        currentTick: Double,
         currentGuideID: Int?,
         safeHalfWindowTicks: Int
     ) -> [ScrollingStaffNotationRest] {
         guides.compactMap { guide -> ScrollingStaffNotationRest? in
             guard guide.isRestOrGap else { return nil }
-            let xPosition = 0.5 + Double(guide.tick - currentTick) / Double(safeHalfWindowTicks * 2)
+            let xPosition = 0.5 + (Double(guide.tick) - currentTick) / Double(safeHalfWindowTicks * 2)
             guard xPosition >= -visibleOverscan, xPosition <= 1 + visibleOverscan else { return nil }
             return ScrollingStaffNotationRest(
                 id: "rest-\(guide.id)-\(guide.tick)",
@@ -308,7 +309,7 @@ struct ScrollingStaffNotationLayoutService {
 
     private func makeBarlines(
         measureSpans: [MusicXMLMeasureSpan],
-        currentTick: Int,
+        currentTick: Double,
         safeHalfWindowTicks: Int
     ) -> [ScrollingStaffNotationBarline] {
         var ticks = Set(measureSpans.map(\.startTick))
@@ -317,7 +318,7 @@ struct ScrollingStaffNotationLayoutService {
         }
 
         return ticks.sorted().compactMap { tick in
-            let xPosition = 0.5 + Double(tick - currentTick) / Double(safeHalfWindowTicks * 2)
+            let xPosition = 0.5 + (Double(tick) - currentTick) / Double(safeHalfWindowTicks * 2)
             guard xPosition >= -visibleOverscan, xPosition <= 1 + visibleOverscan else { return nil }
             return ScrollingStaffNotationBarline(id: "barline-\(tick)", tick: tick, xPosition: xPosition)
         }
