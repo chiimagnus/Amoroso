@@ -20,7 +20,8 @@ final class VirtualPerformerOverlayController {
     private var rightHandEntity: Entity?
     private var rightHandRestTransform: Transform?
     private var handAnimationTask: Task<Void, Never>?
-    private var pendingArmReturnTask: Task<Void, Never>?
+    private var leftArmPulseTask: Task<Void, Never>?
+    private var rightArmPulseTask: Task<Void, Never>?
     private var latestSchedule: [PracticeSequencerMIDIEvent] = []
     private var wasPerforming = false
     private var nextNoteUsesLeftHand = true
@@ -289,34 +290,61 @@ final class VirtualPerformerOverlayController {
     private func stopHandAnimation() {
         handAnimationTask?.cancel()
         handAnimationTask = nil
-        pendingArmReturnTask?.cancel()
-        pendingArmReturnTask = nil
+        leftArmPulseTask?.cancel()
+        leftArmPulseTask = nil
+        rightArmPulseTask?.cancel()
+        rightArmPulseTask = nil
     }
 
     private func animateArmSwing(velocity: UInt8) {
-        let armEntity = nextNoteUsesLeftHand ? leftArmRootEntity : rightArmRootEntity
-        let baseTransform = nextNoteUsesLeftHand ? leftArmRestTransform : rightArmRestTransform
+        let isLeftArm = nextNoteUsesLeftHand
+        let armEntity = isLeftArm ? leftArmRootEntity : rightArmRootEntity
+        let baseTransform = isLeftArm ? leftArmRestTransform : rightArmRestTransform
         nextNoteUsesLeftHand.toggle()
 
         guard let armEntity, let baseTransform else { return }
 
-        var targetTransform = baseTransform
         let normalizedVelocity = min(1, max(0, Float(velocity) / 127))
         let angleRadians: Float = -0.5 - normalizedVelocity * 0.6
+        var targetTransform = baseTransform
         targetTransform.rotation = simd_quatf(angle: angleRadians, axis: [1, 0, 0])
 
-        _ = armEntity.move(
-            to: targetTransform,
-            relativeTo: armEntity.parent,
-            duration: 0.08,
-            timingFunction: .easeInOut
-        )
-
-        pendingArmReturnTask?.cancel()
-        pendingArmReturnTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(140))
-            self.resetArmsToRest(animated: true)
+        if isLeftArm {
+            leftArmPulseTask?.cancel()
+            leftArmPulseTask = Task { @MainActor in
+                armEntity.transform = baseTransform
+                _ = armEntity.move(
+                    to: targetTransform,
+                    relativeTo: armEntity.parent,
+                    duration: 0.05,
+                    timingFunction: .easeInOut
+                )
+                try? await Task.sleep(for: .milliseconds(90))
+                _ = armEntity.move(
+                    to: baseTransform,
+                    relativeTo: armEntity.parent,
+                    duration: 0.08,
+                    timingFunction: .easeInOut
+                )
+            }
+        } else {
+            rightArmPulseTask?.cancel()
+            rightArmPulseTask = Task { @MainActor in
+                armEntity.transform = baseTransform
+                _ = armEntity.move(
+                    to: targetTransform,
+                    relativeTo: armEntity.parent,
+                    duration: 0.05,
+                    timingFunction: .easeInOut
+                )
+                try? await Task.sleep(for: .milliseconds(90))
+                _ = armEntity.move(
+                    to: baseTransform,
+                    relativeTo: armEntity.parent,
+                    duration: 0.08,
+                    timingFunction: .easeInOut
+                )
+            }
         }
     }
 
