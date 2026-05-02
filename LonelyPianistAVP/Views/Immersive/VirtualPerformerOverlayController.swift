@@ -9,16 +9,13 @@ final class VirtualPerformerOverlayController {
     private var hasAttachedRoot = false
     private var performerRootEntity: Entity?
     private var performerVisualRootEntity: Entity?
+    private var performerPianoEntity: Entity?
     private var headEntity: Entity?
     private var headRestTransform: Transform?
     private var leftArmRootEntity: Entity?
     private var leftArmRestTransform: Transform?
     private var rightArmRootEntity: Entity?
     private var rightArmRestTransform: Transform?
-    private var leftHandEntity: Entity?
-    private var leftHandRestTransform: Transform?
-    private var rightHandEntity: Entity?
-    private var rightHandRestTransform: Transform?
     private var handAnimationTask: Task<Void, Never>?
     private var leftArmPulseTask: Task<Void, Never>?
     private var rightArmPulseTask: Task<Void, Never>?
@@ -106,8 +103,8 @@ final class VirtualPerformerOverlayController {
             return simd_normalize(rightOnPlane)
         }()
         let forwardOnPlaneWorld = simd_normalize(simd_cross(rightOnPlaneWorld, upAxisWorld))
-        let offsetRightMeters: Float = totalLength * 0.9
-        let offsetForwardMeters: Float = keyDepth * 1.8
+        let offsetRightMeters: Float = totalLength * 1.05
+        let offsetForwardMeters: Float = keyDepth * 3.2
         let offsetUpMeters: Float = 0.0
 
         let performerPositionWorld = keyboardCenterWorld
@@ -142,16 +139,13 @@ final class VirtualPerformerOverlayController {
         performerRootEntity?.removeFromParent()
         performerRootEntity = nil
         performerVisualRootEntity = nil
+        performerPianoEntity = nil
         headEntity = nil
         headRestTransform = nil
         leftArmRootEntity = nil
         leftArmRestTransform = nil
         rightArmRootEntity = nil
         rightArmRestTransform = nil
-        leftHandEntity = nil
-        leftHandRestTransform = nil
-        rightHandEntity = nil
-        rightHandRestTransform = nil
         latestSchedule = []
         wasPerforming = false
     }
@@ -161,6 +155,9 @@ final class VirtualPerformerOverlayController {
         let visualRoot = Entity()
         root.addChild(visualRoot)
         performerVisualRootEntity = visualRoot
+        let piano = makePerformerPianoEntity()
+        visualRoot.addChild(piano)
+        performerPianoEntity = piano
         visualRoot.addChild(makePerformerEntity())
         return root
     }
@@ -399,6 +396,28 @@ final class VirtualPerformerOverlayController {
         let bounds = ring.visualBounds(relativeTo: nil)
         ring.position = -bounds.center
         root.addChild(ring)
+
+        return root
+    }
+
+    private func makePerformerPianoEntity() -> Entity {
+        let root = Entity()
+
+        let caseMaterial = SimpleMaterial(color: UIColor(white: 0.12, alpha: 1), isMetallic: false)
+        let keyMaterial = SimpleMaterial(color: UIColor(white: 0.92, alpha: 1), isMetallic: false)
+        let blackKeyMaterial = SimpleMaterial(color: UIColor(white: 0.06, alpha: 1), isMetallic: false)
+
+        let body = ModelEntity(mesh: .generateBox(size: [0.62, 0.10, 0.34]), materials: [caseMaterial])
+        body.position = [0, 0.42, 0.48]
+        root.addChild(body)
+
+        let keys = ModelEntity(mesh: .generateBox(size: [0.58, 0.02, 0.22]), materials: [keyMaterial])
+        keys.position = [0, 0.48, 0.39]
+        root.addChild(keys)
+
+        let blackKeys = ModelEntity(mesh: .generateBox(size: [0.52, 0.02, 0.12]), materials: [blackKeyMaterial])
+        blackKeys.position = [0, 0.495, 0.34]
+        root.addChild(blackKeys)
 
         return root
     }
