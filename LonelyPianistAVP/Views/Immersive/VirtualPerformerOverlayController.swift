@@ -124,14 +124,14 @@ final class VirtualPerformerOverlayController {
 
         let toCameraWorld = cameraWorldPosition - performerPositionWorld
         let toCameraOnPlane = toCameraWorld - upAxisWorld * simd_dot(toCameraWorld, upAxisWorld)
-        guard simd_length(toCameraOnPlane) > 0.0001 else { return }
-
-        let toCameraDir = simd_normalize(toCameraOnPlane)
-        let xLocal = simd_dot(toCameraDir, rightOnPlaneWorld)
-        let zLocal = simd_dot(toCameraDir, forwardOnPlaneWorld)
-        let yawLocalRadians = atan2(xLocal, zLocal)
-        // RealityKit entities face -Z by default; add π so the model "front" looks at the user.
-        performerVisualRootEntity.orientation = simd_quatf(angle: yawLocalRadians + .pi, axis: [0, 1, 0])
+        let lookAtWorld = performerPositionWorld + toCameraOnPlane
+        performerVisualRootEntity.look(
+            at: lookAtWorld,
+            from: performerPositionWorld,
+            upVector: upAxisWorld,
+            relativeTo: nil,
+            forward: .positiveZ
+        )
     }
 
     private func clearPerformer() {
