@@ -127,8 +127,10 @@ final class VirtualPerformerOverlayController {
         guard simd_length(toCameraOnPlane) > 0.0001 else { return }
 
         let toCameraDir = simd_normalize(toCameraOnPlane)
-        let yawRadians = atan2(toCameraDir.x, toCameraDir.z)
-        performerVisualRootEntity.orientation = simd_quatf(angle: yawRadians + .pi, axis: [0, 1, 0])
+        let xLocal = simd_dot(toCameraDir, rightOnPlaneWorld)
+        let zLocal = simd_dot(toCameraDir, forwardOnPlaneWorld)
+        let yawLocalRadians = atan2(xLocal, zLocal)
+        performerVisualRootEntity.orientation = simd_quatf(angle: yawLocalRadians, axis: [0, 1, 0])
     }
 
     private func clearPerformer() {
