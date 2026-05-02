@@ -94,6 +94,7 @@ final class ARGuideViewModel {
     private var latestGazePlaneHit: PlaneHit?
     private var latestGazeRayOriginWorld: SIMD3<Float>?
     private let backendDiscoveryService = BonjourBackendDiscoveryService()
+    private var phraseRecorder = PhraseRecorder()
 
     init(appState: AppState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
         self.appState = appState
@@ -289,12 +290,14 @@ final class ARGuideViewModel {
             aiSilencePollingTask = nil
             isAIPerformanceActive = false
             silenceTrigger.reset()
+            phraseRecorder.reset()
             latestAIPerformanceSchedule = []
             practiceSessionViewModel.stopVirtualPianoInput()
             practiceSessionViewModel.sequencerPlaybackService.stop()
             practiceSessionViewModel.refreshAudioRecognitionForCurrentState()
         } else {
             silenceTrigger.reset()
+            phraseRecorder.reset()
             backendDiscoveryService.start()
             guard practiceSessionViewModel.currentStep != nil else { return }
             aiSilencePollingTask?.cancel()
@@ -845,17 +848,30 @@ final class ARGuideViewModel {
                                     fingerTips,
                                     isVirtualPiano: true
                                 )
-                                if practiceSessionViewModel.latestNoteOnMIDINotes.isEmpty == false {
-                                    silenceTrigger.recordNoteOn(atUptime: nowUptime)
-                                }
+                                recordPhraseIfNeeded(nowUptime: nowUptime)
                             }
                         } else {
                             _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
-                            if practiceSessionViewModel.latestNoteOnMIDINotes.isEmpty == false {
-                                silenceTrigger.recordNoteOn(atUptime: nowUptime)
-                            }
+                            recordPhraseIfNeeded(nowUptime: nowUptime)
                         }
                 }
+            }
+        }
+    }
+
+    private func recordPhraseIfNeeded(nowUptime: TimeInterval) {
+        guard isVirtualPerformerEnabled else { return }
+
+        let contact = practiceSessionViewModel.latestKeyContactResult
+        if contact.started.isEmpty == false {
+            silenceTrigger.recordNoteOn(atUptime: nowUptime)
+            for note in contact.started {
+                phraseRecorder.recordNoteOn(midi: note, velocity: 90, timestamp: nowUptime)
+            }
+        }
+        if contact.ended.isEmpty == false {
+            for note in contact.ended {
+                phraseRecorder.recordNoteOff(midi: note, timestamp: nowUptime)
             }
         }
     }
