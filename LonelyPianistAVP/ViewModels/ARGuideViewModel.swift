@@ -327,6 +327,21 @@ final class ARGuideViewModel {
         silenceTrigger.reset()
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    func debugTriggerAIPerformance() async {
+        guard isVirtualPerformerEnabled else { return }
+        guard isAIPerformanceActive == false else { return }
+        guard practiceSessionViewModel.autoplayState == .off else { return }
+        guard practiceSessionViewModel.isManualReplayPlaying == false else { return }
+        guard let tickRange = practiceSessionViewModel.aiPerformanceTickRange(maxMeasures: 2) else { return }
+
+        isAIPerformanceActive = true
+        await playAIPerformanceTickRange(tickRange)
+        isAIPerformanceActive = false
+        silenceTrigger.reset()
+    }
+    #endif
+
     private func playAIPerformanceTickRange(_ tickRange: (startTick: Int, endTick: Int)) async {
         practiceSessionViewModel.stopVirtualPianoInput()
         practiceSessionViewModel.sequencerPlaybackService.stop()

@@ -280,6 +280,21 @@ struct PracticeStepView: View {
             )
             .disabled(viewModel.isAIPerformanceActive)
 
+            #if DEBUG && targetEnvironment(simulator)
+            if isVirtualPerformerEnabled {
+                Divider()
+                Button("调试：触发 AI 演奏", systemImage: "play.fill") {
+                    Task { @MainActor in
+                        await viewModel.debugTriggerAIPerformance()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
+                .disabled(viewModel.isAIPerformanceActive)
+            }
+            #endif
+
             if isVirtualPianoEnabled {
                 Divider()
                     .padding(.horizontal, 16)
