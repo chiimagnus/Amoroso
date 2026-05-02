@@ -118,7 +118,8 @@ final class BonjourBackendDiscoveryService {
                 switch state {
                     case .ready:
                         if case let .hostPort(host, port) = connection.currentPath?.remoteEndpoint {
-                            finish((host: String(describing: host), port: Int(port.rawValue)))
+                            let resolvedHost = self.normalizeResolvedHost(String(describing: host))
+                            finish((host: resolvedHost, port: Int(port.rawValue)))
                         } else {
                             finish(nil)
                         }
@@ -131,5 +132,22 @@ final class BonjourBackendDiscoveryService {
 
             connection.start(queue: .global(qos: .utility))
         }
+    }
+
+    nonisolated private func normalizeResolvedHost(_ host: String) -> String {
+        // Some Network framework debug strings can include an interface scope suffix (e.g. "172.20.10.3%ir0").
+        // URLSession cannot build a valid URL from such a host. For IPv4-looking hosts, drop the scope suffix.
+        guard let percentIndex = host.firstIndex(of: "%") else { return host }
+        let prefix = String(host[..<percentIndex])
+        if prefix.isEmpty { return host }
+
+        let isIPv4Like = prefix.split(separator: ".", omittingEmptySubsequences: false).count == 4
+            && prefix.allSatisfy { $0.isNumber || $0 == "." }
+        if isIPv4Like {
+            return prefix
+        }
+
+        // For non-IPv4 hosts we keep the original string to avoid breaking IPv6 link-local resolution.
+        return host
     }
 }
