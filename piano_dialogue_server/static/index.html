@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lonely Pianist - MIDI 音乐生成器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f0f0f;
+      --card: #1a1a1a;
+      --card-hover: #222;
+      --accent: #d4a373;
+      --accent-dark: #b08055;
+      --text: #e8e8e8;
+      --text-dim: #888;
+      --border: #333;
+      --success: #4caf50;
+      --error: #e74c3c;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 300;
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+    }
+    .subtitle {
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+    .container {
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: background 0.2s;
+    }
+    .card:hover { background: var(--card-hover); }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(212, 163, 115, 0.05);
+    }
+    .drop-zone .icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+    .drop-zone p { color: var(--text-dim); font-size: 0.95rem; }
+    .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+    .file-name {
+      margin-top: 12px;
+      color: var(--accent);
+      font-weight: 500;
+      word-break: break-all;
+    }
+
+    /* Controls */
+    .control-group { margin-bottom: 16px; }
+    .control-group:last-child { margin-bottom: 0; }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    select, input[type="range"] {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+    }
+    select:focus { border-color: var(--accent); }
+    .range-wrap { display: flex; align-items: center; gap: 12px; }
+    .range-wrap input[type="range"] { flex: 1; }
+    .range-value {
+      min-width: 48px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+    .checkbox-wrap input[type="checkbox"] {
+      width: 18px; height: 18px;
+      accent-color: var(--accent);
+    }
+    .checkbox-wrap span { color: var(--text); font-size: 0.95rem; }
+
+    /* Button */
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #111;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .btn:hover:not(:disabled) { background: var(--accent-dark); transform: translateY(-1px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(0,0,0,0.2);
+      border-top-color: #111;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Results */
+    .results { display: none; }
+    .results.show { display: block; }
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .stat {
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 14px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .download-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      text-align: center;
+      border-radius: 10px;
+      background: var(--success);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 500;
+      transition: opacity 0.2s;
+    }
+    .download-btn:hover { opacity: 0.9; }
+
+    /* Message */
+    .message {
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .message.show { display: block; }
+    .message.error { background: rgba(231, 76, 60, 0.1); border: 1px solid var(--error); color: var(--error); }
+    .message.success { background: rgba(76, 175, 80, 0.1); border: 1px solid var(--success); color: var(--success); }
+
+    footer {
+      margin-top: auto;
+      padding-top: 40px;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>LONELY PIANIST</h1>
+  <p class="subtitle">上传 MIDI 文件，AI 自动续写钢琴音乐</p>
+
+  <div class="container">
+    <!-- Upload -->
+    <div class="card">
+      <div class="drop-zone" id="dropZone">
+        <div class="icon">🎹</div>
+        <p>点击或拖拽 MIDI 文件到此处</p>
+        <p style="font-size:0.8rem; margin-top:4px;">支持 .mid / .midi</p>
+        <input type="file" id="fileInput" accept=".mid,.midi,audio/midi,audio/x-midi">
+        <div class="file-name" id="fileName"></div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="card">
+      <div class="control-group">
+        <label>生成策略</label>
+        <select id="strategy">
+          <option value="algorithm" selected>算法生成（规则变奏 + 自动伴奏）</option>
+          <option value="model">AI 模型生成（神经网络续写）</option>
+        </select>
+      </div>
+      <div class="control-group" id="modeGroup">
+        <label>生成模式</label>
+        <select id="mode">
+          <option value="variation" selected>变奏 (Variation)</option>
+          <option value="continue">续写 (Continue)</option>
+          <option value="accompaniment">仅伴奏 (Accompaniment)</option>
+          <option value="emotion">情感延展 (Emotion)</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label id="durationLabel">生成时长（秒）</label>
+        <div class="range-wrap">
+          <input type="range" id="duration" min="5" max="60" value="20" step="5">
+          <span class="range-value" id="durationValue">20</span>
+        </div>
+        <p id="modelHint" style="display:none; font-size:0.8rem; color:var(--text-dim); margin-top:6px;">
+          AI 模型最长支持约 20 秒续写
+        </p>
+      </div>
+      <div class="control-group" id="topPGroup" style="display:none;">
+        <label>创造性 (top-p)</label>
+        <div class="range-wrap">
+          <input type="range" id="topP" min="0.70" max="1.00" value="0.95" step="0.01">
+          <span class="range-value" id="topPValue">0.95</span>
+        </div>
+        <p style="font-size:0.75rem; color:var(--text-dim); margin-top:4px;">
+          越低越保守（更接近原曲风格），越高越有创意
+        </p>
+      </div>
+      <div class="control-group">
+        <label class="checkbox-wrap">
+          <input type="checkbox" id="includeSource">
+          <span>输出包含原曲 + 生成部分</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <button class="btn" id="generateBtn" disabled>
+      <span>开始生成</span>
+    </button>
+
+    <!-- Message -->
+    <div class="message" id="message"></div>
+
+    <!-- Results -->
+    <div class="card results" id="results">
+      <div class="result-grid" id="resultGrid"></div>
+      <a href="#" class="download-btn" id="downloadBtn" download>下载生成的 MIDI</a>
+    </div>
+  </div>
+
+  <footer>Lonely Pianist &middot; MIDI Dialogue Generation</footer>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const generateBtn = document.getElementById('generateBtn');
+    const strategy = document.getElementById('strategy');
+    const modeGroup = document.getElementById('modeGroup');
+    const duration = document.getElementById('duration');
+    const durationValue = document.getElementById('durationValue');
+    const durationLabel = document.getElementById('durationLabel');
+    const modelHint = document.getElementById('modelHint');
+    const topPGroup = document.getElementById('topPGroup');
+    const topP = document.getElementById('topP');
+    const topPValue = document.getElementById('topPValue');
+    const message = document.getElementById('message');
+    const results = document.getElementById('results');
+    const resultGrid = document.getElementById('resultGrid');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let selectedFile = null;
+    let midiBase64 = '';
+    let outputFilename = '';
+
+    // Strategy switch
+    function updateUIForStrategy() {
+      const isModel = strategy.value === 'model';
+      modeGroup.style.display = isModel ? 'none' : 'block';
+      topPGroup.style.display = isModel ? 'block' : 'none';
+      durationLabel.textContent = isModel ? '续写长度（秒）' : '生成时长（秒）';
+      modelHint.style.display = isModel ? 'block' : 'none';
+      if (isModel) {
+        duration.max = 20;
+        duration.min = 2;
+        duration.step = 1;
+        if (parseInt(duration.value) > 20) duration.value = 12;
+      } else {
+        duration.max = 60;
+        duration.min = 5;
+        duration.step = 5;
+      }
+      durationValue.textContent = duration.value;
+    }
+    strategy.addEventListener('change', updateUIForStrategy);
+    updateUIForStrategy();
+
+    // Duration slider
+    duration.addEventListener('input', () => {
+      durationValue.textContent = duration.value;
+    });
+
+    // Top-p slider
+    topP.addEventListener('input', () => {
+      topPValue.textContent = topP.value;
+    });
+
+    // File selection
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) {
+        setFile(e.target.files[0]);
+      }
+    });
+
+    function setFile(file) {
+      selectedFile = file;
+      fileName.textContent = file.name;
+      generateBtn.disabled = false;
+      hideMessage();
+      results.classList.remove('show');
+    }
+
+    // Drag & drop
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length) {
+        fileInput.files = files;
+        setFile(files[0]);
+      }
+    });
+
+    // Generate
+    generateBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      const isModel = strategy.value === 'model';
+      generateBtn.disabled = true;
+      const originalText = generateBtn.innerHTML;
+      generateBtn.innerHTML = `<div class="spinner"></div><span>${isModel ? 'AI 模型推理中（首次加载较慢）...' : '生成中...'}</span>`;
+      hideMessage();
+      results.classList.remove('show');
+
+      const form = new FormData();
+      form.append('file', selectedFile);
+      form.append('strategy', strategy.value);
+      if (!isModel) {
+        form.append('mode', document.getElementById('mode').value);
+      }
+      form.append('extra_duration', duration.value);
+      form.append('include_source', document.getElementById('includeSource').checked);
+      if (isModel) {
+        form.append('top_p', document.getElementById('topP').value);
+      }
+
+      try {
+        const res = await fetch('/upload-expand', {
+          method: 'POST',
+          body: form,
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: '生成失败，请检查后端服务' }));
+          throw new Error(err.message || '生成失败');
+        }
+
+        const data = await res.json();
+        midiBase64 = data.midi_base64;
+        outputFilename = data.filename;
+
+        // Show analysis
+        const a = data.analysis;
+        const strategyLabel = data.strategy === 'model' ? 'AI 模型' : '算法生成';
+        resultGrid.innerHTML = `
+          <div class="stat"><div class="stat-value">${a.key_signature}</div><div class="stat-label">调性 (${a.key_mode})</div></div>
+          <div class="stat"><div class="stat-value">${Math.round(a.tempo_bpm)}</div><div class="stat-label">BPM</div></div>
+          <div class="stat"><div class="stat-value">${a.time_signature.join('/')}</div><div class="stat-label">拍号</div></div>
+          <div class="stat"><div class="stat-value">${data.source_note_count}</div><div class="stat-label">原始音符</div></div>
+          <div class="stat"><div class="stat-value">${data.generated_melody_count}</div><div class="stat-label">生成旋律</div></div>
+          <div class="stat"><div class="stat-value">${data.generated_accompaniment_count}</div><div class="stat-label">生成伴奏</div></div>
+          <div class="stat"><div class="stat-value">${Math.round(a.duration_seconds)}s</div><div class="stat-label">原曲时长</div></div>
+          <div class="stat"><div class="stat-value">${strategyLabel}</div><div class="stat-label">生成策略</div></div>
+        `;
+
+        // Setup download
+        const blob = new Blob([Uint8Array.from(atob(midiBase64), c => c.charCodeAt(0))], { type: 'audio/midi' });
+        const url = URL.createObjectURL(blob);
+        downloadBtn.href = url;
+        downloadBtn.download = outputFilename;
+
+        results.classList.add('show');
+        showMessage('生成成功！', 'success');
+      } catch (err) {
+        showMessage(err.message, 'error');
+      } finally {
+        generateBtn.innerHTML = originalText;
+        generateBtn.disabled = false;
+      }
+    });
+
+    function showMessage(text, type) {
+      message.textContent = text;
+      message.className = `message show ${type}`;
+    }
+    function hideMessage() {
+      message.className = 'message';
+    }
+  </script>
+</body>
+</html>

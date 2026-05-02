@@ -5,6 +5,7 @@
 ## 它做什么
 
 - `GET /health`：健康检查
+- `POST /generate`：标准 HTTP 生成接口，接收 `generate` 请求并返回结果
 - `WS /ws`：接收 `generate` 请求并返回回复音符
 - `server/debug_artifacts.py`：在调试模式下写出 request / response / MIDI / summary bundle
 
@@ -39,7 +40,7 @@ pip install -r requirements.txt
 ```bash
 cd piano_dialogue_server
 source .venv/bin/activate
-python -m uvicorn server.main:app --host 127.0.0.1 --port 8765
+python -m uvicorn server.main:app --host 0.0.0.0 --port 8765
 ```
 
 健康检查：
@@ -47,6 +48,29 @@ python -m uvicorn server.main:app --host 127.0.0.1 --port 8765
 ```bash
 curl -s http://127.0.0.1:8765/health
 ```
+
+HTTP 生成接口示例：
+
+```bash
+curl -X POST http://127.0.0.1:8765/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "generate",
+    "protocol_version": 1,
+    "notes": [
+      {"note": 60, "velocity": 90, "time": 0.0, "duration": 0.5}
+    ],
+    "params": {
+      "top_p": 0.95,
+      "max_tokens": 256,
+      "strategy": "deterministic"
+    }
+  }'
+```
+
+其中 `strategy` 可选值：
+- `model`：使用原始模型生成
+- `deterministic`：使用本地规则/分析生成，更稳定、保留原片段风格
 
 ## 离线验证
 
@@ -56,6 +80,19 @@ source .venv/bin/activate
 python scripts/test_generate.py
 python scripts/test_infilling.py
 ```
+
+## MIDI 解析与扩展
+
+```bash
+cd piano_dialogue_server
+source .venv/bin/activate
+python scripts/expand_midi.py path/to/input.mid path/to/output.mid --mode variation
+```
+
+可选参数：
+- `--mode`: `continue`, `accompaniment`, `variation`, `emotion`
+- `--analysis-json`: 写出 MIDI 特征分析结果
+- `--extra-duration`: 生成的扩展时长（秒）
 
 ## 端到端回环
 

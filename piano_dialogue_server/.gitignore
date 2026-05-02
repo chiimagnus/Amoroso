@@ -5,3 +5,6 @@ __pycache__/
 *.pyc
 .DS_Store
 
+.venv312/
+.venv39/
+output/
