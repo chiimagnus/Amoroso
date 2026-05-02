@@ -99,14 +99,6 @@ final class VirtualPerformerOverlayController {
             return simd_normalize(rightOnPlane)
         }()
         let forwardOnPlaneWorld = simd_normalize(simd_cross(rightOnPlaneWorld, upAxisWorld))
-        let shouldFlipFacing: Bool = {
-            guard let cameraWorldPosition else { return false }
-            let toCameraWorld = cameraWorldPosition - keyboardCenterWorld
-            let toCameraOnPlane = toCameraWorld - upAxisWorld * simd_dot(toCameraWorld, upAxisWorld)
-            guard simd_length(toCameraOnPlane) > 0.0001 else { return false }
-            return simd_dot(forwardOnPlaneWorld, toCameraOnPlane) < 0
-        }()
-
         let offsetRightMeters: Float = totalLength * 0.6
         let offsetForwardMeters: Float = keyDepth * 0.8
         let offsetUpMeters: Float = 0.0
@@ -124,11 +116,19 @@ final class VirtualPerformerOverlayController {
         ))
 
         performerRootEntity.transform = Transform(matrix: performerWorldFromRoot)
-        let baselineFacingAngle: Float = .pi
-        performerVisualRootEntity?.orientation = simd_quatf(
-            angle: baselineFacingAngle + (shouldFlipFacing ? .pi : 0),
-            axis: [0, 1, 0]
-        )
+        guard let performerVisualRootEntity else { return }
+        guard let cameraWorldPosition else {
+            performerVisualRootEntity.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
+            return
+        }
+
+        let toCameraWorld = cameraWorldPosition - performerPositionWorld
+        let toCameraOnPlane = toCameraWorld - upAxisWorld * simd_dot(toCameraWorld, upAxisWorld)
+        guard simd_length(toCameraOnPlane) > 0.0001 else { return }
+
+        let toCameraDir = simd_normalize(toCameraOnPlane)
+        let yawRadians = atan2(toCameraDir.x, toCameraDir.z)
+        performerVisualRootEntity.orientation = simd_quatf(angle: yawRadians + .pi, axis: [0, 1, 0])
     }
 
     private func clearPerformer() {
