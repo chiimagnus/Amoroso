@@ -169,12 +169,14 @@ final class VirtualPerformerOverlayController {
 
         let head = makeHeadEntity(bodyColor: bodyColor)
         head.position = [0, 0.52, 0]
+        head.scale = [1, 1, 0.7]
         performer.addChild(head)
         headEntity = head
         headRestTransform = head.transform
 
         let torso = makeCapsuleEntity(height: 0.34, radius: 0.075, material: bodyColor)
         torso.position = [0, 0.32, 0]
+        torso.scale = [1, 1, 0.55]
         performer.addChild(torso)
 
         let armLength: Float = 0.28
@@ -206,10 +208,12 @@ final class VirtualPerformerOverlayController {
 
         let leftLeg = makeCapsuleEntity(height: 0.30, radius: 0.037, material: bodyColor)
         leftLeg.position = [-0.06, 0.12, 0]
+        leftLeg.scale = [1, 1, 0.55]
         performer.addChild(leftLeg)
 
         let rightLeg = makeCapsuleEntity(height: 0.30, radius: 0.037, material: bodyColor)
         rightLeg.position = [0.06, 0.12, 0]
+        rightLeg.scale = [1, 1, 0.55]
         performer.addChild(rightLeg)
 
         return performer
@@ -388,7 +392,7 @@ final class VirtualPerformerOverlayController {
 
         let mesh = MeshResource.generateText(
             "O",
-            extrusionDepth: 0.02,
+            extrusionDepth: 0.012,
             font: UIFont.systemFont(ofSize: 0.30, weight: .heavy),
             containerFrame: .zero,
             alignment: .center,
