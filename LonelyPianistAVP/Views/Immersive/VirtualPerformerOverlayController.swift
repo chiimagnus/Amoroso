@@ -169,18 +169,20 @@ final class VirtualPerformerOverlayController {
 
         let head = makeHeadEntity(bodyColor: bodyColor)
         head.position = [0, 0.52, 0]
+        head.scale = [1, 1, 0.7]
         performer.addChild(head)
         headEntity = head
         headRestTransform = head.transform
 
         let torso = makeCapsuleEntity(height: 0.34, radius: 0.075, material: bodyColor)
         torso.position = [0, 0.32, 0]
+        torso.scale = [1, 1, 0.55]
         performer.addChild(torso)
 
         let armLength: Float = 0.28
         let armRadius: Float = 0.03
         let shoulderY: Float = 0.40
-        let shoulderX: Float = 0.13
+        let shoulderX: Float = 0.08
 
         let leftArmRoot = Entity()
         leftArmRoot.position = [-shoulderX, shoulderY, 0]
@@ -189,7 +191,8 @@ final class VirtualPerformerOverlayController {
         leftArmRestTransform = leftArmRoot.transform
 
         let leftArmGeometry = makeCapsuleEntity(height: armLength, radius: armRadius, material: bodyColor)
-        leftArmGeometry.position = [0, -armLength / 2, 0]
+        leftArmGeometry.transform.rotation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+        leftArmGeometry.position = [0, 0, armLength / 2]
         leftArmRoot.addChild(leftArmGeometry)
 
         let rightArmRoot = Entity()
@@ -199,15 +202,18 @@ final class VirtualPerformerOverlayController {
         rightArmRestTransform = rightArmRoot.transform
 
         let rightArmGeometry = makeCapsuleEntity(height: armLength, radius: armRadius, material: bodyColor)
-        rightArmGeometry.position = [0, -armLength / 2, 0]
+        rightArmGeometry.transform.rotation = simd_quatf(angle: -.pi / 2, axis: [1, 0, 0])
+        rightArmGeometry.position = [0, 0, armLength / 2]
         rightArmRoot.addChild(rightArmGeometry)
 
         let leftLeg = makeCapsuleEntity(height: 0.30, radius: 0.037, material: bodyColor)
         leftLeg.position = [-0.06, 0.12, 0]
+        leftLeg.scale = [1, 1, 0.55]
         performer.addChild(leftLeg)
 
         let rightLeg = makeCapsuleEntity(height: 0.30, radius: 0.037, material: bodyColor)
         rightLeg.position = [0.06, 0.12, 0]
+        rightLeg.scale = [1, 1, 0.55]
         performer.addChild(rightLeg)
 
         return performer
@@ -386,7 +392,7 @@ final class VirtualPerformerOverlayController {
 
         let mesh = MeshResource.generateText(
             "O",
-            extrusionDepth: 0.02,
+            extrusionDepth: 0.012,
             font: UIFont.systemFont(ofSize: 0.30, weight: .heavy),
             containerFrame: .zero,
             alignment: .center,
@@ -404,7 +410,7 @@ final class VirtualPerformerOverlayController {
         let performerPianoScale: Float = 1.0
 
         let root = Entity()
-        root.position = [0, 0.42, 0.48]
+        root.position = [0, 0.42, 0.34]
         root.scale = SIMD3<Float>(repeating: performerPianoScale)
         root.transform.rotation = simd_quatf(angle: .pi, axis: [0, 1, 0])
 
