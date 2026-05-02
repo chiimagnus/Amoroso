@@ -24,6 +24,8 @@ struct LonelyPianistAVPApp: App {
     }
 
     var body: some Scene {
+        let immersionStyle: ImmersionStyle = .progressive(0.0...1.0, initialAmount: 0.7, aspectRatio: nil)
+
         WindowGroup {
             AppRootView(
                 appState: appState,
@@ -47,6 +49,6 @@ struct LonelyPianistAVPApp: App {
                     appState.immersiveSpaceState = .closed
                 }
         }
-        .immersionStyle(selection: .constant(.mixed), in: .mixed)
+        .immersionStyle(selection: .constant(immersionStyle), in: immersionStyle)
     }
 }

@@ -16,3 +16,6 @@ xcuserdata/
 *.sf2
 
 .codex/
+
+LonelyPianistAVP/Resources/fullspace/*.png
+LonelyPianistAVP/Resources/fullspace/*.jpg

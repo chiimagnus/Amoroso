@@ -161,13 +161,35 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
     }
 
     private func ensureReady() throws {
-        guard isReady == false else { return }
+        func configureSessionBestEffort() {
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers])
+            try? session.setActive(true)
+        }
+
+        if isReady {
+            if engine.isRunning == false {
+                configureSessionBestEffort()
+                do {
+                    engine.prepare()
+                    try engine.start()
+                } catch {
+                    throw PracticeAudioError.soundFontLoadFailed(
+                        resourceName: soundFontResourceName,
+                        detail: error.localizedDescription
+                    )
+                }
+            }
+            return
+        }
 
         guard let url = Bundle.main.url(forResource: soundFontResourceName, withExtension: "sf2") else {
             throw PracticeAudioError.soundFontMissing(resourceName: soundFontResourceName)
         }
 
         do {
+            configureSessionBestEffort()
+
             try sampler.loadSoundBankInstrument(
                 at: url,
                 program: program,

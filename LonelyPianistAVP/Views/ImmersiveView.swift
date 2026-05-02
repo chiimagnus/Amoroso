@@ -9,6 +9,62 @@ struct ImmersiveView: View {
     @State private var virtualPianoOverlayController = VirtualPianoOverlayController()
     @State private var gazePlaneDiskOverlayController = GazePlaneDiskOverlayController()
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
+    @State private var panoramaBackgroundEntity: ModelEntity?
+    @State private var panoramaLoadedFileName: String?
+    @State private var panoramaLoadTask: Task<Void, Never>?
+
+    private var desiredPanoramaBaseName: String? {
+        guard let songName = viewModel.importedSongDisplayName, songName.isEmpty == false else {
+            return nil
+        }
+        return songName
+    }
+
+    private func loadPanoramaIfNeeded() {
+        let desiredBaseName = desiredPanoramaBaseName
+
+        if panoramaLoadedFileName == desiredBaseName, panoramaLoadTask == nil {
+            return
+        }
+
+        panoramaLoadTask?.cancel()
+        panoramaLoadTask = nil
+
+        let url: URL?
+        if let desiredBaseName {
+            url = Bundle.main.url(forResource: desiredBaseName, withExtension: "jpg", subdirectory: "fullspace")
+                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpg")
+                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpeg", subdirectory: "fullspace")
+                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "jpeg")
+                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "png", subdirectory: "fullspace")
+                ?? Bundle.main.url(forResource: desiredBaseName, withExtension: "png")
+        } else {
+            url = nil
+        }
+
+        panoramaLoadedFileName = desiredBaseName
+        guard let url else {
+            if let panoramaBackgroundEntity {
+                var material = UnlitMaterial(color: UIColor.white)
+                material.faceCulling = .front
+                panoramaBackgroundEntity.model?.materials = [material]
+            }
+            return
+        }
+
+        panoramaLoadTask = Task { [weak panoramaBackgroundEntity] in
+            let texture = try? await TextureResource(contentsOf: url)
+            guard let texture else { return }
+
+            var texturedMaterial = UnlitMaterial()
+            texturedMaterial.color = .init(tint: UIColor.white, texture: .init(texture))
+            texturedMaterial.faceCulling = .front
+
+            await MainActor.run {
+                panoramaBackgroundEntity?.model?.materials = [texturedMaterial]
+            }
+        }
+    }
 
     private var shouldShowCalibrationReticle: Bool {
         guard viewModel.immersiveMode == .calibration else { return false }
@@ -22,6 +78,19 @@ struct ImmersiveView: View {
 
     var body: some View {
         RealityView { content in
+            if panoramaBackgroundEntity == nil {
+                let sphereMesh = MeshResource.generateSphere(radius: 100.0)
+                var material = UnlitMaterial(color: UIColor.white)
+                material.faceCulling = .front
+
+                let entity = ModelEntity(mesh: sphereMesh, materials: [material])
+                entity.orientation = simd_quatf(angle: Float.pi, axis: SIMD3<Float>(0, 1, 0))
+                content.add(entity)
+                panoramaBackgroundEntity = entity
+            }
+
+            loadPanoramaIfNeeded()
+
             calibrationOverlayController.update(
                 showsReticle: shouldShowCalibrationReticle,
                 reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
@@ -53,6 +122,8 @@ struct ImmersiveView: View {
                 content: content
             )
         } update: { content in
+            loadPanoramaIfNeeded()
+
             calibrationOverlayController.update(
                 showsReticle: shouldShowCalibrationReticle,
                 reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
@@ -88,6 +159,8 @@ struct ImmersiveView: View {
             viewModel.onImmersiveAppear()
         }
         .onDisappear {
+            panoramaLoadTask?.cancel()
+            panoramaLoadTask = nil
             viewModel.onImmersiveDisappear()
         }
         .onChange(of: viewModel.isVirtualPianoEnabled) {
@@ -107,7 +180,7 @@ struct ImmersiveView: View {
     }
 }
 
-#Preview(immersionStyle: .mixed) {
+#Preview(immersionStyle: .progressive(0.0...1.0, initialAmount: 0.7, aspectRatio: nil)) {
     let appState = AppState()
     ImmersiveView(viewModel: ARGuideViewModel(appState: appState))
 }
