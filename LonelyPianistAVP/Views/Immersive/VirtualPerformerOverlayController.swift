@@ -117,14 +117,10 @@ final class VirtualPerformerOverlayController {
 
         performerRootEntity.transform = Transform(matrix: performerWorldFromRoot)
         guard let performerVisualRootEntity else { return }
-        guard let cameraWorldPosition else {
-            performerVisualRootEntity.orientation = simd_quatf(angle: .pi, axis: [0, 1, 0])
-            return
-        }
-
-        let toCameraWorld = cameraWorldPosition - performerPositionWorld
-        let toCameraOnPlane = toCameraWorld - upAxisWorld * simd_dot(toCameraWorld, upAxisWorld)
-        let lookAtWorld = performerPositionWorld + toCameraOnPlane
+        let toKeyboardWorld = keyboardCenterWorld - performerPositionWorld
+        let toKeyboardOnPlane = toKeyboardWorld - upAxisWorld * simd_dot(toKeyboardWorld, upAxisWorld)
+        guard simd_length(toKeyboardOnPlane) > 0.0001 else { return }
+        let lookAtWorld = performerPositionWorld + toKeyboardOnPlane
         performerVisualRootEntity.look(
             at: lookAtWorld,
             from: performerPositionWorld,
