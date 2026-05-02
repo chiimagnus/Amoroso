@@ -91,15 +91,21 @@ final class VirtualPerformerOverlayController {
             + yAxisWorld * keyboardCenterLocal.y
             + zAxisWorld * keyboardCenterLocal.z
 
-        let forwardOnPlaneWorld: SIMD3<Float> = {
-            guard let cameraWorldPosition else { return simd_normalize(zAxisWorld) }
-            let toCameraWorld = cameraWorldPosition - keyboardCenterWorld
-            let toCameraOnPlane = toCameraWorld - yAxisWorld * simd_dot(toCameraWorld, yAxisWorld)
-            guard simd_length(toCameraOnPlane) > 0.0001 else { return simd_normalize(zAxisWorld) }
-            return simd_normalize(-toCameraOnPlane)
+        let upAxisWorld = simd_normalize(yAxisWorld)
+        let rightOnPlaneWorld: SIMD3<Float> = {
+            let rightOnPlane = xAxisWorld - upAxisWorld * simd_dot(xAxisWorld, upAxisWorld)
+            guard simd_length(rightOnPlane) > 0.0001 else { return SIMD3<Float>(1, 0, 0) }
+            return simd_normalize(rightOnPlane)
         }()
+        var forwardOnPlaneWorld = simd_normalize(simd_cross(rightOnPlaneWorld, upAxisWorld))
 
-        let rightOnPlaneWorld = simd_normalize(simd_cross(yAxisWorld, forwardOnPlaneWorld))
+        if let cameraWorldPosition {
+            let toCameraWorld = cameraWorldPosition - keyboardCenterWorld
+            let toCameraOnPlane = toCameraWorld - upAxisWorld * simd_dot(toCameraWorld, upAxisWorld)
+            if simd_length(toCameraOnPlane) > 0.0001, simd_dot(forwardOnPlaneWorld, toCameraOnPlane) < 0 {
+                forwardOnPlaneWorld = -forwardOnPlaneWorld
+            }
+        }
 
         let offsetRightMeters: Float = totalLength * 0.6
         let offsetForwardMeters: Float = keyDepth * 0.8
@@ -107,13 +113,13 @@ final class VirtualPerformerOverlayController {
 
         let performerPositionWorld = keyboardCenterWorld
             + rightOnPlaneWorld * offsetRightMeters
-            + forwardOnPlaneWorld * offsetForwardMeters
-            + yAxisWorld * offsetUpMeters
+            - forwardOnPlaneWorld * offsetForwardMeters
+            + upAxisWorld * offsetUpMeters
 
         let performerWorldFromRoot = simd_float4x4(columns: (
             SIMD4<Float>(rightOnPlaneWorld, 0),
-            SIMD4<Float>(yAxisWorld, 0),
-            SIMD4<Float>(simd_normalize(simd_cross(rightOnPlaneWorld, yAxisWorld)), 0),
+            SIMD4<Float>(upAxisWorld, 0),
+            SIMD4<Float>(forwardOnPlaneWorld, 0),
             SIMD4<Float>(performerPositionWorld, 1)
         ))
 
