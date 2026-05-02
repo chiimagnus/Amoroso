@@ -1,28 +1,40 @@
 import RealityKit
 import RealityKitContent
+import Dispatch
 import simd
 import SwiftUI
 import UIKit
+import os
 
 @MainActor
 final class VirtualPerformerOverlayController {
+    private let logger = Logger(subsystem: "LonelyPianistAVP", category: "VirtualPerformer")
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
     private var performerRootEntity: Entity?
     private var performerVisualRootEntity: Entity?
     private var performerPianoEntity: Entity?
     private var handAnimationTask: Task<Void, Never>?
-    private var leftArmPulseTask: Task<Void, Never>?
-    private var rightArmPulseTask: Task<Void, Never>?
+    private var armMixerTask: Task<Void, Never>?
     private var headNodTask: Task<Void, Never>?
     private var leftArmPendingVelocities: [UInt8] = []
     private var rightArmPendingVelocities: [UInt8] = []
+    private var leftArmPulses: [ArmPulse] = []
+    private var rightArmPulses: [ArmPulse] = []
     private var latestSchedule: [PracticeSequencerMIDIEvent] = []
     private var wasPerforming = false
     private var performerEntity: Entity?
     private var performerLoadTask: Task<Void, Never>?
     private var xiaochengRig: XiaochengRig?
     private var xiaochengNodAngleRadians: Float = 0
+    private var armSplitMidi: Int = 60
+    private var usesAlternatingArms: Bool = false
+    private var alternateNextIsLeftArm: Bool = true
+
+    private struct ArmPulse {
+        let startUptimeNanos: UInt64
+        let amplitudeRadians: Float
+    }
 
     private struct XiaochengRig {
         let modelEntity: ModelEntity
@@ -372,6 +384,11 @@ final class VirtualPerformerOverlayController {
             return eventPriority(lhs.kind) < eventPriority(rhs.kind)
         }
 
+        let splitAndCounts = computeArmSplitMidiAndCounts(from: sortedSchedule)
+        armSplitMidi = splitAndCounts?.splitMidi ?? 60
+        usesAlternatingArms = (splitAndCounts?.isOneSided ?? false)
+        alternateNextIsLeftArm = true
+
         handAnimationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var previousTimeSeconds: TimeInterval = 0
@@ -399,12 +416,12 @@ final class VirtualPerformerOverlayController {
     private func stopHandAnimation() {
         handAnimationTask?.cancel()
         handAnimationTask = nil
-        leftArmPulseTask?.cancel()
-        leftArmPulseTask = nil
-        rightArmPulseTask?.cancel()
-        rightArmPulseTask = nil
+        armMixerTask?.cancel()
+        armMixerTask = nil
         leftArmPendingVelocities.removeAll(keepingCapacity: true)
         rightArmPendingVelocities.removeAll(keepingCapacity: true)
+        leftArmPulses.removeAll(keepingCapacity: true)
+        rightArmPulses.removeAll(keepingCapacity: true)
     }
 
     private func animateArmSwing(midi: Int, velocity: UInt8) {
@@ -413,70 +430,168 @@ final class VirtualPerformerOverlayController {
     }
 
     private func animateXiaochengArmSwing(midi: Int, velocity: UInt8, rig: XiaochengRig) {
-        let splitMidi: Int = 60
-        let isLeftArm = midi < splitMidi
+        let isLeftArm: Bool
+        if usesAlternatingArms {
+            isLeftArm = alternateNextIsLeftArm
+            alternateNextIsLeftArm.toggle()
+        } else {
+            isLeftArm = midi < armSplitMidi
+        }
 
-        let jointIndices = isLeftArm ? rig.leftArmJointIndices : rig.rightArmJointIndices
-        guard jointIndices.isEmpty == false else { return }
+        let hasArmJoints = isLeftArm ? (rig.leftArmJointIndices.isEmpty == false) : (rig.rightArmJointIndices.isEmpty == false)
+        guard hasArmJoints else { return }
 
         if isLeftArm {
             leftArmPendingVelocities.append(velocity)
-            startXiaochengArmSwingRunner(isLeftArm: true, jointIndices: jointIndices, rig: rig)
         } else {
             rightArmPendingVelocities.append(velocity)
-            startXiaochengArmSwingRunner(isLeftArm: false, jointIndices: jointIndices, rig: rig)
         }
+
+        startArmMixerIfNeeded(rig: rig)
     }
 
-    private func startXiaochengArmSwingRunner(
-        isLeftArm: Bool,
-        jointIndices: [Int],
-        rig: XiaochengRig
-    ) {
-        if isLeftArm {
-            guard leftArmPulseTask == nil else { return }
-            leftArmPulseTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                defer { self.leftArmPulseTask = nil }
-                while self.leftArmPendingVelocities.isEmpty == false {
-                    let velocity = self.leftArmPendingVelocities.removeFirst()
-                    self.applyXiaochengArmSwingOnce(velocity: velocity, jointIndices: jointIndices, rig: rig)
-                    try? await Task.sleep(for: .milliseconds(90))
-                    rig.modelEntity.jointTransforms = self.makeXiaochengBaseTransforms(rig: rig)
-                    try? await Task.sleep(for: .milliseconds(20))
-                }
+    private func computeArmSplitMidiAndCounts(from schedule: [PracticeSequencerMIDIEvent]) -> (splitMidi: Int, isOneSided: Bool)? {
+        var noteOns: [Int] = []
+        noteOns.reserveCapacity(64)
+        for event in schedule {
+            if case let .noteOn(midi, _) = event.kind {
+                noteOns.append(midi)
             }
+        }
+        guard noteOns.isEmpty == false else { return nil }
+
+        noteOns.sort()
+        let medianMidi = noteOns[noteOns.count / 2]
+
+        var leftCount = 0
+        var rightCount = 0
+        for midi in noteOns {
+            if midi < medianMidi { leftCount += 1 } else { rightCount += 1 }
+        }
+
+        let isOneSided = leftCount == 0 || rightCount == 0
+        if isOneSided {
+            logger.info("Arm split median=\(medianMidi, privacy: .public) one-sided (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public)); using alternating arms.")
         } else {
-            guard rightArmPulseTask == nil else { return }
-            rightArmPulseTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                defer { self.rightArmPulseTask = nil }
-                while self.rightArmPendingVelocities.isEmpty == false {
-                    let velocity = self.rightArmPendingVelocities.removeFirst()
-                    self.applyXiaochengArmSwingOnce(velocity: velocity, jointIndices: jointIndices, rig: rig)
-                    try? await Task.sleep(for: .milliseconds(90))
+            logger.info("Arm split median=\(medianMidi, privacy: .public) (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public)).")
+        }
+        return (medianMidi, isOneSided)
+    }
+
+    private func startArmMixerIfNeeded(rig: XiaochengRig) {
+        guard armMixerTask == nil else { return }
+
+        armMixerTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.armMixerTask = nil }
+
+            let pulseDurationSeconds: Float = 0.14
+            let tickMilliseconds: Int = 16
+
+            while Task.isCancelled == false {
+                let nowNanos = DispatchTime.now().uptimeNanoseconds
+
+                self.drainPendingVelocitiesIntoPulses(nowNanos: nowNanos)
+
+                let hasPendingWork = self.leftArmPendingVelocities.isEmpty == false
+                    || self.rightArmPendingVelocities.isEmpty == false
+                    || self.leftArmPulses.isEmpty == false
+                    || self.rightArmPulses.isEmpty == false
+                if hasPendingWork == false {
                     rig.modelEntity.jointTransforms = self.makeXiaochengBaseTransforms(rig: rig)
-                    try? await Task.sleep(for: .milliseconds(20))
+                    return
                 }
+
+                let leftAngle = self.summedAngleRadians(
+                    pulses: &self.leftArmPulses,
+                    nowUptimeNanos: nowNanos,
+                    pulseDurationSeconds: pulseDurationSeconds
+                )
+                let rightAngle = self.summedAngleRadians(
+                    pulses: &self.rightArmPulses,
+                    nowUptimeNanos: nowNanos,
+                    pulseDurationSeconds: pulseDurationSeconds
+                )
+
+                var transforms = self.makeXiaochengBaseTransforms(rig: rig)
+                if leftAngle != 0, rig.leftArmJointIndices.isEmpty == false {
+                    let delta = simd_quatf(angle: leftAngle, axis: [1, 0, 0])
+                    for index in rig.leftArmJointIndices where index < transforms.count {
+                        transforms[index].rotation = transforms[index].rotation * delta
+                    }
+                }
+                if rightAngle != 0, rig.rightArmJointIndices.isEmpty == false {
+                    let delta = simd_quatf(angle: rightAngle, axis: [-1, 0, 0])
+                    for index in rig.rightArmJointIndices where index < transforms.count {
+                        transforms[index].rotation = transforms[index].rotation * delta
+                    }
+                }
+                rig.modelEntity.jointTransforms = transforms
+
+                try? await Task.sleep(for: .milliseconds(tickMilliseconds))
             }
         }
     }
 
-    private func applyXiaochengArmSwingOnce(
-        velocity: UInt8,
-        jointIndices: [Int],
-        rig: XiaochengRig
-    ) {
-        let normalizedVelocity = min(1, max(0, Float(velocity) / 127))
-        let angleRadians: Float = -0.35 - normalizedVelocity * 0.5
-        let deltaRotation = simd_quatf(angle: angleRadians, axis: [1, 0, 0])
-
-        let baseTransforms = makeXiaochengBaseTransforms(rig: rig)
-        var transforms = baseTransforms
-        for index in jointIndices where index < transforms.count {
-            transforms[index].rotation = transforms[index].rotation * deltaRotation
+    private func drainPendingVelocitiesIntoPulses(nowNanos: UInt64) {
+        while leftArmPendingVelocities.isEmpty == false {
+            let velocity = leftArmPendingVelocities.removeFirst()
+            leftArmPulses.append(makePulse(startUptimeNanos: nowNanos, velocity: velocity))
         }
-        rig.modelEntity.jointTransforms = transforms
+        while rightArmPendingVelocities.isEmpty == false {
+            let velocity = rightArmPendingVelocities.removeFirst()
+            rightArmPulses.append(makePulse(startUptimeNanos: nowNanos, velocity: velocity))
+        }
+    }
+
+    private func makePulse(startUptimeNanos: UInt64, velocity: UInt8) -> ArmPulse {
+        let normalizedVelocity = min(1, max(0, Float(velocity) / 127))
+        let peakAngleRadians: Float = -0.35 - normalizedVelocity * 0.5
+        return ArmPulse(startUptimeNanos: startUptimeNanos, amplitudeRadians: peakAngleRadians)
+    }
+
+    private func summedAngleRadians(
+        pulses: inout [ArmPulse],
+        nowUptimeNanos: UInt64,
+        pulseDurationSeconds: Float
+    ) -> Float {
+        guard pulseDurationSeconds > 0 else { return 0 }
+
+        var total: Float = 0
+        var next: [ArmPulse] = []
+        next.reserveCapacity(pulses.count)
+
+        for pulse in pulses {
+            let dtSeconds = Float(Double(nowUptimeNanos &- pulse.startUptimeNanos) / 1_000_000_000.0)
+            if dtSeconds < 0 {
+                next.append(pulse)
+                continue
+            }
+            if dtSeconds >= pulseDurationSeconds {
+                continue
+            }
+
+            let t = dtSeconds / pulseDurationSeconds
+            let env = triangularEaseInOut(t)
+            total += pulse.amplitudeRadians * env
+            next.append(pulse)
+        }
+
+        pulses = next
+        return total
+    }
+
+    private func triangularEaseInOut(_ t: Float) -> Float {
+        if t <= 0 { return 0 }
+        if t >= 1 { return 0 }
+
+        let x = t < 0.5 ? (t * 2) : ((1 - t) * 2)
+        return smoothstep(x)
+    }
+
+    private func smoothstep(_ x: Float) -> Float {
+        let clamped = min(1, max(0, x))
+        return clamped * clamped * (3 - 2 * clamped)
     }
 
     private func resetArmsToRest(animated: Bool) {
