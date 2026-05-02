@@ -59,7 +59,7 @@ final class VirtualPerformerOverlayController {
 
     private func showPerformer(geometry: PianoKeyboardGeometry, cameraWorldPosition: SIMD3<Float>?) {
         if performerRootEntity == nil {
-            let performerRoot = makePerformerRootEntity()
+            let performerRoot = makePerformerRootEntity(geometry: geometry)
             rootEntity.addChild(performerRoot)
             performerRootEntity = performerRoot
         }
@@ -150,12 +150,12 @@ final class VirtualPerformerOverlayController {
         wasPerforming = false
     }
 
-    private func makePerformerRootEntity() -> Entity {
+    private func makePerformerRootEntity(geometry: PianoKeyboardGeometry) -> Entity {
         let root = Entity()
         let visualRoot = Entity()
         root.addChild(visualRoot)
         performerVisualRootEntity = visualRoot
-        let piano = makePerformerPianoEntity()
+        let piano = makePerformerPianoEntity(geometry: geometry)
         visualRoot.addChild(piano)
         performerPianoEntity = piano
         visualRoot.addChild(makePerformerEntity())
@@ -400,25 +400,36 @@ final class VirtualPerformerOverlayController {
         return root
     }
 
-    private func makePerformerPianoEntity() -> Entity {
+    private func makePerformerPianoEntity(geometry: PianoKeyboardGeometry) -> Entity {
+        let performerPianoScale: Float = 1.0
+
         let root = Entity()
+        root.position = [0, 0.42, 0.48]
+        root.scale = SIMD3<Float>(repeating: performerPianoScale)
 
-        let caseMaterial = SimpleMaterial(color: UIColor(white: 0.12, alpha: 1), isMetallic: false)
-        let keyMaterial = SimpleMaterial(color: UIColor(white: 0.92, alpha: 1), isMetallic: false)
-        let blackKeyMaterial = SimpleMaterial(color: UIColor(white: 0.06, alpha: 1), isMetallic: false)
+        let totalLength = VirtualPianoKeyGeometryService.totalKeyboardLengthMeters
+        let keyDepth = VirtualPianoKeyGeometryService.whiteKeyDepthMeters
+        let keyboardCenterLocal = SIMD3<Float>(totalLength / 2, 0, -keyDepth / 2)
 
-        let body = ModelEntity(mesh: .generateBox(size: [0.62, 0.10, 0.34]), materials: [caseMaterial])
-        body.position = [0, 0.42, 0.48]
-        root.addChild(body)
+        let keyboardRoot = Entity()
+        keyboardRoot.position = -keyboardCenterLocal
 
-        let keys = ModelEntity(mesh: .generateBox(size: [0.58, 0.02, 0.22]), materials: [keyMaterial])
-        keys.position = [0, 0.48, 0.39]
-        root.addChild(keys)
+        for key in geometry.keys {
+            keyboardRoot.addChild(makeVirtualKeyEntity(for: key))
+        }
 
-        let blackKeys = ModelEntity(mesh: .generateBox(size: [0.52, 0.02, 0.12]), materials: [blackKeyMaterial])
-        blackKeys.position = [0, 0.495, 0.34]
-        root.addChild(blackKeys)
-
+        root.addChild(keyboardRoot)
         return root
+    }
+
+    private func makeVirtualKeyEntity(for key: PianoKeyGeometry) -> ModelEntity {
+        let mesh = MeshResource.generateBox(size: key.localSize)
+        let color: UIColor = key.kind == .white ? .white : .black
+        var material = SimpleMaterial(color: color, isMetallic: false)
+        material.roughness = 0.5
+
+        let entity = ModelEntity(mesh: mesh, materials: [material])
+        entity.position = key.localCenter
+        return entity
     }
 }
