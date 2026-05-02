@@ -6,26 +6,81 @@ struct ScrollingStaffNotationView: View {
     let measureSpans: [MusicXMLMeasureSpan]
     let notationContext: ScrollingStaffNotationContext?
     let halfWindowTicks: Int
+    let scrollTickProvider: (() -> Double?)?
 
     private let layoutService = ScrollingStaffNotationLayoutService()
+
+    @State private var animatedScrollTick: Double?
+    @State private var cachedLayout = ScrollingStaffNotationLayout(
+        items: [],
+        chords: [],
+        rests: [],
+        barlines: [],
+        beams: [],
+        context: nil
+    )
 
     init(
         guides: [PianoHighlightGuide],
         currentGuide: PianoHighlightGuide?,
         measureSpans: [MusicXMLMeasureSpan] = [],
         context: ScrollingStaffNotationContext? = nil,
-        halfWindowTicks: Int = 1_920
+        halfWindowTicks: Int = 1_920,
+        scrollTickProvider: (() -> Double?)? = nil
     ) {
         self.guides = guides
         self.currentGuide = currentGuide
         self.measureSpans = measureSpans
         notationContext = context
         self.halfWindowTicks = halfWindowTicks
+        self.scrollTickProvider = scrollTickProvider
     }
 
     var body: some View {
+        Group {
+            if scrollTickProvider == nil {
+                notationSurface(scrollTick: animatedScrollTick)
+            } else {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { _ in
+                    notationSurface(scrollTick: scrollTickProvider?() ?? animatedScrollTick)
+                }
+            }
+        }
+        .onAppear {
+            animatedScrollTick = currentGuideTick
+            cachedLayout = notationLayout(scrollTick: nil)
+        }
+        .onChange(of: currentGuide?.tick) {
+            cachedLayout = notationLayout(scrollTick: nil)
+            guard scrollTickProvider == nil else {
+                animatedScrollTick = currentGuideTick
+                return
+            }
+            animatedScrollTick = currentGuideTick
+        }
+        .onChange(of: guides.count) {
+            cachedLayout = notationLayout(scrollTick: nil)
+        }
+        .onChange(of: measureSpans.count) {
+            cachedLayout = notationLayout(scrollTick: nil)
+        }
+        .onChange(of: notationContext) {
+            cachedLayout = notationLayout(scrollTick: nil)
+        }
+        .onChange(of: halfWindowTicks) {
+            cachedLayout = notationLayout(scrollTick: nil)
+        }
+    }
+
+    private var currentGuideTick: Double {
+        Double(currentGuide?.tick ?? guides.first?.tick ?? 0)
+    }
+
+    @ViewBuilder
+    private func notationSurface(scrollTick: Double?) -> some View {
+        let layoutData = cachedLayout
+
         Canvas { context, size in
-            let layoutData = notationLayout
             let ctx = layoutData.context ?? ScrollingStaffNotationContext()
             let layout = StaffCanvasLayout(size: size, notationContext: ctx)
 
@@ -39,6 +94,13 @@ struct ScrollingStaffNotationView: View {
                 height: layout.size.height
             )
             context.clip(to: Path(clipRect))
+
+            if let scrollTick {
+                let baseTick = currentGuideTick
+                let normalizedShift = (scrollTick - baseTick) / Double(max(1, halfWindowTicks) * 2)
+                let shiftX = -CGFloat(normalizedShift) * (layout.contentMaxX - layout.contentMinX)
+                context.translateBy(x: shiftX, y: 0)
+            }
 
             for rest in layoutData.rests {
                 drawRest(rest, in: &context, layout: layout)
@@ -73,7 +135,7 @@ struct ScrollingStaffNotationView: View {
                 .padding(.vertical, 8)
         }
         .overlay {
-            if notationLayout.items.isEmpty && notationLayout.rests.isEmpty {
+            if layoutData.items.isEmpty && layoutData.rests.isEmpty {
                 Text("导入曲谱后显示滚动五线谱")
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -83,13 +145,14 @@ struct ScrollingStaffNotationView: View {
         .clipShape(.rect(cornerRadius: 16))
     }
 
-    private var notationLayout: ScrollingStaffNotationLayout {
+    private func notationLayout(scrollTick: Double?) -> ScrollingStaffNotationLayout {
         layoutService.makeLayout(
             guides: guides,
             currentGuide: currentGuide,
             measureSpans: measureSpans,
             context: notationContext,
-            halfWindowTicks: halfWindowTicks
+            halfWindowTicks: halfWindowTicks,
+            scrollTick: scrollTick
         )
     }
 

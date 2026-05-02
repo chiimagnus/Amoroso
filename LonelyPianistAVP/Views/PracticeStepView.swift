@@ -199,7 +199,10 @@ struct PracticeStepView: View {
                 guides: viewModel.practiceSessionViewModel.highlightGuides,
                 currentGuide: viewModel.practiceSessionViewModel.currentPianoHighlightGuide,
                 measureSpans: viewModel.practiceSessionViewModel.notationMeasureSpans,
-                context: viewModel.practiceSessionViewModel.currentNotationContext
+                context: viewModel.practiceSessionViewModel.currentNotationContext,
+                scrollTickProvider: viewModel.practiceSessionViewModel.autoplayState == .playing ? {
+                    viewModel.practiceSessionViewModel.smoothNotationScrollTick()
+                } : nil
             )
             .frame(height: 180)
 

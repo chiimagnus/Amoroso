@@ -42,7 +42,10 @@ private struct ImmersiveNotationPanelView: View {
                 guides: sessionViewModel.highlightGuides,
                 currentGuide: sessionViewModel.currentPianoHighlightGuide,
                 measureSpans: sessionViewModel.notationMeasureSpans,
-                context: sessionViewModel.currentNotationContext
+                context: sessionViewModel.currentNotationContext,
+                scrollTickProvider: sessionViewModel.autoplayState == .playing ? {
+                    sessionViewModel.smoothNotationScrollTick()
+                } : nil
             )
             .frame(width: 760, height: 190)
         }

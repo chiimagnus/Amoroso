@@ -80,6 +80,16 @@ final class PracticeSessionViewModel {
     var autoplayTimeline: AutoplayPerformanceTimeline = .empty
     private(set) var highlightGuides: [PianoHighlightGuide] = []
     var currentHighlightGuideIndex: Int?
+    var autoplayTimingBaseTick: Int?
+    let autoplayTimingLeadInSeconds: TimeInterval = 0.05
+    struct NotationGuideScrollPoint: Equatable {
+        let timeSeconds: TimeInterval
+        let tick: Int
+    }
+    var notationGuideScrollSchedule: [NotationGuideScrollPoint] = []
+    var notationGuideScrollScheduleBaseTick: Int = 0
+    var notationGuideScrollScheduleTaskGeneration: Int = -1
+    var notationGuideScrollScheduleTimelineEventCount: Int = 0
     var manualHighlightTransitionTask: Task<Void, Never>?
     var audioRecognitionGeneration = 0
     var isAudioRecognitionRunning = false
