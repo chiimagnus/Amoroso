@@ -7,12 +7,14 @@ struct PracticeSettingsView: View {
     @AppStorage("practiceAudioRecognitionDebugOverlayEnabled") private var practiceAudioRecognitionDebugOverlayEnabled =
         false
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
+    @AppStorage("immersivePanoramaEnabled") private var immersivePanoramaEnabled = false
     @AppStorage("practiceManualAdvanceMode") private var manualAdvanceModeRawValue = ManualAdvanceMode.step.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle("虚拟钢琴（无需真实钢琴）", isOn: $virtualPianoEnabled)
             Toggle("AI 即兴演奏（虚拟演奏家）", isOn: $virtualPerformerEnabled)
+            Toggle("沉浸式：360° 全景背景", isOn: $immersivePanoramaEnabled)
 
             Divider()
 
