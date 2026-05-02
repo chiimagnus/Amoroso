@@ -83,6 +83,7 @@ final class ARGuideViewModel {
     private(set) var calibrationPhase: CalibrationPhase = .capturingA0
     private(set) var isVirtualPianoEnabled = false
     private(set) var isVirtualPerformerEnabled = false
+    private var silenceTrigger = NoteOnSilenceTrigger()
     let gazePlaneDiskConfirmation = GazePlaneDiskConfirmationViewModel()
     private let gazePlaneHitTestService = GazePlaneHitTestService()
     private var latestGazePlaneHit: PlaneHit?
@@ -582,9 +583,16 @@ final class ARGuideViewModel {
                                     fingerTips,
                                     isVirtualPiano: true
                                 )
+                                if practiceSessionViewModel.latestNoteOnMIDINotes.isEmpty == false {
+                                    silenceTrigger.recordNoteOn(atUptime: nowUptime)
+                                }
                             }
                         } else {
+                            let nowUptime = ProcessInfo.processInfo.systemUptime
                             _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                            if practiceSessionViewModel.latestNoteOnMIDINotes.isEmpty == false {
+                                silenceTrigger.recordNoteOn(atUptime: nowUptime)
+                            }
                         }
                 }
             }

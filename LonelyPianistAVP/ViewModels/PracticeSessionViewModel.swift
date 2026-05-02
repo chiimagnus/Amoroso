@@ -34,6 +34,7 @@ final class PracticeSessionViewModel {
     private(set) var calibration: PianoCalibration?
     private(set) var keyboardGeometry: PianoKeyboardGeometry?
     var pressedNotes: Set<Int> = []
+    private(set) var latestNoteOnMIDINotes: Set<Int> = []
     var isSustainPedalDown = false
     var audioRecognitionErrorMessage: String?
     private(set) var audioPlaybackErrorMessage: String?
@@ -289,10 +290,15 @@ final class PracticeSessionViewModel {
         }
     }
 
+    func updateLatestNoteOnMIDINotes(_ midiNotes: Set<Int>) {
+        latestNoteOnMIDINotes = midiNotes
+    }
+
     func clearCalibration() {
         calibration = nil
         keyboardGeometry = nil
         pressedNotes.removeAll()
+        latestNoteOnMIDINotes.removeAll()
         handPianoActivityGate.reset()
         handGateState = HandGateState(
             isNearKeyboard: false,
@@ -322,6 +328,7 @@ final class PracticeSessionViewModel {
         calibration = nil
         keyboardGeometry = nil
         pressedNotes.removeAll()
+        latestNoteOnMIDINotes.removeAll()
         keyContactDetectionService.reset()
         isSustainPedalDown = false
         audioRecognitionErrorMessage = nil
@@ -348,6 +355,7 @@ final class PracticeSessionViewModel {
         sequencerPlaybackService.stopAllLiveNotes()
         keyContactDetectionService.reset()
         pressedNotes.removeAll()
+        latestNoteOnMIDINotes.removeAll()
     }
 
     func clearAutoplayError() {
