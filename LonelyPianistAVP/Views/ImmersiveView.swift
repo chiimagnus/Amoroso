@@ -29,6 +29,7 @@ struct ImmersiveView: View {
                 material.faceCulling = .front
 
                 let entity = ModelEntity(mesh: sphereMesh, materials: [material])
+                entity.orientation = simd_quatf(angle: Float.pi, axis: SIMD3<Float>(0, 1, 0))
                 content.add(entity)
                 panoramaBackgroundEntity = entity
 
