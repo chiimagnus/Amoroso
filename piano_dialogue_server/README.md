@@ -22,18 +22,18 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-## 两种运行方式（是否加载模型）
+## 三种生成策略（是否加载模型）
 
 - **不加载大模型（更轻）**
-  - `POST /generate`：把 `params.strategy` 设为 `deterministic`
+  - `POST /generate`：把 `params.strategy` 设为 `deterministic` 或 `rule`
   - `POST /upload-expand`：把 `strategy` 设为 `algorithm`
 - **加载大模型（更重）**
   - `POST /generate`：把 `params.strategy` 设为 `model`
   - `POST /upload-expand`：把 `strategy` 设为 `model`
 
 注意：
-- `WS /ws` 在 `strategy=deterministic` 时不会初始化模型引擎；但若你用 `strategy=model`，仍会触发模型初始化。
-- 离线验证脚本可能会触发模型加载；如果你只想验证“轻量 deterministic”，优先起服务后直接调用 `POST /generate`。
+- `WS /ws` 仅在 `strategy=model` 时会初始化模型引擎；`strategy=deterministic` / `strategy=rule` 都不会。
+- 离线验证脚本可能会触发模型加载；如果你只想验证“轻量 deterministic / rule”，优先起服务后直接调用 `POST /generate`。
 
 ## 模型加载顺序
 
@@ -90,14 +90,36 @@ curl -X POST http://127.0.0.1:8765/generate \
     "params": {
       "top_p": 0.95,
       "max_tokens": 256,
-      "strategy": "deterministic"
+      "strategy": "rule"
     }
   }'
 ```
 
 其中 `strategy` 可选值：
 - `model`：使用原始模型生成
-- `deterministic`：使用本地规则/分析生成，更稳定、保留原片段风格
+- `deterministic`：使用现有算法生成（更稳定、保留原片段风格）
+- `rule`：使用规则即兴器生成（motif + 和声/节奏规则）
+
+快速验证 `rule` 是否可用（无需模型加载）：
+
+```bash
+curl -X POST http://127.0.0.1:8765/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "generate",
+    "protocol_version": 1,
+    "notes": [
+      {"note": 60, "velocity": 90, "time": 0.0, "duration": 0.25},
+      {"note": 64, "velocity": 90, "time": 0.25, "duration": 0.25},
+      {"note": 67, "velocity": 90, "time": 0.5, "duration": 0.25}
+    ],
+    "params": {
+      "top_p": 0.95,
+      "max_tokens": 256,
+      "strategy": "rule"
+    }
+  }'
+```
 
 ## Bonjour 广播（自动发现）
 
