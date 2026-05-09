@@ -52,14 +52,6 @@ struct RecorderPanelView: View {
                 .pickerStyle(.menu)
                 .disabled(viewModel.recorderMode == .playing || viewModel.playbackOutputs.isEmpty)
 
-                Button {
-                    viewModel.refreshPlaybackOutputs()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
-                }
-                .help("Refresh MIDI outputs")
-                .disabled(viewModel.recorderMode == .playing)
-
                 Picker(
                     selection: selectionBinding,
                     label: Label("Library", systemImage: "tray.full")
