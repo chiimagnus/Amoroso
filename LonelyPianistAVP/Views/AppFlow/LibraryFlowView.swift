@@ -8,9 +8,18 @@ struct LibraryFlowView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Button("重新选择钢琴类型") {
+                Button {
                     router.exitToTypePicker(reason: "user tapped back from library")
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("重新选择钢琴类型")
+                        if let kind = router.flowState.pianoKind {
+                            Text("｜\(kind == .real ? "真实钢琴" : "虚拟钢琴")")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
+                .buttonStyle(.bordered)
                 .buttonStyle(.bordered)
 
                 Spacer()
