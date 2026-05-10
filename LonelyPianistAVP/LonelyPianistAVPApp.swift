@@ -27,8 +27,6 @@ struct LonelyPianistAVPApp: App {
                 arGuideViewModel: arGuideViewModel,
                 router: router
             )
-            .environment(appState)
-            .environment(services)
             .environment(router)
         }
         .windowStyle(.automatic)
@@ -36,8 +34,6 @@ struct LonelyPianistAVPApp: App {
 
         ImmersiveSpace(id: appState.immersiveSpaceID) {
             ImmersiveView(viewModel: arGuideViewModel)
-                .environment(appState)
-                .environment(services)
                 .onAppear {
                     appState.immersiveSpaceState = .open
                 }
