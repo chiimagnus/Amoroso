@@ -28,13 +28,6 @@ struct SongLibraryView: View {
             }
         }
         .navigationTitle("乐曲库")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("导入 MusicXML") {
-                    viewModel.didTapImportMusicXML()
-                }
-            }
-        }
         .fileImporter(
             isPresented: $isAudioImporterPresented,
             allowedContentTypes: audioImporterTypes,

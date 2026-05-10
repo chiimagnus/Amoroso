@@ -22,6 +22,11 @@ struct LibraryFlowView: View {
                 .buttonStyle(.bordered)
 
                 Spacer()
+
+                Button("导入 MusicXML") {
+                    songLibraryViewModel.didTapImportMusicXML()
+                }
+                .buttonStyle(.borderedProminent)
             }
             .padding(.horizontal, 24)
             .padding(.top, 16)
