@@ -475,5 +475,5 @@ private final class WindowGeometryHintViewController: UIViewController {
 }
 
 #Preview("Step 3") {
-    PracticeStepView(viewModel: ARGuideViewModel(appState: AppState()))
+    PracticeStepView(viewModel: ARGuideViewModel(appState: AppState(), flowState: FlowState()))
 }

@@ -105,14 +105,17 @@ final class ARGuideViewModel {
     private(set) var isRecording = false
     private var recordingStartDate: Date?
 
-    init(appState: AppState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
+    let flowState: FlowState
+
+    init(appState: AppState, flowState: FlowState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
         self.appState = appState
+        self.flowState = flowState
         self.practiceSessionViewModel = practiceSessionViewModel ?? PracticeSessionViewModel()
         setupAppStateCallbacks()
     }
 
     private func setupAppStateCallbacks() {
-        appState.onStepsImported = { [weak self] prepared in
+        flowState.onStepsImported = { [weak self] prepared in
             guard let self else { return }
             self.practiceSessionViewModel.setSteps(
                 prepared.steps,
@@ -178,11 +181,11 @@ final class ARGuideViewModel {
     }
 
     var hasImportedSteps: Bool {
-        appState.importedSteps.isEmpty == false
+        flowState.importedSteps.isEmpty == false
     }
 
     var importedSongDisplayName: String? {
-        appState.importedFile?.fileName
+        flowState.importedFile?.fileName
     }
 
     var immersiveMode: AppState.ImmersiveMode {
@@ -1224,8 +1227,8 @@ final class ARGuideViewModel {
     }
 
     var practiceProgressText: String {
-        guard appState.importedSteps.isEmpty == false else { return "0 / 0" }
-        let total = appState.importedSteps.count
+        guard flowState.importedSteps.isEmpty == false else { return "0 / 0" }
+        let total = flowState.importedSteps.count
         switch practiceSessionViewModel.state {
             case .idle, .ready:
                 return "0 / \(total)"

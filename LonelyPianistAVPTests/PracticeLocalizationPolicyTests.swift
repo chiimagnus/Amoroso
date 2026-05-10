@@ -6,13 +6,14 @@ import Testing
 @MainActor
 func practiceEntryBlockingReasonIsMissingImportedStepsFirst() {
     let appState = AppState()
+    let flowState = FlowState()
     appState.storedCalibration = StoredWorldAnchorCalibration(
         a0AnchorID: UUID(),
         c8AnchorID: UUID(),
         whiteKeyWidth: 0.0235
     )
 
-    let viewModel = ARGuideViewModel(appState: appState)
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState)
     #expect(viewModel.practiceEntryBlockingReason() == .missingImportedSteps)
 }
 
@@ -20,7 +21,8 @@ func practiceEntryBlockingReasonIsMissingImportedStepsFirst() {
 @MainActor
 func practiceEntryBlockingReasonIsMissingStoredCalibrationWhenStepsExist() {
     let appState = AppState()
-    appState.setImportedSteps(from: PreparedPractice(
+    let flowState = FlowState()
+    flowState.setImportedSteps(from: PreparedPractice(
         steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
         file: ImportedMusicXMLFile(fileName: "Test", storedURL: URL(fileURLWithPath: "/dev/null"), importedAt: Date()),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
@@ -34,7 +36,7 @@ func practiceEntryBlockingReasonIsMissingStoredCalibrationWhenStepsExist() {
         unsupportedNoteCount: 0
     ))
 
-    let viewModel = ARGuideViewModel(appState: appState)
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState)
     #expect(viewModel.practiceEntryBlockingReason() == .missingStoredCalibration)
 }
 
@@ -42,12 +44,13 @@ func practiceEntryBlockingReasonIsMissingStoredCalibrationWhenStepsExist() {
 @MainActor
 func practiceEntryBlockingReasonIsNilWhenPreconditionsAreReady() {
     let appState = AppState()
+    let flowState = FlowState()
     appState.storedCalibration = StoredWorldAnchorCalibration(
         a0AnchorID: UUID(),
         c8AnchorID: UUID(),
         whiteKeyWidth: 0.0235
     )
-    appState.setImportedSteps(from: PreparedPractice(
+    flowState.setImportedSteps(from: PreparedPractice(
         steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
         file: ImportedMusicXMLFile(fileName: "Test", storedURL: URL(fileURLWithPath: "/dev/null"), importedAt: Date()),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
@@ -61,7 +64,7 @@ func practiceEntryBlockingReasonIsNilWhenPreconditionsAreReady() {
         unsupportedNoteCount: 0
     ))
 
-    let viewModel = ARGuideViewModel(appState: appState)
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState)
     #expect(viewModel.practiceEntryBlockingReason() == nil)
 }
 
@@ -69,7 +72,8 @@ func practiceEntryBlockingReasonIsNilWhenPreconditionsAreReady() {
 @MainActor
 func timeoutFailureMapsAnchorNotTrackedWithFiveSeconds() {
     let appState = AppState()
-    let viewModel = ARGuideViewModel(appState: appState)
+    let flowState = FlowState()
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState)
     let anchorID = UUID()
 
     let failure = viewModel.practiceLocalizationTimeoutFailure(
@@ -83,7 +87,8 @@ func timeoutFailureMapsAnchorNotTrackedWithFiveSeconds() {
 @MainActor
 func timeoutFailureMapsAnchorMissing() {
     let appState = AppState()
-    let viewModel = ARGuideViewModel(appState: appState)
+    let flowState = FlowState()
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState)
     let anchorID = UUID()
 
     let failure = viewModel.practiceLocalizationTimeoutFailure(
@@ -97,7 +102,8 @@ func timeoutFailureMapsAnchorMissing() {
 @MainActor
 func timeoutFailureFallsBackToProviderStateSummary() {
     let appState = AppState()
-    let viewModel = ARGuideViewModel(appState: appState)
+    let flowState = FlowState()
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState)
 
     let failure = viewModel.practiceLocalizationTimeoutFailure(lastRecoverableResolution: nil)
 

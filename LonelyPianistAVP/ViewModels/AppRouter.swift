@@ -52,6 +52,9 @@ final class AppRouter {
 
     func exitToTypePicker(reason: String) {
         Self.logger.info("exitToTypePicker: \(reason)")
+        flowState.clearSongAndSteps()
+        flowState.isCalibrationCompleted = false
+        flowState.isVirtualPianoPlaced = false
         flowState.pianoKind = nil
         route = .typePicker
     }

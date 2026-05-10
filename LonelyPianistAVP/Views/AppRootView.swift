@@ -11,6 +11,7 @@ struct AppRootView: View {
         _arGuideViewModel = Bindable(wrappedValue: arGuideViewModel)
         _songLibraryViewModel = State(initialValue: SongLibraryViewModel(
             appState: appState,
+            flowState: router.flowState,
             practicePreparationService: services.practicePreparationService
         ))
         self.router = router
