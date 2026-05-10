@@ -3,24 +3,33 @@ import SwiftUI
 struct AppRootView: View {
     @Bindable var appState: AppState
     @Bindable var arGuideViewModel: ARGuideViewModel
-    @State private var homeViewModel: HomeViewModel
     @State private var songLibraryViewModel: SongLibraryViewModel
+    let router: AppRouter
 
-    init(appState: AppState, services: AppServices, arGuideViewModel: ARGuideViewModel) {
+    init(appState: AppState, services: AppServices, arGuideViewModel: ARGuideViewModel, router: AppRouter) {
         _appState = Bindable(wrappedValue: appState)
         _arGuideViewModel = Bindable(wrappedValue: arGuideViewModel)
-        _homeViewModel = State(initialValue: HomeViewModel(appState: appState))
         _songLibraryViewModel = State(initialValue: SongLibraryViewModel(
             appState: appState,
             practicePreparationService: services.practicePreparationService
         ))
+        self.router = router
     }
 
     var body: some View {
-        ContentView(
-            homeViewModel: homeViewModel,
-            arGuideViewModel: arGuideViewModel,
-            songLibraryViewModel: songLibraryViewModel
-        )
+        @Bindable var router = router
+
+        switch router.route {
+        case .typePicker:
+            PianoTypePickerView()
+        case .realPreparation:
+            RealPianoPreparationView(viewModel: arGuideViewModel)
+        case .virtualPreparation:
+            VirtualPianoPreparationView(viewModel: arGuideViewModel)
+        case .library:
+            LibraryFlowView(songLibraryViewModel: songLibraryViewModel)
+        case .practice:
+            PracticeFlowView(viewModel: arGuideViewModel)
+        }
     }
 }
