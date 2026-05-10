@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct SongLibraryView: View {
     @Bindable var viewModel: SongLibraryViewModel
-    let navigationPath: Binding<[MainFlowRoute]>
+    var onStartPractice: () -> Void = {}
     @State private var isAudioImporterPresented = false
     @State private var pendingAudioBindingEntryID: UUID?
     @State private var pendingDeletionEntryID: UUID?
@@ -17,14 +17,6 @@ struct SongLibraryView: View {
             types.append(m4aType)
         }
         return types.isEmpty ? [.audio] : types
-    }
-
-    init(
-        viewModel: SongLibraryViewModel,
-        navigationPath: Binding<[MainFlowRoute]> = .constant([])
-    ) {
-        self.viewModel = viewModel
-        self.navigationPath = navigationPath
     }
 
     var body: some View {
@@ -154,7 +146,7 @@ struct SongLibraryView: View {
 
                     Button("开始练习") {
                         if viewModel.preparePractice(entryID: entry.id) {
-                            navigationPath.wrappedValue.append(.practice)
+                            onStartPractice()
                         }
                     }
                     .buttonStyle(.bordered)

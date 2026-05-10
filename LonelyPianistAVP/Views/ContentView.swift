@@ -41,7 +41,9 @@ struct ContentView: View {
                         case .library:
                             SongLibraryView(
                                 viewModel: songLibraryViewModel,
-                                navigationPath: $navigationPath
+                                onStartPractice: {
+                                    navigationPath.append(.practice)
+                                }
                             )
                             .frame(minWidth: 560, idealWidth: 700)
                             .navigationTitle("Step 2 · 选曲")
