@@ -130,7 +130,6 @@
 - **UIScreen:** 不要用 `UIScreen.main.bounds` 来读取可用空间大小。使用 `GeometryReader` 或 `GeometryReader3D`。
 - **视图拆分:** 不要用 computed properties 拆分视图；应创建新的 `View` struct。
 - **动态字体:** 不要强制指定字体大小；使用 Dynamic Type。
-- **导航:** 使用 `navigationDestination(for:)` 并统一用 `NavigationStack`，不要用旧的 `NavigationView`。
 - **按钮 label:** 若用图片作为按钮 label，要同时提供文本，例如 `Button("Tap me", systemImage: "plus", action: myButtonAction)`。
 - **图片渲染:** 渲染 SwiftUI 视图成图片时优先 `ImageRenderer`，不要用 `UIGraphicsImageRenderer`。
 - **字重:** 没有充分理由不要用 `fontWeight()`；要加粗用 `bold()`，不要用 `fontWeight(.bold)`。
@@ -141,6 +140,7 @@
 - **AnyView:** 除非绝对必要，否则避免 `AnyView`。
 - **硬编码:** 未被要求时，不要硬编码 padding 与 stack spacing。
 - **UIKit Colors:** SwiftUI 代码中避免使用 UIKit 的颜色。
+- **导航:** App 主流程用 `AppRouter.route` 做 root 切换，不使用全局 `NavigationStack`；仅在局部子流程（例如 sheet 内列表）使用 `NavigationStack`。
 
 ### 9. Swift 6+ 迁移指南
 
