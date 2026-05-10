@@ -6,18 +6,10 @@ struct PracticeFlowView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Button("返回钢琴类型选择") {
-                    router.exitToTypePicker(reason: "user tapped back from practice")
-                }
-                .buttonStyle(.bordered)
-
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 16)
-
-            PracticeStepView(viewModel: viewModel)
+            PracticeStepView(
+                viewModel: viewModel,
+                onExit: { router.exitToTypePicker(reason: "user exited from practice") }
+            )
         }
         .frame(minWidth: 920, idealWidth: 1200, minHeight: 320, idealHeight: 360)
     }
