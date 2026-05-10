@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PracticeStepView: View {
     @Bindable var viewModel: ARGuideViewModel
+    var onExit: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
@@ -42,7 +43,7 @@ struct PracticeStepView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .bottomOrnament) {
                     Button("返回", systemImage: "chevron.backward") {
-                        dismiss()
+                        if let onExit { onExit() } else { dismiss() }
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
@@ -327,7 +328,7 @@ struct PracticeStepView: View {
                     .foregroundStyle(.secondary)
 
                 Button("返回主页", systemImage: "house") {
-                    dismiss()
+                    if let onExit { onExit() } else { dismiss() }
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
