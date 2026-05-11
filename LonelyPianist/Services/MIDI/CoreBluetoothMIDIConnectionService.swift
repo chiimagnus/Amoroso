@@ -138,9 +138,35 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
     }
 
     func connect(id: String) {
-        guard central.state == .poweredOn else {
-            connectionState = .failed("Bluetooth unavailable: \(central.state.rawValue)")
-            return
+        switch central.state {
+            case .poweredOn:
+                break
+            case .poweredOff:
+                lastError = "Bluetooth powered off"
+                connectionState = .poweredOff
+                logger.warning("Bluetooth powered off")
+                return
+            case .unauthorized:
+                lastError = "Bluetooth unauthorized"
+                connectionState = .denied
+                logger.warning("Bluetooth unauthorized")
+                return
+            case .unsupported:
+                lastError = "Bluetooth unsupported"
+                connectionState = .unsupported
+                logger.error("Bluetooth unsupported")
+                return
+            case .resetting, .unknown:
+                let state = central.state
+                lastError = "Bluetooth not ready (\(state.rawValue))"
+                connectionState = .failed("Bluetooth not ready (\(state.rawValue))")
+                logger.warning("Bluetooth not ready: \(state.rawValue, privacy: .public)")
+                return
+            @unknown default:
+                lastError = "Bluetooth state unknown"
+                connectionState = .failed("Bluetooth state unknown")
+                logger.warning("Bluetooth state unknown")
+                return
         }
 
         if let targetPeripheralID, targetPeripheralID != id {
@@ -153,7 +179,9 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
         }
 
         guard let peripheral = peripheralsByID[id] else {
+            lastError = "Peripheral not found: \(id)"
             connectionState = .failed("Peripheral not found: \(id)")
+            logger.error("Peripheral not found: \(id, privacy: .public)")
             return
         }
 
