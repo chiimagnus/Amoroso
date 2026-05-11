@@ -9,6 +9,7 @@ struct RecorderPanelView: View {
     @State private var renameDraft = ""
     @State private var isImportingMIDI = false
     @State private var importMode: LonelyPianistViewModel.MIDIImportMode = .all
+    @State private var isShowingMIDIConnection = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -100,6 +101,12 @@ struct RecorderPanelView: View {
                     Image(systemName: "ellipsis.circle")
                 }
                 .disabled(viewModel.selectedTake == nil)
+
+                Button {
+                    isShowingMIDIConnection = true
+                } label: {
+                    Label("MIDI", systemImage: "cable.connector")
+                }
             }
         }
         .alert("Rename Take", isPresented: renameAlertBinding) {
@@ -123,6 +130,9 @@ struct RecorderPanelView: View {
                 case .failure:
                     break
             }
+        }
+        .sheet(isPresented: $isShowingMIDIConnection) {
+            MIDIConnectionPanelView(viewModel: viewModel)
         }
     }
 
