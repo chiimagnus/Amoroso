@@ -105,7 +105,7 @@ flowchart TD
 
 #### Simulator 自动放置
 
-在 `#if DEBUG && targetEnvironment(simulator)` 环境下，打开虚拟钢琴开关时跳过手势放置流程，直接以默认位置 `(0, 1.0, -1.0)`（键盘中心）放置 3D 键盘并立即生成几何数据。这使得 Simulator 中可以调试贴皮高亮引导、step 推进和 autoplay 功能。
+在 `#if DEBUG && targetEnvironment(simulator)` 环境下，虚拟钢琴模式会跳过手势放置流程，直接以默认位置 `(0, 1.0, -1.0)`（键盘中心）放置 3D 键盘并立即生成几何数据。这使得 Simulator 中可以调试贴皮高亮引导、step 推进和 autoplay 功能。
 
 Simulator 限制：`HandTrackingProvider.isSupported` 为 `false`，手部追踪循环不启动，因此**无法通过手势弹奏虚拟琴键**。键盘渲染和贴皮高亮引导正常工作。
 
@@ -144,7 +144,7 @@ flowchart TD
 - `VirtualPianoOverlayController` 渲染键盘时会以“从中间向两边延伸”的方式出现（X 轴 scale 动画）。
 - 一旦 `PracticeSessionViewModel.keyboardGeometry != nil`，圆盘与提示会隐藏，避免“键盘已出现但圆盘仍显示”的混乱。
 
-#### 放置复用（避免每首谱子都重放置）
+#### 放置复用（避免每次进入练习都重放置）
 
 - 放置成功后会创建一个 `WorldAnchor(originFromAnchorTransform: worldFromKeyboard)` 并记录 `AppState.cachedVirtualPianoWorldAnchorID`。
 - 之后在 Step 3 内重新进入或切换谱子时，只要该 anchor 在当前环境中 `isTracked == true`，就会直接用 anchor transform 恢复虚拟键盘几何并跳过放置引导。
@@ -193,7 +193,7 @@ flowchart TD
 ### 安全清音
 
 `stopVirtualPianoInput()` 在以下场景调用：
-- 虚拟钢琴开关关闭
+- 退出虚拟钢琴模式（例如返回钢琴类型选择或切换到真实钢琴流程）
 - 离开练习页（`onDisappear`）
 - 开启 autoplay（避免 live note 与 autoplay 冲突）
 - `resetSession()` 中重置 `keyContactDetectionService`

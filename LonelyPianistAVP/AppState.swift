@@ -33,10 +33,6 @@ class AppState {
 
     let arTrackingService: ARTrackingServiceProtocol
 
-    var importedFile: ImportedMusicXMLFile?
-    var importedSteps: [PracticeStep] = []
-    var importErrorMessage: String?
-
     var storedCalibration: StoredWorldAnchorCalibration?
 
     /// Cached placement for the "virtual piano" mode (not the real-piano calibration flow).
@@ -53,23 +49,17 @@ class AppState {
 
     private let calibrationRepository: CalibrationRepositoryProtocol
     private let keyGeometryService: PianoKeyGeometryServiceProtocol
-    private let importService: MusicXMLImportServiceProtocol
-    private let practicePreparationService: PracticePreparationServiceProtocol
 
     init(
         arTrackingService: ARTrackingServiceProtocol,
         calibrationCaptureService: CalibrationPointCaptureService,
         calibrationRepository: CalibrationRepositoryProtocol,
-        keyGeometryService: PianoKeyGeometryServiceProtocol,
-        importService: MusicXMLImportServiceProtocol,
-        practicePreparationService: PracticePreparationServiceProtocol
+        keyGeometryService: PianoKeyGeometryServiceProtocol
     ) {
         self.arTrackingService = arTrackingService
         self.calibrationCaptureService = calibrationCaptureService
         self.calibrationRepository = calibrationRepository
         self.keyGeometryService = keyGeometryService
-        self.importService = importService
-        self.practicePreparationService = practicePreparationService
     }
 
     /// Convenience init for tests/previews that don't need to control service instances.
@@ -81,9 +71,7 @@ class AppState {
             arTrackingService: arTrackingService ?? ARTrackingService(),
             calibrationCaptureService: CalibrationPointCaptureService(),
             calibrationRepository: CalibrationRepository(),
-            keyGeometryService: keyGeometryService ?? PianoKeyGeometryService(),
-            importService: MusicXMLImportService(),
-            practicePreparationService: PracticePreparationService()
+            keyGeometryService: keyGeometryService ?? PianoKeyGeometryService()
         )
     }
 
@@ -109,30 +97,6 @@ class AppState {
                 arTrackingService: arTrackingService
             )
             resetCalibrationCaptureState()
-        }
-    }
-
-    func setImportedSteps(from prepared: PreparedPractice) {
-        importedSteps = prepared.steps
-        importedFile = prepared.file
-        importErrorMessage = nil
-        onStepsImported?(prepared)
-    }
-
-    var onStepsImported: ((PreparedPractice) -> Void)?
-
-    func importMusicXML(from selectedURL: URL) {
-        do {
-            let importedFile = try importService.importFile(from: selectedURL)
-            let prepared = try practicePreparationService.prepare(from: importedFile.storedURL, file: importedFile)
-            if prepared.unsupportedNoteCount > 0 {
-                importErrorMessage = "已导入（忽略了 \(prepared.unsupportedNoteCount) 个不支持的音符）。"
-            } else {
-                importErrorMessage = nil
-            }
-            setImportedSteps(from: prepared)
-        } catch {
-            importErrorMessage = "导入失败：\(error.localizedDescription)"
         }
     }
 

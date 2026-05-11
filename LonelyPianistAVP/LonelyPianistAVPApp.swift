@@ -5,23 +5,15 @@ struct LonelyPianistAVPApp: App {
     @State private var appState: AppState
     @State private var services: AppServices
     @State private var arGuideViewModel: ARGuideViewModel
+    @State private var router: AppRouter
     @AppStorage("immersivePanoramaEnabled") private var immersivePanoramaEnabled = false
 
     init() {
-        let services = AppServices()
-        let appState = AppState(
-            arTrackingService: services.arTrackingService,
-            calibrationCaptureService: services.calibrationCaptureService,
-            calibrationRepository: services.calibrationRepository,
-            keyGeometryService: services.keyGeometryService,
-            importService: services.importService,
-            practicePreparationService: services.practicePreparationService
-        )
-        appState.loadStoredCalibrationIfPossible()
-
-        _appState = State(initialValue: appState)
-        _services = State(initialValue: services)
-        _arGuideViewModel = State(initialValue: ARGuideViewModel(appState: appState))
+        let root = AppCompositionRoot()
+        _appState = State(initialValue: root.appState)
+        _services = State(initialValue: root.services)
+        _arGuideViewModel = State(initialValue: root.arGuideViewModel)
+        _router = State(initialValue: root.router)
     }
 
     var body: some Scene {
@@ -32,18 +24,16 @@ struct LonelyPianistAVPApp: App {
             AppRootView(
                 appState: appState,
                 services: services,
-                arGuideViewModel: arGuideViewModel
+                arGuideViewModel: arGuideViewModel,
+                router: router
             )
-            .environment(appState)
-            .environment(services)
+            .environment(router)
         }
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
 
         ImmersiveSpace(id: appState.immersiveSpaceID) {
             ImmersiveView(viewModel: arGuideViewModel)
-                .environment(appState)
-                .environment(services)
                 .onAppear {
                     appState.immersiveSpaceState = .open
                 }

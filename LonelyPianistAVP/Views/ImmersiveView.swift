@@ -134,5 +134,6 @@ struct ImmersiveView: View {
 
 #Preview(immersionStyle: .progressive(0.0...1.0, initialAmount: 0.7, aspectRatio: nil)) {
     let appState = AppState()
-    ImmersiveView(viewModel: ARGuideViewModel(appState: appState))
+    let flowState = FlowState()
+    ImmersiveView(viewModel: ARGuideViewModel(appState: appState, flowState: flowState))
 }

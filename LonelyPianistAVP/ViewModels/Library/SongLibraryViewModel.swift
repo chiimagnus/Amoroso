@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class SongLibraryViewModel {
     private let appState: AppState
+    private let flowState: FlowState
     private let indexStore: SongLibraryIndexStoreProtocol
     private let fileStore: SongFileStoreProtocol
     private let audioImportService: AudioImportServiceProtocol
@@ -22,6 +23,7 @@ final class SongLibraryViewModel {
 
     init(
         appState: AppState,
+        flowState: FlowState,
         practicePreparationService: PracticePreparationServiceProtocol? = nil,
         indexStore: SongLibraryIndexStoreProtocol? = nil,
         fileStore: SongFileStoreProtocol? = nil,
@@ -31,6 +33,7 @@ final class SongLibraryViewModel {
         audioPlayer: SongAudioPlayerProtocol? = nil
     ) {
         self.appState = appState
+        self.flowState = flowState
         self.practicePreparationService = practicePreparationService ?? PracticePreparationService()
         self.indexStore = indexStore ?? SongLibraryIndexStore()
         self.fileStore = fileStore ?? SongFileStore()
@@ -145,7 +148,7 @@ final class SongLibraryViewModel {
                 return false
             }
 
-            appState.setImportedSteps(from: prepared)
+            flowState.setImportedSteps(from: prepared)
 
             var updatedIndex = index
             updatedIndex.lastSelectedEntryID = entry.id

@@ -17,7 +17,9 @@ LonelyPianist 由三条运行面组成：macOS 负责 MIDI 输入采集、映射
 | `LonelyPianistViewModel` | MIDI / UI / repo 状态 | mapping / recorder / dialogue / logs | `handleMIDIEvent` |
 | `CoreMIDIInputService` | CoreMIDI event list | `MIDIEvent` callback + connection state | source refresh、MIDI 1.0/2.0 解码 |
 | `DialogueManager` | phrase notes / silence | WS 请求、AI take、状态 | `start`, `handle`, `playAIReply` |
-| `AppModel` | calibration / imports / tracking | 练习状态机 | `resolveRuntimeCalibrationFromTrackedAnchors` |
+| `AppState` | tracking runtime、校准存取、沉浸空间状态 | providers 状态 + runtime calibration | `resolveRuntimeCalibrationFromTrackedAnchors` |
+| `FlowState` | 钢琴类型与曲目/steps | 当前流程状态 | `setImportedSteps`, `clearSongAndSteps` |
+| `AppRouter` | 用户动作（选择类型/下一步/退出） | root route 切换 | `exitToTypePicker`, `goToLibrary`, `goToPractice` |
 | `SongLibraryViewModel` | fileImporter URLs | index + score/audio 存储 | 导入 / 删除 / 试听 |
 | `ARGuideViewModel` | immersive state + providers | localization state | open / locate / retry |
 | `BonjourBackendDiscoveryService` | mDNS browse results | resolved host/port 或 denied/failed | `start`, `resolveHostPort` |
@@ -45,10 +47,12 @@ flowchart LR
   end
 
   subgraph visionOS
-    H[ContentView] --> I[HomeViewModel]
-    H --> J[SongLibraryViewModel]
-    H --> K[ARGuideViewModel]
-    K --> L[ARTrackingService]
+    RV[AppRootView] --> RT[AppRouter]
+    RT --> FS[FlowState]
+    RV --> J[SongLibraryViewModel]
+    RV --> K[ARGuideViewModel]
+    K --> AS[AppState]
+    AS --> L[ARTrackingService]
     K --> M[PracticeSessionViewModel]
     K --> BD[BonjourBackendDiscoveryService]
     K --> IC[ImprovBackendClient]
@@ -99,7 +103,7 @@ flowchart LR
 | `LonelyPianistViewModel.handleMIDIEvent` | 映射、录音、Dialogue 同时受影响 | macOS tests |
 | `DialogueManager.startGeneration / playAIReply` | 本地服务协议和回放状态可能漂移 | macOS tests + Python smoke |
 | `CoreMIDIInputService` | Swift 6.2 捕获规则、CoreMIDI source 生命周期 | macOS tests |
-| `AppModel.resolveRuntimeCalibrationFromTrackedAnchors` | Step 3 定位失败 | AVP tests + 手工校准 |
+| `AppState.resolveRuntimeCalibrationFromTrackedAnchors` | Step 3 定位失败 | AVP tests + 手工校准 |
 | `SongLibraryViewModel.importMusicXML / deleteEntry / bindAudio` | 曲库 index 和文件副本漂移 | AVP library tests |
 | `PracticeSessionViewModel.startAutoplayTaskIfNeeded` | 自动演奏、step 推进联动 | AVP practice tests |
 | `PianoGuideOverlayController.updateHighlights` | 贴皮位置、大小、材质、生命周期 | AVP tests + Vision Pro 手工观察 |
@@ -119,3 +123,4 @@ flowchart LR
 - 2026-05-02: 虚拟钢琴放置引导改为 gaze-plane + palm confirmation；移除对 `.github/workflows/` 的假设（当前仓库不含 GitHub Actions workflows）。
 - 2026-05-05: 补充 AVP Bonjour 自动发现与 HTTP `/generate` 后端接入的组件边界与依赖方向。
 - 2026-05-06: 同步 Python 生成侧引入第三策略（`rule`）后的架构图表达（FastAPI -> strategy router -> engines）。
+- 2026-05-10: 同步 AVP 主流程重构：以 `AppRouter.route` 做 root 切换，引入 `FlowState` 持有曲目/steps 与钢琴类型，`AppState` 聚合 tracking/runtime calibration；移除旧的 `ContentView/HomeViewModel/AppModel` 主流程表达。

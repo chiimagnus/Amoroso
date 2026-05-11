@@ -60,8 +60,9 @@ func appStatePassesMeasureSpansToPracticeSession() {
         manualAdvanceModeProvider: { .measure }
     )
     let appState = AppState()
-    let guideViewModel = ARGuideViewModel(appState: appState, practiceSessionViewModel: sessionViewModel)
-    appState.setImportedSteps(from: PreparedPractice(
+    let flowState = FlowState()
+    let guideViewModel = ARGuideViewModel(appState: appState, flowState: flowState, practiceSessionViewModel: sessionViewModel)
+    flowState.setImportedSteps(from: PreparedPractice(
         steps: [
             PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)]),
             PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1)]),

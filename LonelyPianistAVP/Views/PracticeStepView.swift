@@ -2,8 +2,8 @@ import SwiftUI
 
 struct PracticeStepView: View {
     @Bindable var viewModel: ARGuideViewModel
-
-    @Environment(\.dismiss) private var dismiss
+    let onBackToLibrary: () -> Void
+    let onRestartFromTypePicker: () -> Void
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
 
@@ -15,7 +15,6 @@ struct PracticeStepView: View {
     @State private var isAutoplayErrorAlertPresented = false
     @State private var isTakeLibraryPresented = false
 
-    @State private var isVirtualPianoEnabled = false
     @State private var isVirtualPerformerEnabled = false
     @State private var isAutoplayEnabled = false
     @AppStorage("practiceManualAdvanceMode") private var manualAdvanceModeRawValue = ManualAdvanceMode.step.rawValue
@@ -41,8 +40,8 @@ struct PracticeStepView: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .bottomOrnament) {
-                    Button("返回", systemImage: "chevron.backward") {
-                        dismiss()
+                    Button("回到选曲库", systemImage: "chevron.backward") {
+                        onBackToLibrary()
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
@@ -126,13 +125,13 @@ struct PracticeStepView: View {
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
 
-                    if isVirtualPianoEnabled, let status = viewModel.gazePlaneDiskStatusText {
+                    if isVirtualPianoMode, let status = viewModel.gazePlaneDiskStatusText {
                         Text(status)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
-                    if isAutoplayEnabled == false, isVirtualPianoEnabled == false {
+                    if isAutoplayEnabled == false, isVirtualPianoMode == false {
                         Button("定位", systemImage: "scope") {
                             isLocalizationPopoverPresented.toggle()
                         }
@@ -154,7 +153,7 @@ struct PracticeStepView: View {
 
                 Task { @MainActor in
                     viewModel.practiceSessionViewModel.refreshAudioRecognitionFromSettings()
-                    viewModel.setPracticeVirtualPianoEnabled(isVirtualPianoEnabled)
+                    viewModel.setPracticeVirtualPianoEnabled(isVirtualPianoMode)
                     viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
                     await viewModel.enterPracticeStep(
                         using: openImmersiveSpace,
@@ -165,15 +164,6 @@ struct PracticeStepView: View {
                         await viewModel.closeImmersiveForStep(using: dismissImmersiveSpace)
                         await viewModel.recoverImmersiveStateIfStuck()
                     }
-                }
-            }
-            .onChange(of: isVirtualPianoEnabled) {
-                viewModel.setPracticeVirtualPianoEnabled(isVirtualPianoEnabled)
-                Task { @MainActor in
-                    await viewModel.enterPracticeStep(
-                        using: openImmersiveSpace,
-                        dismissImmersiveSpace: dismissImmersiveSpace
-                    )
                 }
             }
             .onChange(of: isVirtualPerformerEnabled) {
@@ -269,6 +259,10 @@ struct PracticeStepView: View {
         ManualAdvanceMode.storageValue(from: manualAdvanceModeRawValue)
     }
 
+    private var isVirtualPianoMode: Bool {
+        viewModel.flowState.pianoKind == .virtual
+    }
+
     private var highlightedMIDINotes: Set<Int> {
         viewModel.practiceSessionViewModel.currentPianoHighlightGuide?.highlightedMIDINotes ?? []
     }
@@ -322,12 +316,12 @@ struct PracticeStepView: View {
             }
 
             if viewModel.shouldSuggestCalibrationStep {
-                Text("若持续失败，请返回主页进入 Step 1 重新校准。")
+                Text("若持续失败，请回到“钢琴类型选择”重新开始准备。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Button("返回主页", systemImage: "house") {
-                    dismiss()
+                Button("回到钢琴类型选择", systemImage: "house") {
+                    onRestartFromTypePicker()
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
@@ -341,7 +335,6 @@ struct PracticeStepView: View {
     private var settingsPopover: some View {
         VStack(alignment: .leading, spacing: 12) {
             PracticeSettingsView(
-                virtualPianoEnabled: $isVirtualPianoEnabled,
                 virtualPerformerEnabled: $isVirtualPerformerEnabled,
                 backendStatusText: viewModel.backendStatusText,
                 lastImprovStatusText: viewModel.lastImprovStatusText,
@@ -367,7 +360,7 @@ struct PracticeStepView: View {
             }
             #endif
 
-            if isVirtualPianoEnabled {
+            if isVirtualPianoMode {
                 Divider()
                     .padding(.horizontal, 16)
 
@@ -474,5 +467,9 @@ private final class WindowGeometryHintViewController: UIViewController {
 }
 
 #Preview("Step 3") {
-    PracticeStepView(viewModel: ARGuideViewModel(appState: AppState()))
+    PracticeStepView(
+        viewModel: ARGuideViewModel(appState: AppState(), flowState: FlowState()),
+        onBackToLibrary: {},
+        onRestartFromTypePicker: {}
+    )
 }
