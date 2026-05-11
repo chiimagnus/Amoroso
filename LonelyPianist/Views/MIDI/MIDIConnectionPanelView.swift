@@ -1,9 +1,11 @@
+import CoreAudioKit
 import Observation
 import SwiftUI
 
 struct MIDIConnectionPanelView: View {
     @Bindable var viewModel: LonelyPianistViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var bluetoothMIDIWindowController: CABTLEMIDIWindowController?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -24,6 +26,12 @@ struct MIDIConnectionPanelView: View {
             }
 
             HStack(spacing: 10) {
+                Button {
+                    openBluetoothMIDIWindow()
+                } label: {
+                    Label("Bluetooth MIDI…", systemImage: "dot.radiowaves.left.and.right")
+                }
+
                 Button {
                     viewModel.refreshMIDISources()
                 } label: {
@@ -59,5 +67,11 @@ struct MIDIConnectionPanelView: View {
         .padding(16)
         .frame(minWidth: 520, minHeight: 360)
     }
-}
 
+    private func openBluetoothMIDIWindow() {
+        let controller = bluetoothMIDIWindowController ?? CABTLEMIDIWindowController()
+        bluetoothMIDIWindowController = controller
+        controller.showWindow(nil)
+        controller.window?.makeKeyAndOrderFront(nil)
+    }
+}
