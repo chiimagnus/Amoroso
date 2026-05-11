@@ -212,8 +212,25 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
     }
 
     private func disconnect(id: String, setIdleWhenDone: Bool) {
-        if setIdleWhenDone, let activePeripheral, activePeripheral.identifier.uuidString == id {
-            connectionState = .disconnecting(id: id)
+        if setIdleWhenDone {
+            let shouldShowDisconnecting: Bool = {
+                if let activePeripheral, activePeripheral.identifier.uuidString == id { return true }
+                if targetPeripheralID == id { return true }
+                switch connectionState {
+                    case let .activated(activeID),
+                         let .connecting(activeID),
+                         let .verifying(activeID),
+                         let .activating(activeID),
+                         let .disconnecting(activeID):
+                        return activeID == id
+                    default:
+                        return false
+                }
+            }()
+
+            if shouldShowDisconnecting {
+                connectionState = .disconnecting(id: id)
+            }
         }
 
         let status = MIDIBluetoothDriverDisconnect(id as CFString)
@@ -230,8 +247,18 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
 
         if let activePeripheral = self.activePeripheral, activePeripheral.identifier.uuidString == id {
             self.activePeripheral = nil
-            if setIdleWhenDone {
-                connectionState = .idle
+        }
+
+        if targetPeripheralID == id {
+            targetPeripheralID = nil
+        }
+
+        if setIdleWhenDone {
+            switch connectionState {
+                case let .disconnecting(activeID) where activeID == id:
+                    connectionState = .idle
+                default:
+                    break
             }
         }
     }
