@@ -38,12 +38,29 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
 
     private var peripheralsByID: [String: CBPeripheral] = [:]
     private var activePeripheral: CBPeripheral?
+    private var targetPeripheralID: String?
+    private var lastError: String?
     private var lastActivationStatus: OSStatus?
     private var lastDisconnectStatus: OSStatus?
 
     override init() {
         super.init()
         _ = central
+    }
+
+    var debugSnapshot: BluetoothMIDIDebugSnapshot {
+        BluetoothMIDIDebugSnapshot(
+            centralStateRawValue: central.state.rawValue,
+            authorization: String(describing: CBManager.authorization),
+            isScanning: central.isScanning,
+            scanMode: scanMode == .midiServiceFiltered ? "midiServiceFiltered" : "allDevices",
+            lastError: lastError,
+            discoveredPeripherals: discoveredPeripherals,
+            targetPeripheralID: targetPeripheralID,
+            connectionState: String(describing: connectionState),
+            lastActivationStatus: lastActivationStatus,
+            lastDisconnectStatus: lastDisconnectStatus
+        )
     }
 
     func startScan(mode: BluetoothMIDIScanMode) {
@@ -53,23 +70,28 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
             case .poweredOn:
                 break
             case .poweredOff:
+                lastError = "Bluetooth powered off"
                 connectionState = .poweredOff
                 logger.warning("Bluetooth powered off")
                 return
             case .unauthorized:
+                lastError = "Bluetooth unauthorized"
                 connectionState = .denied
                 logger.warning("Bluetooth unauthorized")
                 return
             case .unsupported:
+                lastError = "Bluetooth unsupported"
                 connectionState = .unsupported
                 logger.error("Bluetooth unsupported")
                 return
             case .resetting, .unknown:
                 let state = central.state
+                lastError = "Bluetooth not ready (\(state.rawValue))"
                 connectionState = .failed("Bluetooth not ready (\(state.rawValue))")
                 logger.warning("Bluetooth not ready: \(state.rawValue, privacy: .public)")
                 return
             @unknown default:
+                lastError = "Bluetooth state unknown"
                 connectionState = .failed("Bluetooth state unknown")
                 logger.warning("Bluetooth state unknown")
                 return
@@ -77,6 +99,7 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
 
         stopScan()
         clearDiscoveredPeripherals()
+        lastError = nil
 
         let services = (mode == .midiServiceFiltered) ? [bleMIDIService] : nil
         logger.info("Start scan (mode: \(String(describing: mode), privacy: .public))")
@@ -113,6 +136,8 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
 
         stopScan()
 
+        targetPeripheralID = id
+        lastError = nil
         activePeripheral = peripheral
         peripheral.delegate = self
         connectionState = .connecting(id: id)
@@ -156,6 +181,7 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
 
     private func failActivePeripheral(_ message: String) {
         let id = activePeripheral?.identifier.uuidString
+        lastError = message
         connectionState = .failed(message)
         logger.error("\(message, privacy: .public)")
         if let id {

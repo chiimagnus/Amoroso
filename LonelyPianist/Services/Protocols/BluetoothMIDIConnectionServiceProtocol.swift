@@ -20,6 +20,19 @@ enum BluetoothMIDIConnectionState: Equatable, Sendable {
     case unsupported
 }
 
+struct BluetoothMIDIDebugSnapshot: Equatable, Codable, Sendable {
+    var centralStateRawValue: Int
+    var authorization: String?
+    var isScanning: Bool
+    var scanMode: String
+    var lastError: String?
+    var discoveredPeripherals: [BluetoothMIDIPeripheral]
+    var targetPeripheralID: String?
+    var connectionState: String
+    var lastActivationStatus: Int32?
+    var lastDisconnectStatus: Int32?
+}
+
 @MainActor
 protocol BluetoothMIDIConnectionServiceProtocol: AnyObject {
     var onConnectionStateChange: (@Sendable (BluetoothMIDIConnectionState) -> Void)? { get set }
@@ -28,6 +41,7 @@ protocol BluetoothMIDIConnectionServiceProtocol: AnyObject {
     var connectionState: BluetoothMIDIConnectionState { get }
     var scanMode: BluetoothMIDIScanMode { get }
     var discoveredPeripherals: [BluetoothMIDIPeripheral] { get }
+    var debugSnapshot: BluetoothMIDIDebugSnapshot { get }
 
     func startScan(mode: BluetoothMIDIScanMode)
     func stopScan()

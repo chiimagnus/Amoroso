@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import AppKit
 
 struct BluetoothMIDIPanelView: View {
     @Bindable var viewModel: LonelyPianistViewModel
@@ -15,6 +16,10 @@ struct BluetoothMIDIPanelView: View {
             Divider()
 
             peripheralsList
+
+            Divider()
+
+            debugPanel
 
             Spacer(minLength: 0)
         }
@@ -105,6 +110,64 @@ struct BluetoothMIDIPanelView: View {
         }
     }
 
+    private var debugPanel: some View {
+        let snapshot = viewModel.bluetoothMIDIDebugSnapshot()
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Debug")
+                .font(.headline)
+
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                GridRow {
+                    Text("Central state").foregroundStyle(.secondary)
+                    Text("\(snapshot.centralStateRawValue)")
+                }
+                GridRow {
+                    Text("Authorization").foregroundStyle(.secondary)
+                    Text(snapshot.authorization ?? "(nil)")
+                }
+                GridRow {
+                    Text("Scanning").foregroundStyle(.secondary)
+                    Text(snapshot.isScanning ? "Yes" : "No")
+                }
+                GridRow {
+                    Text("Scan mode").foregroundStyle(.secondary)
+                    Text(snapshot.scanMode)
+                }
+                GridRow {
+                    Text("Target").foregroundStyle(.secondary)
+                    Text(snapshot.targetPeripheralID ?? "(nil)")
+                }
+                GridRow {
+                    Text("Last error").foregroundStyle(.secondary)
+                    Text(snapshot.lastError ?? "(nil)")
+                }
+                GridRow {
+                    Text("Activate status").foregroundStyle(.secondary)
+                    Text(snapshot.lastActivationStatus.map(String.init) ?? "(nil)")
+                }
+                GridRow {
+                    Text("Disconnect status").foregroundStyle(.secondary)
+                    Text(snapshot.lastDisconnectStatus.map(String.init) ?? "(nil)")
+                }
+            }
+            .font(.caption)
+
+            HStack {
+                Button("Copy Debug Snapshot") {
+                    copyToClipboard(viewModel.bluetoothMIDIDebugSnapshotText())
+                }
+
+                Spacer()
+            }
+        }
+    }
+
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
     private var isScanning: Bool {
         if case .scanning = viewModel.bluetoothMIDIConnectionState {
             return true
@@ -165,4 +228,3 @@ struct BluetoothMIDIPanelView: View {
         }
     }
 }
-

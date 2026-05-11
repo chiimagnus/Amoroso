@@ -189,6 +189,36 @@ final class LonelyPianistViewModel {
         refreshMIDISources()
     }
 
+    func bluetoothMIDIDebugSnapshot() -> BluetoothMIDIDebugSnapshot {
+        bluetoothMIDIConnectionService.debugSnapshot
+    }
+
+    func bluetoothMIDIDebugSnapshotText() -> String {
+        let snapshot = bluetoothMIDIConnectionService.debugSnapshot
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+
+        let bluetoothJSON: String = {
+            guard let data = try? encoder.encode(snapshot) else { return "<encode failed>" }
+            return String(decoding: data, as: UTF8.self)
+        }()
+
+        let sourcesJSON: String = {
+            guard let data = try? encoder.encode(connectedSourceNames) else { return "<encode failed>" }
+            return String(decoding: data, as: UTF8.self)
+        }()
+
+        return """
+        {
+          "bluetooth": \(bluetoothJSON),
+          "midiSources": \(sourcesJSON),
+          "bluetoothState": "\(String(describing: bluetoothMIDIConnectionState))"
+        }
+        """
+    }
+
     func startRecordingTake() {
         guard canRecord else { return }
 
