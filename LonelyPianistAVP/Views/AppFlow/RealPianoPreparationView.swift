@@ -3,6 +3,7 @@ import SwiftUI
 struct RealPianoPreparationView: View {
     @Environment(AppRouter.self) private var router
     @Bindable var viewModel: ARGuideViewModel
+    @State private var isBluetoothMIDIPanelPresented = false
 
     var body: some View {
         VStack(spacing: 20) {
@@ -13,6 +14,13 @@ struct RealPianoPreparationView: View {
                 viewModel: viewModel,
                 onExit: { router.exitToTypePicker(reason: "user exited from real preparation") }
             )
+
+            Button("Bluetooth MIDI…") {
+                isBluetoothMIDIPanelPresented = true
+            }
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.roundedRectangle)
+            .hoverEffect()
 
             HStack {
                 Button("返回钢琴类型选择") {
@@ -31,6 +39,9 @@ struct RealPianoPreparationView: View {
         }
         .padding(24)
         .frame(minWidth: 560, idealWidth: 700)
+        .sheet(isPresented: $isBluetoothMIDIPanelPresented) {
+            BluetoothMIDICentralView(isPresented: $isBluetoothMIDIPanelPresented)
+        }
         .onChange(of: viewModel.calibrationPhase) {
             router.flowState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
         }
