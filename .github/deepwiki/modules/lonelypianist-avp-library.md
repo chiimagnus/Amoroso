@@ -7,15 +7,14 @@
 | 对象 | 职责 |
 | --- | --- |
 | `SongLibraryViewModel` | 曲库编排 |
-| `SongLibrarySeeder` | 启动 seed / backfill |
+| `BundledSongLibraryProvider` | 提供 app bundle 内置曲目（运行时合并展示） |
 | `SongLibraryIndexStore` | 索引读写 |
 | `SongFileStore` | 曲谱文件复制 / 删除 |
 | `AudioImportService` | 音频文件复制 |
 | `SongAudioPlaybackStateController` | 试听按钮状态 |
 
 ## 行为
-- 首次启动若索引为空，会注入 bundled seed。
-- 已有 seed 但缺音频时，会补齐音频。
+- 内置曲目来自 app bundle（`Resources/SeedScores`），不写入 `index.json`；与用户导入的索引条目合并展示。
 - 导入顺序是先复制文件，再提交索引。
 - 删除顺序是先删索引，再删文件。
 - 试听只接受已绑定音频的条目。
@@ -37,4 +36,3 @@
 
 ## Coverage Gaps
 - 长期清理任务没有自动化后台作业，孤儿文件仍可能累积。
-

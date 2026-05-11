@@ -92,12 +92,16 @@ func skipDuringAutoplayCancelsPendingEventsAndRestartsAtNextStep() async {
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
-    await settleTaskQueue()
+    await waitUntil("autoplay started") {
+        playbackService.loadedSequences.isEmpty == false
+    }
 
     let stopCountBeforeSkip = playbackService.stopCount
     let loadCountBeforeSkip = playbackService.loadedSequences.count
     viewModel.skip()
-    await settleTaskQueue()
+    await waitUntil("autoplay restarted after skip") {
+        playbackService.loadedSequences.count >= loadCountBeforeSkip + 1
+    }
 
     #expect(playbackService.stopCount == stopCountBeforeSkip + 1)
     #expect(viewModel.currentStepIndex == 1)
@@ -786,12 +790,16 @@ func autoplaySkipCancelsPendingSleepAndRestartsScheduling() async {
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
-    await settleTaskQueue()
+    await waitUntil("autoplay started") {
+        playbackService.loadedSequences.isEmpty == false
+    }
 
     let loadCountBeforeSkip = playbackService.loadedSequences.count
     let stopCountBeforeSkip = playbackService.stopCount
     viewModel.skip()
-    await settleTaskQueue()
+    await waitUntil("autoplay restarted after skip") {
+        playbackService.loadedSequences.count >= loadCountBeforeSkip + 1
+    }
 
     #expect(viewModel.currentStepIndex == 1)
     #expect(playbackService.stopCount == stopCountBeforeSkip + 1)
@@ -1355,6 +1363,21 @@ private func settleTaskQueue(iterations: Int = 12) async {
     for _ in 0 ..< iterations {
         await Task.yield()
     }
+}
+
+@MainActor
+private func waitUntil(
+    _ description: String,
+    iterations: Int = 240,
+    condition: () -> Bool
+) async {
+    for _ in 0 ..< iterations {
+        if condition() {
+            return
+        }
+        await Task.yield()
+    }
+    #expect(condition(), "Timed out waiting for: \(description)")
 }
 
 private func makeHighlightGuide(

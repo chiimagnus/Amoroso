@@ -3,7 +3,7 @@ import UniformTypeIdentifiers
 
 struct SongLibraryView: View {
     @Bindable var viewModel: SongLibraryViewModel
-    let navigationPath: Binding<[MainFlowRoute]>
+    var onStartPractice: () -> Void = {}
     @State private var isAudioImporterPresented = false
     @State private var pendingAudioBindingEntryID: UUID?
     @State private var pendingDeletionEntryID: UUID?
@@ -19,14 +19,6 @@ struct SongLibraryView: View {
         return types.isEmpty ? [.audio] : types
     }
 
-    init(
-        viewModel: SongLibraryViewModel,
-        navigationPath: Binding<[MainFlowRoute]> = .constant([])
-    ) {
-        self.viewModel = viewModel
-        self.navigationPath = navigationPath
-    }
-
     var body: some View {
         Group {
             if viewModel.entries.isEmpty {
@@ -36,13 +28,6 @@ struct SongLibraryView: View {
             }
         }
         .navigationTitle("乐曲库")
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("导入 MusicXML") {
-                    viewModel.didTapImportMusicXML()
-                }
-            }
-        }
         .fileImporter(
             isPresented: $isAudioImporterPresented,
             allowedContentTypes: audioImporterTypes,
@@ -154,7 +139,7 @@ struct SongLibraryView: View {
 
                     Button("开始练习") {
                         if viewModel.preparePractice(entryID: entry.id) {
-                            navigationPath.wrappedValue.append(.practice)
+                            onStartPractice()
                         }
                     }
                     .buttonStyle(.bordered)
@@ -195,7 +180,8 @@ struct SongLibraryView: View {
 
 #Preview {
     let appState = AppState()
-    let viewModel = SongLibraryViewModel(appState: appState)
+    let flowState = FlowState()
+    let viewModel = SongLibraryViewModel(appState: appState, flowState: flowState)
     return NavigationStack {
         SongLibraryView(viewModel: viewModel)
     }

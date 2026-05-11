@@ -23,7 +23,8 @@ func appStateAppliesKeyboardGeometryWhenAvailable() throws {
     )
 
     let appState = AppState(keyGeometryService: service)
-    let guideViewModel = ARGuideViewModel(appState: appState, practiceSessionViewModel: practiceSessionViewModel)
+    let flowState = FlowState()
+    let guideViewModel = ARGuideViewModel(appState: appState, flowState: flowState, practiceSessionViewModel: practiceSessionViewModel)
 
     appState.calibration = calibration
 
@@ -49,7 +50,8 @@ func appStateDoesNotApplyKeyboardGeometryWhenGenerationFails() {
     )
 
     let appState = AppState(keyGeometryService: service)
-    let guideViewModel = ARGuideViewModel(appState: appState, practiceSessionViewModel: practiceSessionViewModel)
+    let flowState = FlowState()
+    let guideViewModel = ARGuideViewModel(appState: appState, flowState: flowState, practiceSessionViewModel: practiceSessionViewModel)
 
     appState.calibration = calibration
 

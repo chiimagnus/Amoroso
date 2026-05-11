@@ -80,7 +80,7 @@
 ### 安全清音场景
 
 `stopVirtualPianoInput()` 在以下场景调用：
-1. 虚拟钢琴开关关闭
+1. 退出虚拟钢琴模式（例如返回钢琴类型选择或切换到真实钢琴流程）
 2. 离开练习页（`onDisappear`）
 3. 开启 autoplay（避免 live note 与 autoplay 冲突）
 4. `resetSession()` 重置

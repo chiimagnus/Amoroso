@@ -240,7 +240,8 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() {
         sequencerPlaybackService: playbackService
     )
     let appState = AppState()
-    let viewModel = ARGuideViewModel(appState: appState, practiceSessionViewModel: session)
+    let flowState = FlowState()
+    let viewModel = ARGuideViewModel(appState: appState, flowState: flowState, practiceSessionViewModel: session)
 
     let geometry = makeTestKeyboardGeometry()
     session.applyVirtualKeyboardGeometry(geometry)

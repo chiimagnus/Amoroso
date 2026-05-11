@@ -6,10 +6,10 @@
 | MIDI 映射 | CoreMIDI note on/off | ViewModel -> MappingEngine | CGEvent / text / shortcut |
 | Recorder | MIDI events | DefaultRecordingService | `RecordingTake` |
 | Dialogue | 静默触发 | DialogueManager -> WS -> inference | AI 回放 + take |
-| AVP seed | App 启动 | SongLibrarySeeder | 默认谱面和音频 |
+| AVP bundled library | App 启动 | BundledSongLibraryProvider | 内置曲谱（与用户导入索引合并展示） |
 | AVP import | fileImporter URLs | SongFileStore + IndexStore | `SongLibrary/index.json` |
 | AVP practice | 校准 + 曲库 + tracking | ARGuideViewModel + PracticeSessionViewModel + AutoplayPerformanceTimeline + PianoGuideOverlayController | 贴皮高亮引导（decal）与步骤推进 |
-| AVP virtual piano | 虚拟钢琴开关 + gaze-plane 放置 + 手指追踪 | ARGuideViewModel + PlaneDetectionProvider + GazePlaneDiskConfirmationViewModel + VirtualPianoKeyGeometryService + KeyContactDetectionService + VirtualPianoOverlayController | 3D 88 键键盘 + 实时发声 + 步骤推进 |
+| AVP virtual piano | 钢琴类型=虚拟钢琴 + gaze-plane 放置（准备阶段） + 手指追踪 | ARGuideViewModel + PlaneDetectionProvider + GazePlaneDiskConfirmationViewModel + VirtualPianoKeyGeometryService + KeyContactDetectionService + VirtualPianoOverlayController | 3D 88 键键盘 + 实时发声 + 步骤推进 |
 | AVP improv | 录制短句片段 | PhraseRecorder + BonjourBackendDiscoveryService + ImprovBackendClient | `POST /generate` 生成续写并回放（可降级 deterministic） |
 | PR validation | 手动测试 | 本地 xcodebuild | macOS / AVP tests |
 | Swift quality | 手动格式化（可选） | SwiftFormat | 格式化 diff 或 no-op |
@@ -167,3 +167,4 @@ flowchart TD
 - 2026-05-01: AVP 练习空间提示从光柱改为琴键贴皮高亮（decal），并移除 correct/wrong feedback 与 immersive pulse。
 - 2026-05-02: 虚拟钢琴放置从 VirtualPianoPlacementViewModel 迁移为 gaze-plane + palm confirmation，并修正文档中的 CI/workflows 假设。
 - 2026-05-05: 同步 AVP Bonjour 自动发现 + HTTP `/generate` 与 Python `/upload-expand` 的数据流与协议骨架。
+- 2026-05-10: 同步 AVP 曲库与流程重构：移除 `SongLibrarySeeder`（内置曲目改为运行时合并展示），虚拟钢琴入口从“练习页开关”改为“钢琴类型选择 + 准备阶段放置”。
