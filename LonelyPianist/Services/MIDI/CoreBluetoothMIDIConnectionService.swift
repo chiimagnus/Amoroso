@@ -45,6 +45,7 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
     private var lastActivationStatus: OSStatus?
     private var lastDisconnectStatus: OSStatus?
     private var pendingAutoConnect = false
+    private var scanTimeoutTask: Task<Void, Never>?
 
     init(settings: AppSettingsProtocol) {
         self.settings = settings
@@ -104,6 +105,8 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
         stopScan()
         clearDiscoveredPeripherals()
         lastError = nil
+        scanTimeoutTask?.cancel()
+        scanTimeoutTask = nil
 
         let services = (mode == .midiServiceFiltered) ? [bleMIDIService] : nil
         logger.info("Start scan (mode: \(String(describing: mode), privacy: .public))")
@@ -111,11 +114,23 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
             CBCentralManagerScanOptionAllowDuplicatesKey: true,
         ])
         connectionState = .scanning(mode: mode)
+
+        scanTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(10))
+            await MainActor.run { [weak self] in
+                guard let self else { return }
+                guard case .scanning = connectionState else { return }
+                logger.info("Scan timeout reached, stopping scan")
+                stopScan()
+            }
+        }
     }
 
     func stopScan() {
         guard central.isScanning else { return }
         central.stopScan()
+        scanTimeoutTask?.cancel()
+        scanTimeoutTask = nil
         logger.info("Stop scan")
         if case .scanning = connectionState {
             connectionState = discoveredPeripherals.isEmpty ? .idle : .readyToConnect
@@ -126,6 +141,10 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
         guard central.state == .poweredOn else {
             connectionState = .failed("Bluetooth unavailable: \(central.state.rawValue)")
             return
+        }
+
+        if let targetPeripheralID, targetPeripheralID != id {
+            disconnect(id: targetPeripheralID)
         }
 
         if let activePeripheral, activePeripheral.identifier.uuidString != id {
@@ -212,6 +231,26 @@ final class CoreBluetoothMIDIConnectionService: NSObject, BluetoothMIDIConnectio
             discoveredPeripherals[index] = item
         } else {
             discoveredPeripherals.append(item)
+        }
+
+        discoveredPeripherals = Self.sortedPeripherals(discoveredPeripherals)
+    }
+
+    static func sortedPeripherals(_ peripherals: [BluetoothMIDIPeripheral]) -> [BluetoothMIDIPeripheral] {
+        peripherals.sorted { lhs, rhs in
+            let leftName = lhs.name ?? ""
+            let rightName = rhs.name ?? ""
+
+            let nameCompare = leftName.localizedCaseInsensitiveCompare(rightName)
+            if nameCompare != .orderedSame {
+                return nameCompare == .orderedAscending
+            }
+
+            if lhs.lastSeen != rhs.lastSeen {
+                return lhs.lastSeen > rhs.lastSeen
+            }
+
+            return lhs.id < rhs.id
         }
     }
 
