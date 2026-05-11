@@ -3,6 +3,9 @@ import os
 
 extension PracticeSessionViewModel {
     func refreshAudioRecognitionForCurrentState() {
+        if startBluetoothMIDIIfNeededForCurrentState() {
+            return
+        }
         guard let audioRecognitionService else { return }
         guard isPracticeAudioRecognitionEnabled else {
             stopAudioRecognition()
@@ -85,6 +88,7 @@ extension PracticeSessionViewModel {
     }
 
     func stopAudioRecognition() {
+        stopBluetoothMIDIIfNeeded()
         guard let audioRecognitionService else { return }
         let wasRunning = isAudioRecognitionRunning
         audioRecognitionGeneration += 1
