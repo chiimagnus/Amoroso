@@ -33,6 +33,10 @@ final class LonelyPianistViewModel {
     var pressedNotes: [Int] = []
     var recentLogs: [EventLogItem] = []
     var liveRecordingTake: RecordingTake?
+    var bluetoothMIDIConnectionState: BluetoothMIDIConnectionState = .idle
+    var bluetoothMIDIScanMode: BluetoothMIDIScanMode = .midiServiceFiltered
+    var bluetoothMIDIDiscoveredPeripherals: [BluetoothMIDIPeripheral] = []
+    var selectedBluetoothMIDIPeripheralID: String?
     private var liveRecordingTakeID: UUID?
     private var recordingClockTask: Task<Void, Never>?
 
@@ -42,6 +46,7 @@ final class LonelyPianistViewModel {
     private let recordingRepository: RecordingTakeRepositoryProtocol
     private let recordingService: RecordingServiceProtocol
     private let playbackService: RoutableMIDIPlaybackServiceProtocol
+    private let bluetoothMIDIConnectionService: BluetoothMIDIConnectionServiceProtocol
     private var playbackClockTask: Task<Void, Never>?
     private var pendingSeekTask: Task<Void, Never>?
     private var playbackStartedAt: Date?
@@ -51,12 +56,14 @@ final class LonelyPianistViewModel {
         midiInputService: MIDIInputServiceProtocol,
         recordingRepository: RecordingTakeRepositoryProtocol,
         recordingService: RecordingServiceProtocol,
-        playbackService: RoutableMIDIPlaybackServiceProtocol
+        playbackService: RoutableMIDIPlaybackServiceProtocol,
+        bluetoothMIDIConnectionService: BluetoothMIDIConnectionServiceProtocol
     ) {
         self.midiInputService = midiInputService
         self.recordingRepository = recordingRepository
         self.recordingService = recordingService
         self.playbackService = playbackService
+        self.bluetoothMIDIConnectionService = bluetoothMIDIConnectionService
 
         bindServiceCallbacks()
     }
@@ -162,6 +169,24 @@ final class LonelyPianistViewModel {
             statusMessage = "Refresh failed: \(error.localizedDescription)"
             log(title: "MIDI Refresh Failed", detail: error.localizedDescription)
         }
+    }
+
+    func startBluetoothMIDIScan() {
+        bluetoothMIDIConnectionService.startScan(mode: bluetoothMIDIScanMode)
+    }
+
+    func stopBluetoothMIDIScan() {
+        bluetoothMIDIConnectionService.stopScan()
+    }
+
+    func connectBluetoothMIDI(id: String) {
+        selectedBluetoothMIDIPeripheralID = id
+        bluetoothMIDIConnectionService.connect(id: id)
+    }
+
+    func disconnectBluetoothMIDI(id: String) {
+        bluetoothMIDIConnectionService.disconnect(id: id)
+        refreshMIDISources()
     }
 
     func startRecordingTake() {
@@ -437,6 +462,25 @@ final class LonelyPianistViewModel {
         midiInputService.onSourceNamesChange = { [weak self] names in
             Task { @MainActor [weak self] in
                 self?.connectedSourceNames = names
+            }
+        }
+
+        bluetoothMIDIConnectionService.onConnectionStateChange = { [weak self] state in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                bluetoothMIDIConnectionState = state
+                bluetoothMIDIScanMode = bluetoothMIDIConnectionService.scanMode
+                bluetoothMIDIDiscoveredPeripherals = bluetoothMIDIConnectionService.discoveredPeripherals
+
+                if case .activated = state {
+                    refreshMIDISources()
+                }
+            }
+        }
+
+        bluetoothMIDIConnectionService.onPeripheralsChange = { [weak self] peripherals in
+            Task { @MainActor [weak self] in
+                self?.bluetoothMIDIDiscoveredPeripherals = peripherals
             }
         }
     }

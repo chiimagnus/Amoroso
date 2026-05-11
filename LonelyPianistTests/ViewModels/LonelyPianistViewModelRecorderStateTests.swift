@@ -136,19 +136,22 @@ private func makeContext() -> (
     repository: RecordingTakeRepositoryMock,
     recordingService: RecordingServiceMock,
     playback: MIDIPlaybackServiceMock,
-    midi: MIDIInputServiceMock
+    midi: MIDIInputServiceMock,
+    bluetooth: BluetoothMIDIConnectionServiceMock
 ) {
     let midi = MIDIInputServiceMock()
     let recordingRepository = RecordingTakeRepositoryMock()
     let recordingService = RecordingServiceMock()
     let playback = MIDIPlaybackServiceMock()
+    let bluetooth = BluetoothMIDIConnectionServiceMock()
 
     let viewModel = LonelyPianistViewModel(
         midiInputService: midi,
         recordingRepository: recordingRepository,
         recordingService: recordingService,
-        playbackService: playback
+        playbackService: playback,
+        bluetoothMIDIConnectionService: bluetooth
     )
 
-    return (viewModel, recordingRepository, recordingService, playback, midi)
+    return (viewModel, recordingRepository, recordingService, playback, midi, bluetooth)
 }

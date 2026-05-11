@@ -24,12 +24,14 @@ struct LonelyPianistApp: App {
         )
 
         let clock = SystemClock()
+        let bluetoothMIDIConnectionService = CoreBluetoothMIDIConnectionService()
 
         let viewModel = LonelyPianistViewModel(
             midiInputService: CoreMIDIInputService(),
             recordingRepository: recordingRepository,
             recordingService: DefaultRecordingService(clock: clock),
-            playbackService: playbackService
+            playbackService: playbackService,
+            bluetoothMIDIConnectionService: bluetoothMIDIConnectionService
         )
 
         viewModel.bootstrap()

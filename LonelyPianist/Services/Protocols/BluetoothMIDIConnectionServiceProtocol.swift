@@ -1,6 +1,6 @@
 import Foundation
 
-enum BluetoothMIDIScanMode: Equatable, Sendable {
+enum BluetoothMIDIScanMode: Hashable, Sendable {
     case midiServiceFiltered
     case allDevices
 }
@@ -35,4 +35,3 @@ protocol BluetoothMIDIConnectionServiceProtocol: AnyObject {
     func connect(id: String)
     func disconnect(id: String)
 }
-
