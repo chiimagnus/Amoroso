@@ -4,7 +4,18 @@
 
 > 关键点：**先在系统里连上 BLE MIDI**，App 才能在 `MIDIGetNumberOfSources()` 里看到它。
 
-## 连接步骤（推荐：Audio MIDI Setup）
+## 连接步骤（推荐：在 App 内打开系统蓝牙 MIDI 窗口）
+
+如果你使用的是 LonelyPianist 内置的连接入口：
+
+1. 打开 App，点工具栏 `MIDI`
+2. 点击 `Bluetooth MIDI…`
+3. 在弹出的系统窗口里找到你的设备并点击 Connect
+4. 回到面板点击 `Refresh MIDI Sources`（或等待自动刷新）
+
+> 这会使用系统提供的 CoreAudioKit 蓝牙 MIDI 浏览窗口，不需要手动打开 Audio MIDI Setup。
+
+## 连接步骤（备选：Audio MIDI Setup）
 
 1. 打开 **Audio MIDI Setup.app**
    - Finder → Applications → Utilities → `Audio MIDI Setup`
@@ -67,4 +78,3 @@
 - App 不需要自己维护 CoreBluetooth 扫描/连接/授权状态机
 - CoreMIDI 的 Source/Destination 列表与系统一致，排障路径更明确
 - 用户也更熟悉 Audio MIDI Setup 的连接方式
-
