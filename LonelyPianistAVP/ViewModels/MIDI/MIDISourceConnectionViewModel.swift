@@ -1,0 +1,75 @@
+import Foundation
+import Observation
+
+@MainActor
+@Observable
+final class MIDISourceConnectionViewModel {
+    private let monitoringService: MIDISourceMonitoringServiceProtocol
+
+    var sourceNames: [String] = []
+    var connectionState: MIDISourceMonitoringConnectionState = .idle
+    var lastErrorMessage: String?
+
+    init(monitoringService: MIDISourceMonitoringServiceProtocol? = nil) {
+        let monitoringService = monitoringService ?? CoreMIDISourceMonitoringService()
+        self.monitoringService = monitoringService
+
+        monitoringService.onSourceNamesChange = { [weak self] names in
+            Task { @MainActor [weak self] in
+                self?.sourceNames = names
+            }
+        }
+
+        monitoringService.onConnectionStateChange = { [weak self] state in
+            Task { @MainActor [weak self] in
+                self?.connectionState = state
+            }
+        }
+
+        monitoringService.onLastErrorMessageChange = { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.lastErrorMessage = message
+            }
+        }
+    }
+
+    var sourceCount: Int {
+        switch connectionState {
+        case let .connected(sourceCount):
+            return sourceCount
+        case .idle, .failed:
+            return 0
+        }
+    }
+
+    var statusText: String {
+        switch connectionState {
+        case .idle:
+            return "idle"
+        case let .connected(sourceCount):
+            return "connected: \(sourceCount)"
+        case let .failed(message):
+            return "failed: \(message)"
+        }
+    }
+
+    func start() {
+        do {
+            try monitoringService.start()
+        } catch {
+            connectionState = .failed(message: error.localizedDescription)
+        }
+    }
+
+    func stop() {
+        monitoringService.stop()
+    }
+
+    func refreshSources() {
+        do {
+            try monitoringService.refreshSources()
+        } catch {
+            lastErrorMessage = error.localizedDescription
+        }
+    }
+}

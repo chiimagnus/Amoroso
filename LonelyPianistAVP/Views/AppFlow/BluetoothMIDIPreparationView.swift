@@ -8,7 +8,7 @@ struct BluetoothMIDIPreparationView: View {
     @State private var didAutoPresentBluetoothMIDIPanel = false
     @State private var bluetoothAccessPreflight = BluetoothAccessPreflight()
     @State private var bluetoothMIDIAlert: BluetoothMIDIAlert?
-    @State private var midiDebugViewModel = BluetoothMIDIDebugViewModel()
+    @State private var sourceConnectionViewModel = MIDISourceConnectionViewModel()
 
     var body: some View {
         VStack(spacing: 20) {
@@ -18,14 +18,14 @@ struct BluetoothMIDIPreparationView: View {
             GroupBox("第 0 步：连接蓝牙 MIDI") {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack {
-                        Text("状态：\(midiDebugViewModel.statusText)")
+                        Text("状态：\(sourceConnectionViewModel.statusText)")
                             .font(.callout)
                             .foregroundStyle(.secondary)
 
                         Spacer()
 
                         Button("刷新 Sources", systemImage: "arrow.clockwise") {
-                            midiDebugViewModel.refreshSources()
+                            sourceConnectionViewModel.refreshSources()
                         }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.roundedRectangle)
@@ -41,16 +41,22 @@ struct BluetoothMIDIPreparationView: View {
                         .hoverEffect()
                     }
 
-                    Text("Sources: \(midiDebugViewModel.sourceNames.count)")
+                    Text("Sources: \(sourceConnectionViewModel.sourceCount)")
                         .font(.headline)
 
-                    if midiDebugViewModel.sourceNames.isEmpty {
+                    if let message = sourceConnectionViewModel.lastErrorMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if sourceConnectionViewModel.sourceNames.isEmpty {
                         Text("尚未发现可用的 MIDI sources。请在系统面板中点击 Connect 连接你的钢琴，然后回到这里刷新。")
                             .font(.callout)
                             .foregroundStyle(.secondary)
                     } else {
                         VStack(alignment: .leading, spacing: 6) {
-                            ForEach(midiDebugViewModel.sourceNames, id: \.self) { name in
+                            ForEach(sourceConnectionViewModel.sourceNames, id: \.self) { name in
                                 Text("• \(name)")
                                     .font(.callout)
                             }
@@ -117,12 +123,12 @@ struct BluetoothMIDIPreparationView: View {
         .onChange(of: viewModel.calibrationPhase) {
             router.flowState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
         }
-        .onChange(of: midiDebugViewModel.sourceNames) {
-            router.flowState.bluetoothMIDISourceCount = midiDebugViewModel.sourceNames.count
+        .onChange(of: sourceConnectionViewModel.connectionState) {
+            router.flowState.bluetoothMIDISourceCount = sourceConnectionViewModel.sourceCount
         }
         .onAppear {
-            midiDebugViewModel.start()
-            router.flowState.bluetoothMIDISourceCount = midiDebugViewModel.sourceNames.count
+            sourceConnectionViewModel.start()
+            router.flowState.bluetoothMIDISourceCount = sourceConnectionViewModel.sourceCount
 
             guard !didAutoPresentBluetoothMIDIPanel else { return }
             didAutoPresentBluetoothMIDIPanel = true
@@ -131,7 +137,7 @@ struct BluetoothMIDIPreparationView: View {
             }
         }
         .onDisappear {
-            midiDebugViewModel.stop()
+            sourceConnectionViewModel.stop()
         }
     }
 
@@ -165,4 +171,3 @@ private enum BluetoothMIDIAlert: String, Identifiable {
 
     var id: String { rawValue }
 }
-
