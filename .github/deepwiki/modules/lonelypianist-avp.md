@@ -35,6 +35,7 @@
 - 系统连接 UI：`Views/MIDI/BluetoothMIDICentralView.swift` 包装 `CoreAudioKit.CABTMIDICentralViewController`（不做 app 私有扫描/连接）。
 - 权限预检与引导：`Services/Bluetooth/BluetoothAccessPreflight.swift` + `NSBluetoothAlwaysUsageDescription`（见 `LonelyPianistAVP/Info.plist`）。
 - 连接确认抓手：`ViewModels/MIDI/BluetoothMIDIDebugViewModel.swift` + `Services/MIDI/CoreMIDIDebugInputService.swift` 在准备页展示 sources / noteOn/noteOff 计数。
+- Step 3 输入源：练习页可在设置中选择 `音频识别` 或 `Bluetooth MIDI`（见 `modules/lonelypianist-avp-practice.md`）。
 - 验收要点：visionOS Simulator 无法可靠验证 BLE MIDI；以 Vision Pro 真机冒烟为准。
 
 ## 重要子页
