@@ -70,6 +70,7 @@ final class ARGuideViewModel {
     private(set) var practiceSessionViewModel: PracticeSessionViewModel
     private var latestPreparedPractice: PreparedPractice?
     private var handTrackingConsumerTask: Task<Void, Never>?
+    private var currentTrackingMode: ARTrackingMode?
     private var virtualPianoGuidanceUpdateTask: Task<Void, Never>?
     private var calibrationAnchorCaptureTask: Task<Void, Never>?
     private var calibrationFlowBootstrapTask: Task<Void, Never>?
@@ -752,6 +753,8 @@ final class ARGuideViewModel {
         switch handState {
             case .running:
                 return "手势辅助：可用（boost + fallback）"
+            case .disabled:
+                return "手势辅助：已关闭（Bluetooth MIDI 模式）"
             case .unauthorized:
                 return "手势辅助：不可用（未授权）"
             case let .failed(reason):
@@ -906,12 +909,12 @@ final class ARGuideViewModel {
             case .calibration:
                 wasRightHandPinching = false
                 wasLeftHandPinching = false
-                startHandTrackingIfNeeded()
+                startTrackingIfNeeded()
                 startCalibrationSupportPollingIfNeeded()
                 updateCalibrationTrackingStatusIfNeeded()
 
             case .practice:
-                startHandTrackingIfNeeded()
+                startTrackingIfNeeded()
         }
     }
 
@@ -922,9 +925,24 @@ final class ARGuideViewModel {
         stopHandTracking()
     }
 
-    func startHandTrackingIfNeeded() {
+    func startTrackingIfNeeded() {
+        let desiredMode: ARTrackingMode = switch appState.immersiveMode {
+        case .calibration:
+            .calibration
+        case .practice:
+            flowState.pianoKind == .realBluetoothMIDI && isVirtualPianoEnabled == false ? .practiceBluetoothMIDI : .practiceVirtualOrAudio
+        }
+
+        if desiredMode != currentTrackingMode {
+            stopHandTracking()
+            currentTrackingMode = desiredMode
+        }
+
+        arTrackingService.start(mode: desiredMode)
+
+        guard desiredMode != .practiceBluetoothMIDI else { return }
         guard handTrackingConsumerTask == nil else { return }
-        arTrackingService.start()
+
         startVirtualPianoGuidanceIfNeeded()
         let updates = arTrackingService.fingerTipUpdatesStream()
         handTrackingConsumerTask = Task { @MainActor [weak self] in
@@ -932,28 +950,28 @@ final class ARGuideViewModel {
             for await fingerTips in updates {
                 guard Task.isCancelled == false else { return }
                 switch appState.immersiveMode {
-                    case .calibration:
-                        handleCalibrationHandUpdates()
-                    case .practice:
-                        let nowUptime = ProcessInfo.processInfo.systemUptime
-                        updateLatestDeviceWorldPosition(nowUptime: nowUptime)
-                        if isAIPerformanceActive {
-                            continue
-                        }
-                        if isVirtualPianoEnabled {
-                            updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
-                            if practiceSessionViewModel.keyboardGeometry != nil {
-                                _ = practiceSessionViewModel.handleFingerTipPositions(
-                                    fingerTips,
-                                    isVirtualPiano: true
-                                )
-                                recordPhraseIfNeeded(nowUptime: nowUptime)
-                            }
-                        } else {
-                            _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                case .calibration:
+                    handleCalibrationHandUpdates()
+                case .practice:
+                    let nowUptime = ProcessInfo.processInfo.systemUptime
+                    updateLatestDeviceWorldPosition(nowUptime: nowUptime)
+                    if isAIPerformanceActive {
+                        continue
+                    }
+                    if isVirtualPianoEnabled {
+                        updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
+                        if practiceSessionViewModel.keyboardGeometry != nil {
+                            _ = practiceSessionViewModel.handleFingerTipPositions(
+                                fingerTips,
+                                isVirtualPiano: true
+                            )
                             recordPhraseIfNeeded(nowUptime: nowUptime)
-                            recordTakeIfNeeded(nowUptime: nowUptime)
                         }
+                    } else {
+                        _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                        recordPhraseIfNeeded(nowUptime: nowUptime)
+                        recordTakeIfNeeded(nowUptime: nowUptime)
+                    }
                 }
             }
         }
@@ -1166,6 +1184,7 @@ final class ARGuideViewModel {
         calibrationAnchorCaptureTask = nil
         handTrackingConsumerTask?.cancel()
         handTrackingConsumerTask = nil
+        currentTrackingMode = nil
         stopVirtualPianoGuidance()
         calibrationSupportPollTask?.cancel()
         calibrationSupportPollTask = nil
