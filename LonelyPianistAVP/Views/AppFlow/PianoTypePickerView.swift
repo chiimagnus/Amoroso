@@ -8,12 +8,19 @@ struct PianoTypePickerView: View {
             Text("选择钢琴类型")
                 .font(.largeTitle.weight(.bold))
 
-            HStack(spacing: 40) {
+            HStack(spacing: 24) {
                 typeCard(
-                    title: "真实钢琴",
-                    subtitle: "使用实体钢琴练习",
+                    title: "真实钢琴（音频）",
+                    subtitle: "通过麦克风识别弹奏",
                     icon: "pianokeys",
-                    kind: .real
+                    kind: .realAudio
+                )
+
+                typeCard(
+                    title: "真实钢琴（蓝牙 MIDI）",
+                    subtitle: "通过系统 Bluetooth MIDI 连接",
+                    icon: "bluetooth",
+                    kind: .realBluetoothMIDI
                 )
 
                 typeCard(
@@ -25,7 +32,7 @@ struct PianoTypePickerView: View {
             }
         }
         .padding(40)
-        .frame(minWidth: 560, idealWidth: 700)
+        .frame(minWidth: 760, idealWidth: 860)
     }
 
     private func typeCard(title: String, subtitle: String, icon: String, kind: PianoKind) -> some View {

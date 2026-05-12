@@ -18,8 +18,14 @@ protocol ARTrackingServiceProtocol: AnyObject {
     var worldTrackingProvider: WorldTrackingProvider { get }
 
     func fingerTipUpdatesStream() -> AsyncStream<[String: SIMD3<Float>]>
-    func start()
+    func start(mode: ARTrackingMode)
     func stop()
+}
+
+enum ARTrackingMode: Equatable {
+    case calibration
+    case practiceBluetoothMIDI
+    case practiceVirtualOrAudio
 }
 
 enum DataProviderState: Equatable {
@@ -27,6 +33,7 @@ enum DataProviderState: Equatable {
     case running
     case unsupported
     case unauthorized
+    case disabled
     case stopped
     case failed(reason: String)
 
@@ -40,6 +47,8 @@ enum DataProviderState: Equatable {
                 "unsupported"
             case .unauthorized:
                 "unauthorized"
+            case .disabled:
+                "disabled"
             case .stopped:
                 "stopped"
             case let .failed(reason):
@@ -95,14 +104,23 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         }
     }
 
-    func start() {
+    func start(mode: ARTrackingMode) {
         guard sessionTask == nil else { return }
 
         let isHandSupported = HandTrackingProvider.isSupported
         let isWorldSupported = WorldTrackingProvider.isSupported
         let isPlaneSupported = PlaneDetectionProvider.isSupported
 
-        if isHandSupported == false {
+        let shouldIncludeHand: Bool = switch mode {
+        case .calibration, .practiceVirtualOrAudio:
+            true
+        case .practiceBluetoothMIDI:
+            false
+        }
+
+        if shouldIncludeHand == false {
+            providerStateByName["hand"] = .disabled
+        } else if isHandSupported == false {
             providerStateByName["hand"] = .unsupported
         }
         if isWorldSupported == false {
@@ -112,17 +130,17 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             providerStateByName["plane"] = .unsupported
         }
 
-        guard isHandSupported || isWorldSupported || isPlaneSupported else { return }
+        guard (shouldIncludeHand && isHandSupported) || isWorldSupported || isPlaneSupported else { return }
 
         sessionTask = Task { [weak self] in
             guard let self else { return }
 
-            let handRequiredAuthorizations = isHandSupported ? HandTrackingProvider.requiredAuthorizations : []
+            let handRequiredAuthorizations = (shouldIncludeHand && isHandSupported) ? HandTrackingProvider.requiredAuthorizations : []
             let worldRequiredAuthorizations = isWorldSupported ? WorldTrackingProvider.requiredAuthorizations : []
             let planeRequiredAuthorizations = isPlaneSupported ? PlaneDetectionProvider.requiredAuthorizations : []
 
             let requiredAuthorizations = deduplicatedRequiredAuthorizations(
-                includeHand: isHandSupported,
+                includeHand: shouldIncludeHand && isHandSupported,
                 includeWorld: isWorldSupported,
                 includePlane: isPlaneSupported
             )
@@ -130,7 +148,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 requiredAuthorizations.isEmpty ? [:] : await session.requestAuthorization(for: requiredAuthorizations)
             authorizationStatusByType = statuses
 
-            let isHandAllowed = isHandSupported && isAuthorized(
+            let isHandAllowed = shouldIncludeHand && isHandSupported && isAuthorized(
                 requiredAuthorizations: handRequiredAuthorizations,
                 statuses: statuses
             )
@@ -143,7 +161,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 statuses: statuses
             )
 
-            if isHandSupported, isHandAllowed == false {
+            if shouldIncludeHand, isHandSupported, isHandAllowed == false {
                 providerStateByName["hand"] = .unauthorized
             }
             if isWorldSupported, isWorldAllowed == false {

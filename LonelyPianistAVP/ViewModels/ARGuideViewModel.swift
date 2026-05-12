@@ -66,8 +66,11 @@ final class ARGuideViewModel {
     }
 
     private let appState: AppState
-    let practiceSessionViewModel: PracticeSessionViewModel
+    private let practiceSessionViewModelFactory: PracticeSessionViewModelFactoryProtocol
+    private(set) var practiceSessionViewModel: PracticeSessionViewModel
+    private var latestPreparedPractice: PreparedPractice?
     private var handTrackingConsumerTask: Task<Void, Never>?
+    private var currentTrackingMode: ARTrackingMode?
     private var virtualPianoGuidanceUpdateTask: Task<Void, Never>?
     private var calibrationAnchorCaptureTask: Task<Void, Never>?
     private var calibrationFlowBootstrapTask: Task<Void, Never>?
@@ -98,25 +101,33 @@ final class ARGuideViewModel {
     private let backendDiscoveryService = BonjourBackendDiscoveryService()
     private var phraseRecorder = PhraseRecorder()
     private var takeRecorder = RecordingTakeRecorder()
+    private let midiRecordingAdapter = MIDIRecordingAdapter()
     private let takeLibraryViewModel = TakeLibraryViewModel()
     let takePlaybackController = TakePlaybackController(
         playbackService: AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2")
     )
     private(set) var isRecording = false
     private var recordingStartDate: Date?
+    private var midiTakeRecordingTask: Task<Void, Never>?
 
     let flowState: FlowState
 
-    init(appState: AppState, flowState: FlowState, practiceSessionViewModel: PracticeSessionViewModel? = nil) {
+    init(
+        appState: AppState,
+        flowState: FlowState,
+        practiceSessionViewModelFactory: PracticeSessionViewModelFactoryProtocol = PracticeSessionViewModelFactoryService()
+    ) {
         self.appState = appState
         self.flowState = flowState
-        self.practiceSessionViewModel = practiceSessionViewModel ?? PracticeSessionViewModel()
+        self.practiceSessionViewModelFactory = practiceSessionViewModelFactory
+        self.practiceSessionViewModel = practiceSessionViewModelFactory.makePracticeSessionViewModel(for: flowState.pianoKind)
         setupAppStateCallbacks()
     }
 
     private func setupAppStateCallbacks() {
         flowState.onStepsImported = { [weak self] prepared in
             guard let self else { return }
+            self.latestPreparedPractice = prepared
             self.practiceSessionViewModel.setSteps(
                 prepared.steps,
                 tempoMap: prepared.tempoMap,
@@ -141,6 +152,67 @@ final class ARGuideViewModel {
         }
         appState.onApplyKeyboardGeometry = { [weak self] geometry, calibration in
             self?.practiceSessionViewModel.applyKeyboardGeometry(geometry, calibration: calibration)
+        }
+    }
+
+    private func replacePracticeSessionViewModel() {
+        let next = practiceSessionViewModelFactory.makePracticeSessionViewModel(for: flowState.pianoKind)
+
+        practiceSessionViewModel.shutdown()
+        practiceSessionViewModel = next
+
+        if let prepared = latestPreparedPractice {
+            practiceSessionViewModel.setSteps(
+                prepared.steps,
+                tempoMap: prepared.tempoMap,
+                pedalTimeline: prepared.pedalTimeline,
+                fermataTimeline: prepared.fermataTimeline,
+                attributeTimeline: prepared.attributeTimeline,
+                slurTimeline: prepared.slurTimeline,
+                noteSpans: prepared.noteSpans,
+                highlightGuides: prepared.highlightGuides,
+                measureSpans: prepared.measureSpans
+            )
+        }
+
+        appState.applySessionIfPossible()
+        if isVirtualPerformerEnabled {
+            setPracticeVirtualPerformerEnabled(true)
+        }
+
+        restartMIDITakeRecordingSubscriptionIfNeeded()
+    }
+
+    private func restartMIDITakeRecordingSubscriptionIfNeeded() {
+        midiTakeRecordingTask?.cancel()
+        midiTakeRecordingTask = nil
+
+        guard flowState.pianoKind == .realBluetoothMIDI else { return }
+        guard let eventSource = practiceSessionViewModel.practiceInputEventSource else { return }
+
+        midiTakeRecordingTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            for await event in eventSource.events {
+                guard Task.isCancelled == false else { return }
+                if isRecording {
+                    midiRecordingAdapter.record(event: event, into: &takeRecorder)
+                }
+                recordPhraseFromMIDIEventIfNeeded(event)
+            }
+        }
+    }
+
+    private func recordPhraseFromMIDIEventIfNeeded(_ event: PracticeInputEvent) {
+        guard isVirtualPerformerEnabled else { return }
+
+        switch event.kind {
+        case let .noteOn(note, velocity):
+            silenceTrigger.recordNoteOn(atUptime: event.receivedAtUptimeSeconds)
+            phraseRecorder.recordNoteOn(midi: note, velocity: velocity, timestamp: event.receivedAtUptimeSeconds)
+        case let .noteOff(note, _):
+            phraseRecorder.recordNoteOff(midi: note, timestamp: event.receivedAtUptimeSeconds)
+        default:
+            return
         }
     }
 
@@ -718,6 +790,8 @@ final class ARGuideViewModel {
         switch handState {
             case .running:
                 return "手势辅助：可用（boost + fallback）"
+            case .disabled:
+                return "手势辅助：已关闭（Bluetooth MIDI 模式）"
             case .unauthorized:
                 return "手势辅助：不可用（未授权）"
             case let .failed(reason):
@@ -760,6 +834,7 @@ final class ARGuideViewModel {
         using openImmersiveSpace: OpenImmersiveSpaceAction,
         dismissImmersiveSpace: DismissImmersiveSpaceAction
     ) async {
+        replacePracticeSessionViewModel()
         await beginPracticeLocalization(
             using: openImmersiveSpace,
             dismissImmersiveSpace: dismissImmersiveSpace
@@ -770,6 +845,7 @@ final class ARGuideViewModel {
         using openImmersiveSpace: OpenImmersiveSpaceAction,
         dismissImmersiveSpace: DismissImmersiveSpaceAction
     ) async {
+        replacePracticeSessionViewModel()
         await beginPracticeLocalization(
             using: openImmersiveSpace,
             dismissImmersiveSpace: dismissImmersiveSpace
@@ -870,12 +946,12 @@ final class ARGuideViewModel {
             case .calibration:
                 wasRightHandPinching = false
                 wasLeftHandPinching = false
-                startHandTrackingIfNeeded()
+                startTrackingIfNeeded()
                 startCalibrationSupportPollingIfNeeded()
                 updateCalibrationTrackingStatusIfNeeded()
 
             case .practice:
-                startHandTrackingIfNeeded()
+                startTrackingIfNeeded()
         }
     }
 
@@ -883,12 +959,29 @@ final class ARGuideViewModel {
         cancelCalibrationGuidedFlowTasks()
         cancelPracticeLocalizationTask()
         practiceSessionViewModel.stopVirtualPianoInput()
+        midiTakeRecordingTask?.cancel()
+        midiTakeRecordingTask = nil
         stopHandTracking()
     }
 
-    func startHandTrackingIfNeeded() {
+    func startTrackingIfNeeded() {
+        let desiredMode: ARTrackingMode = switch appState.immersiveMode {
+        case .calibration:
+            .calibration
+        case .practice:
+            flowState.pianoKind == .realBluetoothMIDI && isVirtualPianoEnabled == false ? .practiceBluetoothMIDI : .practiceVirtualOrAudio
+        }
+
+        if desiredMode != currentTrackingMode {
+            stopHandTracking()
+            currentTrackingMode = desiredMode
+        }
+
+        arTrackingService.start(mode: desiredMode)
+
+        guard desiredMode != .practiceBluetoothMIDI else { return }
         guard handTrackingConsumerTask == nil else { return }
-        arTrackingService.start()
+
         startVirtualPianoGuidanceIfNeeded()
         let updates = arTrackingService.fingerTipUpdatesStream()
         handTrackingConsumerTask = Task { @MainActor [weak self] in
@@ -896,34 +989,35 @@ final class ARGuideViewModel {
             for await fingerTips in updates {
                 guard Task.isCancelled == false else { return }
                 switch appState.immersiveMode {
-                    case .calibration:
-                        handleCalibrationHandUpdates()
-                    case .practice:
-                        let nowUptime = ProcessInfo.processInfo.systemUptime
-                        updateLatestDeviceWorldPosition(nowUptime: nowUptime)
-                        if isAIPerformanceActive {
-                            continue
-                        }
-                        if isVirtualPianoEnabled {
-                            updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
-                            if practiceSessionViewModel.keyboardGeometry != nil {
-                                _ = practiceSessionViewModel.handleFingerTipPositions(
-                                    fingerTips,
-                                    isVirtualPiano: true
-                                )
-                                recordPhraseIfNeeded(nowUptime: nowUptime)
-                            }
-                        } else {
-                            _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                case .calibration:
+                    handleCalibrationHandUpdates()
+                case .practice:
+                    let nowUptime = ProcessInfo.processInfo.systemUptime
+                    updateLatestDeviceWorldPosition(nowUptime: nowUptime)
+                    if isAIPerformanceActive {
+                        continue
+                    }
+                    if isVirtualPianoEnabled {
+                        updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
+                        if practiceSessionViewModel.keyboardGeometry != nil {
+                            _ = practiceSessionViewModel.handleFingerTipPositions(
+                                fingerTips,
+                                isVirtualPiano: true
+                            )
                             recordPhraseIfNeeded(nowUptime: nowUptime)
-                            recordTakeIfNeeded(nowUptime: nowUptime)
                         }
+                    } else {
+                        _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                        recordPhraseIfNeeded(nowUptime: nowUptime)
+                        recordTakeIfNeeded(nowUptime: nowUptime)
+                    }
                 }
             }
         }
     }
 
     private func recordPhraseIfNeeded(nowUptime: TimeInterval) {
+        guard flowState.pianoKind != .realBluetoothMIDI else { return }
         guard isVirtualPerformerEnabled else { return }
 
         let contact = practiceSessionViewModel.latestKeyContactResult
@@ -941,6 +1035,7 @@ final class ARGuideViewModel {
     }
 
     private func recordTakeIfNeeded(nowUptime: TimeInterval) {
+        guard flowState.pianoKind != .realBluetoothMIDI else { return }
         guard isRecording, isVirtualPianoEnabled == false else { return }
 
         let contact = practiceSessionViewModel.latestKeyContactResult
@@ -1130,6 +1225,7 @@ final class ARGuideViewModel {
         calibrationAnchorCaptureTask = nil
         handTrackingConsumerTask?.cancel()
         handTrackingConsumerTask = nil
+        currentTrackingMode = nil
         stopVirtualPianoGuidance()
         calibrationSupportPollTask?.cancel()
         calibrationSupportPollTask = nil
@@ -1249,6 +1345,19 @@ final class ARGuideViewModel {
 
     var canRecord: Bool {
         isVirtualPianoEnabled == false
+    }
+
+    var recordingSourceText: String? {
+        switch flowState.pianoKind {
+        case .realBluetoothMIDI:
+            "录制来源：Bluetooth MIDI（弹奏琴键即可录制）"
+        case .realAudio:
+            "录制来源：手势触键（用于推断按键接触）"
+        case .virtual:
+            "录制来源：虚拟钢琴触键"
+        case .none:
+            nil
+        }
     }
 
     func startRecording() {

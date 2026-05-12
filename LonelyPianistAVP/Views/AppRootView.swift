@@ -25,6 +25,8 @@ struct AppRootView: View {
             PianoTypePickerView()
         case .realPreparation:
             RealPianoPreparationView(viewModel: arGuideViewModel)
+        case .bluetoothMIDIPreparation:
+            BluetoothMIDIPreparationView(viewModel: arGuideViewModel)
         case .virtualPreparation:
             VirtualPianoPreparationView(viewModel: arGuideViewModel)
         case .library:
