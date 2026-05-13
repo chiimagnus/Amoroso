@@ -3,19 +3,19 @@
 ## Run info
 | Item | Value |
 | --- | --- |
-| Commit hash | 20e66cb6a38734e262ad9a09f280b6552ace249e |
-| Branch name | crh1 |
-| Generated at | 2026-05-12T13:00:04+08:00 |
+| Commit hash | 453d6366041d31542035769f671565a0d9d27c6f |
+| Branch name | crh2 |
+| Generated at | 2026-05-13T11:50:18+08:00 |
 | Output language | Chinese |
 | Generation mode | Incremental update via `deepwiki` skill |
 
 ## Key updates in this generation
 | Area | Update |
 | --- | --- |
-| AVP 主流程重构同步 | 更新 deepwiki 以反映 `AppRouter.route` root 切换、`FlowState` 持有钢琴类型与曲目/steps、`AppState` 聚合 tracking/runtime calibration，并移除旧的 `ContentView/HomeViewModel/AppModel` 表述。 |
-| 曲库 seed/seeder 清理 | 曲库改为“内置条目（bundle）+ 用户导入索引”合并展示；移除 `SongLibrarySeeder` 相关过期描述。 |
-| README 对齐 | 更新仓库根 `README.md` 与 `LonelyPianistAVP/README.md` 的 AVP 主流程说明（类型选择 → 准备 → 曲库 → 练习）。 |
-| AVP BLE MIDI 模式落地 | 同步 deepwiki 以反映 `.realBluetoothMIDI` 作为独立钢琴模式：系统连接 gate（sources>0）、MIDI-only 注入链路（不启音频识别/hand tracking consumer）、G1 事件模型与 take/phrase 录制输入迁移、以及 Vision Pro 真机冒烟清单。 |
+| AVP BLE MIDI：准备页与系统面板 | 更新 deepwiki 以反映 `BluetoothMIDIPreparationView` 改为**内嵌**系统 Bluetooth MIDI 面板（不再 sheet 弹窗），并移除 sources 刷新/列表 UI；保留 `sourceCount` gate。 |
+| AVP BLE MIDI：Step 推进判定 | 记录 BLE MIDI 的 step 推进为“note-on 事件聚合判定”，并补充多音/和弦的聚合窗口与多数命中规则（当前配置更宽松以降低卡步）。 |
+| Services/Practice 目录整理 | 更新 deepwiki 中引用的 Practice 相关源码路径，反映 `Services/Practice/` 按用途拆分子目录（AI/Autoplay/Guides/ManualAdvance/Matching/Session）。 |
+| 虚拟钢琴入口表述修正 | 修正 deepwiki 中“Step 3 设置页切换虚拟钢琴”的过期表述，改为以 `PianoKind`（类型选择/准备页）驱动。 |
 
 ## Generated page list
 ### Core pages

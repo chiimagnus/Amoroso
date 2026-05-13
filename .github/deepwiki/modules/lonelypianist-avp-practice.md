@@ -83,15 +83,25 @@ AVP 端把 Step 3 “练习输入/推进/录制/AI”按钢琴模式做硬边界
 ### Bluetooth MIDI 模式（MIDI-only）
 
 关键链路：
-- 系统连接面板：`Views/MIDI/BluetoothMIDICentralView.swift`（系统 UI，不做 app 私有 BLE 扫描/连接）。
-- Gate：准备页展示 `sources`，并把 `sourceCount` 写入 `FlowState.bluetoothMIDISourceCount`；`AppRouter.canProceedToLibrary` 以此作为进入后续流程的硬条件。
+- 系统连接面板：`Views/MIDI/BluetoothMIDICentralView.swift`（系统 UI）；准备页用 `BluetoothMIDICentralEmbeddedView` 内嵌展示（不做 app 私有 BLE 扫描/连接）。
+- Gate：准备页通过 `MIDISourceConnectionViewModel` 监控 `sourceCount` 并写入 `FlowState.bluetoothMIDISourceCount`；`AppRouter.canProceedToLibrary` 以此作为进入后续流程的硬条件。
 - 事件模型：`Models/Practice/PracticeInputEvent.swift`（G1 channel voice）。
 - 事件源：`Services/MIDI/BluetoothMIDIInputEventSourceService.swift`（CoreMIDI UMP → `PracticeInputEventSourceProtocol.events`）。
-- 注入：`Services/Practice/PracticeSessionViewModelFactoryService.swift` 在进入 Step 3 前按 `PianoKind` 创建 `PracticeSessionViewModel`：
+- 注入：`Services/Practice/Session/PracticeSessionViewModelFactoryService.swift` 在进入 Step 3 前按 `PianoKind` 创建 `PracticeSessionViewModel`：
   - BLE 模式：注入 `practiceInputEventSource`，**不注入** `audioRecognitionService`；
-  - 事件消费：`PracticeSessionViewModel+PracticeInput.swift` 只消费 note-on 推进 step（复用 `AudioStepAttemptAccumulator` matcher）。
+  - 事件消费：`PracticeSessionViewModel+PracticeInput.swift` 只消费 note-on 推进 step（复用 `AudioStepAttemptAccumulator`）。
 - Tracking：BLE 模式练习阶段使用 `ARTrackingMode.practiceBluetoothMIDI`（不启 hand tracking consumer；仍保留 world/plane 用于定位与高亮引导）。
-- 录制/AI：BLE 模式下 take/phrase 由 MIDI events 驱动（`Services/Recording/MIDIRecordingAdapter.swift` + `RecordingTakeRecorder` / `PhraseRecorder`），不依赖 contact。
+- 录制/AI：BLE 模式下 take/phrase 由 MIDI events 驱动（`Services/Recording/MIDIRecordingAdapter.swift` + `RecordingTakeRecorder` / `Services/Practice/AI/PhraseRecorder.swift`），不依赖 contact。
+
+#### Step 推进判定（BLE MIDI）
+
+BLE MIDI 模式的“进入下一步”是**事件判定**（不追求节拍、时值和持续按键的音长）：
+
+- 仅消费 `noteOn(velocity > 0)`（`velocity == 0` 视为 `noteOff`）。
+- `expectedMIDINotes` 来自当前 step 的 note 集合（去重后按 MIDI note 排序）。
+- 多音/和弦 step 使用“短窗口聚合”判定：把最近一小段时间内的 note-on 视为一次尝试；命中数达到阈值则推进。
+  - 3 个音：至少命中 2 个；4 个音：至少命中 3 个（默认按 2/3 向上取整）。
+  - 聚合窗口（当前 BLE 模式配置）约为 `0.55s`，用于容忍“看起来同时但 note-on 有微小先后”的情况。
 
 ## AI 即兴（后端生成）
 
@@ -124,9 +134,9 @@ flowchart TD
 
 ### 入口与切换
 
-1. 在 Step 3 练习设置页打开「虚拟钢琴（无需真实钢琴）」开关。
-2. `ARGuideViewModel.setPracticeVirtualPianoEnabled(true)` 取消正在进行的实体定位，并启动“视野中心平面 + 双手确认”的放置引导。
-3. 关闭开关或离开练习页时自动停止所有 live notes 并重置放置状态。
+1. 在「钢琴类型选择」中选择 `.virtual`，进入 `Views/AppFlow/VirtualPianoPreparationView.swift` 完成放置后进入曲库/练习。
+2. Step 3 内 `PracticeStepView` 依据 `FlowState.pianoKind == .virtual` 启用虚拟钢琴输入与沉浸空间 overlay。
+3. 离开练习页或切换到非虚拟钢琴模式时，会停止所有 live notes 并重置放置/接触检测状态。
 
 #### Simulator 自动放置
 
@@ -272,7 +282,7 @@ flowchart TD
 
 ### 源码位置
 
-- `LonelyPianistAVP/Services/Practice/AutoplayPerformanceTimeline.swift`
+- `LonelyPianistAVP/Services/Practice/Autoplay/AutoplayPerformanceTimeline.swift`
 
 ## PianoHighlightGuideBuilderService 详解
 
@@ -303,7 +313,7 @@ struct PianoHighlightGuideBuildInput {
 
 ### 源码位置
 
-- `LonelyPianistAVP/Services/Practice/PianoHighlightGuideBuilderService.swift`
+- `LonelyPianistAVP/Services/Practice/Guides/PianoHighlightGuideBuilderService.swift`
 
 ## PianoHighlightParsedElementCoverageService 详解
 
@@ -327,7 +337,7 @@ struct PianoHighlightGuideBuildInput {
 
 ### 源码位置
 
-- `LonelyPianistAVP/Services/Practice/PianoHighlightParsedElementCoverageService.swift`
+- `LonelyPianistAVP/Services/Practice/Guides/PianoHighlightParsedElementCoverageService.swift`
 
 ## 状态
 | 状态 | 含义 | 视觉表现 |

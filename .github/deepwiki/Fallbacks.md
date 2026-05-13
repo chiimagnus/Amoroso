@@ -95,7 +95,7 @@
 - 你会感知到什么：通常不容易直接看出来，但在复杂谱面（同一键很密、装饰音多、跨声部）时，高亮起止可能更“贴 step 而不是贴真实音符”。
 - 为什么要有它：谱面导出千差万别，严格对齐可能失败；fallback 是为了避免“某些音完全没有 guide”。
 - 工程触发条件（给工程师核对用）：按 `baseOnTick` 找不到 `MusicXMLNoteEvent`，回退按 `step.tick` 再找。
-- 工程位置（给工程师核对用）：`LonelyPianistAVP/Services/Practice/PianoHighlightGuideBuilderService.swift`
+- 工程位置（给工程师核对用）：`LonelyPianistAVP/Services/Practice/Guides/PianoHighlightGuideBuilderService.swift`
 
 ### F-Guide-03：Guide builder 的 span 对齐失败兜底
 
@@ -105,7 +105,7 @@
   - 极端情况下（连 duration 都拿不到），会变成“几乎一闪而过”。
 - 为什么要有它：如果没有这个兜底，span 对不上就会导致该音符完全没有 offTick，容易出现 stuck（不灭/不松开）或直接漏高亮。
 - 工程触发条件（给工程师核对用）：`spanByKey` miss。
-- 工程位置（给工程师核对用）：`LonelyPianistAVP/Services/Practice/PianoHighlightGuideBuilderService.swift`
+- 工程位置（给工程师核对用）：`LonelyPianistAVP/Services/Practice/Guides/PianoHighlightGuideBuilderService.swift`
 
 ### F-Guide-04：按 stepIndex 找不到 trigger guide 时的“定位 fallback”
 
