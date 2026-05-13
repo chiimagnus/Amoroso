@@ -123,3 +123,4 @@
 - 2026-05-01: AVP AR 引导从光柱迁移为琴键贴皮高亮（decal）；移除 correct/wrong feedback 与 immersive pulse。
 - 2026-05-02: 同步虚拟钢琴放置迁移为 gaze-plane + 双手确认；并修正自动化事实（仓库当前不含 `.github/workflows/`）。
 - 2026-05-10: 同步 AVP 主流程重构（`AppRouter` + `FlowState` root 切换、练习页返回回到曲库、虚拟钢琴入口前移到钢琴类型选择 + 准备阶段放置），并清理曲库 seed/seeder 相关过期表述。
+- 2026-05-13: 同步 AVP BLE MIDI 准备页“内嵌系统面板”改动与 Step3 BLE MIDI 和弦判定窗口放宽；更新 Practice services 目录拆分后的源码路径引用。
