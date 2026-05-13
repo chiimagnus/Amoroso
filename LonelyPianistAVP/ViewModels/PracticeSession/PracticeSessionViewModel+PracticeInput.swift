@@ -32,7 +32,7 @@ extension PracticeSessionViewModel {
 
         practiceInputGeneration += 1
         practiceInputActiveSinceUptimeSeconds = ProcessInfo.processInfo.systemUptime
-        audioStepAttemptAccumulator.setMode(.lowLatency)
+        audioStepAttemptAccumulator.setMode(.midiInput)
         audioStepAttemptAccumulator.resetForNewStep(generation: practiceInputGeneration)
 
         do {
