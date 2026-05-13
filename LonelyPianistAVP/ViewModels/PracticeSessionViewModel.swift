@@ -249,6 +249,31 @@ final class PracticeSessionViewModel {
         )
     }
 
+    var currentGrandStaffNotationContext: GrandStaffNotationContext? {
+        guard let attributeTimeline else { return nil }
+
+        let tick = currentPianoHighlightGuide?.tick ?? currentStep?.tick ?? 0
+
+        let trebleClef = attributeTimeline.clef(atTick: tick, staffNumber: 1)
+            .flatMap { Self.notationClefSymbol(for: $0) } ?? "𝄞"
+        let bassClef = attributeTimeline.clef(atTick: tick, staffNumber: 2)
+            .flatMap { Self.notationClefSymbol(for: $0) } ?? "𝄢"
+
+        let keySignatureEvent = attributeTimeline.keySignature(atTick: tick)
+        let keySignatureText = keySignatureEvent
+            .flatMap { Self.notationKeySignatureText(fifths: $0.fifths) }
+        let keySignatureFifths = keySignatureEvent?.fifths
+        let timeSignatureText = attributeTimeline.timeSignature(atTick: tick).map { "\($0.beats)/\($0.beatType)" }
+
+        return GrandStaffNotationContext(
+            trebleClefSymbol: trebleClef,
+            bassClefSymbol: bassClef,
+            keySignatureText: keySignatureText,
+            keySignatureFifths: keySignatureFifths,
+            timeSignatureText: timeSignatureText
+        )
+    }
+
     private var currentNotationStaffNumber: Int {
         guard let currentPianoHighlightGuide else { return 1 }
         let notes = currentPianoHighlightGuide.triggeredNotes + currentPianoHighlightGuide.activeNotes
