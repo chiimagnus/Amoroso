@@ -634,6 +634,21 @@ final class PracticeSessionViewModel {
         Set(step.notes.map(\.midiNote)).sorted()
     }
 
+    func uniqueMIDINotesByHand(in step: PracticeStep) -> (right: [Int], left: [Int]) {
+        var right: Set<Int> = []
+        var left: Set<Int> = []
+
+        for note in step.notes {
+            if note.hand == .left {
+                left.insert(note.midiNote)
+            } else {
+                right.insert(note.midiNote)
+            }
+        }
+
+        return (right: right.sorted(), left: left.sorted())
+    }
+
     func recordPlaybackError(_ error: Error) {
         guard audioPlaybackErrorMessage == nil else { return }
         audioPlaybackErrorMessage = audioErrorText(for: error)
