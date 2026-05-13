@@ -5,10 +5,88 @@ enum MusicXMLHandRoutingStrategy: Equatable {
     case heuristic
 }
 
+enum MusicXMLHandRoutingOverride: Codable, Equatable {
+    case disableHeuristic
+    case splitThresholdMIDINote(Int)
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case threshold
+    }
+
+    private enum Kind: String, Codable {
+        case disableHeuristic
+        case splitThresholdMIDINote
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+            case .disableHeuristic:
+                self = .disableHeuristic
+            case .splitThresholdMIDINote:
+                self = .splitThresholdMIDINote(try container.decode(Int.self, forKey: .threshold))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+            case .disableHeuristic:
+                try container.encode(Kind.disableHeuristic, forKey: .kind)
+            case let .splitThresholdMIDINote(threshold):
+                try container.encode(Kind.splitThresholdMIDINote, forKey: .kind)
+                try container.encode(threshold, forKey: .threshold)
+        }
+    }
+}
+
+struct MusicXMLHandRoutingOverrideStore {
+    private let userDefaults: UserDefaults
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+    }
+
+    func loadOverride(for file: ImportedMusicXMLFile) -> MusicXMLHandRoutingOverride? {
+        guard let data = userDefaults.data(forKey: storageKey(for: file)) else { return nil }
+        return try? JSONDecoder().decode(MusicXMLHandRoutingOverride.self, from: data)
+    }
+
+    func saveOverride(_ override: MusicXMLHandRoutingOverride?, for file: ImportedMusicXMLFile) {
+        let key = storageKey(for: file)
+        guard let override else {
+            userDefaults.removeObject(forKey: key)
+            return
+        }
+        if let data = try? JSONEncoder().encode(override) {
+            userDefaults.set(data, forKey: key)
+        }
+    }
+
+    private func storageKey(for file: ImportedMusicXMLFile) -> String {
+        "practiceHeuristicHandRoutingOverride.\(file.storedURL.lastPathComponent)"
+    }
+}
+
 struct MusicXMLHandRouter {
     nonisolated static let heuristicEnabledKey = "practiceHeuristicHandRoutingEnabled"
+    private let overrideStore: MusicXMLHandRoutingOverrideStore
 
-    func routeIfNeeded(score: MusicXMLScore) -> (routedScore: MusicXMLScore, strategy: MusicXMLHandRoutingStrategy) {
+    init(overrideStore: MusicXMLHandRoutingOverrideStore = MusicXMLHandRoutingOverrideStore()) {
+        self.overrideStore = overrideStore
+    }
+
+    func routeIfNeeded(
+        score: MusicXMLScore,
+        file: ImportedMusicXMLFile
+    ) -> (routedScore: MusicXMLScore, strategy: MusicXMLHandRoutingStrategy) {
+        let override = overrideStore.loadOverride(for: file)
+        if override == .disableHeuristic {
+            return (score, .staffBased)
+        }
+
         guard Self.isHeuristicEnabled else { return (score, .staffBased) }
 
         let hasAnyStaffTwoOrGreater = score.notes.contains { note in
@@ -29,7 +107,10 @@ struct MusicXMLHandRouter {
             return (score, .staffBased)
         }
 
-        let threshold = splitThresholdMIDINote(pitchedNotes: pitchedNotes)
+        let threshold = {
+            if case let .splitThresholdMIDINote(value) = override { return value }
+            return splitThresholdMIDINote(pitchedNotes: pitchedNotes)
+        }()
         let routedNotes = score.notes.map { note in
             routeNote(note, threshold: threshold)
         }
@@ -93,4 +174,3 @@ struct MusicXMLHandRouter {
         )
     }
 }
-
