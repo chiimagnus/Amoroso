@@ -234,11 +234,11 @@ struct PracticeStepView: View {
 
     private var practiceSurface: some View {
         VStack(spacing: 21) {
-            ScrollingStaffNotationView(
+            GrandStaffNotationView(
                 guides: viewModel.practiceSessionViewModel.highlightGuides,
                 currentGuide: viewModel.practiceSessionViewModel.currentPianoHighlightGuide,
                 measureSpans: viewModel.practiceSessionViewModel.notationMeasureSpans,
-                context: viewModel.practiceSessionViewModel.currentNotationContext,
+                context: viewModel.practiceSessionViewModel.currentGrandStaffNotationContext,
                 scrollTickProvider: viewModel.practiceSessionViewModel.autoplayState == .playing ? {
                     viewModel.practiceSessionViewModel.smoothNotationScrollTick()
                 } : nil

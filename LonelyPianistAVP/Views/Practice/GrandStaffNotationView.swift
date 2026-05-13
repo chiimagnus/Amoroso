@@ -5,7 +5,7 @@ struct GrandStaffNotationView: View {
     let currentGuide: PianoHighlightGuide?
     let measureSpans: [MusicXMLMeasureSpan]
     let context: GrandStaffNotationContext?
-    var scrollTickProvider: (() -> Double)?
+    var scrollTickProvider: (() -> Double?)?
 
     private let layoutService = GrandStaffNotationLayoutService()
 
@@ -16,7 +16,7 @@ struct GrandStaffNotationView: View {
                 currentGuide: currentGuide,
                 measureSpans: measureSpans,
                 context: context,
-                scrollTick: scrollTickProvider?()
+                scrollTick: scrollTickProvider?() ?? nil
             )
 
             Canvas { context, size in
