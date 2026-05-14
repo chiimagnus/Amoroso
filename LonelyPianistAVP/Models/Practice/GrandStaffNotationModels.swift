@@ -95,6 +95,7 @@ struct GrandStaffNotationItem: Equatable, Identifiable {
 
     let occurrenceID: String
     let staffNumber: Int
+    let voice: Int
     let midiNote: Int
     let guideID: Int
     let tick: Int

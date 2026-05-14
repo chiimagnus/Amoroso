@@ -10,6 +10,7 @@ func viewportLayoutKeepsExtremeNotesWithinCanvasBounds() {
         GrandStaffNotationItem(
             occurrenceID: id,
             staffNumber: staffNumber,
+            voice: 1,
             midiNote: 60,
             guideID: 1,
             tick: 0,
