@@ -276,8 +276,10 @@ struct GrandStaffNotationView: View {
                             activeSegment.removeAll(keepingCapacity: true)
                             return
                         }
-                        let startX = layout.xPosition(activeSegment.first?.xPosition ?? 0)
-                        let endX = layout.xPosition(activeSegment.last?.xPosition ?? 0)
+                        let firstChord = activeSegment.first
+                        let lastChord = activeSegment.last
+                        let startX = firstChord.flatMap { stemByChordID[$0.id]?.end.x } ?? layout.xPosition(firstChord?.xPosition ?? 0)
+                        let endX = lastChord.flatMap { stemByChordID[$0.id]?.end.x } ?? layout.xPosition(lastChord?.xPosition ?? 0)
                         var path = Path()
                         path.move(to: CGPoint(x: startX, y: yOnBeam(at: startX, offset: secondaryOffset)))
                         path.addLine(to: CGPoint(x: endX, y: yOnBeam(at: endX, offset: secondaryOffset)))
