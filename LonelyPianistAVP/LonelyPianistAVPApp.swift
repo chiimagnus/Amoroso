@@ -43,7 +43,7 @@ struct LonelyPianistAVPApp: App {
         .windowResizability(.contentSize)
 
         WindowGroup(id: WindowIDs.practice) {
-            PracticeWindowRootView()
+            PracticeWindowRootView(viewModel: arGuideViewModel)
                 .environment(coordinator)
         }
         .windowStyle(.automatic)

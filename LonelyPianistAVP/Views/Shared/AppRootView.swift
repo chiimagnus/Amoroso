@@ -47,7 +47,11 @@ struct AppRootView: View {
                 }
             )
         case .practice:
-            PracticeFlowView(viewModel: arGuideViewModel)
+            PracticeFlowView(
+                viewModel: arGuideViewModel,
+                onBackToLibrary: { router.goToLibrary() },
+                onRestartFromTypePicker: { router.exitToTypePicker(reason: "user restarted from practice (legacy AppRootView)") }
+            )
         }
     }
 }
