@@ -20,6 +20,7 @@ struct BluetoothMIDIConnectionSection: View {
     @State private var didCheckBluetoothAccess = false
     @State private var centralViewReloadID = UUID()
     @State private var isDiagnosticsExpanded = false
+    @State private var isDevicePickerPresented = false
 
     private let isRunningInPreviews = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 
@@ -35,8 +36,33 @@ struct BluetoothMIDIConnectionSection: View {
         VStack {
             switch bluetoothAccessStatus {
                 case .ready:
-                    CentralViewControllerRepresentable()
-                        .id(centralViewReloadID)
+                    HStack(spacing: 12) {
+                        Text("蓝牙 MIDI 设备")
+                            .font(.headline)
+
+                        Spacer()
+
+                        Button("选择/连接…", systemImage: "dot.radiowaves.left.and.right") {
+                            isDevicePickerPresented = true
+                        }
+                        .buttonStyle(.bordered)
+                        .buttonBorderShape(.roundedRectangle)
+                        .hoverEffect()
+                        .popover(isPresented: $isDevicePickerPresented) {
+                            VStack(alignment: .leading) {
+                                Button {
+                                    isDevicePickerPresented = false
+                                } label: {
+                                    Image(systemName: "xmark")
+                                }
+                                
+                                CentralViewControllerRepresentable()
+                                    .id(centralViewReloadID)
+                            }
+                            .padding(16)
+                            .frame(minWidth: 400, minHeight: 320)
+                        }
+                    }
 
                     HStack(spacing: 12) {
                         LabeledContent("MIDI 输入（CoreMIDI）") {
