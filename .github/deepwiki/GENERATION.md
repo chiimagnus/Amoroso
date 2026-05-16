@@ -3,19 +3,17 @@
 ## Run info
 | Item | Value |
 | --- | --- |
-| Commit hash | d95765b (merge) / b7db572 (MusicXML dual-part fix) |
+| Commit hash | d08960c |
 | Branch name | crh |
-| Generated at | 2026-05-16T00:00:00+08:00 |
+| Generated at | 2026-05-16T15:52:16+08:00 |
 | Output language | Chinese |
 | Generation mode | Incremental update via `deepwiki` skill |
 
 ## Key updates in this generation
 | Area | Update |
 | --- | --- |
-| 钢琴双 part 归一化 | 新增 `MusicXMLPianoGrandStaffNormalizer` 文档：将 MusicXML 中两个独立 `<part>`（高/低音谱号）合并为单 part + staff=1/2，修复左手音符丢失。更新 MusicXML 管线顺序与架构组件表。 |
-| Grand Staff 渲染能力扩充 | 更新 Practice 模块：五线谱从仅 notehead/ledger 扩展为完整 stems（按左右手方向）、beams（主/二级/三级 + notehead-driven baseline）、flags、垂直滚动；引入 Bravura（SMuFL）字体渲染谱号/调号/拍号/升降号。 |
-| Bravura（SMuFL）字体 | 更新依赖页与术语表：新增 501 KB 的 Bravura OTF 字体，用于高质量音乐符号渲染。 |
-| 架构组件更新 | 架构 mermaid 图与组件边界表新增 `MusicXMLPianoGrandStaffNormalizer`。 |
+| AVP tests（DI / composition） | 同步 visionOS 测试到新的依赖注入/组合方式：测试更倾向于显式构建 `PianoModeRegistryService` / `PracticeSessionViewModelFactoryService`，并用测试侧 convenience init 或 fake/noop services 隔离外部依赖。 |
+| Testing 文档刷新 | `testing.md` 增补 AVP tests 的 DI 约定与代表测试入口（router/virtual piano/manual advance 等），避免 deepwiki 与测试实现漂移。 |
 
 ## Generated page list
 ### Core pages
