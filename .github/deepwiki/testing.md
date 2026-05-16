@@ -42,12 +42,16 @@
 | macOS silence | `LonelyPianistTests/SilenceDetectionServiceTests.swift` |
 | AVP library | `SongLibraryIndexStoreTests.swift`, `SongFileStoreTests.swift`, `AudioImportServiceTests.swift` |
 | AVP calibration | `WorldAnchorCalibrationStoreTests.swift`, `CalibrationPointCaptureServiceTests.swift` |
+| AVP app flow / router | `AppRouterTests.swift` |
+| AVP keyboard geometry | `AppModelKeyboardGeometryTests.swift` |
 | AVP practice | `PracticeSessionViewModelTests.swift`, `PracticeLocalizationPolicyTests.swift`, `StepMatcherTests.swift`, `PracticeSessionHandSeparatedMatchingTests.swift` |
+| AVP manual advance | `ManualAdvanceStrategyTests.swift` |
 | AVP notation | `GrandStaffNotationLayoutServiceTests.swift` |
 | AVP hand semantics | `ScoreHandTests.swift`, `PracticeStepBuilderTests.swift`, `PianoHighlightGuideBuilderServiceTests.swift` |
 | AVP single-staff routing | `MusicXMLHandRouterTests.swift` |
 | AVP improv | `ImprovBackendClientCodingTests.swift`, `PhraseRecorderTests.swift`, `ImprovScheduleBuilderTests.swift` |
 | MusicXML parser | `MusicXMLParser*.swift`, `MXLReaderTests.swift`, `MusicXML*TimelineTests.swift` |
+| Virtual piano | `VirtualPianoTests.swift` |
 | Python | `scripts/test_generate.py`, `scripts/test_infilling.py`, `server/api/test_client.py` |
 
 ## 覆盖重点
@@ -77,6 +81,28 @@
 
 当前仓库选择手动运行本地测试，AVP test 约数分钟级，属于预期偏重流程。
 
+## AVP 测试中的依赖注入（DI）约定
+visionOS 侧逐步从“在 ViewModel 内部创建依赖”迁移到“由 composition root / factory 显式注入依赖”。对应到测试侧，推荐：
+
+| 场景 | 推荐做法 | 目的 |
+| --- | --- | --- |
+| 需要验证路由/准入 gate | 直接构建 `AppRouter(flowState:pianoModeRegistry:)`，为 registry 注入最小 `PianoModeProtocol` 实现 | 不依赖 UI 生命周期，避免引入 tracking/networking |
+| 需要验证 session 注入 | 显式构建 `PianoModeRegistryService` + `PracticeSessionViewModelFactoryService`，并提供 `makeFallbackPracticeSessionViewModel` | 让“mode -> session”链路可控、可单测 |
+| 需要隔离音频/回放 | 注入 fake/noop `PracticeAudioRecognitionServiceProtocol` / `PracticeSequencerPlaybackServiceProtocol` | 避免 simulator 音频/时序不稳定影响断言 |
+| 需要验证 ARGuideViewModel 联动 | 用测试侧 convenience init 或自定义 `PracticeSessionViewModelFactoryProtocol`（例如返回固定 session） | 把 focus 放在 flowState/appState 的数据传递 |
+
+最小模式（示意）：
+```swift
+let registry = PianoModeRegistryService(modes: [
+  BluetoothMIDIPianoMode(makePracticeSessionViewModel: { dummySession }),
+])
+let factory = PracticeSessionViewModelFactoryService(
+  pianoModeRegistry: registry,
+  makeFallbackPracticeSessionViewModel: { fallbackSession }
+)
+let guide = ARGuideViewModel(appState: AppState(), flowState: FlowState(), pianoModeRegistry: registry, practiceSessionViewModelFactory: factory)
+```
+
 ## 现状
 - 当前仓库未提交 `.github/workflows/`，所有测试需要手动在本地运行。
 - macOS tests 使用本地 macOS 运行 `xcodebuild test -scheme LonelyPianist -destination 'platform=macOS'`。
@@ -94,3 +120,4 @@
 - 2026-05-06: 同步 Python `server/` 目录重组后 WS 回环测试入口（`python -m server.api.test_client`）与相关路径。
 - 2026-05-12: 增加 AVP BLE MIDI 模式回归点：MIDI-only 注入与录制（take/phrase）事件模型的单测覆盖（见 `LonelyPianistAVPTests/RecordingMIDIInputTests.swift`、`LonelyPianistAVPTests/PhraseRecorderMIDIInputTests.swift`、`LonelyPianistAVPTests/PracticeSessionMIDIOnlyModeTests.swift`）。
 - 2026-05-14: 同步 AVP 左右手链路与五线谱重构后的测试入口：`ScoreHandTests`、`MusicXMLHandRouterTests`、`GrandStaffNotationLayoutServiceTests`、`PracticeSessionHandSeparatedMatchingTests`。
+- 2026-05-16: 同步 AVP tests 以适配新的 DI/composition：补齐 router/virtual piano/manual advance 等测试中的显式依赖构建，并在本文增加 AVP tests 的 DI 约定说明。

@@ -131,3 +131,4 @@
 - 2026-05-13: PianoKind → PianoModeProtocol 全面迁移；新增 BLE MIDI 录制链路与 Take 存储文档；AVP 目录地图扩充；架构/数据流/存储/术语页同步更新。
 - 2026-05-14: 同步 AVP “左右手”能力与五线谱重构：`ScoreHand` 贯穿 step/guide/高亮/判定，单谱表导入自动补 staff，五线谱迁移为 `GrandStaffNotationView`，并新增（默认关闭的）左右手分别匹配开关；同时修正 AVP tests 需要 concrete destination id 的事实。
 - 2026-05-16: 同步 MusicXML 钢琴双 part 归一化（`MusicXMLPianoGrandStaffNormalizer` 修复左手音符丢失）、Grand Staff 渲染能力扩充（stems/beams/flags/SMuFL/垂直滚动）、Bravura 字体引入；更新架构组件、依赖、术语与 GENERATION。
+- 2026-05-16: 同步 AVP tests 的 DI/composition 适配与文档刷新（`testing.md` + `GENERATION.md`）。
