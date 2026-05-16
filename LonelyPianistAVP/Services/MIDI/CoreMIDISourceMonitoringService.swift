@@ -134,12 +134,8 @@ final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol
     }
 
     private func handleMIDINotification(_ notification: MIDINotification) {
-        switch notification.messageID {
-        case .msgObjectAdded, .msgObjectRemoved, .msgSetupChanged:
-            scheduleRefreshSources()
-        default:
-            return
-        }
+        _ = notification
+        scheduleRefreshSources()
     }
 
     private func scheduleRefreshSources() {
