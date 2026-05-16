@@ -2,6 +2,14 @@ import SwiftUI
 import UIKit
 
 struct BluetoothMIDIPreparationView: View {
+    enum PreviewScenario: Equatable {
+        case readyConnected
+        case readyNoSources
+        case bluetoothPoweredOff
+        case unauthorized
+        case checking
+    }
+
     @Environment(AppRouter.self) private var router
     @Bindable var viewModel: ARGuideViewModel
     @State private var bluetoothAccessPreflight = BluetoothAccessPreflight()
@@ -11,6 +19,12 @@ struct BluetoothMIDIPreparationView: View {
     @State private var centralViewReloadID = UUID()
     @State private var isDiagnosticsExpanded = false
     private let isRunningInPreviews = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
+    private let previewScenario: PreviewScenario?
+
+    init(viewModel: ARGuideViewModel, previewScenario: PreviewScenario? = nil) {
+        self.viewModel = viewModel
+        self.previewScenario = previewScenario
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -150,9 +164,7 @@ struct BluetoothMIDIPreparationView: View {
         }
         .onAppear {
             if isRunningInPreviews {
-                bluetoothAccessStatus = .ready
-                sourceConnectionViewModel.connectionState = .connected(sourceCount: 1)
-                sourceConnectionViewModel.sourceNames = ["FP-30X MIDI"]
+                applyPreviewScenario(previewScenario ?? .readyConnected)
                 router.flowState.bluetoothMIDISourceCount = sourceConnectionViewModel.sourceCount
                 return
             }
@@ -169,6 +181,39 @@ struct BluetoothMIDIPreparationView: View {
         .onDisappear {
             guard isRunningInPreviews == false else { return }
             sourceConnectionViewModel.stop()
+        }
+    }
+
+    private func applyPreviewScenario(_ scenario: PreviewScenario) {
+        didCheckBluetoothAccess = true
+
+        switch scenario {
+            case .readyConnected:
+                bluetoothAccessStatus = .ready
+                sourceConnectionViewModel.connectionState = .connected(sourceCount: 1)
+                sourceConnectionViewModel.sourceNames = ["FP-30X MIDI"]
+
+            case .readyNoSources:
+                bluetoothAccessStatus = .ready
+                sourceConnectionViewModel.connectionState = .connected(sourceCount: 0)
+                sourceConnectionViewModel.sourceNames = []
+                sourceConnectionViewModel.lastErrorMessage = "Connect sources failed: -1"
+                isDiagnosticsExpanded = true
+
+            case .bluetoothPoweredOff:
+                bluetoothAccessStatus = .bluetoothPoweredOff
+                sourceConnectionViewModel.connectionState = .idle
+                sourceConnectionViewModel.sourceNames = []
+
+            case .unauthorized:
+                bluetoothAccessStatus = .unauthorized
+                sourceConnectionViewModel.connectionState = .idle
+                sourceConnectionViewModel.sourceNames = []
+
+            case .checking:
+                bluetoothAccessStatus = .unknown
+                sourceConnectionViewModel.connectionState = .idle
+                sourceConnectionViewModel.sourceNames = []
         }
     }
 
@@ -224,8 +269,24 @@ struct BluetoothMIDIPreparationView: View {
     }
 }
 
-#Preview("蓝牙 MIDI 准备") {
-    BluetoothMIDIPreparationViewPreviewHarness()
+#Preview("蓝牙 MIDI：已连接") {
+    BluetoothMIDIPreparationViewPreviewHarness(scenario: .readyConnected)
+}
+
+#Preview("蓝牙 MIDI：无 Sources") {
+    BluetoothMIDIPreparationViewPreviewHarness(scenario: .readyNoSources)
+}
+
+#Preview("蓝牙 MIDI：蓝牙关闭") {
+    BluetoothMIDIPreparationViewPreviewHarness(scenario: .bluetoothPoweredOff)
+}
+
+#Preview("蓝牙 MIDI：未授权") {
+    BluetoothMIDIPreparationViewPreviewHarness(scenario: .unauthorized)
+}
+
+#Preview("蓝牙 MIDI：检查中") {
+    BluetoothMIDIPreparationViewPreviewHarness(scenario: .checking)
 }
 
 @MainActor
@@ -234,8 +295,11 @@ private struct BluetoothMIDIPreparationViewPreviewHarness: View {
     @State private var flowState = FlowState()
     @State private var router: AppRouter
     @State private var viewModel: ARGuideViewModel
+    private let scenario: BluetoothMIDIPreparationView.PreviewScenario
 
-    init() {
+    init(scenario: BluetoothMIDIPreparationView.PreviewScenario) {
+        self.scenario = scenario
+
         let services = AppServices()
         let flowState = FlowState()
 
@@ -262,7 +326,7 @@ private struct BluetoothMIDIPreparationViewPreviewHarness: View {
     }
 
     var body: some View {
-        BluetoothMIDIPreparationView(viewModel: viewModel)
+        BluetoothMIDIPreparationView(viewModel: viewModel, previewScenario: scenario)
             .environment(router)
             .padding()
     }
