@@ -27,8 +27,6 @@ struct PracticeStepView: View {
             .padding(.vertical, 18)
             .overlay {
                 ZStack(alignment: .topTrailing) {
-                    Step3WindowGeometryHint()
-                        .frame(width: 0, height: 0)
                     if isAudioDebugOverlayEnabled {
                         Step3AudioDebugOverlay(
                             sessionViewModel: viewModel.practiceSessionViewModel,
