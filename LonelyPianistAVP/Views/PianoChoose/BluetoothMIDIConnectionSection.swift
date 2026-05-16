@@ -252,3 +252,33 @@ private struct BluetoothMIDICentralEmbeddedView: UIViewControllerRepresentable {
 
     func updateUIViewController(_: UINavigationController, context _: Context) {}
 }
+
+#Preview("连接：已连接") {
+    BluetoothMIDIConnectionSection(previewScenario: .readyConnected) { _ in }
+        .padding()
+        .frame(width: 720)
+}
+
+#Preview("连接：无 Sources") {
+    BluetoothMIDIConnectionSection(previewScenario: .readyNoSources) { _ in }
+        .padding()
+        .frame(width: 720)
+}
+
+#Preview("连接：蓝牙关闭") {
+    BluetoothMIDIConnectionSection(previewScenario: .bluetoothPoweredOff) { _ in }
+        .padding()
+        .frame(width: 720)
+}
+
+#Preview("连接：未授权") {
+    BluetoothMIDIConnectionSection(previewScenario: .unauthorized) { _ in }
+        .padding()
+        .frame(width: 720)
+}
+
+#Preview("连接：检查中") {
+    BluetoothMIDIConnectionSection(previewScenario: .checking) { _ in }
+        .padding()
+        .frame(width: 720)
+}
