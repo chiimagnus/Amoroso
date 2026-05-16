@@ -6,19 +6,16 @@ struct RealPianoPreparationView: View {
 
     var body: some View {
         VStack(spacing: 20) {
-            Text("真实钢琴准备")
-                .font(.largeTitle.weight(.bold))
-
-            CalibrationStepView(
-                viewModel: viewModel,
-                onExit: { router.exitToTypePicker(reason: "user exited from real preparation") }
-            )
-
             HStack {
                 Button("返回钢琴类型选择") {
                     router.exitToTypePicker(reason: "user tapped back from real preparation")
                 }
                 .buttonStyle(.bordered)
+
+                Spacer()
+
+                Text("真实钢琴准备")
+                    .font(.largeTitle.weight(.bold))
 
                 Spacer()
 
@@ -28,9 +25,14 @@ struct RealPianoPreparationView: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(!router.canProceedToLibrary)
             }
+
+            CalibrationStepView(
+                viewModel: viewModel,
+                onExit: { router.exitToTypePicker(reason: "user exited from real preparation") }
+            )
         }
         .padding(24)
-        .frame(minWidth: 560, idealWidth: 700)
+        .frame(minWidth: 600, idealWidth: 700)
         .onChange(of: viewModel.calibrationPhase) {
             router.flowState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
         }

@@ -16,7 +16,7 @@ struct PianoTypePickerView: View {
             }
         }
         .padding(40)
-        .frame(minWidth: 760, idealWidth: 860)
+        .frame(minWidth: 860, idealWidth: 860, minHeight: 420)
     }
 
     private func typeCard(mode: any PianoModeProtocol) -> some View {
@@ -33,9 +33,17 @@ struct PianoTypePickerView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
-            .frame(width: 220, height: 200)
+            .frame(width: 220, height: 220)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.roundedRectangle(radius: 20))
     }
+}
+
+#Preview("Piano Type Picker") {
+    let services = AppServices()
+    let flowState = FlowState()
+    let router = AppRouter(flowState: flowState, pianoModeRegistry: services.pianoModeRegistry)
+    return PianoTypePickerView()
+        .environment(router)
 }
