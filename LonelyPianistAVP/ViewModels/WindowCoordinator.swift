@@ -7,12 +7,21 @@ import os
 final class WindowCoordinator {
     private static let logger = Logger(subsystem: "LonelyPianistAVP", category: "WindowCoordinator")
 
-    enum Window: String, Hashable {
+    enum Window: Hashable {
         case preparation
         case library
         case practice
 
-        var id: String { rawValue }
+        var id: String {
+            switch self {
+            case .preparation:
+                WindowIDs.preparation
+            case .library:
+                WindowIDs.library
+            case .practice:
+                WindowIDs.practice
+            }
+        }
     }
 
     let flowState: FlowState
