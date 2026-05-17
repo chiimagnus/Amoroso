@@ -46,7 +46,7 @@ func autoplayEnabledStopsLiveNotes() {
 
 @MainActor
 @Test
-func virtualPianoNoteOnTriggersLiveStart() {
+func virtualPianoNoteOnTriggersLiveStart() throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let chordAccumulator = RecordingChordAttemptAccumulator()
     let viewModel = PracticeSessionViewModel(
@@ -68,7 +68,7 @@ func virtualPianoNoteOnTriggersLiveStart() {
     let geometry = makeTestKeyboardGeometry()
     viewModel.applyVirtualKeyboardGeometry(geometry)
 
-    let c4Key = geometry.key(for: 60)!
+    let c4Key = try #require(geometry.key(for: 60))
     let fingerTips: [String: SIMD3<Float>] = [
         "right-indexFingerTip": SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z),
     ]
@@ -115,10 +115,10 @@ func physicalPianoPathUnaffectedByVirtualPiano() {
 
 @MainActor
 @Test
-func keyContactDetectionStartedEndedHysteresis() {
+func keyContactDetectionStartedEndedHysteresis() throws {
     let service = KeyContactDetectionService()
     let geometry = makeTestKeyboardGeometry()
-    let c4Key = geometry.key(for: 60)!
+    let c4Key = try #require(geometry.key(for: 60))
 
     let atSurface: [String: SIMD3<Float>] = [
         "right-indexFingerTip": SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY, c4Key.hitCenterLocal.z),
@@ -130,7 +130,10 @@ func keyContactDetectionStartedEndedHysteresis() {
     let betweenThresholds: [String: SIMD3<Float>] = [
         "right-indexFingerTip": SIMD3<Float>(
             c4Key.hitCenterLocal.x,
-            c4Key.surfaceLocalY + (KeyContactDetectionService.pressThresholdMeters + KeyContactDetectionService.releaseThresholdMeters) / 2,
+            c4Key
+                .surfaceLocalY +
+                (KeyContactDetectionService.pressThresholdMeters + KeyContactDetectionService.releaseThresholdMeters) /
+                2,
             c4Key.hitCenterLocal.z
         ),
     ]
@@ -153,11 +156,11 @@ func keyContactDetectionStartedEndedHysteresis() {
 
 @MainActor
 @Test
-func keyContactDetectionBlackKeyPriority() {
+func keyContactDetectionBlackKeyPriority() throws {
     let service = KeyContactDetectionService()
     let geometry = makeTestKeyboardGeometry()
 
-    let blackKey = geometry.keys.first { $0.kind == .black }!
+    let blackKey = try #require(geometry.keys.first { $0.kind == .black })
     let blackMin = blackKey.hitCenterLocal - blackKey.hitSizeLocal / 2
     let blackMax = blackKey.hitCenterLocal + blackKey.hitSizeLocal / 2
     let whiteKeys = geometry.keys.filter { $0.kind == .white }
@@ -197,7 +200,7 @@ func keyContactDetectionNoFingerNoDown() {
 
 @MainActor
 @Test
-func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() {
+func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -218,7 +221,7 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() {
     viewModel.applyVirtualKeyboardGeometry(geometry)
     viewModel.setAutoplayEnabled(true)
 
-    let c4Key = geometry.key(for: 60)!
+    let c4Key = try #require(geometry.key(for: 60))
     _ = viewModel.handleFingerTipPositions(
         [
             "right-indexFingerTip": SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z),
@@ -231,7 +234,7 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() {
 
 @MainActor
 @Test
-func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() {
+func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let session = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -251,7 +254,7 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() {
     let geometry = makeTestKeyboardGeometry()
     session.applyVirtualKeyboardGeometry(geometry)
 
-    let c4Key = geometry.key(for: 60)!
+    let c4Key = try #require(geometry.key(for: 60))
     let keyLocalPoint = SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z)
     let keyWorldPoint = transformPoint(geometry.frame.worldFromKeyboard, keyLocalPoint)
     _ = session.handleFingerTipPositions(
@@ -275,7 +278,7 @@ private final class SinglePracticeSessionViewModelFactory: PracticeSessionViewMo
     }
 
     @MainActor
-    func makePracticeSessionViewModel(for pianoModeID: String?) -> PracticeSessionViewModel {
+    func makePracticeSessionViewModel(for _: String?) -> PracticeSessionViewModel {
         session
     }
 }
@@ -312,7 +315,10 @@ private final class LiveNoteCapturingPlaybackService: PracticeSequencerPlaybackS
     func stop() {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
-    func currentSeconds() -> TimeInterval { 0 }
+    func currentSeconds() -> TimeInterval {
+        0
+    }
+
     func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {}
 
     func startLiveNotes(midiNotes: Set<Int>) throws {
@@ -352,7 +358,7 @@ private final class RecordingChordAttemptAccumulator: ChordAttemptAccumulatorPro
     private(set) var lastExpectedNotes: [Int] = []
     var shouldReturnMatched = false
 
-    func register(pressedNotes: Set<Int>, expectedNotes: [Int], tolerance: Int, at timestamp: Date) -> Bool {
+    func register(pressedNotes: Set<Int>, expectedNotes: [Int], tolerance _: Int, at _: Date) -> Bool {
         registerCallCount += 1
         lastPressedNotes = pressedNotes
         lastExpectedNotes = expectedNotes

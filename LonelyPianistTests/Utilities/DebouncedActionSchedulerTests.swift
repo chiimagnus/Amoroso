@@ -7,7 +7,9 @@ import Testing
 struct DebouncedActionSchedulerTests {
     actor Counter {
         private(set) var value = 0
-        func increment() { value += 1 }
+        func increment() {
+            value += 1
+        }
     }
 
     @Test("Coalesces multiple schedules into one action")

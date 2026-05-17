@@ -183,7 +183,7 @@ struct TakeLibraryView: View {
             .hoverEffect()
             .disabled(playbackController.currentTakeID == nil || isRecording)
 
-            Slider(value: $sliderValue, in: 0...max(0.001, totalDuration)) { editing in
+            Slider(value: $sliderValue, in: 0 ... max(0.001, totalDuration)) { editing in
                 isDraggingSlider = editing
                 if editing == false {
                     if playbackController.isPlaying {

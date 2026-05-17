@@ -10,13 +10,6 @@ struct PreparationNavigationActions {
     )
 }
 
-private struct PreparationNavigationActionsKey: EnvironmentKey {
-    static let defaultValue = PreparationNavigationActions.noop
-}
-
 extension EnvironmentValues {
-    var preparationNavigationActions: PreparationNavigationActions {
-        get { self[PreparationNavigationActionsKey.self] }
-        set { self[PreparationNavigationActionsKey.self] = newValue }
-    }
+    @Entry var preparationNavigationActions: PreparationNavigationActions = .noop
 }

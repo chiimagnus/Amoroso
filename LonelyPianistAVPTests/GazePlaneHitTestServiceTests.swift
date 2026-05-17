@@ -4,7 +4,7 @@ import simd
 import Testing
 
 @Test
-func gazePlaneHitTestHitsHorizontalPlane() {
+func gazePlaneHitTestHitsHorizontalPlane() throws {
     let planeID = UUID()
     let planeWorldFromPlane = simd_float4x4(columns: (
         SIMD4<Float>(1, 0, 0, 0),
@@ -15,12 +15,16 @@ func gazePlaneHitTestHitsHorizontalPlane() {
     let plane = DetectedPlane(id: planeID, worldFromPlane: planeWorldFromPlane)
 
     let ray = GazeRay(originWorld: SIMD3<Float>(0, 1, 0), directionWorld: SIMD3<Float>(0, -1, -1))
-    let service = GazePlaneHitTestService(configuration: .init(maxAngleFromUpDegrees: 10, minDistanceMeters: 0.1, maxDistanceMeters: 5))
+    let service = GazePlaneHitTestService(configuration: .init(
+        maxAngleFromUpDegrees: 10,
+        minDistanceMeters: 0.1,
+        maxDistanceMeters: 5
+    ))
 
     let hit = service.hitTest(ray: ray, planes: [plane])
     #expect(hit != nil)
     #expect(hit?.id == planeID)
-    #expect(hit!.distanceMeters > 0)
+    #expect(try #require(hit?.distanceMeters) > 0)
 }
 
 @Test
@@ -42,7 +46,11 @@ func gazePlaneHitTestRejectsOverTiltPlane() {
     let plane = DetectedPlane(id: planeID, worldFromPlane: planeWorldFromPlane)
 
     let ray = GazeRay(originWorld: SIMD3<Float>(0, 1, 0), directionWorld: SIMD3<Float>(0, -1, -1))
-    let service = GazePlaneHitTestService(configuration: .init(maxAngleFromUpDegrees: 10, minDistanceMeters: 0.1, maxDistanceMeters: 5))
+    let service = GazePlaneHitTestService(configuration: .init(
+        maxAngleFromUpDegrees: 10,
+        minDistanceMeters: 0.1,
+        maxDistanceMeters: 5
+    ))
 
     let hit = service.hitTest(ray: ray, planes: [plane])
     #expect(hit == nil)

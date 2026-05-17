@@ -23,4 +23,3 @@ struct AIPerformanceClipSelector {
         return (startTick, endTick)
     }
 }
-

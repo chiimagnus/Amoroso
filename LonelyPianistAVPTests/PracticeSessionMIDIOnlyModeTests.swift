@@ -42,7 +42,7 @@ func bluetoothMIDIFactoryDoesNotInjectAudioRecognition() {
 
 @Test
 @MainActor
-func midiOnlyPracticeInputNoteOnAdvancesStep() async throws {
+func midiOnlyPracticeInputNoteOnAdvancesStep() async {
     let inputSource = FakePracticeInputEventSource()
     let session = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -65,7 +65,12 @@ func midiOnlyPracticeInputNoteOnAdvancesStep() async throws {
     #expect(inputSource.isRunning)
     #expect(session.currentStepIndex == 0)
 
-    inputSource.emit(PracticeInputEvent(kind: .noteOn(note: 60, velocity: 100), channel: 1, receivedAt: Date(), receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime))
+    inputSource.emit(PracticeInputEvent(
+        kind: .noteOn(note: 60, velocity: 100),
+        channel: 1,
+        receivedAt: Date(),
+        receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
+    ))
 
     for _ in 0 ..< 20 {
         await Task.yield()
@@ -97,7 +102,10 @@ private final class NoopPracticeSequencerPlaybackService: PracticeSequencerPlayb
     func stop() {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
-    func currentSeconds() -> TimeInterval { 0 }
+    func currentSeconds() -> TimeInterval {
+        0
+    }
+
     func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {}
     func startLiveNotes(midiNotes _: Set<Int>) throws {}
     func stopLiveNotes(midiNotes _: Set<Int>) {}

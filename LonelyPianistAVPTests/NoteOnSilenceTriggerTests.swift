@@ -36,4 +36,3 @@ func resetClearsState() {
     trigger.reset()
     #expect(trigger.pollShouldTrigger(atUptime: 100.0, timeoutSeconds: 2.0) == false)
 }
-

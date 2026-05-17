@@ -22,7 +22,7 @@ func takeToMIDIDataIsNonEmpty() throws {
 
 @Test
 func takeWithMultipleNotesProducesValidMIDI() throws {
-    let events = (0..<10).flatMap { i -> [RecordingTakeEvent] in
+    let events = (0 ..< 10).flatMap { i -> [RecordingTakeEvent] in
         let t = Double(i) * 0.5
         return [
             RecordingTakeEvent(time: t, kind: .noteOn(midi: 60 + i, velocity: 90)),

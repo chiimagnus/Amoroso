@@ -111,11 +111,11 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         let isWorldSupported = WorldTrackingProvider.isSupported
         let isPlaneSupported = PlaneDetectionProvider.isSupported
 
-        let shouldIncludeHand: Bool = switch mode {
-        case .calibration, .practiceVirtualOrAudio:
-            true
-        case .practiceBluetoothMIDI:
-            false
+        let shouldIncludeHand = switch mode {
+            case .calibration, .practiceVirtualOrAudio:
+                true
+            case .practiceBluetoothMIDI:
+                false
         }
 
         if shouldIncludeHand == false {
@@ -135,7 +135,8 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         sessionTask = Task { [weak self] in
             guard let self else { return }
 
-            let handRequiredAuthorizations = (shouldIncludeHand && isHandSupported) ? HandTrackingProvider.requiredAuthorizations : []
+            let handRequiredAuthorizations = (shouldIncludeHand && isHandSupported) ? HandTrackingProvider
+                .requiredAuthorizations : []
             let worldRequiredAuthorizations = isWorldSupported ? WorldTrackingProvider.requiredAuthorizations : []
             let planeRequiredAuthorizations = isPlaneSupported ? PlaneDetectionProvider.requiredAuthorizations : []
 

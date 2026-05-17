@@ -123,7 +123,8 @@ final class ARGuideViewModel {
         self.flowState = flowState
         self.pianoModeRegistry = pianoModeRegistry
         self.practiceSessionViewModelFactory = practiceSessionViewModelFactory
-        self.practiceSessionViewModel = practiceSessionViewModelFactory.makePracticeSessionViewModel(for: flowState.selectedPianoModeID)
+        practiceSessionViewModel = practiceSessionViewModelFactory
+            .makePracticeSessionViewModel(for: flowState.selectedPianoModeID)
         setupAppStateCallbacks()
     }
 
@@ -138,8 +139,8 @@ final class ARGuideViewModel {
     private func setupAppStateCallbacks() {
         flowState.onStepsImported = { [weak self] prepared in
             guard let self else { return }
-            self.latestPreparedPractice = prepared
-            self.practiceSessionViewModel.setSteps(
+            latestPreparedPractice = prepared
+            practiceSessionViewModel.setSteps(
                 prepared.steps,
                 tempoMap: prepared.tempoMap,
                 pedalTimeline: prepared.pedalTimeline,
@@ -150,9 +151,9 @@ final class ARGuideViewModel {
                 highlightGuides: prepared.highlightGuides,
                 measureSpans: prepared.measureSpans
             )
-            self.appState.applySessionIfPossible()
-            if self.isVirtualPerformerEnabled {
-                self.setPracticeVirtualPerformerEnabled(true)
+            appState.applySessionIfPossible()
+            if isVirtualPerformerEnabled {
+                setPracticeVirtualPerformerEnabled(true)
             }
         }
         appState.onCalibrationCleared = { [weak self] in
@@ -217,13 +218,13 @@ final class ARGuideViewModel {
         guard isVirtualPerformerEnabled else { return }
 
         switch event.kind {
-        case let .noteOn(note, velocity):
-            silenceTrigger.recordNoteOn(atUptime: event.receivedAtUptimeSeconds)
-            phraseRecorder.recordNoteOn(midi: note, velocity: velocity, timestamp: event.receivedAtUptimeSeconds)
-        case let .noteOff(note, _):
-            phraseRecorder.recordNoteOff(midi: note, timestamp: event.receivedAtUptimeSeconds)
-        default:
-            return
+            case let .noteOn(note, velocity):
+                silenceTrigger.recordNoteOn(atUptime: event.receivedAtUptimeSeconds)
+                phraseRecorder.recordNoteOn(midi: note, velocity: velocity, timestamp: event.receivedAtUptimeSeconds)
+            case let .noteOff(note, _):
+                phraseRecorder.recordNoteOff(midi: note, timestamp: event.receivedAtUptimeSeconds)
+            default:
+                return
         }
     }
 
@@ -358,14 +359,14 @@ final class ARGuideViewModel {
             latestGazePlaneHit = nil
             startVirtualPianoGuidanceIfNeeded()
             #if DEBUG && targetEnvironment(simulator)
-            practiceLocalizationState = .ready
-            if appState.cachedVirtualPianoWorldAnchorID == nil {
-                applyVirtualPianoGeometryAtDefaultPositionForSimulator()
-            }
+                practiceLocalizationState = .ready
+                if appState.cachedVirtualPianoWorldAnchorID == nil {
+                    applyVirtualPianoGeometryAtDefaultPositionForSimulator()
+                }
             #else
-            if appState.cachedVirtualPianoWorldAnchorID == nil {
-                practiceLocalizationState = .idle
-            }
+                if appState.cachedVirtualPianoWorldAnchorID == nil {
+                    practiceLocalizationState = .idle
+                }
             #endif
         } else {
             practiceSessionViewModel.stopVirtualPianoInput()
@@ -400,8 +401,8 @@ final class ARGuideViewModel {
             aiSilencePollingTask = Task { @MainActor [weak self] in
                 guard let self else { return }
                 while Task.isCancelled == false {
-                    guard self.isVirtualPerformerEnabled else { return }
-                    await self.pollAndPlayAIPerformanceIfNeeded()
+                    guard isVirtualPerformerEnabled else { return }
+                    await pollAndPlayAIPerformanceIfNeeded()
                     try? await Task.sleep(nanoseconds: 100_000_000)
                 }
             }
@@ -452,21 +453,21 @@ final class ARGuideViewModel {
     }
 
     #if DEBUG && targetEnvironment(simulator)
-    func debugTriggerAIPerformance() async {
-        guard isVirtualPerformerEnabled else { return }
-        guard isAIPerformanceActive == false else { return }
-        guard practiceSessionViewModel.autoplayState == .off else { return }
-        guard practiceSessionViewModel.isManualReplayPlaying == false else { return }
-        guard let tickRange = practiceSessionViewModel.aiPerformanceTickRange(maxMeasures: 2) else { return }
+        func debugTriggerAIPerformance() async {
+            guard isVirtualPerformerEnabled else { return }
+            guard isAIPerformanceActive == false else { return }
+            guard practiceSessionViewModel.autoplayState == .off else { return }
+            guard practiceSessionViewModel.isManualReplayPlaying == false else { return }
+            guard let tickRange = practiceSessionViewModel.aiPerformanceTickRange(maxMeasures: 2) else { return }
 
-        isAIPerformanceActive = true
-        let didPlayBackend = await attemptBackendImprov(promptNotes: debugBackendPromptNotes())
-        if didPlayBackend == false {
-            await playAIPerformanceTickRange(tickRange)
+            isAIPerformanceActive = true
+            let didPlayBackend = await attemptBackendImprov(promptNotes: debugBackendPromptNotes())
+            if didPlayBackend == false {
+                await playAIPerformanceTickRange(tickRange)
+            }
+            isAIPerformanceActive = false
+            silenceTrigger.reset()
         }
-        isAIPerformanceActive = false
-        silenceTrigger.reset()
-    }
     #endif
 
     private func debugBackendPromptNotes() -> [ImprovDialogueNote] {
@@ -605,7 +606,8 @@ final class ARGuideViewModel {
 
         let timelineSnapshot = practiceSessionViewModel.autoplayTimeline
         let tempoMapSnapshot = practiceSessionViewModel.tempoMap
-        let initialSustainPedalDown = practiceSessionViewModel.pedalTimeline?.isDown(atTick: tickRange.startTick) ?? false
+        let initialSustainPedalDown = practiceSessionViewModel.pedalTimeline?
+            .isDown(atTick: tickRange.startTick) ?? false
         let leadInSeconds: TimeInterval = 0.05
 
         do {
@@ -746,7 +748,7 @@ final class ARGuideViewModel {
             appState.cachedVirtualPianoWorldAnchorID = nil
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                try? await self.arTrackingService.worldTrackingProvider.removeAnchor(forID: anchorID)
+                try? await arTrackingService.worldTrackingProvider.removeAnchor(forID: anchorID)
             }
         }
 
@@ -754,7 +756,7 @@ final class ARGuideViewModel {
         latestGazePlaneHit = nil
 
         #if DEBUG && targetEnvironment(simulator)
-        applyVirtualPianoGeometryAtDefaultPositionForSimulator()
+            applyVirtualPianoGeometryAtDefaultPositionForSimulator()
         #endif
     }
 
@@ -865,7 +867,7 @@ final class ARGuideViewModel {
 
     func enterVirtualPianoPlacement(
         using openImmersiveSpace: OpenImmersiveSpaceAction,
-        dismissImmersiveSpace: DismissImmersiveSpaceAction
+        dismissImmersiveSpace _: DismissImmersiveSpaceAction
     ) async {
         guard isVirtualPianoEnabled == false else { return }
         setPracticeVirtualPianoEnabled(true)
@@ -977,10 +979,11 @@ final class ARGuideViewModel {
 
     func startTrackingIfNeeded() {
         let desiredMode: ARTrackingMode = switch appState.immersiveMode {
-        case .calibration:
-            .calibration
-        case .practice:
-            selectedPianoMode?.practiceTrackingMode(isVirtualPianoEnabled: isVirtualPianoEnabled) ?? .practiceVirtualOrAudio
+            case .calibration:
+                .calibration
+            case .practice:
+                selectedPianoMode?
+                    .practiceTrackingMode(isVirtualPianoEnabled: isVirtualPianoEnabled) ?? .practiceVirtualOrAudio
         }
 
         if desiredMode != currentTrackingMode {
@@ -1000,28 +1003,28 @@ final class ARGuideViewModel {
             for await fingerTips in updates {
                 guard Task.isCancelled == false else { return }
                 switch appState.immersiveMode {
-                case .calibration:
-                    handleCalibrationHandUpdates()
-                case .practice:
-                    let nowUptime = ProcessInfo.processInfo.systemUptime
-                    updateLatestDeviceWorldPosition(nowUptime: nowUptime)
-                    if isAIPerformanceActive {
-                        continue
-                    }
-                    if isVirtualPianoEnabled {
-                        updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
-                        if practiceSessionViewModel.keyboardGeometry != nil {
-                            _ = practiceSessionViewModel.handleFingerTipPositions(
-                                fingerTips,
-                                isVirtualPiano: true
-                            )
-                            recordPhraseIfNeeded(nowUptime: nowUptime)
+                    case .calibration:
+                        handleCalibrationHandUpdates()
+                    case .practice:
+                        let nowUptime = ProcessInfo.processInfo.systemUptime
+                        updateLatestDeviceWorldPosition(nowUptime: nowUptime)
+                        if isAIPerformanceActive {
+                            continue
                         }
-                    } else {
-                        _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
-                        recordPhraseIfNeeded(nowUptime: nowUptime)
-                        recordTakeIfNeeded(nowUptime: nowUptime)
-                    }
+                        if isVirtualPianoEnabled {
+                            updateGazePlaneDiskGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
+                            if practiceSessionViewModel.keyboardGeometry != nil {
+                                _ = practiceSessionViewModel.handleFingerTipPositions(
+                                    fingerTips,
+                                    isVirtualPiano: true
+                                )
+                                recordPhraseIfNeeded(nowUptime: nowUptime)
+                            }
+                        } else {
+                            _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
+                            recordPhraseIfNeeded(nowUptime: nowUptime)
+                            recordTakeIfNeeded(nowUptime: nowUptime)
+                        }
                 }
             }
         }
@@ -1082,8 +1085,8 @@ final class ARGuideViewModel {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     do {
-                        try await self.arTrackingService.worldTrackingProvider.addAnchor(anchor)
-                        self.appState.cachedVirtualPianoWorldAnchorID = anchor.id
+                        try await arTrackingService.worldTrackingProvider.addAnchor(anchor)
+                        appState.cachedVirtualPianoWorldAnchorID = anchor.id
                     } catch {
                         // If we can't persist the anchor, the user can still play in this session.
                     }
@@ -1093,24 +1096,24 @@ final class ARGuideViewModel {
     }
 
     #if DEBUG && targetEnvironment(simulator)
-    private func applyVirtualPianoGeometryAtDefaultPositionForSimulator() {
-        let xAxisWorld = SIMD3<Float>(1, 0, 0)
-        let yAxisWorld = SIMD3<Float>(0, 1, 0)
-        let zAxis = simd_normalize(simd_cross(xAxisWorld, yAxisWorld))
-        let xAxis = simd_normalize(simd_cross(yAxisWorld, zAxis))
+        private func applyVirtualPianoGeometryAtDefaultPositionForSimulator() {
+            let xAxisWorld = SIMD3<Float>(1, 0, 0)
+            let yAxisWorld = SIMD3<Float>(0, 1, 0)
+            let zAxis = simd_normalize(simd_cross(xAxisWorld, yAxisWorld))
+            let xAxis = simd_normalize(simd_cross(yAxisWorld, zAxis))
 
-        let centerPoint = SIMD3<Float>(0, 1.0, -1.0)
-        let originWorld = centerPoint - xAxis * (VirtualPianoKeyGeometryService.totalKeyboardLengthMeters / 2)
+            let centerPoint = SIMD3<Float>(0, 1.0, -1.0)
+            let originWorld = centerPoint - xAxis * (VirtualPianoKeyGeometryService.totalKeyboardLengthMeters / 2)
 
-        let worldFromKeyboard = simd_float4x4(columns: (
-            SIMD4<Float>(xAxis, 0),
-            SIMD4<Float>(yAxisWorld, 0),
-            SIMD4<Float>(zAxis, 0),
-            SIMD4<Float>(originWorld, 1)
-        ))
+            let worldFromKeyboard = simd_float4x4(columns: (
+                SIMD4<Float>(xAxis, 0),
+                SIMD4<Float>(yAxisWorld, 0),
+                SIMD4<Float>(zAxis, 0),
+                SIMD4<Float>(originWorld, 1)
+            ))
 
-        applyVirtualPianoGeometry(worldFromKeyboard: worldFromKeyboard)
-    }
+            applyVirtualPianoGeometry(worldFromKeyboard: worldFromKeyboard)
+        }
     #endif
 
     private func handleCalibrationHandUpdates() {
@@ -1281,20 +1284,27 @@ final class ARGuideViewModel {
             return
         }
 
-        let deviceWorldTransform: simd_float4x4?
-        if
+        let deviceWorldTransform: simd_float4x4? = if
             let deviceAnchor = arTrackingService.worldTrackingProvider.queryDeviceAnchor(atTimestamp: nowUptime),
             deviceAnchor.isTracked
         {
-            deviceWorldTransform = deviceAnchor.originFromAnchorTransform
+            deviceAnchor.originFromAnchorTransform
         } else {
-            deviceWorldTransform = nil
+            nil
         }
 
         let ray: GazeRay? = {
             guard let deviceWorldTransform else { return nil }
-            let origin = SIMD3<Float>(deviceWorldTransform.columns.3.x, deviceWorldTransform.columns.3.y, deviceWorldTransform.columns.3.z)
-            let forward = -SIMD3<Float>(deviceWorldTransform.columns.2.x, deviceWorldTransform.columns.2.y, deviceWorldTransform.columns.2.z)
+            let origin = SIMD3<Float>(
+                deviceWorldTransform.columns.3.x,
+                deviceWorldTransform.columns.3.y,
+                deviceWorldTransform.columns.3.z
+            )
+            let forward = -SIMD3<Float>(
+                deviceWorldTransform.columns.2.x,
+                deviceWorldTransform.columns.2.y,
+                deviceWorldTransform.columns.2.z
+            )
             return GazeRay(originWorld: origin, directionWorld: forward)
         }()
         latestGazeRayOriginWorld = ray?.originWorld
@@ -1316,8 +1326,10 @@ final class ARGuideViewModel {
         guard gazePlaneDiskConfirmation.isConfirmed else { return }
         guard practiceSessionViewModel.keyboardGeometry == nil else { return }
         guard let hit else { return }
-        guard let planeWorldFromAnchor = arTrackingService.planeAnchorsByID[hit.id]?.originFromAnchorTransform else { return }
-        guard let leftPalm = fingerTips["left-palmCenter"], let rightPalm = fingerTips["right-palmCenter"] else { return }
+        guard let planeWorldFromAnchor = arTrackingService.planeAnchorsByID[hit.id]?.originFromAnchorTransform
+        else { return }
+        guard let leftPalm = fingerTips["left-palmCenter"],
+              let rightPalm = fingerTips["right-palmCenter"] else { return }
 
         let handCenterWorld = (leftPalm + rightPalm) / 2
         let n = simd_normalize(hit.planeNormalWorld)

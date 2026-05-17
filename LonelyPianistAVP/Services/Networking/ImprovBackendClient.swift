@@ -67,4 +67,3 @@ struct ImprovBackendClient: ImprovBackendClientProtocol {
         throw ImprovBackendClientError.decodeFailed
     }
 }
-

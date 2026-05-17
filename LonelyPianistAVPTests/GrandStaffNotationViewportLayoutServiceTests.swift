@@ -1,5 +1,5 @@
-@testable import LonelyPianistAVP
 import CoreGraphics
+@testable import LonelyPianistAVP
 import Testing
 
 @Test

@@ -4,7 +4,7 @@ import simd
 import Testing
 
 @Test
-func virtualKeyboardPoseWithDeviceTransformProducesOrthonormalBasis() {
+func virtualKeyboardPoseWithDeviceTransformProducesOrthonormalBasis() throws {
     let service = VirtualKeyboardPoseService()
 
     let planeWorldFromAnchor = simd_float4x4(columns: (
@@ -30,9 +30,21 @@ func virtualKeyboardPoseWithDeviceTransformProducesOrthonormalBasis() {
 
     #expect(worldFromKeyboard != nil)
 
-    let x = SIMD3<Float>(worldFromKeyboard!.columns.0.x, worldFromKeyboard!.columns.0.y, worldFromKeyboard!.columns.0.z)
-    let y = SIMD3<Float>(worldFromKeyboard!.columns.1.x, worldFromKeyboard!.columns.1.y, worldFromKeyboard!.columns.1.z)
-    let z = SIMD3<Float>(worldFromKeyboard!.columns.2.x, worldFromKeyboard!.columns.2.y, worldFromKeyboard!.columns.2.z)
+    let x = try SIMD3<Float>(
+        #require(worldFromKeyboard?.columns.0.x),
+        #require(worldFromKeyboard?.columns.0.y),
+        #require(worldFromKeyboard?.columns.0.z)
+    )
+    let y = try SIMD3<Float>(
+        #require(worldFromKeyboard?.columns.1.x),
+        #require(worldFromKeyboard?.columns.1.y),
+        #require(worldFromKeyboard?.columns.1.z)
+    )
+    let z = try SIMD3<Float>(
+        #require(worldFromKeyboard?.columns.2.x),
+        #require(worldFromKeyboard?.columns.2.y),
+        #require(worldFromKeyboard?.columns.2.z)
+    )
 
     #expect(abs(simd_dot(x, y)) < 1e-3)
     #expect(abs(simd_dot(y, z)) < 1e-3)
@@ -44,7 +56,7 @@ func virtualKeyboardPoseWithDeviceTransformProducesOrthonormalBasis() {
 }
 
 @Test
-func virtualKeyboardPoseWithoutDeviceTransformFallsBackToPlaneForward() {
+func virtualKeyboardPoseWithoutDeviceTransformFallsBackToPlaneForward() throws {
     let service = VirtualKeyboardPoseService()
 
     // Plane forward is +X; after projection onto plane, should become +X.
@@ -63,15 +75,23 @@ func virtualKeyboardPoseWithoutDeviceTransformFallsBackToPlaneForward() {
 
     #expect(worldFromKeyboard != nil)
 
-    let y = SIMD3<Float>(worldFromKeyboard!.columns.1.x, worldFromKeyboard!.columns.1.y, worldFromKeyboard!.columns.1.z)
-    let z = SIMD3<Float>(worldFromKeyboard!.columns.2.x, worldFromKeyboard!.columns.2.y, worldFromKeyboard!.columns.2.z)
+    let y = try SIMD3<Float>(
+        #require(worldFromKeyboard?.columns.1.x),
+        #require(worldFromKeyboard?.columns.1.y),
+        #require(worldFromKeyboard?.columns.1.z)
+    )
+    let z = try SIMD3<Float>(
+        #require(worldFromKeyboard?.columns.2.x),
+        #require(worldFromKeyboard?.columns.2.y),
+        #require(worldFromKeyboard?.columns.2.z)
+    )
 
     #expect(simd_dot(y, SIMD3<Float>(0, 1, 0)) > 0.99)
     #expect(simd_dot(z, SIMD3<Float>(1, 0, 0)) > 0.99)
 }
 
 @Test
-func virtualKeyboardPoseFlipsDownwardPlaneNormalToUpward() {
+func virtualKeyboardPoseFlipsDownwardPlaneNormalToUpward() throws {
     let service = VirtualKeyboardPoseService()
 
     let planeWorldFromAnchor = simd_float4x4(columns: (
@@ -97,6 +117,10 @@ func virtualKeyboardPoseFlipsDownwardPlaneNormalToUpward() {
 
     #expect(worldFromKeyboard != nil)
 
-    let y = SIMD3<Float>(worldFromKeyboard!.columns.1.x, worldFromKeyboard!.columns.1.y, worldFromKeyboard!.columns.1.z)
+    let y = try SIMD3<Float>(
+        #require(worldFromKeyboard?.columns.1.x),
+        #require(worldFromKeyboard?.columns.1.y),
+        #require(worldFromKeyboard?.columns.1.z)
+    )
     #expect(simd_dot(y, SIMD3<Float>(0, 1, 0)) > 0.99)
 }

@@ -34,10 +34,26 @@ final class VirtualPianoOverlayController {
         let keyboardCenterLocal = SIMD3<Float>(totalLength / 2, 0, -keyDepth / 2)
 
         let worldFromKeyboard = geometry.frame.worldFromKeyboard
-        let xAxisWorld = SIMD3<Float>(worldFromKeyboard.columns.0.x, worldFromKeyboard.columns.0.y, worldFromKeyboard.columns.0.z)
-        let yAxisWorld = SIMD3<Float>(worldFromKeyboard.columns.1.x, worldFromKeyboard.columns.1.y, worldFromKeyboard.columns.1.z)
-        let zAxisWorld = SIMD3<Float>(worldFromKeyboard.columns.2.x, worldFromKeyboard.columns.2.y, worldFromKeyboard.columns.2.z)
-        let originWorld = SIMD3<Float>(worldFromKeyboard.columns.3.x, worldFromKeyboard.columns.3.y, worldFromKeyboard.columns.3.z)
+        let xAxisWorld = SIMD3<Float>(
+            worldFromKeyboard.columns.0.x,
+            worldFromKeyboard.columns.0.y,
+            worldFromKeyboard.columns.0.z
+        )
+        let yAxisWorld = SIMD3<Float>(
+            worldFromKeyboard.columns.1.x,
+            worldFromKeyboard.columns.1.y,
+            worldFromKeyboard.columns.1.z
+        )
+        let zAxisWorld = SIMD3<Float>(
+            worldFromKeyboard.columns.2.x,
+            worldFromKeyboard.columns.2.y,
+            worldFromKeyboard.columns.2.z
+        )
+        let originWorld = SIMD3<Float>(
+            worldFromKeyboard.columns.3.x,
+            worldFromKeyboard.columns.3.y,
+            worldFromKeyboard.columns.3.z
+        )
         let centerWorld = originWorld
             + xAxisWorld * keyboardCenterLocal.x
             + yAxisWorld * keyboardCenterLocal.y

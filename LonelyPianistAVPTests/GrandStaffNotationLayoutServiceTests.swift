@@ -72,4 +72,3 @@ func layoutEmitsBarlinesForMeasureSpansStartAndEndTicks() {
 
     #expect(layout.barlines.map(\.tick) == [0, 480, 960])
 }
-

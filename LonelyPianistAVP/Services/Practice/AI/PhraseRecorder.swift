@@ -16,7 +16,12 @@ nonisolated struct PhraseRecorder {
             let endTimestamp = max(timestamp, existing.startTimestamp)
             let duration = max(0.05, endTimestamp - existing.startTimestamp)
             recordedNotes.append(
-                ImprovDialogueNote(note: midi, velocity: existing.velocity, time: existing.startTimestamp, duration: duration)
+                ImprovDialogueNote(
+                    note: midi,
+                    velocity: existing.velocity,
+                    time: existing.startTimestamp,
+                    duration: duration
+                )
             )
         }
 
@@ -65,4 +70,3 @@ nonisolated struct PhraseRecorder {
         recordedNotes.removeAll()
     }
 }
-

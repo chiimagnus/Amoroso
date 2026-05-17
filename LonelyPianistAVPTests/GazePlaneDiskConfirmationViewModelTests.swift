@@ -117,4 +117,3 @@ func diskConfirmationPlaneHitNilResetsImmediately() {
     #expect(vm.isConfirmed == false)
     #expect(vm.confirmationProgress == nil)
 }
-

@@ -82,4 +82,3 @@ final class RealPianoContactDetectionService {
         return SIMD3<Float>(v4.x, v4.y, v4.z)
     }
 }
-

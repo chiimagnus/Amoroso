@@ -1,6 +1,6 @@
 import Foundation
 
-enum MIDISourceMonitoringConnectionState: Sendable, Equatable {
+enum MIDISourceMonitoringConnectionState: Equatable {
     case idle
     case connected(sourceCount: Int)
     case failed(message: String)

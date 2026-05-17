@@ -1,10 +1,10 @@
+import Dispatch
+import os
 import RealityKit
 import RealityKitContent
-import Dispatch
 import simd
 import SwiftUI
 import UIKit
-import os
 
 @MainActor
 final class VirtualPerformerOverlayController {
@@ -79,7 +79,7 @@ final class VirtualPerformerOverlayController {
         }
     }
 
-    private func showPerformer(geometry: PianoKeyboardGeometry, cameraWorldPosition: SIMD3<Float>?) {
+    private func showPerformer(geometry: PianoKeyboardGeometry, cameraWorldPosition _: SIMD3<Float>?) {
         if performerRootEntity == nil {
             let performerRoot = makePerformerRootEntity(geometry: geometry)
             rootEntity.addChild(performerRoot)
@@ -197,17 +197,17 @@ final class VirtualPerformerOverlayController {
                 let entity = try await Entity(named: "xiaocheng", in: realityKitContentBundle)
                 guard Task.isCancelled == false else { return }
 
-                self.fitXiaochengToPlaceholder(entity: entity)
+                fitXiaochengToPlaceholder(entity: entity)
 
-                guard let modelEntity = self.findFirstSkinnedModelEntity(in: entity),
-                      let rig = self.makeXiaochengRig(modelEntity: modelEntity)
+                guard let modelEntity = findFirstSkinnedModelEntity(in: entity),
+                      let rig = makeXiaochengRig(modelEntity: modelEntity)
                 else {
                     return
                 }
 
                 placeholder.children.removeAll(preservingWorldTransforms: false)
                 placeholder.addChild(entity)
-                self.xiaochengRig = rig
+                xiaochengRig = rig
             } catch {
                 // No fallback.
             }
@@ -248,8 +248,13 @@ final class VirtualPerformerOverlayController {
             jointNames.firstIndex { $0 == component || $0.hasSuffix("/\(component)") }
         }
 
-        let leftIndices = [index(endsWith: "LeftShoulder"), index(endsWith: "LeftArm"), index(endsWith: "LeftForeArm")].compactMap { $0 }
-        let rightIndices = [index(endsWith: "RightShoulder"), index(endsWith: "RightArm"), index(endsWith: "RightForeArm")].compactMap { $0 }
+        let leftIndices = [index(endsWith: "LeftShoulder"), index(endsWith: "LeftArm"), index(endsWith: "LeftForeArm")]
+            .compactMap(\.self)
+        let rightIndices = [
+            index(endsWith: "RightShoulder"),
+            index(endsWith: "RightArm"),
+            index(endsWith: "RightForeArm"),
+        ].compactMap(\.self)
         guard leftIndices.isEmpty == false || rightIndices.isEmpty == false else { return nil }
 
         let neckIndex = index(endsWith: "Neck")
@@ -311,14 +316,14 @@ final class VirtualPerformerOverlayController {
             guard let self else { return }
 
             let durationSeconds: Float = 0.25
-            let steps: Int = 12
-            let start = self.xiaochengNodAngleRadians
-            for step in 1...steps {
+            let steps = 12
+            let start = xiaochengNodAngleRadians
+            for step in 1 ... steps {
                 guard Task.isCancelled == false else { return }
                 let t = Float(step) / Float(steps)
                 let angle = start + (targetAngleRadians - start) * t
-                self.xiaochengNodAngleRadians = angle
-                self.applyXiaochengHeadNodPose(rig: xiaochengRig)
+                xiaochengNodAngleRadians = angle
+                applyXiaochengHeadNodPose(rig: xiaochengRig)
                 let nanos = UInt64((durationSeconds / Float(steps)) * 1_000_000_000)
                 try? await Task.sleep(nanoseconds: nanos)
             }
@@ -356,7 +361,10 @@ final class VirtualPerformerOverlayController {
 
         let headRotation = simd_quatf(angle: angleRadians, axis: [1, 0, 0])
         if let neckIndex = rig.neckJointIndex, neckIndex < jointTransforms.count {
-            jointTransforms[neckIndex].rotation = jointTransforms[neckIndex].rotation * simd_quatf(angle: angleRadians * 0.35, axis: [1, 0, 0])
+            jointTransforms[neckIndex].rotation = jointTransforms[neckIndex].rotation * simd_quatf(
+                angle: angleRadians * 0.35,
+                axis: [1, 0, 0]
+            )
         }
         if let headIndex = rig.headJointIndex, headIndex < jointTransforms.count {
             jointTransforms[headIndex].rotation = jointTransforms[headIndex].rotation * headRotation
@@ -402,7 +410,7 @@ final class VirtualPerformerOverlayController {
 
                 switch event.kind {
                     case let .noteOn(midi, velocity):
-                        self.animateArmSwing(midi: midi, velocity: velocity)
+                        animateArmSwing(midi: midi, velocity: velocity)
                     case .noteOff:
                         break
                     case .controlChange:
@@ -440,7 +448,8 @@ final class VirtualPerformerOverlayController {
             isLeftArm = midi < armSplitMidi
         }
 
-        let hasArmJoints = isLeftArm ? (rig.leftArmJointIndices.isEmpty == false) : (rig.rightArmJointIndices.isEmpty == false)
+        let hasArmJoints = isLeftArm ? (rig.leftArmJointIndices.isEmpty == false) :
+            (rig.rightArmJointIndices.isEmpty == false)
         guard hasArmJoints else { return }
 
         if isLeftArm {
@@ -452,7 +461,9 @@ final class VirtualPerformerOverlayController {
         startArmMixerIfNeeded(rig: rig)
     }
 
-    private func computeArmSplitMidiAndCounts(from schedule: [PracticeSequencerMIDIEvent]) -> (splitMidi: Int, isOneSided: Bool)? {
+    private func computeArmSplitMidiAndCounts(from schedule: [PracticeSequencerMIDIEvent])
+        -> (splitMidi: Int, isOneSided: Bool)?
+    {
         var noteOns: [Int] = []
         noteOns.reserveCapacity(64)
         for event in schedule {
@@ -473,9 +484,15 @@ final class VirtualPerformerOverlayController {
 
         let isOneSided = leftCount == 0 || rightCount == 0
         if isOneSided {
-            logger.info("Arm split median=\(medianMidi, privacy: .public) one-sided (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public)); using alternating arms.")
+            logger
+                .info(
+                    "Arm split median=\(medianMidi, privacy: .public) one-sided (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public)); using alternating arms."
+                )
         } else {
-            logger.info("Arm split median=\(medianMidi, privacy: .public) (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public)).")
+            logger
+                .info(
+                    "Arm split median=\(medianMidi, privacy: .public) (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public))."
+                )
         }
         return (medianMidi, isOneSided)
     }
@@ -488,34 +505,34 @@ final class VirtualPerformerOverlayController {
             defer { self.armMixerTask = nil }
 
             let pulseDurationSeconds: Float = 0.14
-            let tickMilliseconds: Int = 16
+            let tickMilliseconds = 16
 
             while Task.isCancelled == false {
                 let nowNanos = DispatchTime.now().uptimeNanoseconds
 
-                self.drainPendingVelocitiesIntoPulses(nowNanos: nowNanos)
+                drainPendingVelocitiesIntoPulses(nowNanos: nowNanos)
 
-                let hasPendingWork = self.leftArmPendingVelocities.isEmpty == false
-                    || self.rightArmPendingVelocities.isEmpty == false
-                    || self.leftArmPulses.isEmpty == false
-                    || self.rightArmPulses.isEmpty == false
+                let hasPendingWork = leftArmPendingVelocities.isEmpty == false
+                    || rightArmPendingVelocities.isEmpty == false
+                    || leftArmPulses.isEmpty == false
+                    || rightArmPulses.isEmpty == false
                 if hasPendingWork == false {
-                    rig.modelEntity.jointTransforms = self.makeXiaochengBaseTransforms(rig: rig)
+                    rig.modelEntity.jointTransforms = makeXiaochengBaseTransforms(rig: rig)
                     return
                 }
 
-                let leftAngle = self.summedAngleRadians(
-                    pulses: &self.leftArmPulses,
+                let leftAngle = summedAngleRadians(
+                    pulses: &leftArmPulses,
                     nowUptimeNanos: nowNanos,
                     pulseDurationSeconds: pulseDurationSeconds
                 )
-                let rightAngle = self.summedAngleRadians(
-                    pulses: &self.rightArmPulses,
+                let rightAngle = summedAngleRadians(
+                    pulses: &rightArmPulses,
                     nowUptimeNanos: nowNanos,
                     pulseDurationSeconds: pulseDurationSeconds
                 )
 
-                var transforms = self.makeXiaochengBaseTransforms(rig: rig)
+                var transforms = makeXiaochengBaseTransforms(rig: rig)
                 if leftAngle != 0, rig.leftArmJointIndices.isEmpty == false {
                     let delta = simd_quatf(angle: leftAngle, axis: [1, 0, 0])
                     for index in rig.leftArmJointIndices where index < transforms.count {
@@ -596,21 +613,21 @@ final class VirtualPerformerOverlayController {
         return clamped * clamped * (3 - 2 * clamped)
     }
 
-    private func resetArmsToRest(animated: Bool) {
+    private func resetArmsToRest(animated _: Bool) {
         guard let xiaochengRig else { return }
         xiaochengRig.modelEntity.jointTransforms = makeXiaochengBaseTransforms(rig: xiaochengRig)
     }
 
     private func eventPriority(_ kind: PracticeSequencerMIDIEvent.Kind) -> Int {
         switch kind {
-        case .controlChange:
-            0
-        case .programChange, .pitchBend, .channelPressure, .polyPressure:
-            1
-        case .noteOff:
-            2
-        case .noteOn:
-            3
+            case .controlChange:
+                0
+            case .programChange, .pitchBend, .channelPressure, .polyPressure:
+                1
+            case .noteOff:
+                2
+            case .noteOn:
+                3
         }
     }
 

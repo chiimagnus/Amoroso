@@ -28,4 +28,3 @@ struct PlaneHit: Equatable {
     let planeNormalWorld: SIMD3<Float>
     let distanceMeters: Float
 }
-

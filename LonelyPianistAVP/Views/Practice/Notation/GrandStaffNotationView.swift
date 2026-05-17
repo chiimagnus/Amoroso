@@ -37,8 +37,20 @@ struct GrandStaffNotationView: View {
                     drawGrandStaffLines(in: context, layout: viewLayout)
                     drawContext(in: context, layout: viewLayout)
                     drawBarlines(layout.barlines, in: context, layout: viewLayout)
-                    drawBeams(layout.beams, chordsByID: chordsByID, itemsByChordID: itemsByChordID, in: context, layout: viewLayout)
-                    drawStems(layout.chords, beamedChordIDs: Set(layout.beams.flatMap(\.chordIDs)), itemsByChordID: itemsByChordID, in: context, layout: viewLayout)
+                    drawBeams(
+                        layout.beams,
+                        chordsByID: chordsByID,
+                        itemsByChordID: itemsByChordID,
+                        in: context,
+                        layout: viewLayout
+                    )
+                    drawStems(
+                        layout.chords,
+                        beamedChordIDs: Set(layout.beams.flatMap(\.chordIDs)),
+                        itemsByChordID: itemsByChordID,
+                        in: context,
+                        layout: viewLayout
+                    )
                     drawItems(layout.items, in: context, layout: viewLayout)
                 }
                 .frame(width: proxy.size.width, height: viewLayout.requiredHeight)
@@ -48,12 +60,15 @@ struct GrandStaffNotationView: View {
         .accessibilityLabel("Grand Staff 五线谱")
     }
 
-    private func drawGrandStaffLines(in context: GraphicsContext, layout: GrandStaffNotationViewportLayoutService.Layout) {
+    private func drawGrandStaffLines(
+        in context: GraphicsContext,
+        layout: GrandStaffNotationViewportLayoutService.Layout
+    ) {
         let lineColor = Color.primary.opacity(0.22)
         let stroke = StrokeStyle(lineWidth: 1.0)
 
         func drawStaff(topLineY: CGFloat) {
-            for i in 0..<5 {
+            for i in 0 ..< 5 {
                 let y = topLineY + CGFloat(i) * layout.lineSpacing
                 var path = Path()
                 path.move(to: CGPoint(x: 0, y: y))
@@ -173,15 +188,14 @@ struct GrandStaffNotationView: View {
         let count = abs(clamped)
         let glyph = isSharp ? "\u{E262}" : "\u{E260}"
 
-        let steps: [Int]
-        if staffNumber >= 2 {
-            steps = isSharp ? stepsBassSharps : stepsBassFlats
+        let steps: [Int] = if staffNumber >= 2 {
+            isSharp ? stepsBassSharps : stepsBassFlats
         } else {
-            steps = isSharp ? stepsTrebleSharps : stepsTrebleFlats
+            isSharp ? stepsTrebleSharps : stepsTrebleFlats
         }
 
         let xStride = layout.lineSpacing * 0.78
-        for i in 0..<min(count, steps.count) {
+        for i in 0 ..< min(count, steps.count) {
             let y = layout.yPosition(staffStep: steps[i], staffNumber: staffNumber)
             context.draw(
                 Text(glyph).font(font),
@@ -194,7 +208,7 @@ struct GrandStaffNotationView: View {
 
     private func drawTimeSignature(
         text: String?,
-        staffNumber: Int,
+        staffNumber _: Int,
         xStart: CGFloat,
         centerY: CGFloat,
         font: Font,
@@ -212,7 +226,7 @@ struct GrandStaffNotationView: View {
         }
 
         func digitGlyph(_ digit: Int) -> String? {
-            guard (0...9).contains(digit) else { return nil }
+            guard (0 ... 9).contains(digit) else { return nil }
             let scalar = UnicodeScalar(0xE080 + digit)!
             return String(scalar)
         }
@@ -348,7 +362,8 @@ struct GrandStaffNotationView: View {
             }
 
             guard let firstChord = chords.first, let lastChord = chords.last else { continue }
-            guard let firstStem = stemByChordID[firstChord.id], let lastStem = stemByChordID[lastChord.id] else { continue }
+            guard let firstStem = stemByChordID[firstChord.id],
+                  let lastStem = stemByChordID[lastChord.id] else { continue }
 
             let x1 = firstStem.end.x
             let xN = lastStem.end.x
@@ -404,7 +419,7 @@ struct GrandStaffNotationView: View {
 
             // Secondary / tertiary beams: segmented based on each chord's rhythmic value.
             if beam.beamCount >= 2 {
-                let levels = 2...beam.beamCount
+                let levels = 2 ... beam.beamCount
                 for level in levels {
                     let stride = CGFloat(level - 1) * beamStackStride
                     let secondaryOffset = (direction == .up) ? (requiredOffset + stride) : (requiredOffset - stride)
@@ -418,8 +433,10 @@ struct GrandStaffNotationView: View {
                         }
                         let firstChord = activeSegment.first
                         let lastChord = activeSegment.last
-                        let startX = firstChord.flatMap { stemByChordID[$0.id]?.end.x } ?? layout.xPosition(firstChord?.xPosition ?? 0)
-                        let endX = lastChord.flatMap { stemByChordID[$0.id]?.end.x } ?? layout.xPosition(lastChord?.xPosition ?? 0)
+                        let startX = firstChord.flatMap { stemByChordID[$0.id]?.end.x } ?? layout
+                            .xPosition(firstChord?.xPosition ?? 0)
+                        let endX = lastChord.flatMap { stemByChordID[$0.id]?.end.x } ?? layout
+                            .xPosition(lastChord?.xPosition ?? 0)
                         var path = Path()
                         path.move(to: CGPoint(x: startX, y: yOnBeam(at: startX, offset: secondaryOffset)))
                         path.addLine(to: CGPoint(x: endX, y: yOnBeam(at: endX, offset: secondaryOffset)))
@@ -452,13 +469,13 @@ struct GrandStaffNotationView: View {
     private func chordBeamCount(for noteValue: GrandStaffNoteValue) -> Int {
         switch noteValue {
             case .eighth:
-                return 1
+                1
             case .sixteenth:
-                return 2
+                2
             case .thirtySecond:
-                return 3
+                3
             default:
-                return 0
+                0
         }
     }
 

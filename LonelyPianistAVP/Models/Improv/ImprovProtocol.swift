@@ -73,4 +73,3 @@ struct ImprovErrorResponse: Codable, Equatable {
         case message
     }
 }
-

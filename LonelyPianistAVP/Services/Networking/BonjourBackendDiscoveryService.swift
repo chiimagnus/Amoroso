@@ -38,16 +38,16 @@ final class BonjourBackendDiscoveryService {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 switch newState {
-                    case .failed(let error):
+                    case let .failed(error):
                         if case let .posix(code) = error, code == .EPERM {
-                            self.state = .denied
+                            state = .denied
                         } else {
-                            self.state = .failed(message: String(describing: error))
+                            state = .failed(message: String(describing: error))
                         }
-                        self.stop()
+                        stop()
                     case .cancelled:
-                        if case .discovering = self.state {
-                            self.state = .idle
+                        if case .discovering = state {
+                            state = .idle
                         }
                     default:
                         break
@@ -55,13 +55,13 @@ final class BonjourBackendDiscoveryService {
             }
         }
 
-        browser.browseResultsChangedHandler = { [weak self] results, _changes in
+        browser.browseResultsChangedHandler = { [weak self] results, _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                guard self.resolvedEndpoint == nil else { return }
-                guard self.resolveTask == nil else { return }
+                guard resolvedEndpoint == nil else { return }
+                guard resolveTask == nil else { return }
                 guard let result = results.first else { return }
-                self.resolveTask = Task { [weak self] in
+                resolveTask = Task { [weak self] in
                     await self?.resolveAndPublish(result: result)
                 }
             }
@@ -96,7 +96,7 @@ final class BonjourBackendDiscoveryService {
         }
     }
 
-    nonisolated private func resolveHostPort(from endpoint: NWEndpoint) async -> (host: String, port: Int)? {
+    private nonisolated func resolveHostPort(from endpoint: NWEndpoint) async -> (host: String, port: Int)? {
         await withCheckedContinuation(isolation: nil) { continuation in
             let connection = NWConnection(to: endpoint, using: .tcp)
             let lock = OSAllocatedUnfairLock(initialState: false)
@@ -134,7 +134,7 @@ final class BonjourBackendDiscoveryService {
         }
     }
 
-    nonisolated private func normalizeResolvedHost(_ host: String) -> String {
+    private nonisolated func normalizeResolvedHost(_ host: String) -> String {
         // Some Network framework debug strings can include an interface scope suffix (e.g. "172.20.10.3%ir0").
         // URLSession cannot build a valid URL from such a host. For IPv4-looking hosts, drop the scope suffix.
         guard let percentIndex = host.firstIndex(of: "%") else { return host }

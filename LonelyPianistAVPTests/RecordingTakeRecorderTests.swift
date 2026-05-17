@@ -54,7 +54,7 @@ func recorderEventsAreSortedByTime() {
     recorder.recordNoteOff(note: 64, now: 0.4)
     let take = recorder.stop(now: 1.0)
 
-    for i in 1..<take.events.count {
+    for i in 1 ..< take.events.count {
         #expect(take.events[i].time >= take.events[i - 1].time)
     }
 }

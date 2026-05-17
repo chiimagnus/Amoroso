@@ -1,5 +1,5 @@
-import CoreAudioKit
 import AppKit
+import CoreAudioKit
 import Observation
 import SwiftUI
 import UniformTypeIdentifiers
@@ -260,7 +260,8 @@ private struct BluetoothAlert: Identifiable {
 }
 
 private func openBluetoothPrivacySettings() {
-    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth") else { return }
+    guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Bluetooth")
+    else { return }
     NSWorkspace.shared.open(url)
 }
 

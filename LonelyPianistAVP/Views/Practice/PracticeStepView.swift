@@ -36,19 +36,19 @@ struct PracticeStepView: View {
                     }
                 }
             }
-	            .toolbar {
-	                ToolbarItemGroup(placement: .bottomOrnament) {
-	                    Button("回到选曲库", systemImage: "chevron.backward") {
-	                        onBackToLibrary()
-	                    }
-	                    .buttonStyle(.bordered)
-	                    .buttonBorderShape(.roundedRectangle)
-	                    // .hoverEffect()
+            .toolbar {
+                ToolbarItemGroup(placement: .bottomOrnament) {
+                    Button("回到选曲库", systemImage: "chevron.backward") {
+                        onBackToLibrary()
+                    }
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.roundedRectangle)
+                    // .hoverEffect()
 
-	                    if isAutoplayEnabled == false {
-	                        Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
-	                            viewModel.skipStep()
-	                        }
+                    if isAutoplayEnabled == false {
+                        Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
+                            viewModel.skipStep()
+                        }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.roundedRectangle)
                         // .hoverEffect()
@@ -105,9 +105,9 @@ struct PracticeStepView: View {
                             },
                             onDebugTriggerAIPerformance: {
                                 #if DEBUG && targetEnvironment(simulator)
-                                Task { @MainActor in
-                                    await viewModel.debugTriggerAIPerformance()
-                                }
+                                    Task { @MainActor in
+                                        await viewModel.debugTriggerAIPerformance()
+                                    }
                                 #endif
                             }
                         )
@@ -133,7 +133,8 @@ struct PracticeStepView: View {
                         .tint(.red)
                         .buttonBorderShape(.roundedRectangle)
                         .hoverEffect()
-                        .disabled(viewModel.canRecord == false || viewModel.isAIPerformanceActive || viewModel.takePlaybackController.isPlaying)
+                        .disabled(viewModel.canRecord == false || viewModel.isAIPerformanceActive || viewModel
+                            .takePlaybackController.isPlaying)
                     }
 
                     if isAutoplayEnabled {
@@ -348,7 +349,6 @@ struct PracticeStepView: View {
         }
         return result
     }
-
 }
 
 private enum PracticeHandPalette {

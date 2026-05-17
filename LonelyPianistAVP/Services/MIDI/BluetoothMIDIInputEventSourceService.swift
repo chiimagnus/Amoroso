@@ -9,12 +9,12 @@ enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .clientCreate(status):
-            "Failed to create MIDI client: \(status)"
-        case let .portCreate(status):
-            "Failed to create MIDI input port: \(status)"
-        case let .sourceRefresh(status):
-            "Failed to refresh MIDI sources: \(status)"
+            case let .clientCreate(status):
+                "Failed to create MIDI client: \(status)"
+            case let .portCreate(status):
+                "Failed to create MIDI input port: \(status)"
+            case let .sourceRefresh(status):
+                "Failed to refresh MIDI sources: \(status)"
         }
     }
 }
@@ -24,7 +24,10 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         eventsStream
     }
 
-    private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP", category: "BluetoothMIDI-Events")
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "BluetoothMIDI-Events"
+    )
     private let refreshScheduler = DebouncedActionScheduler(queue: .main, debounceSec: 0.2)
 
     private var clientRef: MIDIClientRef = 0
@@ -261,7 +264,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     }
 
     private func scaleMIDI2Value16To127(_ value: UInt16) -> Int {
-        Int((Double(value) / 65_535.0) * 127.0)
+        Int((Double(value) / 65535.0) * 127.0)
     }
 
     private func scaleMIDI2Value32To127(_ value: UInt32) -> Int {
@@ -269,7 +272,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     }
 
     private func scaleMIDI2PitchBendTo14Bit(_ value: UInt32) -> Int {
-        Int((Double(value) / Double(UInt32.max)) * 16_383.0)
+        Int((Double(value) / Double(UInt32.max)) * 16383.0)
     }
 }
 

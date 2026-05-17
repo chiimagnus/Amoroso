@@ -5,4 +5,3 @@ enum WindowIDs {
     static let library = "library"
     static let practice = "practice"
 }
-

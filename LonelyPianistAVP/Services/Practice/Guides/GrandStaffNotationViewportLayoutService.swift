@@ -73,12 +73,12 @@ struct GrandStaffNotationViewportLayoutService {
 
         let totalHeightUnits =
             topPaddingUnits
-            + trebleExtraAboveUnits
-            + staffHeightUnits
-            + interStaffGapUnits
-            + staffHeightUnits
-            + bassExtraBelowUnits
-            + bottomPaddingUnits
+                + trebleExtraAboveUnits
+                + staffHeightUnits
+                + interStaffGapUnits
+                + staffHeightUnits
+                + bassExtraBelowUnits
+                + bottomPaddingUnits
 
         let noteWidth = resolvedLineSpacing * 1.05
         let noteHeight = resolvedLineSpacing * 0.70
@@ -204,7 +204,10 @@ struct GrandStaffNotationViewportLayoutService {
         let chordsByID = Dictionary(uniqueKeysWithValues: chords.map { ($0.id, $0) })
         let itemsByChordID = Dictionary(grouping: items, by: { $0.chordID ?? "" })
 
-        func stemForChord(_ chord: GrandStaffNotationChord, chordItems: [GrandStaffNotationItem]) -> (start: CGPoint, end: CGPoint) {
+        func stemForChord(
+            _ chord: GrandStaffNotationChord,
+            chordItems: [GrandStaffNotationItem]
+        ) -> (start: CGPoint, end: CGPoint) {
             let x = xPosition(chord.xPosition, contentMinX: contentMinX, contentMaxX: contentMaxX)
             let steps = chordItems.map(\.staffStep)
             let staffNumber = chordItems.first?.staffNumber ?? 1
@@ -285,7 +288,7 @@ struct GrandStaffNotationViewportLayoutService {
             maxY = max(maxY, max(primaryY1, primaryYN) + beamStrokeWidth)
 
             if beam.beamCount >= 2 {
-                for level in 2...beam.beamCount {
+                for level in 2 ... beam.beamCount {
                     let stride = CGFloat(level - 1) * beamStackStride
                     let secondaryOffset = (direction == .up) ? (requiredOffset + stride) : (requiredOffset - stride)
                     let y1 = yOnBeam(at: x1, offset: secondaryOffset)
@@ -309,18 +312,18 @@ struct GrandStaffNotationViewportLayoutService {
     private func beamCountFor(noteValue: GrandStaffNoteValue) -> Int {
         switch noteValue {
             case .eighth:
-                return 1
+                1
             case .sixteenth:
-                return 2
+                2
             case .thirtySecond:
-                return 3
+                3
             default:
-                return 0
+                0
         }
     }
 
     private func clefAnchorStaffStep(signToken: String?, line: Int?) -> Int? {
-        if let line, (1...5).contains(line) {
+        if let line, (1 ... 5).contains(line) {
             return (line - 1) * 2
         }
 

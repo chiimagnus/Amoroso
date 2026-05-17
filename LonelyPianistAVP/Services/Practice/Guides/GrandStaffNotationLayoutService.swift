@@ -31,7 +31,7 @@ struct GrandStaffNotationLayoutService {
         currentGuide: PianoHighlightGuide?,
         measureSpans: [MusicXMLMeasureSpan] = [],
         context: GrandStaffNotationContext? = nil,
-        halfWindowTicks: Int = 1_920,
+        halfWindowTicks: Int = 1920,
         scrollTick: Double? = nil
     ) -> GrandStaffNotationLayout {
         guard guides.isEmpty == false else {
@@ -179,9 +179,13 @@ struct GrandStaffNotationLayoutService {
     ) -> (items: [GrandStaffNotationItem], chords: [GrandStaffNotationChord], beams: [GrandStaffNotationBeam]) {
         guard items.isEmpty == false else { return (items, [], []) }
 
-        let barlineTicks = Set(measureSpans.map(\.startTick)).union([measureSpans.map(\.endTick).max()].compactMap(\.self))
+        let barlineTicks = Set(measureSpans.map(\.startTick))
+            .union([measureSpans.map(\.endTick).max()].compactMap(\.self))
 
-        let grouped = Dictionary(grouping: items, by: { ChordKey(tick: $0.tick, staffNumber: $0.staffNumber, voice: $0.voice) })
+        let grouped = Dictionary(
+            grouping: items,
+            by: { ChordKey(tick: $0.tick, staffNumber: $0.staffNumber, voice: $0.voice) }
+        )
         let sortedKeys = grouped.keys.sorted { lhs, rhs in
             if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
             if lhs.staffNumber != rhs.staffNumber { return lhs.staffNumber < rhs.staffNumber }
@@ -349,17 +353,17 @@ struct GrandStaffNotationLayoutService {
     private func beamRank(for noteValue: GrandStaffNoteValue) -> Int {
         switch noteValue {
             case .thirtySecond:
-                return 0
+                0
             case .sixteenth:
-                return 1
+                1
             case .eighth:
-                return 2
+                2
             case .quarter:
-                return 3
+                3
             case .half:
-                return 4
+                4
             case .whole:
-                return 5
+                5
         }
     }
 
@@ -485,13 +489,13 @@ struct GrandStaffNotationLayoutService {
     private func beamCount(for noteValue: GrandStaffNoteValue) -> Int {
         switch noteValue {
             case .eighth:
-                return 1
+                1
             case .sixteenth:
-                return 2
+                2
             case .thirtySecond:
-                return 3
+                3
             default:
-                return 0
+                0
         }
     }
 

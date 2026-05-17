@@ -74,4 +74,3 @@ func selectorReturnsNilForInvalidTickRange() {
     let selector = AIPerformanceClipSelector()
     #expect(selector.tickRange(currentTick: 10, measureSpans: spans) == nil)
 }
-

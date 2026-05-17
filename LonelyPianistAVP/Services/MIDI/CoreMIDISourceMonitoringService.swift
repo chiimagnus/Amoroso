@@ -9,12 +9,12 @@ enum CoreMIDISourceMonitoringServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case let .clientCreate(status):
-            "Failed to create MIDI client: \(status)"
-        case let .portCreate(status):
-            "Failed to create MIDI input port: \(status)"
-        case let .sourceRefresh(status):
-            "Failed to refresh MIDI sources: \(status)"
+            case let .clientCreate(status):
+                "Failed to create MIDI client: \(status)"
+            case let .portCreate(status):
+                "Failed to create MIDI input port: \(status)"
+            case let .sourceRefresh(status):
+                "Failed to refresh MIDI sources: \(status)"
         }
     }
 }

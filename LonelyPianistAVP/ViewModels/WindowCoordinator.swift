@@ -13,12 +13,12 @@ final class WindowCoordinator {
 
         var id: String {
             switch self {
-            case .preparation:
-                WindowIDs.preparation
-            case .library:
-                WindowIDs.library
-            case .practice:
-                WindowIDs.practice
+                case .preparation:
+                    WindowIDs.preparation
+                case .library:
+                    WindowIDs.library
+                case .practice:
+                    WindowIDs.practice
             }
         }
     }

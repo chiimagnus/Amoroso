@@ -96,6 +96,7 @@ final class PracticeSessionViewModel {
         let timeSeconds: TimeInterval
         let tick: Int
     }
+
     var notationGuideScrollSchedule: [NotationGuideScrollPoint] = []
     var notationGuideScrollScheduleBaseTick: Int = 0
     var notationGuideScrollScheduleTaskGeneration: Int = -1

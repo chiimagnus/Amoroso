@@ -24,16 +24,16 @@ struct PracticeStepSettingsPopover: View {
             .disabled(isAIPerformanceActive)
 
             #if DEBUG && targetEnvironment(simulator)
-            if virtualPerformerEnabled, let onDebugTriggerAIPerformance {
-                Divider()
-                Button("调试：触发 AI 演奏", systemImage: "play.fill") {
-                    onDebugTriggerAIPerformance()
+                if virtualPerformerEnabled, let onDebugTriggerAIPerformance {
+                    Divider()
+                    Button("调试：触发 AI 演奏", systemImage: "play.fill") {
+                        onDebugTriggerAIPerformance()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.roundedRectangle)
+                    .hoverEffect()
+                    .disabled(isAIPerformanceActive)
                 }
-                .buttonStyle(.borderedProminent)
-                .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
-                .disabled(isAIPerformanceActive)
-            }
             #endif
 
             if isVirtualPianoMode {

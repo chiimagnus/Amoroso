@@ -45,7 +45,10 @@ struct PracticePreparationService: PracticePreparationServiceProtocol {
         let pedalTimeline = MusicXMLPedalTimeline(events: routedPracticeScore
             .pedalEvents + (wordsSemantics?.derivedPedalEvents ?? []))
         let fermataTimeline = expressivityOptions.fermataEnabled
-            ? MusicXMLFermataTimeline(fermataEvents: routedPracticeScore.fermataEvents, notes: routedPracticeScore.notes)
+            ? MusicXMLFermataTimeline(
+                fermataEvents: routedPracticeScore.fermataEvents,
+                notes: routedPracticeScore.notes
+            )
             : nil
         let attributeTimeline = MusicXMLAttributeTimeline(
             timeSignatureEvents: routedPracticeScore.timeSignatureEvents,

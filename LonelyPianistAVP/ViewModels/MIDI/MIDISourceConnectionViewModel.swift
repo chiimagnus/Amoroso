@@ -35,21 +35,21 @@ final class MIDISourceConnectionViewModel {
 
     var sourceCount: Int {
         switch connectionState {
-        case let .connected(sourceCount):
-            return sourceCount
-        case .idle, .failed:
-            return 0
+            case let .connected(sourceCount):
+                sourceCount
+            case .idle, .failed:
+                0
         }
     }
 
     var statusText: String {
         switch connectionState {
-        case .idle:
-            return "idle"
-        case let .connected(sourceCount):
-            return "connected: \(sourceCount)"
-        case let .failed(message):
-            return "failed: \(message)"
+            case .idle:
+                "idle"
+            case let .connected(sourceCount):
+                "connected: \(sourceCount)"
+            case let .failed(message):
+                "failed: \(message)"
         }
     }
 

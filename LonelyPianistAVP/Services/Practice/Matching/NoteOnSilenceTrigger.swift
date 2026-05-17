@@ -22,4 +22,3 @@ struct NoteOnSilenceTrigger {
         hasTriggered = false
     }
 }
-

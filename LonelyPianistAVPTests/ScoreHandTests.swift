@@ -16,4 +16,3 @@ func fromStaffTreatsStaffTwoOrGreaterAsLeftHand() {
     #expect(ScoreHand.fromStaff(2) == .left)
     #expect(ScoreHand.fromStaff(3) == .left)
 }
-

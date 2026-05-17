@@ -71,4 +71,3 @@ final class BluetoothAccessPreflight: NSObject, CBCentralManagerDelegate {
         }
     }
 }
-

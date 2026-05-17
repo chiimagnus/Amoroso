@@ -60,4 +60,3 @@ func recorderIgnoresNoteOffWithoutNoteOn() {
     let phrase = recorder.flushPhrase(endTimestamp: 0.2)
     #expect(phrase.isEmpty)
 }
-

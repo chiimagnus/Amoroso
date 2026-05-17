@@ -33,4 +33,3 @@ final class FakePracticeInputEventSource: PracticeInputEventSourceProtocol {
         eventsContinuation.yield(event)
     }
 }
-

@@ -1,5 +1,5 @@
-@testable import LonelyPianistAVP
 import Foundation
+@testable import LonelyPianistAVP
 import Testing
 
 @Test
@@ -45,4 +45,3 @@ func improvResultResponseDecodesNotes() throws {
     #expect(decoded.notes.count == 1)
     #expect(decoded.notes[0].note == 60)
 }
-

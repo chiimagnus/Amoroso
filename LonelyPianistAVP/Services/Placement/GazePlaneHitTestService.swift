@@ -7,7 +7,7 @@ struct GazePlaneHitTestService {
         // Allow a near hit so the user only needs a slight head tilt.
         var minDistanceMeters: Float = 0.15
         var maxDistanceMeters: Float = 2.0
-        // Prefer a closer plane hit distance (comfortable slight head tilt).
+        /// Prefer a closer plane hit distance (comfortable slight head tilt).
         var preferredDistanceMeters: Float = 0.45
     }
 
@@ -50,7 +50,9 @@ struct GazePlaneHitTestService {
 
             let error = abs(t - configuration.preferredDistanceMeters)
             if let currentBestError = bestDistanceError, let currentBest = best {
-                if error < currentBestError || (error == currentBestError && hit.distanceMeters < currentBest.distanceMeters) {
+                if error < currentBestError ||
+                    (error == currentBestError && hit.distanceMeters < currentBest.distanceMeters)
+                {
                     best = hit
                     bestDistanceError = error
                 }

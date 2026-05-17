@@ -138,10 +138,10 @@ class AppState {
             if let previousStoredCalibration {
                 Task { @MainActor [weak self] in
                     guard let self else { return }
-                    await self.calibrationRepository.removeOldAnchorsIfPossible(
+                    await calibrationRepository.removeOldAnchorsIfPossible(
                         previous: previousStoredCalibration,
                         current: savedCalibration,
-                        arTrackingService: self.arTrackingService
+                        arTrackingService: arTrackingService
                     )
                 }
             }

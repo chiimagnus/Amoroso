@@ -46,7 +46,7 @@ func normalizerMergesTwoPartGrandStaffNotesIntoPrimaryPart() throws {
 
     let primary = normalized.preferredPrimaryPartID(preferredPartID: "P1")
     let practiceScore = normalized.filtering(toPartID: primary)
-    #expect(practiceScore.notes.filter { $0.isRest == false && $0.midiNote != nil }.count == 2)
+    #expect(practiceScore.notes.count(where: { $0.isRest == false && $0.midiNote != nil }) == 2)
 
     let routed = MusicXMLHandRouter().routeIfNeeded(score: practiceScore)
     let hasLeftHand = routed.notes.contains { note in
@@ -56,4 +56,3 @@ func normalizerMergesTwoPartGrandStaffNotesIntoPrimaryPart() throws {
     }
     #expect(hasLeftHand)
 }
-

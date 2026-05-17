@@ -6,4 +6,3 @@ protocol PracticeInputEventSourceProtocol: AnyObject {
     func start() throws
     func stop()
 }
-

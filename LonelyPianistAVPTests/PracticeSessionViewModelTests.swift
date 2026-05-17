@@ -1606,6 +1606,7 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
     func playOneShot(midiNotes: [Int], durationSeconds: TimeInterval) throws {
         oneShots.append(OneShot(midiNotes: midiNotes, durationSeconds: durationSeconds))
     }
+
     func startLiveNotes(midiNotes _: Set<Int>) throws {}
     func stopLiveNotes(midiNotes _: Set<Int>) {}
     func stopAllLiveNotes() {}
@@ -1623,6 +1624,7 @@ private final class ThrowingSequencerPlaybackService: PracticeSequencerPlaybackS
     func playOneShot(midiNotes _: [Int], durationSeconds _: TimeInterval) throws {
         throw PracticeAudioError.soundFontMissing(resourceName: "TestSoundFont")
     }
+
     func startLiveNotes(midiNotes _: Set<Int>) throws {}
     func stopLiveNotes(midiNotes _: Set<Int>) {}
     func stopAllLiveNotes() {}

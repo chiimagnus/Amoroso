@@ -1,4 +1,4 @@
-enum ScoreHand: String, CaseIterable, Sendable {
+enum ScoreHand: String, CaseIterable {
     case right
     case left
 
@@ -8,4 +8,3 @@ enum ScoreHand: String, CaseIterable, Sendable {
         return .left
     }
 }
-

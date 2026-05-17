@@ -20,7 +20,12 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
     private let playableRange = 21 ... 108
 
     func buildSteps(from score: MusicXMLScore, expressivity: MusicXMLExpressivityOptions) -> PracticeStepBuildResult {
-        var grouped: [Int: [StepNoteKey: (hand: ScoreHand, velocity: UInt8, onTickOffset: Int, fingeringText: String?)]] =
+        var grouped: [Int: [StepNoteKey: (
+            hand: ScoreHand,
+            velocity: UInt8,
+            onTickOffset: Int,
+            fingeringText: String?
+        )]] =
             [:]
         var unsupportedNoteCount = 0
         let velocityResolver = MusicXMLVelocityResolver(

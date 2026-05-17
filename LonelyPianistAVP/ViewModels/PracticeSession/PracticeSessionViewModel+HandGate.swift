@@ -62,8 +62,7 @@ extension PracticeSessionViewModel {
                     let unrelatedPressDetected = detected.contains { pressed in
                         expected.contains(where: { abs($0 - pressed) <= noteMatchTolerance }) == false
                     }
-                    if unrelatedPressDetected {
-                    }
+                    if unrelatedPressDetected {}
                 }
             }
         } else {
@@ -136,8 +135,7 @@ extension PracticeSessionViewModel {
                 let unrelatedPressDetected = result.started.contains { pressed in
                     expected.contains(where: { abs($0 - pressed) <= noteMatchTolerance }) == false
                 }
-                if unrelatedPressDetected {
-                }
+                if unrelatedPressDetected {}
             }
         }
 

@@ -73,14 +73,17 @@ nonisolated struct RecordingTakeRecorder {
         let clampedController = max(0, min(127, controller))
         let clampedValue = max(0, min(127, value))
         events.append(
-            RecordingTakeEvent(time: relativeTime, kind: .controlChange(controller: clampedController, value: clampedValue))
+            RecordingTakeEvent(
+                time: relativeTime,
+                kind: .controlChange(controller: clampedController, value: clampedValue)
+            )
         )
     }
 
     mutating func recordPitchBend(value: Int, now: TimeInterval) {
         guard isRecording else { return }
         let relativeTime = max(0, now - takeStart)
-        let clampedValue = max(0, min(16_383, value))
+        let clampedValue = max(0, min(16383, value))
         events.append(
             RecordingTakeEvent(time: relativeTime, kind: .pitchBend(value: clampedValue))
         )

@@ -15,11 +15,14 @@ struct LonelyPianistAVPApp: App {
         _services = State(initialValue: root.services)
         _arGuideViewModel = State(initialValue: root.arGuideViewModel)
         _flowState = State(initialValue: root.flowState)
-        _coordinator = State(initialValue: WindowCoordinator(flowState: root.flowState, pianoModeRegistry: root.services.pianoModeRegistry))
+        _coordinator = State(initialValue: WindowCoordinator(
+            flowState: root.flowState,
+            pianoModeRegistry: root.services.pianoModeRegistry
+        ))
     }
 
     var body: some Scene {
-        let progressiveImmersionStyle: ImmersionStyle = .progressive(0.0...1.0, initialAmount: 0.7, aspectRatio: nil)
+        let progressiveImmersionStyle: ImmersionStyle = .progressive(0.0 ... 1.0, initialAmount: 0.7, aspectRatio: nil)
         let selectedImmersionStyle: any ImmersionStyle = immersivePanoramaEnabled ? progressiveImmersionStyle : .mixed
 
         Window("Preparation", id: WindowIDs.preparation) {

@@ -54,7 +54,7 @@ func adapterClampsVelocityToMIDIRange() {
 }
 
 @Test
-func adapterHandlesEmptyTake() throws {
+func adapterHandlesEmptyTake() {
     let take = RecordingTake(name: "Empty", events: [])
     let adapter = RecordingTakeSequenceAdapter()
     let schedule = adapter.makeMIDISchedule(from: take)

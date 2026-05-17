@@ -83,4 +83,3 @@ struct MusicXMLPianoGrandStaffNormalizer {
         return (treble: treblePartID, bass: bassPartID)
     }
 }
-

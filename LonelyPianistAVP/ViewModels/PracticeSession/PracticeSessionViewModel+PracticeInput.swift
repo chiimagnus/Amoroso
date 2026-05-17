@@ -105,14 +105,14 @@ extension PracticeSessionViewModel {
         }
 
         switch matchResult {
-        case .matched:
-            audioStepAttemptAccumulator.markMatchedAndRequireRearm(
-                expectedMIDINotes: expectedMIDINotes,
-                at: detected.timestamp
-            )
-            advanceToNextStep()
-        case .wrong, .insufficient:
-            break
+            case .matched:
+                audioStepAttemptAccumulator.markMatchedAndRequireRearm(
+                    expectedMIDINotes: expectedMIDINotes,
+                    at: detected.timestamp
+                )
+                advanceToNextStep()
+            case .wrong, .insufficient:
+                break
         }
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 
-struct PracticeInputEvent: Sendable, Equatable {
-    enum Kind: Sendable, Equatable {
+struct PracticeInputEvent: Equatable {
+    enum Kind: Equatable {
         case noteOn(note: Int, velocity: Int)
         case noteOff(note: Int, velocity: Int)
         case controlChange(controller: Int, value: Int)
@@ -30,32 +30,32 @@ struct PracticeInputEvent: Sendable, Equatable {
 
     private static func clamp(_ kind: Kind) -> Kind {
         switch kind {
-        case let .noteOn(note, velocity):
-            return .noteOn(
-                note: clamp(note, min: 0, max: 127),
-                velocity: clamp(velocity, min: 0, max: 127)
-            )
-        case let .noteOff(note, velocity):
-            return .noteOff(
-                note: clamp(note, min: 0, max: 127),
-                velocity: clamp(velocity, min: 0, max: 127)
-            )
-        case let .controlChange(controller, value):
-            return .controlChange(
-                controller: clamp(controller, min: 0, max: 127),
-                value: clamp(value, min: 0, max: 127)
-            )
-        case let .pitchBend(value):
-            return .pitchBend(value: clamp(value, min: 0, max: 16_383))
-        case let .programChange(program):
-            return .programChange(program: clamp(program, min: 0, max: 127))
-        case let .channelPressure(value):
-            return .channelPressure(value: clamp(value, min: 0, max: 127))
-        case let .polyPressure(note, value):
-            return .polyPressure(
-                note: clamp(note, min: 0, max: 127),
-                value: clamp(value, min: 0, max: 127)
-            )
+            case let .noteOn(note, velocity):
+                .noteOn(
+                    note: clamp(note, min: 0, max: 127),
+                    velocity: clamp(velocity, min: 0, max: 127)
+                )
+            case let .noteOff(note, velocity):
+                .noteOff(
+                    note: clamp(note, min: 0, max: 127),
+                    velocity: clamp(velocity, min: 0, max: 127)
+                )
+            case let .controlChange(controller, value):
+                .controlChange(
+                    controller: clamp(controller, min: 0, max: 127),
+                    value: clamp(value, min: 0, max: 127)
+                )
+            case let .pitchBend(value):
+                .pitchBend(value: clamp(value, min: 0, max: 16383))
+            case let .programChange(program):
+                .programChange(program: clamp(program, min: 0, max: 127))
+            case let .channelPressure(value):
+                .channelPressure(value: clamp(value, min: 0, max: 127))
+            case let .polyPressure(note, value):
+                .polyPressure(
+                    note: clamp(note, min: 0, max: 127),
+                    value: clamp(value, min: 0, max: 127)
+                )
         }
     }
 
@@ -63,4 +63,3 @@ struct PracticeInputEvent: Sendable, Equatable {
         Swift.max(min, Swift.min(max, value))
     }
 }
-

@@ -18,7 +18,11 @@ struct VirtualKeyboardPoseService {
 
         let zAxisWorld: SIMD3<Float> = {
             if let deviceWorldTransform {
-                let devicePosWorld = SIMD3<Float>(deviceWorldTransform.columns.3.x, deviceWorldTransform.columns.3.y, deviceWorldTransform.columns.3.z)
+                let devicePosWorld = SIMD3<Float>(
+                    deviceWorldTransform.columns.3.x,
+                    deviceWorldTransform.columns.3.y,
+                    deviceWorldTransform.columns.3.z
+                )
                 let v = devicePosWorld - handCenterOnPlaneWorld
                 let vOnPlane = v - yAxisWorld * simd_dot(v, yAxisWorld)
                 if simd_length(vOnPlane) > 1e-4 {

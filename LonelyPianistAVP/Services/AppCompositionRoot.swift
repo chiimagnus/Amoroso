@@ -21,7 +21,7 @@ final class AppCompositionRoot {
 
         self.services = services
         self.appState = appState
-        self.arGuideViewModel = ARGuideViewModel(
+        arGuideViewModel = ARGuideViewModel(
             appState: appState,
             flowState: flowState,
             pianoModeRegistry: services.pianoModeRegistry,
