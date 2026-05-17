@@ -43,9 +43,9 @@ struct PracticeStepView: View {
             )
             .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
         }
-        .containerRelativeFrame(.horizontal, count: 10, span: 9, spacing: 0)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.vertical, 18)
+        .containerRelativeFrame(.horizontal, count: 100, span: 95, spacing: 0)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 30)
         .toolbar {
             ToolbarItemGroup(placement: .bottomOrnament) {
                 Button("回到选曲库", systemImage: "chevron.backward") {
