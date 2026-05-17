@@ -2,8 +2,7 @@ import SwiftUI
 
 struct VirtualPianoPreparationView: View {
     @Environment(WindowCoordinator.self) private var coordinator
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.preparationNavigationActions) private var navigationActions
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Bindable var viewModel: ARGuideViewModel
@@ -12,7 +11,7 @@ struct VirtualPianoPreparationView: View {
         VStack(spacing: 20) {
             HStack {
                 Button("返回钢琴类型选择") {
-                    coordinator.resetToPreparation(reason: "user tapped back from virtual preparation")
+                    navigationActions.backToTypePicker()
                 }
                 .buttonStyle(.bordered)
 
@@ -24,7 +23,7 @@ struct VirtualPianoPreparationView: View {
                 Spacer()
 
                 Button("下一步：去选曲") {
-                    coordinator.openLibrary(dismissCurrent: .preparation, openWindow: openWindow, dismissWindow: dismissWindow)
+                    navigationActions.nextToLibrary()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canProceedToLibrary)
