@@ -36,26 +36,19 @@ struct PracticeStepView: View {
                     }
                 }
             }
-            .toolbar {
-                ToolbarItemGroup(placement: .bottomOrnament) {
-                    Button("回到选曲库", systemImage: "chevron.backward") {
-                        onBackToLibrary()
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
+	            .toolbar {
+	                ToolbarItemGroup(placement: .bottomOrnament) {
+	                    Button("回到选曲库", systemImage: "chevron.backward") {
+	                        onBackToLibrary()
+	                    }
+	                    .buttonStyle(.bordered)
+	                    .buttonBorderShape(.roundedRectangle)
+	                    .hoverEffect()
 
-                    Button("重新选择钢琴类型", systemImage: "arrow.uturn.backward") {
-                        onRestartFromTypePicker()
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-
-                    if isAutoplayEnabled == false {
-                        Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
-                            viewModel.skipStep()
-                        }
+	                    if isAutoplayEnabled == false {
+	                        Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
+	                            viewModel.skipStep()
+	                        }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.roundedRectangle)
                         .hoverEffect()
