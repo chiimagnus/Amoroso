@@ -22,7 +22,7 @@ struct PracticeStepView: View {
         let session = viewModel.practiceSessionViewModel
         let currentGuide = session.currentPianoHighlightGuide
 
-        VStack(spacing: 21) {
+        VStack(spacing: 30) {
             GrandStaffNotationView(
                 guides: session.highlightGuides,
                 currentGuide: currentGuide,
@@ -32,7 +32,7 @@ struct PracticeStepView: View {
                     session.smoothNotationScrollTick()
                 } : nil
             )
-            .frame(height: 260)
+            .frame(height: 350)
 
             PianoKeyboard88View(
                 highlightedMIDINotes: highlightedMIDINotes,
