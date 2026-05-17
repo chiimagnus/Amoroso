@@ -246,7 +246,7 @@ struct GrandStaffNotationLayoutService {
             }
         }
 
-        let updatedItems = items.compactMap { updatedItemsByOccurrenceID[$0.occurrenceID] }
+        _ = items.compactMap { updatedItemsByOccurrenceID[$0.occurrenceID] }
 
         let beamsBuild = buildBeams(
             chords: chords,
@@ -291,7 +291,7 @@ struct GrandStaffNotationLayoutService {
             }
         }
 
-        let finalItems = items.compactMap { beamedItemsByOccurrenceID[$0.occurrenceID] }
+        _ = items.compactMap { beamedItemsByOccurrenceID[$0.occurrenceID] }
 
         let finalChords = enforceBeamGroupStemDirections(
             chords: chords,
