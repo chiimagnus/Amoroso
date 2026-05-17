@@ -1,5 +1,4 @@
 import Observation
-import SwiftUI
 import os
 
 @MainActor
@@ -26,43 +25,16 @@ final class WindowCoordinator {
 
     let flowState: FlowState
     let pianoModeRegistry: PianoModeRegistryProtocol
+    var pendingPushTarget: Window?
 
     init(flowState: FlowState, pianoModeRegistry: PianoModeRegistryProtocol) {
         self.flowState = flowState
         self.pianoModeRegistry = pianoModeRegistry
     }
 
-    func transition(
-        from currentWindow: Window?,
-        to targetWindow: Window,
-        openWindow: OpenWindowAction,
-        dismissWindow: DismissWindowAction
-    ) {
-        // In visionOS, dismissing the current window immediately after `openWindow(id:)`
-        // can be ignored in some cases (notably when transitioning from the initial window).
-        // Yield one runloop tick to let the system register the opened window first.
-        transition(from: currentWindow, to: targetWindow) { id in
-            openWindow(id: id)
-        } dismiss: { shouldDismissCurrent in
-            guard shouldDismissCurrent else { return }
-            Task { @MainActor in
-                await Task.yield()
-                dismissWindow()
-            }
-        }
-    }
-
-    func transition(
-        from currentWindow: Window?,
-        to targetWindow: Window,
-        open: (String) -> Void,
-        dismiss: (Bool) -> Void
-    ) {
-        guard currentWindow != targetWindow else { return }
-
-        Self.logger.info("transition: \(String(describing: currentWindow?.id)) -> \(targetWindow.id)")
-        open(targetWindow.id)
-        dismiss(currentWindow != nil)
+    func consumePendingPushTarget() -> Window? {
+        defer { pendingPushTarget = nil }
+        return pendingPushTarget
     }
 
     func resetToPreparation(reason: String) {
@@ -72,17 +44,5 @@ final class WindowCoordinator {
         flowState.isVirtualPianoPlaced = false
         flowState.bluetoothMIDISourceCount = 0
         flowState.selectedPianoModeID = nil
-    }
-
-    func openLibrary(dismissCurrent: Window?, openWindow: OpenWindowAction, dismissWindow: DismissWindowAction) {
-        transition(from: dismissCurrent, to: .library, openWindow: openWindow, dismissWindow: dismissWindow)
-    }
-
-    func openPractice(dismissCurrent: Window?, openWindow: OpenWindowAction, dismissWindow: DismissWindowAction) {
-        transition(from: dismissCurrent, to: .practice, openWindow: openWindow, dismissWindow: dismissWindow)
-    }
-
-    func openPreparation(dismissCurrent: Window?, openWindow: OpenWindowAction, dismissWindow: DismissWindowAction) {
-        transition(from: dismissCurrent, to: .preparation, openWindow: openWindow, dismissWindow: dismissWindow)
     }
 }

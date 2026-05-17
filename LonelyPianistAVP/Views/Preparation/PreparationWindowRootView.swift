@@ -3,8 +3,7 @@ import SwiftUI
 struct PreparationWindowRootView: View {
     @Bindable var arGuideViewModel: ARGuideViewModel
     @Environment(WindowCoordinator.self) private var coordinator
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.pushWindow) private var pushWindow
 
     init(
         arGuideViewModel: ARGuideViewModel
@@ -18,7 +17,11 @@ struct PreparationWindowRootView: View {
                 coordinator.resetToPreparation(reason: "user tapped back from preparation")
             },
             nextToLibrary: {
-                coordinator.openLibrary(dismissCurrent: .preparation, openWindow: openWindow, dismissWindow: dismissWindow)
+                pushWindow(id: WindowIDs.library)
+            }
+            ,
+            pushPractice: {
+                pushWindow(id: WindowIDs.practice)
             }
         )
 
@@ -31,5 +34,9 @@ struct PreparationWindowRootView: View {
         }
         .environment(\.preparationNavigationActions, actions)
         .frame(minWidth: 860, idealWidth: 900, minHeight: 520, idealHeight: 650)
+        .onAppear {
+            guard let target = coordinator.consumePendingPushTarget() else { return }
+            pushWindow(id: target.id)
+        }
     }
 }

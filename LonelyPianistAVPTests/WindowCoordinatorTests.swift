@@ -40,54 +40,10 @@ func resetToPreparationClearsFlowState() {
 
 @Test
 @MainActor
-func transitionCallsOpenThenDismiss() {
+func consumePendingPushTargetReturnsAndClears() {
     let coordinator = WindowCoordinator(flowState: FlowState(), pianoModeRegistry: PianoModeRegistryService(modes: []))
 
-    var events: [String] = []
-    coordinator.transition(
-        from: .library,
-        to: .practice,
-        open: { id in events.append("open:\(id)") },
-        dismiss: { shouldDismiss in
-            events.append("dismiss:\(shouldDismiss)")
-        }
-    )
-
-    #expect(events == ["open:\(WindowIDs.practice)", "dismiss:true"])
-}
-
-@Test
-@MainActor
-func transitionDoesNotDismissWhenCurrentUnknown() {
-    let coordinator = WindowCoordinator(flowState: FlowState(), pianoModeRegistry: PianoModeRegistryService(modes: []))
-
-    var events: [String] = []
-    coordinator.transition(
-        from: nil,
-        to: .library,
-        open: { id in events.append("open:\(id)") },
-        dismiss: { shouldDismiss in
-            events.append("dismiss:\(shouldDismiss)")
-        }
-    )
-
-    #expect(events == ["open:\(WindowIDs.library)", "dismiss:false"])
-}
-
-@Test
-@MainActor
-func transitionNoopsWhenTargetEqualsCurrent() {
-    let coordinator = WindowCoordinator(flowState: FlowState(), pianoModeRegistry: PianoModeRegistryService(modes: []))
-
-    var events: [String] = []
-    coordinator.transition(
-        from: .practice,
-        to: .practice,
-        open: { id in events.append("open:\(id)") },
-        dismiss: { shouldDismiss in
-            events.append("dismiss:\(shouldDismiss)")
-        }
-    )
-
-    #expect(events.isEmpty)
+    coordinator.pendingPushTarget = .practice
+    #expect(coordinator.consumePendingPushTarget() == .practice)
+    #expect(coordinator.consumePendingPushTarget() == nil)
 }

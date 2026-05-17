@@ -2,7 +2,6 @@ import SwiftUI
 
 struct LibraryWindowRootView: View {
     @Environment(WindowCoordinator.self) private var coordinator
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
     @Bindable var appState: AppState
@@ -38,10 +37,11 @@ struct LibraryWindowRootView: View {
             selectedPianoModeTitle: selectedTitle,
             onBackToPreparation: {
                 coordinator.resetToPreparation(reason: "user tapped back from library window")
-                coordinator.openPreparation(dismissCurrent: .library, openWindow: openWindow, dismissWindow: dismissWindow)
+                dismissWindow()
             },
             onStartPractice: {
-                coordinator.openPractice(dismissCurrent: .library, openWindow: openWindow, dismissWindow: dismissWindow)
+                coordinator.pendingPushTarget = .practice
+                dismissWindow()
             }
         )
         .frame(minWidth: 700, idealWidth: 900, minHeight: 520, idealHeight: 700)
