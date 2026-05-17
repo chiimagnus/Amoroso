@@ -1,0 +1,52 @@
+@testable import LonelyPianistAVP
+import Foundation
+import Testing
+
+@Test
+@MainActor
+func resetToPreparationClearsFlowState() {
+    let flowState = FlowState()
+    flowState.selectedPianoModeID = "dummy"
+    flowState.isCalibrationCompleted = true
+    flowState.isVirtualPianoPlaced = true
+    flowState.bluetoothMIDISourceCount = 2
+    flowState.importErrorMessage = "error"
+    flowState.setImportedSteps(from: PreparedPractice(
+        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil)])],
+        file: ImportedMusicXMLFile(fileName: "Test", storedURL: URL(fileURLWithPath: "/dev/null"), importedAt: Date()),
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        pedalTimeline: nil,
+        fermataTimeline: nil,
+        attributeTimeline: nil,
+        slurTimeline: nil,
+        noteSpans: [],
+        highlightGuides: [],
+        measureSpans: [],
+        unsupportedNoteCount: 0
+    ))
+
+    let registry = PianoModeRegistryService(modes: [])
+    let coordinator = WindowCoordinator(flowState: flowState, pianoModeRegistry: registry)
+    coordinator.resetToPreparation(reason: "test")
+
+    #expect(flowState.selectedPianoModeID == nil)
+    #expect(flowState.isCalibrationCompleted == false)
+    #expect(flowState.isVirtualPianoPlaced == false)
+    #expect(flowState.bluetoothMIDISourceCount == 0)
+    #expect(flowState.importedSteps.isEmpty)
+    #expect(flowState.importedFile == nil)
+    #expect(flowState.importErrorMessage == nil)
+}
+
+@Test
+@MainActor
+func consumePendingTransitionReturnsAndClears() {
+    let coordinator = WindowCoordinator(flowState: FlowState(), pianoModeRegistry: PianoModeRegistryService(modes: []))
+
+    coordinator.beginTransition(from: .library, to: .practice)
+
+    let transition = coordinator.consumePendingTransition(to: .practice)
+    #expect(transition?.fromWindowID == WindowIDs.library)
+    #expect(transition?.toWindowID == WindowIDs.practice)
+    #expect(coordinator.consumePendingTransition(to: .practice) == nil)
+}

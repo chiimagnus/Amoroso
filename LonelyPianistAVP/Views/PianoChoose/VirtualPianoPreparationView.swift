@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct VirtualPianoPreparationView: View {
-    @Environment(AppRouter.self) private var router
+    @Environment(WindowCoordinator.self) private var coordinator
+    @Environment(\.preparationNavigationActions) private var navigationActions
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Bindable var viewModel: ARGuideViewModel
@@ -10,7 +11,7 @@ struct VirtualPianoPreparationView: View {
         VStack(spacing: 20) {
             HStack {
                 Button("返回钢琴类型选择") {
-                    router.exitToTypePicker(reason: "user tapped back from virtual preparation")
+                    navigationActions.backToTypePicker()
                 }
                 .buttonStyle(.bordered)
 
@@ -22,10 +23,10 @@ struct VirtualPianoPreparationView: View {
                 Spacer()
 
                 Button("下一步：去选曲") {
-                    router.goToLibrary()
+                    navigationActions.nextToLibrary()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!router.canProceedToLibrary)
+                .disabled(!canProceedToLibrary)
             }
 
             Text("放置虚拟钢琴到空间中")
@@ -51,7 +52,13 @@ struct VirtualPianoPreparationView: View {
             }
         }
         .onChange(of: viewModel.isVirtualPianoPlaced) {
-            router.flowState.isVirtualPianoPlaced = viewModel.isVirtualPianoPlaced
+            coordinator.flowState.isVirtualPianoPlaced = viewModel.isVirtualPianoPlaced
         }
+    }
+
+    private var canProceedToLibrary: Bool {
+        coordinator.pianoModeRegistry
+            .mode(for: coordinator.flowState.selectedPianoModeID)?
+            .canProceedToLibrary(flowState: coordinator.flowState) ?? false
     }
 }

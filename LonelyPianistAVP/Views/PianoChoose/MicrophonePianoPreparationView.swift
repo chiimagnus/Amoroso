@@ -1,14 +1,15 @@
 import SwiftUI
 
 struct RealPianoPreparationView: View {
-    @Environment(AppRouter.self) private var router
+    @Environment(WindowCoordinator.self) private var coordinator
+    @Environment(\.preparationNavigationActions) private var navigationActions
     @Bindable var viewModel: ARGuideViewModel
 
     var body: some View {
         VStack(spacing: 20) {
             HStack {
                 Button("返回钢琴类型选择") {
-                    router.exitToTypePicker(reason: "user tapped back from real preparation")
+                    navigationActions.backToTypePicker()
                 }
                 .buttonStyle(.bordered)
 
@@ -20,21 +21,27 @@ struct RealPianoPreparationView: View {
                 Spacer()
 
                 Button("下一步：去选曲") {
-                    router.goToLibrary()
+                    navigationActions.nextToLibrary()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!router.canProceedToLibrary)
+                .disabled(!canProceedToLibrary)
             }
 
             CalibrationStepView(
                 viewModel: viewModel,
-                onExit: { router.exitToTypePicker(reason: "user exited from real preparation") }
+                onExit: { coordinator.resetToPreparation(reason: "user exited from real preparation") }
             )
         }
         .padding(24)
         .frame(minWidth: 600, idealWidth: 700)
         .onChange(of: viewModel.calibrationPhase) {
-            router.flowState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
+            coordinator.flowState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
         }
+    }
+
+    private var canProceedToLibrary: Bool {
+        coordinator.pianoModeRegistry
+            .mode(for: coordinator.flowState.selectedPianoModeID)?
+            .canProceedToLibrary(flowState: coordinator.flowState) ?? false
     }
 }
