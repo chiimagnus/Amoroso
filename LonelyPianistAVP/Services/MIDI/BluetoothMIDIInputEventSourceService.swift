@@ -20,11 +20,7 @@ enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
     }
 }
 
-final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol, ProtocolSeparatedPracticeInputEventSourceProtocol {
-    func eventsStream() -> AsyncStream<PracticeInputEvent> {
-        eventsBroadcaster.makeStream()
-    }
-
+final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol {
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
         midi1EventsBroadcaster.makeStream()
     }
@@ -54,7 +50,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private var connectedSourceDescriptions: [String] = []
     private let stateLock = OSAllocatedUnfairLock(initialState: BluetoothMIDIInputEventSourceState())
 
-    private let eventsBroadcaster = AsyncStreamBroadcaster<PracticeInputEvent>()
     private let midi1EventsBroadcaster = AsyncStreamBroadcaster<MIDI1InputEvent>()
     private let midi2EventsBroadcaster = AsyncStreamBroadcaster<MIDI2InputEvent>()
 
@@ -306,9 +301,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                 receivedAtUptimeSeconds: receivedAtUptimeSeconds,
                 debugEventID: debugEventID
             ))
-            if let adaptedKind = adaptPracticeKind(from: kind) {
-                publish(adaptedKind, channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds, debugEventID: debugEventID)
-            }
 
         case .channelVoice2:
             stateLock.withLock { state in
@@ -345,23 +337,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             }
             break
         }
-    }
-
-    private func publish(
-        _ kind: PracticeInputEvent.Kind,
-        channel: Int,
-        receivedAt: Date,
-        receivedAtUptimeSeconds: TimeInterval,
-        debugEventID: Int64? = nil
-    ) {
-        let resolvedDebugEventID = debugEventID ?? nextDebugEventID()
-        eventsBroadcaster.yield(PracticeInputEvent(
-            kind: kind,
-            channel: channel,
-            receivedAt: receivedAt,
-            receivedAtUptimeSeconds: receivedAtUptimeSeconds,
-            debugEventID: resolvedDebugEventID
-        ))
     }
 
     private func describeEndpoint(_ endpoint: MIDIEndpointRef) -> String? {
@@ -446,25 +421,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             return "\(base)(\(name))"
         }
         return base
-    }
-
-    private func adaptPracticeKind(from kind: MIDI1InputEvent.Kind) -> PracticeInputEvent.Kind? {
-        switch kind {
-        case let .noteOn(note, velocity):
-            return .noteOn(note: note, velocity: velocity)
-        case let .noteOff(note, velocity):
-            return .noteOff(note: note, velocity: velocity)
-        case let .controlChange(controller, value):
-            return .controlChange(controller: controller, value: value)
-        case let .pitchBend(value):
-            return .pitchBend(value: value)
-        case let .programChange(program):
-            return .programChange(program: program)
-        case let .channelPressure(value):
-            return .channelPressure(value: value)
-        case let .polyPressure(note, value):
-            return .polyPressure(note: note, value: value)
-        }
     }
 
     private func nextDebugEventID() -> Int64 {

@@ -137,7 +137,7 @@ AVP 端把 Step 3 “练习输入/推进/录制/AI”按钢琴模式做硬边界
 | `PianoModeProtocol` 实现 | 模式语义 | 典型入口（准备页） | Step 3 输入/推进 |
 | --- | --- | --- | --- |
 | `RealAudioPianoMode` | 真实钢琴（音频识别 + 手势辅助） | `Views/PianoChoose/MicrophonePianoPreparationView.swift`（`RealPianoPreparationView`） | `PracticeAudioRecognitionService` + 手势 gating |
-| `BluetoothMIDIPianoMode` | 真实钢琴（BLE MIDI，MIDI-only） | `Views/PianoChoose/BluetoothPianoPreparationView.swift`（`BluetoothMIDIPreparationView`） | `ProtocolSeparatedPracticeInputEventSourceProtocol`（CoreMIDI UMP → MIDI1/MIDI2 streams） |
+| `BluetoothMIDIPianoMode` | 真实钢琴（BLE MIDI，MIDI-only） | `Views/PianoChoose/BluetoothPianoPreparationView.swift`（`BluetoothMIDIPreparationView`） | `PracticeInputEventSourceProtocol`（CoreMIDI UMP → MIDI1/MIDI2 streams） |
 | `VirtualPianoMode` | 虚拟钢琴（手势触键） | `Views/PianoChoose/VirtualPianoPreparationView.swift` | 虚拟触键 + sequencer |
 
 模式由 `PianoModeRegistryService` 注册（`Services/AppFlow/PianoModeRegistryService.swift`），注入到 `WindowCoordinator` 与 `ARGuideViewModel`。`FlowState.selectedPianoModeID` 存储模式 id 字符串，由注册表解析为具体 `PianoModeProtocol` 实现；窗口导航由 `WindowCoordinator` 编排。

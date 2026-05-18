@@ -114,7 +114,6 @@ final class ARGuideViewModel {
     let takePlaybackViewModel: TakePlaybackViewModel
     private(set) var isRecording = false
     private var recordingStartDate: Date?
-    private var midiTakeRecordingTask: Task<Void, Never>?
     private var midiTakeRecordingMIDI1Task: Task<Void, Never>?
     private var midiTakeRecordingMIDI2Task: Task<Void, Never>?
 
@@ -205,8 +204,6 @@ final class ARGuideViewModel {
     }
 
     private func restartMIDITakeRecordingSubscriptionIfNeeded() {
-        midiTakeRecordingTask?.cancel()
-        midiTakeRecordingTask = nil
         midiTakeRecordingMIDI1Task?.cancel()
         midiTakeRecordingMIDI1Task = nil
         midiTakeRecordingMIDI2Task?.cancel()
@@ -215,47 +212,21 @@ final class ARGuideViewModel {
         guard selectedPianoMode?.usesBluetoothMIDIInput == true else { return }
         guard let eventSource = practiceSessionViewModel.practiceInputEventSource else { return }
 
-        if let separatedEventSource = eventSource as? ProtocolSeparatedPracticeInputEventSourceProtocol {
-            let midi1Stream = separatedEventSource.midi1EventsStream()
-            midiTakeRecordingMIDI1Task = Task { [weak self] in
-                for await event in midi1Stream {
-                    await MainActor.run {
-                        self?.handleMIDI1TakeRecordingEvent(event)
-                    }
+        let midi1Stream = eventSource.midi1EventsStream()
+        midiTakeRecordingMIDI1Task = Task { [weak self] in
+            for await event in midi1Stream {
+                await MainActor.run {
+                    self?.handleMIDI1TakeRecordingEvent(event)
                 }
             }
-
-            let midi2Stream = separatedEventSource.midi2EventsStream()
-            midiTakeRecordingMIDI2Task = Task { [weak self] in
-                for await event in midi2Stream {
-                    await MainActor.run {
-                        self?.handleMIDI2TakeRecordingEvent(event)
-                    }
-                }
-            }
-            return
         }
 
-        // Create the stream eagerly so the broadcaster registers this subscriber immediately.
-        let stream = eventSource.eventsStream()
-        midiTakeRecordingTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            for await event in stream {
-                guard Task.isCancelled == false else { return }
-                if let id = event.debugEventID {
-                    switch event.kind {
-                    case let .noteOn(note, velocity):
-                        practiceInputLogger.info("recording saw id=\(id, privacy: .public) noteOn=\(note, privacy: .public) vel=\(velocity, privacy: .public)")
-                    case let .noteOff(note, velocity):
-                        practiceInputLogger.info("recording saw id=\(id, privacy: .public) noteOff=\(note, privacy: .public) vel=\(velocity, privacy: .public)")
-                    default:
-                        break
-                    }
+        let midi2Stream = eventSource.midi2EventsStream()
+        midiTakeRecordingMIDI2Task = Task { [weak self] in
+            for await event in midi2Stream {
+                await MainActor.run {
+                    self?.handleMIDI2TakeRecordingEvent(event)
                 }
-                if isRecording {
-                    midiRecordingAdapter.record(event: event, into: &takeRecorder)
-                }
-                recordPhraseFromMIDIEventIfNeeded(event)
             }
         }
     }
@@ -298,20 +269,6 @@ final class ARGuideViewModel {
             midiRecordingAdapter.record(event: event, into: &takeRecorder)
         }
         recordPhraseFromMIDI2EventIfNeeded(event)
-    }
-
-    private func recordPhraseFromMIDIEventIfNeeded(_ event: PracticeInputEvent) {
-        guard isVirtualPerformerEnabled else { return }
-
-        switch event.kind {
-            case let .noteOn(note, velocity):
-                silenceTrigger.recordNoteOn(atUptime: event.receivedAtUptimeSeconds)
-                phraseRecorder.recordNoteOn(midi: note, velocity: velocity, timestamp: event.receivedAtUptimeSeconds)
-            case let .noteOff(note, _):
-                phraseRecorder.recordNoteOff(midi: note, timestamp: event.receivedAtUptimeSeconds)
-            default:
-                return
-        }
     }
 
     private func recordPhraseFromMIDI1EventIfNeeded(_ event: MIDI1InputEvent) {
@@ -1121,8 +1078,6 @@ final class ARGuideViewModel {
         cancelCalibrationGuidedFlowTasks()
         cancelPracticeLocalizationTask()
         practiceSessionViewModel.stopVirtualPianoInput()
-        midiTakeRecordingTask?.cancel()
-        midiTakeRecordingTask = nil
         midiTakeRecordingMIDI1Task?.cancel()
         midiTakeRecordingMIDI1Task = nil
         midiTakeRecordingMIDI2Task?.cancel()

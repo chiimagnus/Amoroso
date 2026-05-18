@@ -10,18 +10,22 @@ func midiRecordingAdapterRecordsNoteEventsAndClosesOpenNotes() {
     recorder.start(now: 1000)
 
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .noteOn(note: 60, velocity: 100),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 1001.0
         ),
         into: &recorder
     )
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .noteOff(note: 60, velocity: 0),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 1001.5
         ),
@@ -42,27 +46,33 @@ func midiRecordingAdapterConvertsChannelVoiceEventsIntoTakeEvents() {
     recorder.start(now: 2000)
 
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .controlChange(controller: 64, value: 127),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 2000.2
         ),
         into: &recorder
     )
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .pitchBend(value: 8192),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 2000.3
         ),
         into: &recorder
     )
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .programChange(program: 10),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 2000.4
         ),
@@ -89,18 +99,22 @@ func repeatedNoteOnForSamePitchGeneratesClosingNoteOff() {
     recorder.start(now: 3000)
 
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .noteOn(note: 60, velocity: 100),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 3000.1
         ),
         into: &recorder
     )
     adapter.record(
-        event: PracticeInputEvent(
+        event: MIDI1InputEvent(
             kind: .noteOn(note: 60, velocity: 100),
             channel: 1,
+            group: 0,
+            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
             receivedAt: Date(),
             receivedAtUptimeSeconds: 3000.3
         ),

@@ -2,23 +2,16 @@ import Foundation
 @testable import LonelyPianistAVP
 import os
 
-final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSourceProtocol, ProtocolSeparatedPracticeInputEventSourceProtocol {
-    private let legacyBroadcaster = Broadcaster<PracticeInputEvent>()
+final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSourceProtocol {
     private let midi1Broadcaster = Broadcaster<MIDI1InputEvent>()
     private let midi2Broadcaster = Broadcaster<MIDI2InputEvent>()
 
-    private(set) var eventsStreamCallCount = 0
     private(set) var midi1StreamCallCount = 0
     private(set) var midi2StreamCallCount = 0
 
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var isRunning = false
-
-    func eventsStream() -> AsyncStream<PracticeInputEvent> {
-        eventsStreamCallCount += 1
-        return legacyBroadcaster.makeStream()
-    }
 
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
         midi1StreamCallCount += 1
@@ -38,10 +31,6 @@ final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSou
     func stop() {
         stopCallCount += 1
         isRunning = false
-    }
-
-    func emitLegacy(_ event: PracticeInputEvent) {
-        legacyBroadcaster.yield(event)
     }
 
     func emitMIDI1(_ event: MIDI1InputEvent) {

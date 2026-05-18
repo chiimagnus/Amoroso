@@ -9,38 +9,22 @@ extension PracticeSessionViewModel {
 
     func bindPracticeInputStreamsIfNeeded() {
         guard let practiceInputEventSource else { return }
-        if let separatedEventSource = practiceInputEventSource as? ProtocolSeparatedPracticeInputEventSourceProtocol {
-            guard practiceInputMIDI1EventsTask == nil, practiceInputMIDI2EventsTask == nil else { return }
+        guard practiceInputMIDI1EventsTask == nil, practiceInputMIDI2EventsTask == nil else { return }
 
-            let midi1Stream = separatedEventSource.midi1EventsStream()
-            practiceInputMIDI1EventsTask = Task { [weak self] in
-                for await event in midi1Stream {
-                    await MainActor.run {
-                        self?.handleMIDI1PracticeInputEvent(event)
-                    }
+        let midi1Stream = practiceInputEventSource.midi1EventsStream()
+        practiceInputMIDI1EventsTask = Task { [weak self] in
+            for await event in midi1Stream {
+                await MainActor.run {
+                    self?.handleMIDI1PracticeInputEvent(event)
                 }
             }
-
-            let midi2Stream = separatedEventSource.midi2EventsStream()
-            practiceInputMIDI2EventsTask = Task { [weak self] in
-                for await event in midi2Stream {
-                    await MainActor.run {
-                        self?.handleMIDI2PracticeInputEvent(event)
-                    }
-                }
-            }
-            return
         }
 
-        guard practiceInputEventsTask == nil else { return }
-
-        // Create the stream eagerly so the broadcaster registers this subscriber immediately.
-        // This avoids dropping early events that might arrive before the consumer task starts running.
-        let stream = practiceInputEventSource.eventsStream()
-        practiceInputEventsTask = Task { [weak self] in
-            for await event in stream {
+        let midi2Stream = practiceInputEventSource.midi2EventsStream()
+        practiceInputMIDI2EventsTask = Task { [weak self] in
+            for await event in midi2Stream {
                 await MainActor.run {
-                    self?.handlePracticeInputEvent(event)
+                    self?.handleMIDI2PracticeInputEvent(event)
                 }
             }
         }
@@ -92,59 +76,6 @@ extension PracticeSessionViewModel {
         practiceInputLastResetStepIndex = nil
         practiceInputGeneration += 1
         midiPracticeStepMatcher.reset(stepIndex: -1, expectedNotes: [], configuredAt: .now)
-    }
-
-    private func handlePracticeInputEvent(_ event: PracticeInputEvent) {
-        guard isPracticeInputRunning else { return }
-        guard autoplayState == .off else { return }
-        guard isManualReplayPlaying == false else { return }
-        guard case .guiding = state else { return }
-        guard let currentStep else { return }
-
-        if let since = practiceInputActiveSinceUptimeSeconds, event.receivedAtUptimeSeconds < since {
-            return
-        }
-
-        switch event.kind {
-        case let .noteOn(note, velocity):
-            let expectedMIDINotes = uniqueMIDINotes(in: currentStep)
-            let matchResult = midiPracticeStepMatcher.registerNoteOn(note: note, at: event.receivedAt)
-
-            switch matchResult {
-            case .matched:
-                Self.practiceInputLogger.info(
-                    "midi matched id=\(event.debugEventID ?? 0, privacy: .public) step=\(self.currentStepIndex, privacy: .public) expected=\(expectedMIDINotes, privacy: .public) noteOn=\(note, privacy: .public) vel=\(velocity, privacy: .public)"
-                )
-                advanceToNextStep()
-            case let .wrong(reason):
-                debugLogPracticeInputProgressIfNeeded(
-                    kind: "wrong",
-                    detail: reason,
-                    note: note,
-                    velocity: velocity,
-                    expectedMIDINotes: expectedMIDINotes,
-                    eventID: event.debugEventID,
-                    source: nil,
-                    receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
-                )
-            case let .insufficient(progress):
-                debugLogPracticeInputProgressIfNeeded(
-                    kind: "insufficient",
-                    detail: progress,
-                    note: note,
-                    velocity: velocity,
-                    expectedMIDINotes: expectedMIDINotes,
-                    eventID: event.debugEventID,
-                    source: nil,
-                    receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
-                )
-            }
-        case let .noteOff(note, _):
-            midiPracticeStepMatcher.registerNoteOff(note: note, at: event.receivedAt)
-            return
-        default:
-            return
-        }
     }
 
     private func handleMIDI1PracticeInputEvent(_ event: MIDI1InputEvent) {
