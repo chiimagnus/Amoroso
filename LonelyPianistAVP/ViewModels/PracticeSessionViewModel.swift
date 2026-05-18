@@ -78,6 +78,8 @@ final class PracticeSessionViewModel {
     var audioRecognitionStatusTask: Task<Void, Never>?
     var audioRecognitionDebugTask: Task<Void, Never>?
     var practiceInputEventsTask: Task<Void, Never>?
+    var practiceInputMIDI1EventsTask: Task<Void, Never>?
+    var practiceInputMIDI2EventsTask: Task<Void, Never>?
     private(set) var tempoMap = MusicXMLTempoMap(tempoEvents: [])
     private var measureSpans: [MusicXMLMeasureSpan] = []
     var manualReplayTask: Task<Void, Never>?
@@ -173,6 +175,10 @@ final class PracticeSessionViewModel {
 
         practiceInputEventsTask?.cancel()
         practiceInputEventsTask = nil
+        practiceInputMIDI1EventsTask?.cancel()
+        practiceInputMIDI1EventsTask = nil
+        practiceInputMIDI2EventsTask?.cancel()
+        practiceInputMIDI2EventsTask = nil
 
         audioRecognitionService?.stop()
         practiceInputEventSource?.stop()
