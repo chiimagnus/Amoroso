@@ -3,17 +3,18 @@
 ## Run info
 | Item | Value |
 | --- | --- |
-| Commit hash | d08960c |
-| Branch name | crh |
-| Generated at | 2026-05-16T15:52:16+08:00 |
+| Commit hash | 61a1000 |
+| Branch name | crh1 |
+| Generated at | 2026-05-18T12:25:34+08:00 |
 | Output language | Chinese |
 | Generation mode | Incremental update via `neat-freak` (docs-as-canonical) |
 
 ## Key updates in this generation
 | Area | Update |
 | --- | --- |
-| AVP tests（DI / composition） | 同步 visionOS 测试到新的依赖注入/组合方式：测试更倾向于显式构建 `PianoModeRegistryService` / `PracticeSessionViewModelFactoryService`，并用测试侧 convenience init 或 fake/noop services 隔离外部依赖。 |
-| Testing 文档刷新 | `testing.md` 增补 AVP tests 的 DI 约定与代表测试入口（router/virtual piano/manual advance 等），避免文档与测试实现漂移。 |
+| INDEX 去重 | `docs/INDEX.md` 收敛为“导航入口”，移除命令/自动化事实/coverage 叙述，避免与 `workflow.md` / `testing.md` 重复。 |
+| Overview 去重 | `docs/overview.md` 移除构建命令与持久化表格，分别收敛到 `testing.md` / `workflow.md` 与 `storage.md`。 |
+| Architecture 去重 | `docs/architecture.md` 用“按模块入口”替代组件长表，并移除重复的 CI/Actions 段落。 |
 
 ## Current Coverage Gaps
 - The repo currently has no GitHub Actions workflows; all tests are manual/local.

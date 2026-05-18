@@ -36,7 +36,7 @@ Runtime 页处理“连没连上、当前在做什么、按下去后发生了什
 | `connectedSourceNames` | 当前来源名 |
 | `midiEventCount` | 事件计数 |
 | `pressedNotes` | 当前按下集合 |
-| `recentLogs` | 最近日志 |
+| `recentLogs` | 近期日志 |
 | `statusMessage` | 顶层状态提示 |
 
 ## 调试抓手

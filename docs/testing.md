@@ -103,12 +103,6 @@ let factory = PracticeSessionViewModelFactoryService(
 let guide = ARGuideViewModel(appState: AppState(), flowState: FlowState(), pianoModeRegistry: registry, practiceSessionViewModelFactory: factory)
 ```
 
-## 现状
-- 当前仓库未提交 `.github/workflows/`，所有测试需要手动在本地运行。
-- macOS tests 使用本地 macOS 运行 `xcodebuild test -scheme LonelyPianist -destination 'platform=macOS'`。
-- AVP tests 使用本地 visionOS simulator 运行：先 `xcodebuild -showdestinations -scheme LonelyPianistAVP` 获取 concrete device id，再跑 `xcodebuild test -scheme LonelyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>'`。
-- Python tests 以本地 smoke scripts 为主。
-
 ## Coverage Gaps
 - 三端端到端自动化仍缺失；当前覆盖依赖单测、本地 Xcode tests、Python smoke 和人工冒烟组合。
 - Python server 的模型权重、设备选择和外部依赖没有稳定 CI 环境。

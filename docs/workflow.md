@@ -5,7 +5,7 @@
 2. 再找对应入口：App、ViewModel、Service、Test、Workflow。
 3. 涉及 Dialogue 先确认 `piano_dialogue_server` 已启动。
 4. 涉及 AVP 先确认 Step 1 校准和 Step 2 曲库是否就绪。
-5. 当前仓库未提交 CI workflows；默认以本地 `xcodebuild test` 与脚本验证为准。
+5. 自动化现状见下文；本仓库默认以本地 `xcodebuild test` 与脚本验证为准。
 
 ## 开发循环
 | 阶段 | 做什么 | 产物 | 验证 |
