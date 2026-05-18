@@ -35,10 +35,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private var inputPortRef: MIDIPortRef = 0
     private var connectedSources: [MIDIEndpointRef] = []
     private var connectedSourceDescriptions: [String] = []
-
-    private var eventListProtocolCounts: [Int32: Int] = [:]
-    private var messageTypeCounts: [String: Int] = [:]
-    private var lastEventListDebugLoggedAtUptimeSeconds: TimeInterval = 0
     private let stateLock = OSAllocatedUnfairLock(initialState: BluetoothMIDIInputEventSourceState())
 
     private let eventsBroadcaster = PracticeInputEventBroadcaster()
