@@ -33,12 +33,15 @@ extension PracticeSessionViewModel {
             return
         }
 
-        guard isPracticeInputRunning == false else { return }
+        if practiceInputLastResetStepIndex != currentStepIndex {
+            practiceInputGeneration += 1
+            practiceInputActiveSinceUptimeSeconds = ProcessInfo.processInfo.systemUptime
+            audioStepAttemptAccumulator.setMode(.midiInput)
+            audioStepAttemptAccumulator.resetForNewStep(generation: practiceInputGeneration)
+            practiceInputLastResetStepIndex = currentStepIndex
+        }
 
-        practiceInputGeneration += 1
-        practiceInputActiveSinceUptimeSeconds = ProcessInfo.processInfo.systemUptime
-        audioStepAttemptAccumulator.setMode(.midiInput)
-        audioStepAttemptAccumulator.resetForNewStep(generation: practiceInputGeneration)
+        guard isPracticeInputRunning == false else { return }
 
         do {
             try practiceInputEventSource.start()
@@ -57,6 +60,7 @@ extension PracticeSessionViewModel {
         practiceInputEventSource.stop()
         isPracticeInputRunning = false
         practiceInputActiveSinceUptimeSeconds = nil
+        practiceInputLastResetStepIndex = nil
         practiceInputGeneration += 1
         audioStepAttemptAccumulator.resetForNewStep(generation: practiceInputGeneration)
     }
