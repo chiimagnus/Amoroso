@@ -71,12 +71,65 @@
 - 录制：点击「开始录制」，弹奏 note-on/off + CC64（踏板）/pitch bend/program change 后结束录制；Take 库能回放（音色可忽略，重点验证事件落盘与回放不崩）。
 - AI：开启虚拟表演者后，弹奏一小段 phrase，静默 ~2s 应触发生成/回放（后端不可用时走本地 fallback）。
 
-## 重要子页
-- [Library](lonelypianist-avp-library.md)
-- [Calibration](lonelypianist-avp-calibration.md)
-- [MusicXML](lonelypianist-avp-musicxml.md)
-- [Tracking](lonelypianist-avp-tracking.md)
-- [Practice](lonelypianist-avp-practice.md)
+## Library
+
+曲库页覆盖 seed、导入、删除、音频绑定、试听和索引一致性。
+
+关键对象：
+- `SongLibraryViewModel`：曲库编排
+- `BundledSongLibraryProvider`：提供 app bundle 内置曲目（运行时合并展示）
+- `SongLibraryIndexStore`：索引读写（`index.json` 原子写入）
+- `SongFileStore`：曲谱文件复制 / 删除
+- `AudioImportService`：音频文件复制
+
+行为要点：
+- 内置曲目来自 app bundle（`Resources/SeedScores`），不写入 `index.json`；与用户导入的索引条目合并展示。
+- 导入顺序：先复制文件，再提交索引。
+- 删除顺序：先删索引，再删文件。
+
+## Calibration
+
+校准页覆盖 A0/C8 捕获、世界锚点存储、恢复、重新校准和定位前置条件。
+
+关键对象：
+- `ARGuideViewModel`：Step 1 / Step 3 编排
+- `CalibrationPointCaptureService`：准星稳定判定与 anchor id 记录
+- `WorldAnchorCalibrationStore`：JSON 持久化
+- `KeyboardFrame`：从 A0/C8 推导键盘局部坐标系（用于渲染与按键检测）
+
+约定要点：
+- runtime calibration 会把 A0/C8 解释为琴键“前沿线”（keyboard-local `z = 0`），再结合 `DeviceAnchor` 判定琴键内部方向。
+
+## MusicXML
+
+AVP 从 MusicXML 到“可练习数据结构”的关键管线入口是 `PracticePreparationService.prepare(from:file:)`，核心步骤：
+- （可选）结构展开：`MusicXMLStructureExpander`
+- 双 part 钢琴谱归一化：`MusicXMLPianoGrandStaffNormalizer`（把高/低音谱号两个 `<part>` 合并为单 part + staff=1/2）
+- 单谱表自动分手：`MusicXMLHandRouter`（在缺失 staff 的情况下补 staff=1/2，供左右手语义 + 双谱表渲染 + 按手判定复用）
+- step 生成：`PracticeStepBuilder`（输出 `PracticeStep[]`，note 的 hand 由 staff 推导）
+
+相关测试：
+- `MusicXMLPianoGrandStaffNormalizerTests`
+- `MusicXMLHandRouterTests`
+
+## Tracking
+
+追踪页覆盖 Hand/World/Plane providers、授权、provider 状态、finger tips 分发与 anchors 维护；入口通常是 `ARTrackingService.start(mode:)`。
+
+模式（`ARTrackingMode`）要点：
+- `calibration`：Hand + World + Plane（Step 1）
+- `practiceVirtualOrAudio`：Hand + World + Plane（虚拟钢琴/音频练习）
+- `practiceBluetoothMIDI`：World + Plane（BLE MIDI 练习：不请求 hand tracking 权限）
+
+## Piano modes（能力矩阵）
+
+三模式（真实钢琴音频 / 真实钢琴 BLE MIDI / 虚拟钢琴）由 `PianoModeProtocol` 表达为“体验能力集合”，并由：
+- `PianoModeRegistryService` 注册
+- `PracticeSessionViewModelFactoryService` 按模式注入 Step 3 会话依赖
+
+## Practice
+
+Step 3 练习细节（匹配、五线谱、贴皮高亮、虚拟钢琴、AI 即兴）集中在 `lonelypianist-avp-practice.md`。
 
 ## 风险点
 - `resolveRuntimeCalibrationFromTrackedAnchors`

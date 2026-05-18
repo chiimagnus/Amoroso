@@ -1,7 +1,7 @@
 # 架构
 
 ## 系统上下文
-LonelyPianist 由三条运行面组成：macOS 负责 MIDI 输入采集、映射、录音和 Dialogue 编排；visionOS 负责曲库、校准、空间追踪和 AR 练习引导；Python 负责本地 Piano Dialogue 推理。当前仓库未包含 GitHub Actions workflows，测试与格式化均以本地手动运行为准。
+LonelyPianist 由三条运行面组成：macOS 负责 MIDI 输入采集、映射、录音和 Dialogue 编排；visionOS 负责曲库、校准、空间追踪和 AR 练习引导；Python 负责本地 Piano Dialogue 推理。
 
 ## 运行时边界
 | 运行单元 | 位置 | 生命周期 | 核心职责 | 验证入口 |
@@ -9,38 +9,17 @@ LonelyPianist 由三条运行面组成：macOS 负责 MIDI 输入采集、映射
 | macOS app | `LonelyPianist/` | App 启动到关闭 | MIDI、映射、录音、对话、SwiftData | 本地 `xcodebuild test`（macOS） |
 | visionOS app | `LonelyPianistAVP/` | 3×Window + ImmersiveSpace | 校准、曲库、追踪、练习、贴皮高亮提示 | 本地 `xcodebuild test`（visionOS simulator） |
 | Dialogue server | `piano_dialogue_server/server/` | uvicorn 进程 | HTTP `/generate` + WS `/ws` 协议、Bonjour 广播、推理、调试包、MIDI 上传扩展 | Python smoke scripts + curl |
-| 本地验证 | 本机 `xcodebuild` / python scripts | 手动触发 | 回归测试与 smoke | `testing.md` |
+| 本地验证 | 本机 `xcodebuild` / python scripts | 手动触发 | 回归测试与 smoke | `overview.md` |
 
-## 组件边界
-| 组件 | 输入 | 输出 | 修改热点 |
-| --- | --- | --- | --- |
-| `LonelyPianistViewModel` | MIDI / UI / repo 状态 | mapping / recorder / dialogue / logs | `handleMIDIEvent` |
-| `CoreMIDIInputService` | CoreMIDI event list | `MIDIEvent` callback + connection state | source refresh、MIDI 1.0/2.0 解码 |
-| `DialogueManager` | phrase notes / silence | WS 请求、AI take、状态 | `start`, `handle`, `playAIReply` |
-| `AppState` | tracking runtime、校准存取、沉浸空间状态 | providers 状态 + runtime calibration | `resolveRuntimeCalibrationFromTrackedAnchors` |
-| `FlowState` | 钢琴类型与曲目/steps | 当前流程状态 | `setImportedSteps`, `clearSongAndSteps` |
-| `WindowCoordinator` | 窗口导航意图（去曲库/去练习/回到类型选择） | 记录 `pendingTransition(from,to)`，并承载 `resetToPreparation` 的 flow 清理策略 | `beginTransition`, `consumePendingTransition`, `resetToPreparation` |
-| `PianoModeRegistryService` | `[any PianoModeProtocol]` + id 查找 | 模式列表与查找 | 新增模式时需注册；修改 `PianoModeProtocol` 影响所有模式实现 |
-| `BluetoothMIDIInputEventSourceService` | CoreMIDI UMP（MIDI 1.0/2.0） | `AsyncStream<PracticeInputEvent>` | MIDI 1.0/2.0 解码、source 刷新、事件过滤 |
-| `MIDIRecordingAdapter` | `PracticeInputEvent` + `RecordingTakeRecorder` | take 事件落盘 | 桥接事件类型、CC/pitch bend 映射 |
-| `RecordingTakeStore` | `RecordingTake` JSON | `Documents/TakeLibrary/takes.json` | JSON 编解码、原子写入 |
-| `TakePlaybackController` | `RecordingTake` + sequencer | take 回放控制 | seek/cache/pause 语义 |
-| `SongLibraryViewModel` | fileImporter URLs | index + score/audio 存储 | 导入 / 删除 / 试听 |
-| `ARGuideViewModel` | immersive state + providers | localization state | open / locate / retry |
-| `BonjourBackendDiscoveryService` | mDNS browse results | resolved host/port 或 denied/failed | `start`, `resolveHostPort` |
-| `ImprovBackendClient` | HTTP `GenerateRequest` | `ResultResponse` / error | URL 构造、解码与错误映射 |
-| `PhraseRecorder` | note on/off + 时间 | phrase notes（用于后端输入） | 录制窗口与边界条件 |
-| `MusicXMLPianoGrandStaffNormalizer` | `MusicXMLScore`（双 part 钢琴谱） | normalized `MusicXMLScore`（合并为单 part + staff=1/2） | 仅处理恰好 2 part 且各自单谱号的情况 |
-| `MusicXMLHandRouter` | `MusicXMLScore`（可能缺失 staff） | routed `MusicXMLScore`（单谱表自动补 staff=1/2） | 阈值策略、只对单谱表生效的边界 |
-| `PracticeSessionViewModel` | finger tips / MIDI events + steps（含左右手） | matching / autoplay / notation context | `handleFingerTipPositions`、按手分别匹配的 gate |
-| `PianoGuideOverlayController` | `PracticeStep`, `PianoKeyboardGeometry` | RealityKit 贴皮高亮实体 | key-top decal、`KeyDecalSoftRect`、keyboard-local transform |
-| `GrandStaffNotationLayoutService` | `PianoHighlightGuide[]` + measure spans + context | `GrandStaffNotationLayout`（双谱表 items + barlines） | staff routing、x/y 坐标映射、可读性与性能 |
-| `GazePlaneHitTestService` | gaze ray + planes | `PlaneHit?` | 命中选择策略与阈值 |
-| `GazePlaneDiskConfirmationViewModel` | `PlaneHit` + palm centers | progress + confirmed | 抗抖动阈值、确认时序 |
-| `VirtualKeyboardPoseService` | plane pose + hand center + device pose | `worldFromKeyboard` | 键盘朝向与中心对齐 |
-| `VirtualPianoKeyGeometryService` | `KeyboardFrame` | 88 键 `PianoKeyboardGeometry` | `generateKeyboardGeometry` |
-| `KeyContactDetectionService` | finger tips + geometry | 按键 started/ended/down（迟滞） | `detect` |
-| `VirtualPianoOverlayController` | `PianoKeyboardGeometry` | RealityKit 3D 键盘 | `update` |
+## 组件入口（按模块）
+- macOS：`modules/lonelypianist-macos.md`（Runtime / Mapping / Recording / Dialogue 的入口与联动）
+- visionOS：`modules/lonelypianist-avp.md`（Step 1/2/3、沉浸空间、Tracking、Practice、BLE MIDI、Virtual Piano）
+- Python：`modules/piano-dialogue-server.md`（HTTP/WS 协议、推理引擎、调试包）
+
+跨端常用入口（只列“经常跨模块联动”的少数点）：
+- macOS：`LonelyPianistViewModel`、`CoreMIDIInputService`、`DialogueManager`
+- visionOS：`ARGuideViewModel`、`PracticeSessionViewModel`、`SongLibraryViewModel`、`WindowCoordinator`、`FlowState` / `AppState`
+- Python：`server/api/main.py`（FastAPI + WebSocket）与 `server/engines/*`
 
 ## 依赖方向
 ```mermaid
@@ -93,9 +72,6 @@ flowchart LR
   IC -->|HTTP /generate| Q
   K --> M
 ```
-
-## GitHub Actions 架构
-当前仓库未包含 `.github/workflows/`，因此没有 PR 自动测试或格式化工作流；所有验证以本地 `xcodebuild test` 和 Python smoke scripts 为准（见 `testing.md`）。
 
 ## 关键契约
 | 契约 | 位置 | 作用 |
