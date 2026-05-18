@@ -21,7 +21,8 @@
 | `PianoModeProtocol` | AVP 钢琴模式协议：定义模式 id、pickerCard、准入条件、tracking 选择、准备页工厂与练习会话工厂；通过 `PianoModeRegistryService` 注册三种默认模式（RealAudio / BluetoothMIDI / Virtual） |
 | `PianoModeRegistryService` | 钢琴模式注册表：持有 `[any PianoModeProtocol]`，按 id 查找模式；注入到 `WindowCoordinator` 与 `ARGuideViewModel`，驱动类型选择、准备页工厂与练习会话注入 |
 | `WindowCoordinator` | AVP 窗口导航协调器：持有 `FlowState` 与 `PianoModeRegistryProtocol`，并通过 `pendingTransition(from,to)` 让目标窗口在激活后关闭来源窗口，实现“单窗口可见”的多窗口导航 |
-| `PracticeInputEvent` | AVP BLE MIDI 练习输入事件模型（G1 channel voice）：note on/off、CC、pitch bend、program change、pressure 等 |
+| `MIDI1InputEvent` | AVP BLE MIDI 输入事件模型（MIDI 1.0 channel voice）：note on/off、CC、pitch bend、program change、pressure 等 |
+| `MIDI2InputEvent` | AVP BLE MIDI 输入事件模型（MIDI 2.0 channel voice）：note on/off、CC、pitch bend、program change、pressure 等（保留高精度值域） |
 | `PracticeState` | AVP Step 3 练习状态机：`idle`（无 steps）、`ready`（已就绪但未开始）、`guiding`（引导中）、`completed`（完成） |
 | `DataProviderState` | AR tracking provider 的运行状态 |
 | `ARTrackingMode` | ARTracking provider 运行模式：校准/练习（BLE MIDI 练习阶段不启用 hand） |

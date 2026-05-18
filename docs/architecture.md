@@ -82,7 +82,7 @@ flowchart LR
 | `StoredWorldAnchorCalibration` | AVP models | 校准持久化 |
 | `PracticeStep` / `PracticeStepNote` | AVP models | 练习数据 |
 | `ScoreHand` | AVP models | 左右手语义（由 staff 推导；贯穿 step/guide/高亮/判定） |
-| `PracticeInputEvent` | AVP models | BLE MIDI 练习输入事件（G1 channel voice） |
+| `MIDI1InputEvent` / `MIDI2InputEvent` | AVP models | BLE MIDI 练习输入事件（按 MIDI 1.0 / MIDI 2.0 分流） |
 | `RecordingTake` / `RecordingTakeEvent` | AVP models | Take 录制产物（事件列表 + 元数据） |
 | `PianoModeProtocol` | AVP services | 钢琴模式能力契约（id、卡片、准入、工厂） |
 | `DataProviderState` | AR tracking | provider 可用性 |

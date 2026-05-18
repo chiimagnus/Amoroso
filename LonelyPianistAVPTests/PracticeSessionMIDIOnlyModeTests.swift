@@ -13,7 +13,7 @@ func bluetoothMIDIFactoryDoesNotInjectAudioRecognition() {
             sleeper: TaskSleeper(),
             sequencerPlaybackService: NoopPracticeSequencerPlaybackService(),
             audioRecognitionService: nil,
-            practiceInputEventSource: FakePracticeInputEventSource(),
+            practiceInputEventSource: FakeProtocolSeparatedPracticeInputEventSource(),
             audioStepAttemptAccumulator: AudioStepAttemptAccumulator(),
             handPianoActivityGate: HandPianoActivityGate()
         )
@@ -43,7 +43,7 @@ func bluetoothMIDIFactoryDoesNotInjectAudioRecognition() {
 @Test
 @MainActor
 func midiOnlyPracticeInputNoteOnAdvancesStep() async {
-    let inputSource = FakePracticeInputEventSource()
+    let inputSource = FakeProtocolSeparatedPracticeInputEventSource()
     let session = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
@@ -65,11 +65,14 @@ func midiOnlyPracticeInputNoteOnAdvancesStep() async {
     #expect(inputSource.isRunning)
     #expect(session.currentStepIndex == 0)
 
-    inputSource.emit(PracticeInputEvent(
+    inputSource.emitMIDI1(MIDI1InputEvent(
         kind: .noteOn(note: 60, velocity: 100),
         channel: 1,
+        group: 0,
+        source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
         receivedAt: Date(),
-        receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
+        receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime,
+        debugEventID: 1
     ))
 
     for _ in 0 ..< 20 {
@@ -93,7 +96,6 @@ func midiOnlyPracticeInputMIDI2NoteOnAdvancesStepEvenWithZeroVelocity() async {
         handPianoActivityGate: HandPianoActivityGate()
     )
 
-    #expect(inputSource.eventsStreamCallCount == 0)
     #expect(inputSource.midi1StreamCallCount == 1)
     #expect(inputSource.midi2StreamCallCount == 1)
 

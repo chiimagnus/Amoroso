@@ -10,7 +10,8 @@
 | `AppState.swift` | tracking/runtime calibration/沉浸空间状态枢纽 |
 | `Models/AppFlow/FlowState.swift` | 流程状态：钢琴类型、导入曲目与 steps |
 | `Models/Calibration/` | KeyboardFrame、PianoCalibration、PianoKeyboardGeometry、StoredWorldAnchorCalibration |
-| `Models/Practice/` | PracticeStep、PracticeInputEvent、PianoHighlightGuide、DetectedNoteEvent 等 |
+| `Models/Practice/` | PracticeStep、PianoHighlightGuide、DetectedNoteEvent 等 |
+| `Models/MIDI/` | MIDI1InputEvent、MIDI2InputEvent（BLE MIDI 输入事件模型） |
 | `Models/Recording/` | RecordingTake、RecordingTakeEvent |
 | `ViewModels/ARGuideViewModel.swift` | 练习定位、provider 状态、沉浸空间运行时 |
 | `ViewModels/WindowCoordinator.swift` | 窗口导航编排（preparation/library/practice 单窗口可见）+ `FlowState` 清理 |
@@ -59,7 +60,7 @@
 - 连接确认抓手：`ViewModels/MIDI/MIDISourceConnectionViewModel.swift`（sources 列表 + sourceCount）+ `Services/MIDI/CoreMIDISourceMonitoringService.swift`。
 - Gate（是否允许进入曲库/练习）：由当前 `PianoModeProtocol.canProceedToLibrary(flowState:)` 决定；BLE MIDI 模式要求 `FlowState.bluetoothMIDISourceCount > 0` 且校准完成。
 - Step 3 输入源：由 `FlowState.selectedPianoModeID`（模式 id 字符串）经 `PianoModeRegistryService` 解析为具体 `PianoModeProtocol` 决定，进入练习前由 `PracticeSessionViewModelFactoryService` 注入对应 session（BLE 模式为 **MIDI-only**：不启音频识别，且 practice 阶段不启 hand tracking consumer）。
-- 练习输入事件模型：`Models/Practice/PracticeInputEvent.swift`（G1 channel voice），BLE 事件源：`Services/MIDI/BluetoothMIDIInputEventSourceService.swift`（CoreMIDI UMP → events）。
+- 练习输入事件模型：`Models/MIDI/MIDI1InputEvent.swift` / `Models/MIDI/MIDI2InputEvent.swift`，BLE 事件源：`Services/MIDI/BluetoothMIDIInputEventSourceService.swift`（CoreMIDI UMP → MIDI1/MIDI2 streams）。
 - 练习推进：BLE MIDI 模式用 `MIDIPracticeStepMatcher` 做 deterministic step 判定（不复用音频识别 accumulator）。
 - 录制：BLE 模式下 take/phrase 从 MIDI events 录制（`Services/Recording/MIDIRecordingAdapter.swift` + `Services/Recording/RecordingTakeRecorder.swift` + `Services/Practice/AI/PhraseRecorder.swift`）。
 - 验收要点：visionOS Simulator 无法可靠验证 BLE MIDI；以 Vision Pro 真机冒烟为准。
