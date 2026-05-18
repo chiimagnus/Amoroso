@@ -5,7 +5,7 @@
 | --- | --- |
 | Commit hash | 61a1000 |
 | Branch name | crh1 |
-| Generated at | 2026-05-18T12:50:21+08:00 |
+| Generated at | 2026-05-18T12:57:38+08:00 |
 | Output language | Chinese |
 | Generation mode | Incremental update via `neat-freak` (docs-as-canonical) |
 
@@ -18,6 +18,7 @@
 | Testing 移除 | 删除 `docs/testing.md`，把“本地验证命令”收敛进 `docs/overview.md`。 |
 | Troubleshooting 移除 | 删除 `docs/troubleshooting.md`（故障定位按模块页/README 自行下钻）。 |
 | Workflow 移除 | 删除 `docs/workflow.md`，把“本地验证命令”收敛进 `docs/overview.md`。 |
+| Modules 精简 | `docs/modules/` 合并为 4 页：`lonelypianist-macos.md`、`lonelypianist-avp.md`、`lonelypianist-avp-practice.md`、`piano-dialogue-server.md`。 |
 
 ## Current Coverage Gaps
 - The repo currently has no GitHub Actions workflows; all tests are manual/local.
