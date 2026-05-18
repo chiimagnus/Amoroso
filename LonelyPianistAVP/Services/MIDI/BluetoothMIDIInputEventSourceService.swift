@@ -138,11 +138,11 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             if endpointProtocolID == ._2_0, midi2InputPortRef == 0 {
                 logger.warning("Endpoint reports MIDI 2.0 but MIDI 2.0 port is unavailable; subscribing via MIDI 1.0 port: \(self.describeEndpoint(source) ?? "unknown", privacy: .public)")
             }
-            let (targetPortRef, targetProtocol): (MIDIPortRef, MIDIProtocolID) = if endpointProtocolID == ._2_0, midi2InputPortRef != 0 {
-                (midi2InputPortRef, ._2_0)
-            } else {
-                (midi1InputPortRef, ._1_0)
-            }
+            let targetProtocol = MIDICanonicalProtocolSelection.subscribedProtocol(
+                endpointProtocolID: endpointProtocolID,
+                midi2PortAvailable: midi2InputPortRef != 0
+            )
+            let targetPortRef = targetProtocol == ._2_0 ? midi2InputPortRef : midi1InputPortRef
 
             let status = MIDIPortConnectSource(targetPortRef, source, connRefCon)
             if status == noErr {
@@ -283,7 +283,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             stateLock.withLock { state in
                 state.midi1MessageTypeCounts["channelVoice1", default: 0] += 1
             }
-            guard protocolID == ._1_0 else {
+            guard MIDICanonicalProtocolSelection.shouldDeliver(.channelVoice1, eventListProtocol: protocolID) else {
                 logProtocolMismatchIfNeeded(
                     uptimeSeconds: receivedAtUptimeSeconds,
                     expected: ._1_0,
@@ -315,7 +315,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             stateLock.withLock { state in
                 state.midi2MessageTypeCounts["channelVoice2", default: 0] += 1
             }
-            guard protocolID == ._2_0 else {
+            guard MIDICanonicalProtocolSelection.shouldDeliver(.channelVoice2, eventListProtocol: protocolID) else {
                 logProtocolMismatchIfNeeded(
                     uptimeSeconds: receivedAtUptimeSeconds,
                     expected: ._2_0,
