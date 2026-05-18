@@ -20,9 +20,17 @@ enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
     }
 }
 
-final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol {
+final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol, ProtocolSeparatedPracticeInputEventSourceProtocol {
     func eventsStream() -> AsyncStream<PracticeInputEvent> {
         eventsBroadcaster.makeStream()
+    }
+
+    func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
+        midi1EventsBroadcaster.makeStream()
+    }
+
+    func midi2EventsStream() -> AsyncStream<MIDI2InputEvent> {
+        midi2EventsBroadcaster.makeStream()
     }
 
     private let logger = Logger(
@@ -33,11 +41,15 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
     private var clientRef: MIDIClientRef = 0
     private var inputPortRef: MIDIPortRef = 0
-    private var connectedSources: [MIDIEndpointRef] = []
+    private var connectedSources: [ConnectedSource] = []
     private var connectedSourceDescriptions: [String] = []
     private let stateLock = OSAllocatedUnfairLock(initialState: BluetoothMIDIInputEventSourceState())
 
-    private let eventsBroadcaster = PracticeInputEventBroadcaster()
+    private let eventsBroadcaster = AsyncStreamBroadcaster<PracticeInputEvent>()
+    private let midi1EventsBroadcaster = AsyncStreamBroadcaster<MIDI1InputEvent>()
+    private let midi2EventsBroadcaster = AsyncStreamBroadcaster<MIDI2InputEvent>()
+
+    private let midi1Decoder = MIDI1MessageDecoder()
 
     init() {}
 
@@ -91,12 +103,23 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let source = MIDIGetSource(index)
             guard source != 0 else { continue }
 
-            let status = MIDIPortConnectSource(inputPortRef, source, nil)
+            let endpointName = endpointStringProperty(source, kMIDIPropertyDisplayName) ??
+                endpointStringProperty(source, kMIDIPropertyName)
+            let endpointUniqueID = endpointIntProperty(source, kMIDIPropertyUniqueID)
+            let connectionContext = EndpointConnectionContext(
+                sourceIndex: index,
+                endpointUniqueID: endpointUniqueID,
+                endpointName: endpointName
+            )
+            let connRefCon = UnsafeMutableRawPointer(Unmanaged.passRetained(connectionContext).toOpaque())
+
+            let status = MIDIPortConnectSource(inputPortRef, source, connRefCon)
             if status == noErr {
-                connectedSources.append(source)
+                connectedSources.append(ConnectedSource(endpoint: source, connRefCon: connRefCon))
                 let description = describeEndpoint(source) ?? "sourceIndex=\(index)"
                 connectedSourceDescriptions.append(description)
             } else {
+                Unmanaged<EndpointConnectionContext>.fromOpaque(connRefCon).release()
                 failedStatus = status
                 logger.error("Failed to connect source \(index, privacy: .public): \(status, privacy: .public)")
             }
@@ -140,9 +163,9 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             "LonelyPianistAVPBluetoothMIDIEventsInput" as CFString,
             MIDIProtocolID._1_0,
             &inputPortRef
-        ) { [weak self] eventList, _ in
+        ) { [weak self] eventList, srcConnRefCon in
             guard let self else { return }
-            self.handleEventList(eventList)
+            self.handleEventList(eventList, srcConnRefCon: srcConnRefCon)
         }
 
         guard status == noErr else {
@@ -171,71 +194,69 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
     private func disconnectAllSources() {
         for source in connectedSources {
-            MIDIPortDisconnectSource(inputPortRef, source)
+            MIDIPortDisconnectSource(inputPortRef, source.endpoint)
+            source.releaseConnRefConIfNeeded()
         }
         connectedSources.removeAll(keepingCapacity: false)
         connectedSourceDescriptions.removeAll(keepingCapacity: false)
     }
 
-    private func handleEventList(_ eventList: UnsafePointer<MIDIEventList>) {
+    private func handleEventList(_ eventList: UnsafePointer<MIDIEventList>, srcConnRefCon: UnsafeMutableRawPointer?) {
         guard stateLock.withLock({ $0.isRunning }) else { return }
         recordEventListProtocolAndMessageTypes(eventList: eventList)
-        let context = UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque())
-        MIDIEventListForEachEvent(eventList, midiEventVisitor, context)
+        let protocolID = eventList.pointee.`protocol`
+        var context = MIDIEventListVisitorContext(
+            service: self,
+            protocolID: protocolID,
+            srcConnRefCon: srcConnRefCon
+        )
+        withUnsafeMutablePointer(to: &context) { pointer in
+            MIDIEventListForEachEvent(eventList, midiEventVisitor, UnsafeMutableRawPointer(pointer))
+        }
     }
 
     fileprivate func handleUniversalMessage(
         _ message: MIDIUniversalMessage,
-        timeStamp _: MIDITimeStamp
+        timeStamp _: MIDITimeStamp,
+        protocolID: MIDIProtocolID,
+        srcConnRefCon: UnsafeMutableRawPointer?
     ) {
         guard stateLock.withLock({ $0.isRunning }) else { return }
         let receivedAt = Date()
         let receivedAtUptimeSeconds = ProcessInfo.processInfo.systemUptime
+        let source = sourceIdentity(from: srcConnRefCon)
+        let group = Int(message.group)
 
         switch message.type {
         case .channelVoice1:
             stateLock.withLock { state in
                 state.messageTypeCounts["channelVoice1", default: 0] += 1
             }
+            guard protocolID == ._1_0 else {
+                logProtocolMismatchIfNeeded(
+                    uptimeSeconds: receivedAtUptimeSeconds,
+                    expected: ._1_0,
+                    actual: protocolID,
+                    messageType: "channelVoice1"
+                )
+                return
+            }
+
             let voice = message.channelVoice1
             let channel = Int(voice.channel) + 1
-
-            switch voice.status {
-            case .noteOn:
-                let note = Int(voice.note.number)
-                let velocity = Int(voice.note.velocity)
-                let kind: PracticeInputEvent.Kind = velocity > 0 ? .noteOn(note: note, velocity: velocity) : .noteOff(note: note, velocity: 0)
-                publish(kind, channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            case .noteOff:
-                let note = Int(voice.note.number)
-                let velocity = Int(voice.note.velocity)
-                publish(.noteOff(note: note, velocity: velocity), channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            case .controlChange:
-                let controller = Int(voice.controlChange.index)
-                let value = Int(voice.controlChange.data)
-                publish(.controlChange(controller: controller, value: value), channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            case .programChange:
-                let program = Int(voice.program)
-                publish(.programChange(program: program), channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            case .channelPressure:
-                let value = Int(voice.channelPressure)
-                publish(.channelPressure(value: value), channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            case .polyPressure:
-                let note = Int(voice.polyPressure.noteNumber)
-                let value = Int(voice.polyPressure.pressure)
-                publish(.polyPressure(note: note, value: value), channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            case .pitchBend:
-                let value = Int(voice.pitchBend)
-                publish(.pitchBend(value: value), channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds)
-
-            default:
-                break
+            guard let kind = midi1Decoder.decode(message) else { return }
+            let debugEventID = nextDebugEventID()
+            midi1EventsBroadcaster.yield(MIDI1InputEvent(
+                kind: kind,
+                channel: channel,
+                group: group,
+                source: source,
+                receivedAt: receivedAt,
+                receivedAtUptimeSeconds: receivedAtUptimeSeconds,
+                debugEventID: debugEventID
+            ))
+            if let adaptedKind = adaptPracticeKind(from: kind) {
+                publish(adaptedKind, channel: channel, receivedAt: receivedAt, receivedAtUptimeSeconds: receivedAtUptimeSeconds, debugEventID: debugEventID)
             }
 
         case .channelVoice2:
@@ -317,18 +338,16 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         _ kind: PracticeInputEvent.Kind,
         channel: Int,
         receivedAt: Date,
-        receivedAtUptimeSeconds: TimeInterval
+        receivedAtUptimeSeconds: TimeInterval,
+        debugEventID: Int64? = nil
     ) {
-        let debugEventID = stateLock.withLock { state in
-            defer { state.nextDebugEventID += 1 }
-            return state.nextDebugEventID
-        }
+        let resolvedDebugEventID = debugEventID ?? nextDebugEventID()
         eventsBroadcaster.yield(PracticeInputEvent(
             kind: kind,
             channel: channel,
             receivedAt: receivedAt,
             receivedAtUptimeSeconds: receivedAtUptimeSeconds,
-            debugEventID: debugEventID
+            debugEventID: resolvedDebugEventID
         ))
     }
 
@@ -337,11 +356,13 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         let manufacturer = endpointStringProperty(endpoint, kMIDIPropertyManufacturer)
         let model = endpointStringProperty(endpoint, kMIDIPropertyModel)
         let protocolID = endpointIntProperty(endpoint, kMIDIPropertyProtocolID)
+        let uniqueID = endpointIntProperty(endpoint, kMIDIPropertyUniqueID)
 
         var parts: [String] = ["name=\(name)"]
         if let manufacturer { parts.append("manufacturer=\(manufacturer)") }
         if let model { parts.append("model=\(model)") }
         if let protocolID { parts.append("protocolID=\(protocolID)") }
+        if let uniqueID { parts.append("uniqueID=\(uniqueID)") }
         return parts.joined(separator: ",")
     }
 
@@ -357,6 +378,70 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         let status = MIDIObjectGetIntegerProperty(endpoint, property, &value)
         guard status == noErr else { return nil }
         return value
+    }
+
+    private func sourceIdentity(from srcConnRefCon: UnsafeMutableRawPointer?) -> MIDI1InputEvent.Source {
+        guard let srcConnRefCon else {
+            return MIDI1InputEvent.Source(identifier: .sourceIndex(-1), endpointName: nil)
+        }
+
+        let context = Unmanaged<EndpointConnectionContext>.fromOpaque(srcConnRefCon).takeUnretainedValue()
+        if let uniqueID = context.endpointUniqueID {
+            return MIDI1InputEvent.Source(
+                identifier: .endpointUniqueID(uniqueID),
+                endpointName: context.endpointName
+            )
+        }
+        return MIDI1InputEvent.Source(
+            identifier: .sourceIndex(context.sourceIndex),
+            endpointName: context.endpointName
+        )
+    }
+
+    private func adaptPracticeKind(from kind: MIDI1InputEvent.Kind) -> PracticeInputEvent.Kind? {
+        switch kind {
+        case let .noteOn(note, velocity):
+            return .noteOn(note: note, velocity: velocity)
+        case let .noteOff(note, velocity):
+            return .noteOff(note: note, velocity: velocity)
+        case let .controlChange(controller, value):
+            return .controlChange(controller: controller, value: value)
+        case let .pitchBend(value):
+            return .pitchBend(value: value)
+        case let .programChange(program):
+            return .programChange(program: program)
+        case let .channelPressure(value):
+            return .channelPressure(value: value)
+        case let .polyPressure(note, value):
+            return .polyPressure(note: note, value: value)
+        }
+    }
+
+    private func nextDebugEventID() -> Int64 {
+        stateLock.withLock { state in
+            defer { state.nextDebugEventID += 1 }
+            return state.nextDebugEventID
+        }
+    }
+
+    private func logProtocolMismatchIfNeeded(
+        uptimeSeconds: TimeInterval,
+        expected: MIDIProtocolID,
+        actual: MIDIProtocolID,
+        messageType: String
+    ) {
+        let shouldLog = stateLock.withLock { state in
+            if uptimeSeconds - state.lastProtocolMismatchLoggedAtUptimeSeconds < 2 {
+                return false
+            }
+            state.lastProtocolMismatchLoggedAtUptimeSeconds = uptimeSeconds
+            return true
+        }
+        guard shouldLog else { return }
+
+        logger.warning(
+            "Dropping \(messageType, privacy: .public) due to protocol mismatch: expected=\(expected.rawValue, privacy: .public) actual=\(actual.rawValue, privacy: .public)"
+        )
     }
 
     private func recordEventListProtocolAndMessageTypes(eventList: UnsafePointer<MIDIEventList>) {
@@ -402,12 +487,13 @@ private struct BluetoothMIDIInputEventSourceState {
     var messageTypeCounts: [String: Int] = [:]
     var lastEventListDebugLoggedAtUptimeSeconds: TimeInterval = 0
     var nextDebugEventID: Int64 = 1
+    var lastProtocolMismatchLoggedAtUptimeSeconds: TimeInterval = 0
 }
 
-private final class PracticeInputEventBroadcaster {
-    private let continuations = OSAllocatedUnfairLock(initialState: [UUID: AsyncStream<PracticeInputEvent>.Continuation]())
+private final class AsyncStreamBroadcaster<Element: Sendable> {
+    private let continuations = OSAllocatedUnfairLock(initialState: [UUID: AsyncStream<Element>.Continuation]())
 
-    func makeStream() -> AsyncStream<PracticeInputEvent> {
+    func makeStream() -> AsyncStream<Element> {
         let id = UUID()
         return AsyncStream { continuation in
             continuations.withLock { state in
@@ -421,7 +507,7 @@ private final class PracticeInputEventBroadcaster {
         }
     }
 
-    func yield(_ event: PracticeInputEvent) {
+    func yield(_ event: Element) {
         let snapshot = continuations.withLock { state in
             Array(state.values)
         }
@@ -431,12 +517,45 @@ private final class PracticeInputEventBroadcaster {
     }
 }
 
+private final class EndpointConnectionContext {
+    let sourceIndex: Int
+    let endpointUniqueID: Int32?
+    let endpointName: String?
+
+    init(sourceIndex: Int, endpointUniqueID: Int32?, endpointName: String?) {
+        self.sourceIndex = sourceIndex
+        self.endpointUniqueID = endpointUniqueID
+        self.endpointName = endpointName
+    }
+}
+
+private struct ConnectedSource {
+    let endpoint: MIDIEndpointRef
+    let connRefCon: UnsafeMutableRawPointer?
+
+    func releaseConnRefConIfNeeded() {
+        guard let connRefCon else { return }
+        Unmanaged<EndpointConnectionContext>.fromOpaque(connRefCon).release()
+    }
+}
+
+private struct MIDIEventListVisitorContext {
+    let service: BluetoothMIDIInputEventSourceService
+    let protocolID: MIDIProtocolID
+    let srcConnRefCon: UnsafeMutableRawPointer?
+}
+
 private func midiEventVisitor(
     context: UnsafeMutableRawPointer?,
     timeStamp: MIDITimeStamp,
     message: MIDIUniversalMessage
 ) {
     guard let context else { return }
-    let service = Unmanaged<BluetoothMIDIInputEventSourceService>.fromOpaque(context).takeUnretainedValue()
-    service.handleUniversalMessage(message, timeStamp: timeStamp)
+    let typed = context.assumingMemoryBound(to: MIDIEventListVisitorContext.self).pointee
+    typed.service.handleUniversalMessage(
+        message,
+        timeStamp: timeStamp,
+        protocolID: typed.protocolID,
+        srcConnRefCon: typed.srcConnRefCon
+    )
 }
