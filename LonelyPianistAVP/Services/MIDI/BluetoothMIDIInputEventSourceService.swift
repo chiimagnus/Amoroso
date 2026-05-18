@@ -35,7 +35,15 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
     private let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
-        category: "BluetoothMIDI-Events"
+        category: "BluetoothMIDI"
+    )
+    private let midi1Logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "BluetoothMIDI-MIDI1"
+    )
+    private let midi2Logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "LonelyPianistAVP",
+        category: "BluetoothMIDI-MIDI2"
     )
     private let refreshScheduler = DebouncedActionScheduler(queue: .main, debounceSec: 0.2)
 
@@ -60,7 +68,12 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             if state.isRunning { return false }
             state.isRunning = true
             state.eventListProtocolCounts.removeAll(keepingCapacity: true)
-            state.messageTypeCounts.removeAll(keepingCapacity: true)
+            state.midi1MessageTypeCounts.removeAll(keepingCapacity: true)
+            state.midi2MessageTypeCounts.removeAll(keepingCapacity: true)
+            state.otherMessageTypeCounts.removeAll(keepingCapacity: true)
+            state.midi1DeliveriesBySource.removeAll(keepingCapacity: true)
+            state.midi2DeliveriesBySource.removeAll(keepingCapacity: true)
+            state.protocolMismatchDropCounts.removeAll(keepingCapacity: true)
             state.lastEventListDebugLoggedAtUptimeSeconds = 0
             state.nextDebugEventID = 1
             return true
@@ -134,7 +147,8 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let status = MIDIPortConnectSource(targetPortRef, source, connRefCon)
             if status == noErr {
                 connectedSources.append(ConnectedSource(portRef: targetPortRef, endpoint: source, connRefCon: connRefCon))
-                let description = (describeEndpoint(source) ?? "sourceIndex=\(index)") + ",subscribedProtocol=\(targetProtocol.rawValue)"
+                let subscribed = targetProtocol == ._2_0 ? "midi2" : "midi1"
+                let description = (describeEndpoint(source) ?? "sourceIndex=\(index)") + ",subscribed=\(subscribed)"
                 connectedSourceDescriptions.append(description)
             } else {
                 Unmanaged<EndpointConnectionContext>.fromOpaque(connRefCon).release()
@@ -267,7 +281,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         switch message.type {
         case .channelVoice1:
             stateLock.withLock { state in
-                state.messageTypeCounts["channelVoice1", default: 0] += 1
+                state.midi1MessageTypeCounts["channelVoice1", default: 0] += 1
             }
             guard protocolID == ._1_0 else {
                 logProtocolMismatchIfNeeded(
@@ -283,6 +297,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let channel = Int(voice.channel) + 1
             guard let kind = midi1Decoder.decode(message) else { return }
             let debugEventID = nextDebugEventID()
+            recordDelivery(protocolID: protocolID, source: source)
             midi1EventsBroadcaster.yield(MIDI1InputEvent(
                 kind: kind,
                 channel: channel,
@@ -298,7 +313,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
         case .channelVoice2:
             stateLock.withLock { state in
-                state.messageTypeCounts["channelVoice2", default: 0] += 1
+                state.midi2MessageTypeCounts["channelVoice2", default: 0] += 1
             }
             guard protocolID == ._2_0 else {
                 logProtocolMismatchIfNeeded(
@@ -314,6 +329,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let channel = Int(voice.channel) + 1
             guard let kind = midi2Decoder.decode(message) else { return }
             let debugEventID = nextDebugEventID()
+            recordDelivery(protocolID: protocolID, source: source)
 
             midi2EventsBroadcaster.yield(MIDI2InputEvent(
                 kind: kind,
@@ -327,7 +343,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
         default:
             stateLock.withLock { state in
-                state.messageTypeCounts["other", default: 0] += 1
+                state.otherMessageTypeCounts["other", default: 0] += 1
             }
             break
         }
@@ -407,6 +423,33 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         return MIDI2InputEvent.Source(identifier: identifier, endpointName: source.endpointName)
     }
 
+    private func recordDelivery(protocolID: MIDIProtocolID, source: MIDI1InputEvent.Source) {
+        let key = sourceKey(for: source)
+        stateLock.withLock { state in
+            switch protocolID {
+            case ._1_0:
+                state.midi1DeliveriesBySource[key, default: 0] += 1
+            case ._2_0:
+                state.midi2DeliveriesBySource[key, default: 0] += 1
+            default:
+                break
+            }
+        }
+    }
+
+    private func sourceKey(for source: MIDI1InputEvent.Source) -> String {
+        let base: String = switch source.identifier {
+        case let .endpointUniqueID(uniqueID):
+            "uid=\(uniqueID)"
+        case let .sourceIndex(index):
+            "idx=\(index)"
+        }
+        if let name = source.endpointName, name.isEmpty == false {
+            return "\(base)(\(name))"
+        }
+        return base
+    }
+
     private func adaptPracticeKind(from kind: MIDI1InputEvent.Kind) -> PracticeInputEvent.Kind? {
         switch kind {
         case let .noteOn(note, velocity):
@@ -440,6 +483,8 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         messageType: String
     ) {
         let shouldLog = stateLock.withLock { state in
+            let key = "\(messageType) expected=\(expected.rawValue) actual=\(actual.rawValue)"
+            state.protocolMismatchDropCounts[key, default: 0] += 1
             if uptimeSeconds - state.lastProtocolMismatchLoggedAtUptimeSeconds < 2 {
                 return false
             }
@@ -472,28 +517,54 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
     private func logEventDeliveryDebugSummary(reason: String) {
         let snapshot = stateLock.withLock { state in
-            (state.eventListProtocolCounts, state.messageTypeCounts)
+            (
+                state.eventListProtocolCounts,
+                state.midi1MessageTypeCounts,
+                state.midi2MessageTypeCounts,
+                state.midi1DeliveriesBySource,
+                state.midi2DeliveriesBySource,
+                state.protocolMismatchDropCounts
+            )
         }
         let eventListProtocolCounts = snapshot.0
-        let messageTypeCounts = snapshot.1
-        guard eventListProtocolCounts.isEmpty == false || messageTypeCounts.isEmpty == false else { return }
+        let midi1Types = snapshot.1
+        let midi2Types = snapshot.2
+        let midi1Sources = snapshot.3
+        let midi2Sources = snapshot.4
+        let drops = snapshot.5
+        guard eventListProtocolCounts.isEmpty == false ||
+            midi1Types.isEmpty == false ||
+            midi2Types.isEmpty == false ||
+            midi1Sources.isEmpty == false ||
+            midi2Sources.isEmpty == false ||
+            drops.isEmpty == false else { return }
+
+        func format(_ dict: [String: Int]) -> String {
+            dict.sorted(by: { $0.key < $1.key })
+                .map { "\($0.key)=\($0.value)" }
+                .joined(separator: ",")
+        }
 
         let protocols = eventListProtocolCounts
             .sorted(by: { $0.key < $1.key })
             .map { "\($0.key)=\($0.value)" }
             .joined(separator: ",")
-        let types = messageTypeCounts
-            .sorted(by: { $0.key < $1.key })
-            .map { "\($0.key)=\($0.value)" }
-            .joined(separator: ",")
-        logger.info("MIDI delivery summary (\(reason, privacy: .public)): eventListProtocols{\(protocols, privacy: .public)} messageTypes{\(types, privacy: .public)}")
+
+        logger.info(
+            "MIDI delivery summary (\(reason, privacy: .public)): eventListProtocols{\(protocols, privacy: .public)} midi1Types{\(format(midi1Types), privacy: .public)} midi1Sources{\(format(midi1Sources), privacy: .public)} midi2Types{\(format(midi2Types), privacy: .public)} midi2Sources{\(format(midi2Sources), privacy: .public)} drops{\(format(drops), privacy: .public)}"
+        )
     }
 }
 
 private struct BluetoothMIDIInputEventSourceState {
     var isRunning: Bool = false
     var eventListProtocolCounts: [Int32: Int] = [:]
-    var messageTypeCounts: [String: Int] = [:]
+    var midi1MessageTypeCounts: [String: Int] = [:]
+    var midi2MessageTypeCounts: [String: Int] = [:]
+    var otherMessageTypeCounts: [String: Int] = [:]
+    var midi1DeliveriesBySource: [String: Int] = [:]
+    var midi2DeliveriesBySource: [String: Int] = [:]
+    var protocolMismatchDropCounts: [String: Int] = [:]
     var lastEventListDebugLoggedAtUptimeSeconds: TimeInterval = 0
     var nextDebugEventID: Int64 = 1
     var lastProtocolMismatchLoggedAtUptimeSeconds: TimeInterval = 0

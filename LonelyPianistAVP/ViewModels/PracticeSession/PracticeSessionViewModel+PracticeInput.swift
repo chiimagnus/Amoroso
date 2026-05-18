@@ -124,6 +124,7 @@ extension PracticeSessionViewModel {
                     velocity: velocity,
                     expectedMIDINotes: expectedMIDINotes,
                     eventID: event.debugEventID,
+                    source: nil,
                     receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
                 )
             case let .insufficient(progress):
@@ -134,6 +135,7 @@ extension PracticeSessionViewModel {
                     velocity: velocity,
                     expectedMIDINotes: expectedMIDINotes,
                     eventID: event.debugEventID,
+                    source: nil,
                     receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
                 )
             }
@@ -164,7 +166,7 @@ extension PracticeSessionViewModel {
             switch matchResult {
             case .matched:
                 Self.practiceInputLogger.info(
-                    "midi1 matched id=\(event.debugEventID ?? 0, privacy: .public) step=\(self.currentStepIndex, privacy: .public) expected=\(expectedMIDINotes, privacy: .public) noteOn=\(note, privacy: .public) vel=\(velocity, privacy: .public)"
+                    "midi1 matched id=\(event.debugEventID ?? 0, privacy: .public) step=\(self.currentStepIndex, privacy: .public) src=\(self.describe(event.source), privacy: .public) expected=\(expectedMIDINotes, privacy: .public) noteOn=\(note, privacy: .public) vel=\(velocity, privacy: .public)"
                 )
                 advanceToNextStep()
             case let .wrong(reason):
@@ -175,6 +177,7 @@ extension PracticeSessionViewModel {
                     velocity: velocity,
                     expectedMIDINotes: expectedMIDINotes,
                     eventID: event.debugEventID,
+                    source: describe(event.source),
                     receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
                 )
             case let .insufficient(progress):
@@ -185,6 +188,7 @@ extension PracticeSessionViewModel {
                     velocity: velocity,
                     expectedMIDINotes: expectedMIDINotes,
                     eventID: event.debugEventID,
+                    source: describe(event.source),
                     receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
                 )
             }
@@ -215,7 +219,7 @@ extension PracticeSessionViewModel {
             switch matchResult {
             case .matched:
                 Self.practiceInputLogger.info(
-                    "midi2 matched id=\(event.debugEventID ?? 0, privacy: .public) step=\(self.currentStepIndex, privacy: .public) expected=\(expectedMIDINotes, privacy: .public) noteOn=\(note, privacy: .public) vel16=\(Int(velocity16), privacy: .public)"
+                    "midi2 matched id=\(event.debugEventID ?? 0, privacy: .public) step=\(self.currentStepIndex, privacy: .public) src=\(self.describe(event.source), privacy: .public) expected=\(expectedMIDINotes, privacy: .public) noteOn=\(note, privacy: .public) vel16=\(Int(velocity16), privacy: .public)"
                 )
                 advanceToNextStep()
             case let .wrong(reason):
@@ -226,6 +230,7 @@ extension PracticeSessionViewModel {
                     velocity: Int(velocity16),
                     expectedMIDINotes: expectedMIDINotes,
                     eventID: event.debugEventID,
+                    source: describe(event.source),
                     receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
                 )
             case let .insufficient(progress):
@@ -236,6 +241,7 @@ extension PracticeSessionViewModel {
                     velocity: Int(velocity16),
                     expectedMIDINotes: expectedMIDINotes,
                     eventID: event.debugEventID,
+                    source: describe(event.source),
                     receivedAtUptimeSeconds: event.receivedAtUptimeSeconds
                 )
             }
@@ -254,6 +260,7 @@ extension PracticeSessionViewModel {
         velocity: Int,
         expectedMIDINotes: [Int],
         eventID: Int64?,
+        source: String?,
         receivedAtUptimeSeconds: TimeInterval
     ) {
         // Rate-limit + de-dup to avoid flooding logs when the user repeats key presses.
@@ -261,7 +268,8 @@ extension PracticeSessionViewModel {
             return
         }
 
-        let message = "midi \(kind) id=\(eventID ?? 0) step=\(currentStepIndex) expected=\(expectedMIDINotes) noteOn=\(note) vel=\(velocity) detail=\(detail)"
+        let sourceToken = source.map { " src=\($0)" } ?? ""
+        let message = "midi \(kind) id=\(eventID ?? 0) step=\(currentStepIndex)\(sourceToken) expected=\(expectedMIDINotes) noteOn=\(note) vel=\(velocity) detail=\(detail)"
         if message == practiceInputDebugLastMessage {
             return
         }
@@ -269,6 +277,36 @@ extension PracticeSessionViewModel {
         practiceInputDebugLastLoggedAtUptimeSeconds = receivedAtUptimeSeconds
         practiceInputDebugLastMessage = message
         Self.practiceInputLogger.info("\(message, privacy: .public)")
+    }
+
+    private func describe(_ source: MIDI1InputEvent.Source) -> String {
+        switch source.identifier {
+        case let .endpointUniqueID(uniqueID):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "uid=\(uniqueID)(\(name))"
+            }
+            return "uid=\(uniqueID)"
+        case let .sourceIndex(index):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "idx=\(index)(\(name))"
+            }
+            return "idx=\(index)"
+        }
+    }
+
+    private func describe(_ source: MIDI2InputEvent.Source) -> String {
+        switch source.identifier {
+        case let .endpointUniqueID(uniqueID):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "uid=\(uniqueID)(\(name))"
+            }
+            return "uid=\(uniqueID)"
+        case let .sourceIndex(index):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "idx=\(index)(\(name))"
+            }
+            return "idx=\(index)"
+        }
     }
 
 }

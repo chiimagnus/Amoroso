@@ -266,9 +266,9 @@ final class ARGuideViewModel {
         if let id = event.debugEventID {
             switch event.kind {
             case let .noteOn(note, velocity):
-                practiceInputLogger.info("recording saw midi1 id=\(id, privacy: .public) noteOn=\(note, privacy: .public) vel=\(velocity, privacy: .public)")
+                practiceInputLogger.info("recording saw midi1 id=\(id, privacy: .public) src=\(self.describe(event.source), privacy: .public) noteOn=\(note, privacy: .public) vel=\(velocity, privacy: .public)")
             case let .noteOff(note, velocity):
-                practiceInputLogger.info("recording saw midi1 id=\(id, privacy: .public) noteOff=\(note, privacy: .public) vel=\(velocity, privacy: .public)")
+                practiceInputLogger.info("recording saw midi1 id=\(id, privacy: .public) src=\(self.describe(event.source), privacy: .public) noteOff=\(note, privacy: .public) vel=\(velocity, privacy: .public)")
             default:
                 break
             }
@@ -286,9 +286,9 @@ final class ARGuideViewModel {
         if let id = event.debugEventID {
             switch event.kind {
             case let .noteOn(note, velocity16):
-                practiceInputLogger.info("recording saw midi2 id=\(id, privacy: .public) noteOn=\(note, privacy: .public) vel16=\(Int(velocity16), privacy: .public)")
+                practiceInputLogger.info("recording saw midi2 id=\(id, privacy: .public) src=\(self.describe(event.source), privacy: .public) noteOn=\(note, privacy: .public) vel16=\(Int(velocity16), privacy: .public)")
             case let .noteOff(note, velocity16):
-                practiceInputLogger.info("recording saw midi2 id=\(id, privacy: .public) noteOff=\(note, privacy: .public) vel16=\(Int(velocity16), privacy: .public)")
+                practiceInputLogger.info("recording saw midi2 id=\(id, privacy: .public) src=\(self.describe(event.source), privacy: .public) noteOff=\(note, privacy: .public) vel16=\(Int(velocity16), privacy: .public)")
             default:
                 break
             }
@@ -349,6 +349,36 @@ final class ARGuideViewModel {
     private func mapMIDI2Value16To7Bit(_ value: UInt16) -> Int {
         let scaled = (Double(value) / 65535.0 * 127.0).rounded()
         return max(0, min(127, Int(scaled)))
+    }
+
+    private func describe(_ source: MIDI1InputEvent.Source) -> String {
+        switch source.identifier {
+        case let .endpointUniqueID(uniqueID):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "uid=\(uniqueID)(\(name))"
+            }
+            return "uid=\(uniqueID)"
+        case let .sourceIndex(index):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "idx=\(index)(\(name))"
+            }
+            return "idx=\(index)"
+        }
+    }
+
+    private func describe(_ source: MIDI2InputEvent.Source) -> String {
+        switch source.identifier {
+        case let .endpointUniqueID(uniqueID):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "uid=\(uniqueID)(\(name))"
+            }
+            return "uid=\(uniqueID)"
+        case let .sourceIndex(index):
+            if let name = source.endpointName, name.isEmpty == false {
+                return "idx=\(index)(\(name))"
+            }
+            return "idx=\(index)"
+        }
     }
 
     var calibration: PianoCalibration? {
