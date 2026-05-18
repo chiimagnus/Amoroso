@@ -78,6 +78,51 @@ func midiOnlyPracticeInputNoteOnAdvancesStep() async {
     #expect(session.currentStepIndex == 1)
 }
 
+@Test
+@MainActor
+func midiOnlyPracticeInputMIDI2NoteOnAdvancesStepEvenWithZeroVelocity() async {
+    let inputSource = FakeProtocolSeparatedPracticeInputEventSource()
+    let session = PracticeSessionViewModel(
+        pressDetectionService: NoopPressDetectionService(),
+        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
+        sleeper: TaskSleeper(),
+        sequencerPlaybackService: NoopPracticeSequencerPlaybackService(),
+        audioRecognitionService: nil,
+        practiceInputEventSource: inputSource,
+        audioStepAttemptAccumulator: AudioStepAttemptAccumulator(),
+        handPianoActivityGate: HandPianoActivityGate()
+    )
+
+    #expect(inputSource.eventsStreamCallCount == 0)
+    #expect(inputSource.midi1StreamCallCount == 1)
+    #expect(inputSource.midi2StreamCallCount == 1)
+
+    let steps = [
+        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)]),
+        PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1)]),
+    ]
+    session.setSteps(steps, tempoMap: MusicXMLTempoMap(tempoEvents: []))
+    session.startGuidingIfReady()
+
+    #expect(inputSource.isRunning)
+    #expect(session.currentStepIndex == 0)
+
+    inputSource.emitMIDI2(MIDI2InputEvent(
+        kind: .noteOn(note: 60, velocity16: 0),
+        channel: 1,
+        group: 0,
+        source: MIDI2InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
+        receivedAt: Date(),
+        receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime,
+        debugEventID: 1
+    ))
+
+    for _ in 0 ..< 20 {
+        await Task.yield()
+    }
+    #expect(session.currentStepIndex == 1)
+}
+
 private struct NoopPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: [String: SIMD3<Float>],
