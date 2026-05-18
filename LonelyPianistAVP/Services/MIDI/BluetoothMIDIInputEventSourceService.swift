@@ -283,14 +283,13 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             stateLock.withLock { state in
                 state.midi1MessageTypeCounts["channelVoice1", default: 0] += 1
             }
-            guard MIDICanonicalProtocolSelection.shouldDeliver(.channelVoice1, eventListProtocol: protocolID) else {
+            if protocolID != ._1_0 {
                 logProtocolMismatchIfNeeded(
                     uptimeSeconds: receivedAtUptimeSeconds,
                     expected: ._1_0,
                     actual: protocolID,
                     messageType: "channelVoice1"
                 )
-                return
             }
 
             let voice = message.channelVoice1
@@ -315,14 +314,13 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             stateLock.withLock { state in
                 state.midi2MessageTypeCounts["channelVoice2", default: 0] += 1
             }
-            guard MIDICanonicalProtocolSelection.shouldDeliver(.channelVoice2, eventListProtocol: protocolID) else {
+            if protocolID != ._2_0 {
                 logProtocolMismatchIfNeeded(
                     uptimeSeconds: receivedAtUptimeSeconds,
                     expected: ._2_0,
                     actual: protocolID,
                     messageType: "channelVoice2"
                 )
-                return
             }
 
             let voice = message.channelVoice2
@@ -494,7 +492,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         guard shouldLog else { return }
 
         logger.warning(
-            "Dropping \(messageType, privacy: .public) due to protocol mismatch: expected=\(expected.rawValue, privacy: .public) actual=\(actual.rawValue, privacy: .public)"
+            "Observed protocol mismatch for \(messageType, privacy: .public): expected=\(expected.rawValue, privacy: .public) actual=\(actual.rawValue, privacy: .public)"
         )
     }
 
