@@ -47,6 +47,7 @@ final class PracticePlaybackCoordinator: PracticePlaybackCoordinating, PracticeS
     func shutdown() {
         guard hasShutdown == false else { return }
         hasShutdown = true
+        stateStore.autoplayState = .off
         stopTransientWork()
     }
 
@@ -57,6 +58,8 @@ final class PracticePlaybackCoordinator: PracticePlaybackCoordinating, PracticeS
 
     func setAutoplayEnabled(_ isEnabled: Bool) {
         if isEnabled {
+            guard stateStore.isManualReplayPlaying == false else { return }
+
             do {
                 try sequencerPlaybackService.warmUp()
             } catch {
