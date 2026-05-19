@@ -13,59 +13,14 @@ final class ARGuideViewModel {
         category: "PracticeInput-Recording"
     )
     typealias CalibrationPhase = CalibrationFlowViewModel.CalibrationPhase
-
-    enum PracticeLocalizationFailure: Equatable {
-        case missingImportedSteps
-        case missingStoredCalibration
-        case handTrackingDenied
-        case worldTrackingUnsupported
-        case providerNotRunning(state: String)
-        case anchorMissing(id: UUID)
-        case anchorNotTracked(id: UUID, waitedSeconds: Int)
-        case anchorsTooClose(distanceMeters: Float)
-        case devicePoseUnavailable(waitedSeconds: Int)
-        case immersiveOpenFailed(message: String)
-
-        var message: String {
-            switch self {
-                case .missingImportedSteps:
-                    "请先导入 MusicXML。"
-                case .missingStoredCalibration:
-                    "未发现校准数据，请先 Step 1 校准。"
-                case .handTrackingDenied:
-                    "无法定位：Hand Tracking 权限未授权（请在系统设置中允许本 App 访问）。"
-                case .worldTrackingUnsupported:
-                    "无法定位：此环境不支持 World Tracking。"
-                case let .providerNotRunning(state):
-                    "无法定位：WorldTrackingProvider 未运行（state=\(state)）。"
-                case let .anchorMissing(id):
-                    "无法定位：未在当前环境恢复已保存的锚点（id=\(id.uuidString)）。"
-                case let .anchorNotTracked(id, waitedSeconds):
-                    "无法定位：锚点存在但尚未追踪（id=\(id.uuidString)，已等待 \(waitedSeconds) 秒）。"
-                case let .anchorsTooClose(distanceMeters):
-                    "校准数据异常：A0 与 C8 距离过近（\(String(format: "%.3f", distanceMeters))m）。请返回 Step 1 重新校准。"
-                case let .devicePoseUnavailable(waitedSeconds):
-                    "无法定位：设备位姿尚不可用（已等待 \(waitedSeconds) 秒）。"
-                case let .immersiveOpenFailed(message):
-                    message
-            }
-        }
-    }
-
-    enum PracticeLocalizationState: Equatable {
-        case idle
-        case blocked(reason: PracticeLocalizationFailure)
-        case openingImmersive
-        case waitingForProviders
-        case locating(elapsedSeconds: Int, totalSeconds: Int)
-        case failed(reason: PracticeLocalizationFailure)
-        case ready
-    }
+    typealias PracticeLocalizationFailure = PracticeLocalizationViewModel.PracticeLocalizationFailure
+    typealias PracticeLocalizationState = PracticeLocalizationViewModel.PracticeLocalizationState
 
     // MARK: - Dependencies
     private let appState: AppState
     let flowState: FlowState
     private let calibrationFlowViewModel: CalibrationFlowViewModel
+    private let practiceLocalizationViewModel: PracticeLocalizationViewModel
 
     // MARK: - Practice Session (P3: split target)
     private let practiceSessionViewModelFactory: PracticeSessionViewModelFactoryProtocol
@@ -76,14 +31,9 @@ final class ARGuideViewModel {
     private var handTrackingConsumerTask: Task<Void, Never>?
     private var currentTrackingMode: ARTrackingMode?
     private var virtualPianoGuidanceUpdateTask: Task<Void, Never>?
-    private var practiceLocalizationTask: Task<Void, Never>?
     private var aiSilencePollingTask: Task<Void, Never>?
-    private let providerStartupTimeoutSeconds = 5
-    private let practiceLocalizationTimeoutSeconds = 5
-    private let practiceLocalizationPollingIntervalNanoseconds: UInt64 = 250_000_000
 
     // MARK: - UI/Flow State (P3: split target)
-    private(set) var practiceLocalizationState: PracticeLocalizationState = .idle
     private(set) var isVirtualPianoEnabled = false
     private(set) var isVirtualPianoPlaced = false
     private(set) var isVirtualPerformerEnabled = false
@@ -140,6 +90,7 @@ final class ARGuideViewModel {
         self.appState = appState
         self.flowState = flowState
         calibrationFlowViewModel = CalibrationFlowViewModel(appState: appState)
+        practiceLocalizationViewModel = PracticeLocalizationViewModel(appState: appState)
         self.pianoModeRegistry = pianoModeRegistry
         self.practiceSessionViewModelFactory = practiceSessionViewModelFactory
         takePlaybackViewModel = TakePlaybackViewModel(controller: takePlaybackController)
@@ -348,24 +299,24 @@ final class ARGuideViewModel {
         if isEnabled {
             practiceSessionViewModel.stopVirtualPianoInput()
             practiceSessionViewModel.clearCalibration()
-            cancelPracticeLocalizationTask()
+            practiceLocalizationViewModel.shutdown()
             gazePlaneDiskConfirmation.reset()
             latestGazePlaneHit = nil
             startVirtualPianoGuidanceIfNeeded()
             #if DEBUG && targetEnvironment(simulator)
-                practiceLocalizationState = .ready
+                practiceLocalizationViewModel.setPracticeLocalizationState(.ready)
                 if appState.cachedVirtualPianoWorldAnchorID == nil {
                     applyVirtualPianoGeometryAtDefaultPositionForSimulator()
                 }
             #else
                 if appState.cachedVirtualPianoWorldAnchorID == nil {
-                    practiceLocalizationState = .idle
+                    practiceLocalizationViewModel.setPracticeLocalizationState(.idle)
                 }
             #endif
         } else {
             practiceSessionViewModel.stopVirtualPianoInput()
             practiceSessionViewModel.clearCalibration()
-            practiceLocalizationState = .idle
+            practiceLocalizationViewModel.setPracticeLocalizationState(.idle)
             gazePlaneDiskConfirmation.reset()
             latestGazePlaneHit = nil
             stopVirtualPianoGuidance()
@@ -716,6 +667,10 @@ final class ARGuideViewModel {
         return latestGazeRayOriginWorld
     }
 
+    var practiceLocalizationState: PracticeLocalizationState {
+        practiceLocalizationViewModel.practiceLocalizationState
+    }
+
     var practiceLocalizationStatusText: String? {
         switch practiceLocalizationState {
             case .idle:
@@ -842,9 +797,23 @@ final class ARGuideViewModel {
         dismissImmersiveSpace: @escaping PracticeFlowDismissImmersiveSpaceHandler
     ) async {
         replacePracticeSessionViewModel()
-        await beginPracticeLocalization(
+        await practiceLocalizationViewModel.beginPracticeLocalization(
+            isVirtualPianoEnabled: isVirtualPianoEnabled,
+            blockingReason: practiceEntryBlockingReason(),
             openImmersiveSpace: openImmersiveSpace,
-            dismissImmersiveSpace: dismissImmersiveSpace
+            dismissImmersiveSpace: dismissImmersiveSpace,
+            openImmersiveForStep: { [weak self] open in
+                guard let self else { return "已退出练习流程。" }
+                return await self.openImmersiveForStep(mode: .practice, openImmersiveSpace: open)
+            },
+            closeImmersiveForStep: { [weak self] dismiss in
+                guard let self else { return }
+                await self.closeImmersiveForStep(dismissImmersiveSpace: dismiss)
+            },
+            recoverImmersiveStateIfStuck: { [weak self] in
+                guard let self else { return }
+                await self.recoverImmersiveStateIfStuck()
+            }
         )
     }
 
@@ -853,9 +822,23 @@ final class ARGuideViewModel {
         dismissImmersiveSpace: @escaping PracticeFlowDismissImmersiveSpaceHandler
     ) async {
         replacePracticeSessionViewModel()
-        await beginPracticeLocalization(
+        await practiceLocalizationViewModel.beginPracticeLocalization(
+            isVirtualPianoEnabled: isVirtualPianoEnabled,
+            blockingReason: practiceEntryBlockingReason(),
             openImmersiveSpace: openImmersiveSpace,
-            dismissImmersiveSpace: dismissImmersiveSpace
+            dismissImmersiveSpace: dismissImmersiveSpace,
+            openImmersiveForStep: { [weak self] open in
+                guard let self else { return "已退出练习流程。" }
+                return await self.openImmersiveForStep(mode: .practice, openImmersiveSpace: open)
+            },
+            closeImmersiveForStep: { [weak self] dismiss in
+                guard let self else { return }
+                await self.closeImmersiveForStep(dismissImmersiveSpace: dismiss)
+            },
+            recoverImmersiveStateIfStuck: { [weak self] in
+                guard let self else { return }
+                await self.recoverImmersiveStateIfStuck()
+            }
         )
     }
 
@@ -866,18 +849,25 @@ final class ARGuideViewModel {
         setPracticeVirtualPianoEnabled(true)
         isVirtualPianoPlaced = false
 
-        practiceLocalizationState = .openingImmersive
+        practiceLocalizationViewModel.setPracticeLocalizationState(.openingImmersive)
         if let openError = await openImmersiveForStep(mode: .practice, openImmersiveSpace: openImmersiveSpace) {
-            practiceLocalizationState = .failed(reason: .immersiveOpenFailed(message: openError))
+            practiceLocalizationViewModel.setPracticeLocalizationState(.failed(reason: .immersiveOpenFailed(message: openError)))
             return
         }
 
-        practiceLocalizationState = .ready
+        practiceLocalizationViewModel.setPracticeLocalizationState(.ready)
     }
 
     func resetPracticeLocalizationState() {
-        cancelPracticeLocalizationTask()
-        practiceLocalizationState = .idle
+        practiceLocalizationViewModel.resetPracticeLocalizationState()
+    }
+
+    func practiceLocalizationTimeoutFailure(
+        lastRecoverableResolution: AppState.PracticeCalibrationResolutionResult?
+    ) -> PracticeLocalizationFailure {
+        practiceLocalizationViewModel.practiceLocalizationTimeoutFailure(
+            lastRecoverableResolution: lastRecoverableResolution
+        )
     }
 
     func openImmersiveForStep(
@@ -960,7 +950,7 @@ final class ARGuideViewModel {
 
     func onImmersiveDisappear() {
         calibrationFlowViewModel.shutdown()
-        cancelPracticeLocalizationTask()
+        practiceLocalizationViewModel.shutdown()
         practiceSessionViewModel.shutdown()
         practiceSessionViewModel.stopVirtualPianoInput()
         midiRecordingCoordinator.stop()
@@ -1271,204 +1261,6 @@ final class ARGuideViewModel {
 
     func clearAllTakes() {
         takeLibraryViewModel.clearAll()
-    }
-
-    private func beginPracticeLocalization(
-        openImmersiveSpace: PracticeFlowOpenImmersiveSpaceHandler,
-        dismissImmersiveSpace: @escaping PracticeFlowDismissImmersiveSpaceHandler
-    ) async {
-        cancelPracticeLocalizationTask()
-        if isVirtualPianoEnabled == false {
-            appState.clearRuntimeCalibrationForPracticeRelocation()
-        }
-
-        guard let blockingReason = practiceEntryBlockingReason() else {
-            practiceLocalizationState = .openingImmersive
-            if let openError = await openImmersiveForStep(mode: .practice, openImmersiveSpace: openImmersiveSpace) {
-                practiceLocalizationState = .failed(reason: .immersiveOpenFailed(message: openError))
-                return
-            }
-
-            if isVirtualPianoEnabled {
-                practiceLocalizationState = .ready
-                return
-            }
-
-            practiceLocalizationTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                await runPracticeLocalization(dismissImmersiveSpace: dismissImmersiveSpace)
-                practiceLocalizationTask = nil
-            }
-            return
-        }
-
-        practiceLocalizationState = .blocked(reason: blockingReason)
-    }
-
-    private func runPracticeLocalization(
-        dismissImmersiveSpace: PracticeFlowDismissImmersiveSpaceHandler
-    ) async {
-        practiceLocalizationState = .waitingForProviders
-
-        if let startupFailure = await waitForProvidersToRunOrFail() {
-            guard Task.isCancelled == false else { return }
-            await handlePracticeLocalizationFailure(startupFailure, dismissImmersiveSpace: dismissImmersiveSpace)
-            return
-        }
-
-        let startedAt = ProcessInfo.processInfo.systemUptime
-        var lastRecoverableResolution: AppState.PracticeCalibrationResolutionResult?
-
-        while Task.isCancelled == false {
-            if let hardFailure = immediatePracticeFailureReason() {
-                await handlePracticeLocalizationFailure(hardFailure, dismissImmersiveSpace: dismissImmersiveSpace)
-                return
-            }
-
-            let elapsed = ProcessInfo.processInfo.systemUptime - startedAt
-            let elapsedSeconds = min(practiceLocalizationTimeoutSeconds, Int(elapsed.rounded(.down)))
-            practiceLocalizationState = .locating(
-                elapsedSeconds: elapsedSeconds,
-                totalSeconds: practiceLocalizationTimeoutSeconds
-            )
-
-            switch appState.resolveRuntimeCalibrationFromTrackedAnchors() {
-                case .resolved:
-                    practiceLocalizationState = .ready
-                    return
-
-                case .missingStoredCalibration:
-                    await handlePracticeLocalizationFailure(
-                        .missingStoredCalibration,
-                        dismissImmersiveSpace: dismissImmersiveSpace
-                    )
-                    return
-
-                case let .anchorMissing(id):
-                    lastRecoverableResolution = .anchorMissing(id: id)
-
-                case let .anchorNotTracked(id):
-                    lastRecoverableResolution = .anchorNotTracked(id: id)
-
-                case let .anchorsTooClose(distanceMeters):
-                    await handlePracticeLocalizationFailure(
-                        .anchorsTooClose(distanceMeters: distanceMeters),
-                        dismissImmersiveSpace: dismissImmersiveSpace
-                    )
-                    return
-
-                case .devicePoseUnavailable:
-                    lastRecoverableResolution = .devicePoseUnavailable
-            }
-
-            if elapsed >= Double(practiceLocalizationTimeoutSeconds) {
-                break
-            }
-
-            try? await Task.sleep(nanoseconds: practiceLocalizationPollingIntervalNanoseconds)
-        }
-
-        guard Task.isCancelled == false else { return }
-
-        let timeoutFailure = practiceLocalizationTimeoutFailure(
-            lastRecoverableResolution: lastRecoverableResolution
-        )
-
-        await handlePracticeLocalizationFailure(timeoutFailure, dismissImmersiveSpace: dismissImmersiveSpace)
-    }
-
-    func practiceLocalizationTimeoutFailure(
-        lastRecoverableResolution: AppState.PracticeCalibrationResolutionResult?
-    ) -> PracticeLocalizationFailure {
-        guard let lastRecoverableResolution else {
-            return .providerNotRunning(state: currentProviderStateSummary())
-        }
-
-        switch lastRecoverableResolution {
-            case let .anchorMissing(id):
-                return .anchorMissing(id: id)
-            case let .anchorNotTracked(id):
-                return .anchorNotTracked(
-                    id: id,
-                    waitedSeconds: practiceLocalizationTimeoutSeconds
-                )
-            case let .anchorsTooClose(distanceMeters):
-                return .anchorsTooClose(distanceMeters: distanceMeters)
-            case .devicePoseUnavailable:
-                return .devicePoseUnavailable(waitedSeconds: practiceLocalizationTimeoutSeconds)
-            case .resolved:
-                return .providerNotRunning(state: currentProviderStateSummary())
-            case .missingStoredCalibration:
-                return .missingStoredCalibration
-        }
-    }
-
-    private func waitForProvidersToRunOrFail() async -> PracticeLocalizationFailure? {
-        let startedAt = ProcessInfo.processInfo.systemUptime
-
-        while Task.isCancelled == false {
-            if let hardFailure = immediatePracticeFailureReason() {
-                return hardFailure
-            }
-
-            let worldState = arTrackingService.providerStateByName["world"] ?? .idle
-            if worldState == .running {
-                return nil
-            }
-
-            if ProcessInfo.processInfo.systemUptime - startedAt >= Double(providerStartupTimeoutSeconds) {
-                return .providerNotRunning(state: currentProviderStateSummary())
-            }
-
-            try? await Task.sleep(nanoseconds: practiceLocalizationPollingIntervalNanoseconds)
-        }
-
-        return nil
-    }
-
-    private func immediatePracticeFailureReason() -> PracticeLocalizationFailure? {
-        if arTrackingService.isWorldTrackingSupported == false {
-            return .worldTrackingUnsupported
-        }
-
-        if let worldState = arTrackingService.providerStateByName["world"] {
-            switch worldState {
-                case .unsupported:
-                    return .worldTrackingUnsupported
-                case .unauthorized:
-                    return .providerNotRunning(state: currentProviderStateSummary())
-                case let .failed(reason):
-                    return .providerNotRunning(state: "world=failed(\(reason))")
-                default:
-                    break
-            }
-        }
-
-        return nil
-    }
-
-    private func currentProviderStateSummary() -> String {
-        let worldState = arTrackingService.providerStateByName["world"]?.description ?? "unknown"
-        let handState = arTrackingService.providerStateByName["hand"]?.description ?? "unknown"
-        return "world=\(worldState), hand=\(handState)"
-    }
-
-    private func handlePracticeLocalizationFailure(
-        _ failure: PracticeLocalizationFailure,
-        dismissImmersiveSpace: PracticeFlowDismissImmersiveSpaceHandler
-    ) async {
-        guard Task.isCancelled == false else { return }
-
-        practiceLocalizationState = .failed(reason: failure)
-        appState.clearRuntimeCalibrationForPracticeRelocation()
-
-        await closeImmersiveForStep(dismissImmersiveSpace: dismissImmersiveSpace)
-        await recoverImmersiveStateIfStuck()
-    }
-
-    private func cancelPracticeLocalizationTask() {
-        practiceLocalizationTask?.cancel()
-        practiceLocalizationTask = nil
     }
 
     private func resolvedTrackedWorldAnchorPoint(anchorID: UUID?) -> SIMD3<Float>? {
