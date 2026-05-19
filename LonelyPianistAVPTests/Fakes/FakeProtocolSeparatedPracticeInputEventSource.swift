@@ -3,6 +3,10 @@ import Foundation
 import os
 
 final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSourceProtocol {
+    enum StartError: Error {
+        case simulatedFailure
+    }
+
     private let midi1Broadcaster = Broadcaster<MIDI1InputEvent>()
     private let midi2Broadcaster = Broadcaster<MIDI2InputEvent>()
 
@@ -13,6 +17,7 @@ final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSou
     private(set) var stopCallCount = 0
     private(set) var isRunning = false
     private(set) var eventsAfterStopCount = 0
+    var shouldFailNextStart = false
 
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
         midi1StreamCallCount += 1
@@ -26,6 +31,11 @@ final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSou
 
     func start() throws {
         startCallCount += 1
+        if shouldFailNextStart {
+            shouldFailNextStart = false
+            isRunning = false
+            throw StartError.simulatedFailure
+        }
         isRunning = true
     }
 
