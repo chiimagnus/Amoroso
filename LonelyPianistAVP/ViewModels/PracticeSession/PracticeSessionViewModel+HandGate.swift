@@ -10,11 +10,12 @@ extension PracticeSessionViewModel {
         guard let keyboardGeometry else { return [] }
 
         if isVirtualPiano {
-            return handleVirtualPianoFingerTips(
+            return virtualPianoInputController?.handleFingerTips(
                 fingerTips,
                 keyboardGeometry: keyboardGeometry,
-                at: timestamp
-            )
+                at: timestamp,
+                isHandSeparatedStepMatchingEnabled: isHandSeparatedStepMatchingEnabled
+            ) ?? []
         }
 
         let detected = pressDetectionService.detectPressedNotes(
@@ -27,118 +28,28 @@ extension PracticeSessionViewModel {
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry
         )
+
         if detected.isEmpty == false {
             pressedNotes = detected
-            handGateState = handPianoActivityGate.evaluate(
+            handGateController?.updateHandGateState(
                 fingerTips: fingerTips,
                 keyboardGeometry: keyboardGeometry,
                 exactPressedNotes: detected
             )
-            if autoplayState == .off, isManualReplayPlaying == false, let currentStep {
-                let expected = uniqueMIDINotes(in: currentStep)
-                let isMatched: Bool
-                if isHandSeparatedStepMatchingEnabled {
-                    let expectedByHand = uniqueMIDINotesByHand(in: currentStep)
-                    isMatched = chordAttemptAccumulator.registerHandSeparated(
-                        pressedNotes: detected,
-                        expectedRightNotes: expectedByHand.right,
-                        expectedLeftNotes: expectedByHand.left,
-                        tolerance: noteMatchTolerance,
-                        at: timestamp
-                    )
-                } else {
-                    isMatched = chordAttemptAccumulator.register(
-                        pressedNotes: detected,
-                        expectedNotes: expected,
-                        tolerance: noteMatchTolerance,
-                        at: timestamp
-                    )
-                }
-                if isMatched {
-                    if autoplayState == .off {
-                        advanceToNextStep()
-                    }
-                } else {
-                    let unrelatedPressDetected = detected.contains { pressed in
-                        expected.contains(where: { abs($0 - pressed) <= noteMatchTolerance }) == false
-                    }
-                    if unrelatedPressDetected {}
-                }
-            }
+            handGateController?.registerChordAttemptIfNeeded(
+                pressedNotes: detected,
+                at: timestamp,
+                isHandSeparatedStepMatchingEnabled: isHandSeparatedStepMatchingEnabled
+            )
         } else {
-            handGateState = handPianoActivityGate.evaluate(
+            handGateController?.updateHandGateState(
                 fingerTips: fingerTips,
                 keyboardGeometry: keyboardGeometry,
                 exactPressedNotes: []
             )
         }
+
         return detected
     }
-
-    private func handleVirtualPianoFingerTips(
-        _ fingerTips: [String: SIMD3<Float>],
-        keyboardGeometry: PianoKeyboardGeometry,
-        at timestamp: Date
-    ) -> Set<Int> {
-        let result = keyContactDetectionService.detect(
-            fingerTips: fingerTips,
-            keyboardGeometry: keyboardGeometry
-        )
-        latestKeyContactResult = result
-        updateLatestNoteOnMIDINotes(result.started)
-
-        let shouldPlayLiveNotes = autoplayState == .off && isManualReplayPlaying == false
-
-        if shouldPlayLiveNotes {
-            if result.started.isEmpty == false {
-                try? sequencerPlaybackService.startLiveNotes(midiNotes: result.started)
-            }
-            if result.ended.isEmpty == false {
-                sequencerPlaybackService.stopLiveNotes(midiNotes: result.ended)
-            }
-        }
-
-        pressedNotes = result.down
-        handGateState = handPianoActivityGate.evaluate(
-            fingerTips: fingerTips,
-            keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: result.down
-        )
-
-        if result.started.isEmpty == false,
-           autoplayState == .off,
-           isManualReplayPlaying == false,
-           let currentStep
-        {
-            let expected = uniqueMIDINotes(in: currentStep)
-            let isMatched: Bool
-            if isHandSeparatedStepMatchingEnabled {
-                let expectedByHand = uniqueMIDINotesByHand(in: currentStep)
-                isMatched = chordAttemptAccumulator.registerHandSeparated(
-                    pressedNotes: result.started,
-                    expectedRightNotes: expectedByHand.right,
-                    expectedLeftNotes: expectedByHand.left,
-                    tolerance: noteMatchTolerance,
-                    at: timestamp
-                )
-            } else {
-                isMatched = chordAttemptAccumulator.register(
-                    pressedNotes: result.started,
-                    expectedNotes: expected,
-                    tolerance: noteMatchTolerance,
-                    at: timestamp
-                )
-            }
-            if isMatched {
-                advanceToNextStep()
-            } else {
-                let unrelatedPressDetected = result.started.contains { pressed in
-                    expected.contains(where: { abs($0 - pressed) <= noteMatchTolerance }) == false
-                }
-                if unrelatedPressDetected {}
-            }
-        }
-
-        return result.down
-    }
 }
+

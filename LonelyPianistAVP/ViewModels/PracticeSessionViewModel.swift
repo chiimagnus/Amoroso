@@ -128,6 +128,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     private(set) var playbackCoordinator: PracticePlaybackCoordinator?
     private(set) var manualReplayCoordinator: PracticeManualReplayCoordinator?
     private(set) var highlightGuideController: PracticeHighlightGuideController?
+    private(set) var handGateController: PracticeHandGateController?
+    private(set) var virtualPianoInputController: VirtualPianoInputController?
     let handPianoActivityGate: HandPianoActivityGate
     private let manualAdvanceModeProvider: () -> ManualAdvanceMode
     private var hasShutdown = false
@@ -335,6 +337,20 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         self.highlightGuideController = PracticeHighlightGuideController(
             sleeper: sleeper,
             stateStore: stateStore
+        )
+
+        let handGateController = PracticeHandGateController(
+            activityGate: handPianoActivityGate,
+            chordAttemptAccumulator: chordAttemptAccumulator,
+            stateStore: stateStore,
+            effectHandler: self
+        )
+        self.handGateController = handGateController
+        self.virtualPianoInputController = VirtualPianoInputController(
+            detector: keyContactDetectionService,
+            sequencerPlaybackService: sequencerPlaybackService,
+            stateStore: stateStore,
+            handGateController: handGateController
         )
     }
 
@@ -620,7 +636,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         pressedNotes.removeAll()
         latestNoteOnMIDINotes.removeAll()
         latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
-        keyContactDetectionService.reset()
+        virtualPianoInputController?.stop()
         realPianoContactDetectionService.reset()
         handPianoActivityGate.reset()
         handGateState = HandGateState(
@@ -652,7 +668,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         pressedNotes.removeAll()
         latestNoteOnMIDINotes.removeAll()
         latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
-        keyContactDetectionService.reset()
+        virtualPianoInputController?.stop()
         realPianoContactDetectionService.reset()
         isSustainPedalDown = false
         audioRecognitionErrorMessage = nil
@@ -676,11 +692,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     }
 
     func stopVirtualPianoInput() {
-        sequencerPlaybackService.stopAllLiveNotes()
-        keyContactDetectionService.reset()
-        latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
-        pressedNotes.removeAll()
-        latestNoteOnMIDINotes.removeAll()
+        virtualPianoInputController?.stop()
     }
 
     func clearAutoplayError() {
