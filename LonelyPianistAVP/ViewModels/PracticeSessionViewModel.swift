@@ -5,7 +5,7 @@ import simd
 
 @MainActor
 @Observable
-final class PracticeSessionViewModel {
+final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol {
     nonisolated static let practiceHandSeparatedStepMatchingEnabledKey = "practiceHandSeparatedStepMatchingEnabled"
 
     let decisionLogger = Logger(
