@@ -13,6 +13,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol {
         category: "Step3AudioDecision"
     )
 
+    private let stateStore = PracticeSessionStateStore()
+
     var isHandSeparatedStepMatchingEnabled: Bool {
         UserDefaults.standard.bool(forKey: Self.practiceHandSeparatedStepMatchingEnabledKey)
     }
@@ -22,20 +24,22 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol {
         return TimeInterval(components.seconds) + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
     }
 
-    enum PracticeState: Equatable {
-        case idle
-        case ready
-        case guiding(stepIndex: Int)
-        case completed
-    }
+    typealias PracticeState = PracticeSessionState
 
     enum AutoplayState: Equatable {
         case off
         case playing
     }
 
-    var state: PracticeState = .idle
-    private(set) var steps: [PracticeStep] = []
+    var state: PracticeState {
+        get { stateStore.state }
+        set { stateStore.state = newValue }
+    }
+
+    private(set) var steps: [PracticeStep] {
+        get { stateStore.steps }
+        set { stateStore.steps = newValue }
+    }
     var autoplayState: AutoplayState = .off
     private(set) var calibration: PianoCalibration?
     private(set) var keyboardGeometry: PianoKeyboardGeometry?
@@ -201,14 +205,9 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol {
         }
     }
 
-    var currentStepIndex: Int = 0 {
-        didSet {
-            if steps.isEmpty {
-                state = .idle
-            } else {
-                state = .guiding(stepIndex: currentStepIndex)
-            }
-        }
+    var currentStepIndex: Int {
+        get { stateStore.currentStepIndex }
+        set { stateStore.currentStepIndex = newValue }
     }
 
     var currentStep: PracticeStep? {
