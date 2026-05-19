@@ -166,8 +166,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol {
         stopManualReplayTask(restoreAudioRecognition: false)
         stopAutoplayTask()
         stopAutoplayAudio()
-        stopAudioRecognition()
-        stopPracticeInput()
+        handle(effect: .stopAudioRecognition)
+        handle(effect: .stopPracticeInput)
 
         audioRecognitionEventsTask?.cancel()
         audioRecognitionEventsTask = nil
@@ -180,6 +180,25 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol {
         practiceInputMIDI1EventsTask = nil
         practiceInputMIDI2EventsTask?.cancel()
         practiceInputMIDI2EventsTask = nil
+    }
+
+    private func handle(effect: PracticeSessionEffect) {
+        switch effect {
+        case .refreshPracticeInput:
+            refreshPracticeInputForCurrentState()
+        case .refreshAudioRecognition:
+            refreshAudioRecognitionForCurrentState()
+        case let .playCurrentStepSound(applyRecognitionSuppress):
+            playCurrentStepSound(applyRecognitionSuppress: applyRecognitionSuppress)
+        case .stopTransientWork:
+            stopManualReplayTask()
+            stopAutoplayTask()
+            stopAutoplayAudio()
+        case .stopAudioRecognition:
+            stopAudioRecognition()
+        case .stopPracticeInput:
+            stopPracticeInput()
+        }
     }
 
     var currentStepIndex: Int = 0 {
