@@ -28,7 +28,7 @@ final class PracticeSessionStateStore {
         didSet {
             if steps.isEmpty {
                 state = .idle
-            } else {
+            } else if currentStepIndex < steps.count {
                 state = .guiding(stepIndex: currentStepIndex)
             }
         }
