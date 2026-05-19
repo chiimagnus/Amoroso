@@ -12,6 +12,7 @@ final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSou
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
     private(set) var isRunning = false
+    private(set) var eventsAfterStopCount = 0
 
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
         midi1StreamCallCount += 1
@@ -34,10 +35,16 @@ final class FakeProtocolSeparatedPracticeInputEventSource: PracticeInputEventSou
     }
 
     func emitMIDI1(_ event: MIDI1InputEvent) {
+        if !isRunning {
+            eventsAfterStopCount += 1
+        }
         midi1Broadcaster.yield(event)
     }
 
     func emitMIDI2(_ event: MIDI2InputEvent) {
+        if !isRunning {
+            eventsAfterStopCount += 1
+        }
         midi2Broadcaster.yield(event)
     }
 }
