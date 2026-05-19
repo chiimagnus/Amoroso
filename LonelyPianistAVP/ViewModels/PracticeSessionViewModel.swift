@@ -123,6 +123,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
     let midiPracticeStepMatcher = MIDIPracticeStepMatcher()
     private(set) var midiInputCoordinator: PracticeMIDIInputCoordinator?
+    private(set) var audioRecognitionCoordinator: PracticeAudioRecognitionCoordinator?
     let handPianoActivityGate: HandPianoActivityGate
     private let manualAdvanceModeProvider: () -> ManualAdvanceMode
     var autoplayTask: Task<Void, Never>?
@@ -303,6 +304,11 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
             stateStore: stateStore,
             effectHandler: self,
             consumeEvents: true
+        )
+        self.audioRecognitionCoordinator = PracticeAudioRecognitionCoordinator(
+            service: audioRecognitionService,
+            accumulator: audioStepAttemptAccumulator,
+            stateStore: stateStore
         )
 
         bindAudioRecognitionStreamsIfNeeded()
