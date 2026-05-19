@@ -126,6 +126,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     private(set) var practiceMIDIInputCoordinator: PracticeMIDIInputCoordinator?
     private(set) var audioRecognitionCoordinator: PracticeAudioRecognitionCoordinator?
     private(set) var playbackCoordinator: PracticePlaybackCoordinator?
+    private(set) var manualReplayCoordinator: PracticeManualReplayCoordinator?
     let handPianoActivityGate: HandPianoActivityGate
     private let manualAdvanceModeProvider: () -> ManualAdvanceMode
     private var hasShutdown = false
@@ -138,7 +139,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         get { stateStore.measureSpans }
         set { stateStore.measureSpans = newValue }
     }
-    var manualReplayTask: Task<Void, Never>?
+
     var manualReplayGeneration: Int {
         get { stateStore.manualReplayGeneration }
         set { stateStore.manualReplayGeneration = newValue }
@@ -320,6 +321,14 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
             effectHandler: self,
             audioRecognitionSuppressDuration: audioRecognitionSuppressDuration,
             leadInSeconds: autoplayTimingLeadInSeconds
+        )
+
+        self.manualReplayCoordinator = PracticeManualReplayCoordinator(
+            sleeper: sleeper,
+            sequencerPlaybackService: sequencerPlaybackService,
+            playbackSequenceBuilder: playbackSequenceBuilder,
+            stateStore: stateStore,
+            effectHandler: self
         )
     }
 
