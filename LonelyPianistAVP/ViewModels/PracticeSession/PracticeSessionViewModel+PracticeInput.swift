@@ -2,7 +2,7 @@ import Foundation
 
 extension PracticeSessionViewModel {
     func refreshPracticeInputForCurrentState() {
-        midiInputCoordinator?.refresh(
+        practiceMIDIInputCoordinator?.refresh(
             for: .init(
                 practiceState: state,
                 autoplayState: autoplayState,
@@ -14,6 +14,6 @@ extension PracticeSessionViewModel {
     }
 
     func stopPracticeInput() {
-        midiInputCoordinator?.stop()
+        practiceMIDIInputCoordinator?.stop()
     }
 }

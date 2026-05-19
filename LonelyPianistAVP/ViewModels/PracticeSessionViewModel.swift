@@ -122,15 +122,12 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     let practiceInputEventSource: PracticeInputEventSourceProtocol?
     let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
     let midiPracticeStepMatcher = MIDIPracticeStepMatcher()
-    private(set) var midiInputCoordinator: PracticeMIDIInputCoordinator?
+    private(set) var practiceMIDIInputCoordinator: PracticeMIDIInputCoordinator?
     private(set) var audioRecognitionCoordinator: PracticeAudioRecognitionCoordinator?
     let handPianoActivityGate: HandPianoActivityGate
     private let manualAdvanceModeProvider: () -> ManualAdvanceMode
     var autoplayTask: Task<Void, Never>?
     var autoplayTaskGeneration = 0
-    var audioRecognitionEventsTask: Task<Void, Never>?
-    var audioRecognitionStatusTask: Task<Void, Never>?
-    var audioRecognitionDebugTask: Task<Void, Never>?
     private var hasShutdown = false
     private(set) var tempoMap: MusicXMLTempoMap {
         get { stateStore.tempoMap }
@@ -298,7 +295,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         self.handPianoActivityGate = handPianoActivityGate
         self.manualAdvanceModeProvider = manualAdvanceModeProvider
 
-        self.midiInputCoordinator = PracticeMIDIInputCoordinator(
+        self.practiceMIDIInputCoordinator = PracticeMIDIInputCoordinator(
             practiceInputEventSource: practiceInputEventSource,
             matcher: midiPracticeStepMatcher,
             stateStore: stateStore,
@@ -308,10 +305,10 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         self.audioRecognitionCoordinator = PracticeAudioRecognitionCoordinator(
             service: audioRecognitionService,
             accumulator: audioStepAttemptAccumulator,
-            stateStore: stateStore
+            stateStore: stateStore,
+            effectHandler: self,
+            consumeStreams: true
         )
-
-        bindAudioRecognitionStreamsIfNeeded()
     }
 
     @available(*, deprecated, message: "Inject dependencies via AppServices/CompositionRoot.")
@@ -338,14 +335,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         handle(effect: .stopAudioRecognition)
         handle(effect: .stopPracticeInput)
 
-        audioRecognitionEventsTask?.cancel()
-        audioRecognitionEventsTask = nil
-        audioRecognitionStatusTask?.cancel()
-        audioRecognitionStatusTask = nil
-        audioRecognitionDebugTask?.cancel()
-        audioRecognitionDebugTask = nil
-
-        midiInputCoordinator?.shutdown()
+        audioRecognitionCoordinator?.shutdown()
+        practiceMIDIInputCoordinator?.shutdown()
     }
 
     func handle(effect: PracticeSessionEffect) {
