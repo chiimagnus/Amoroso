@@ -119,17 +119,20 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let source = MIDIGetSource(index)
             guard source != 0 else { continue }
 
-            let endpointName = endpointStringProperty(source, kMIDIPropertyDisplayName) ??
-                endpointStringProperty(source, kMIDIPropertyName)
-            let endpointUniqueID = endpointIntProperty(source, kMIDIPropertyUniqueID)
+            let endpointName = MIDIEndpointPropertyReader.stringProperty(source, kMIDIPropertyDisplayName) ??
+                MIDIEndpointPropertyReader.stringProperty(source, kMIDIPropertyName)
+            let endpointUniqueID = MIDIEndpointPropertyReader.int32Property(source, kMIDIPropertyUniqueID)
             let connectionContext = EndpointConnectionContext(
                 sourceIndex: index,
                 endpointUniqueID: endpointUniqueID,
                 endpointName: endpointName
             )
-            let connRefCon = UnsafeMutableRawPointer(Unmanaged.passRetained(connectionContext).toOpaque())
+            let contextPointer = UnsafeMutablePointer<EndpointConnectionContext>.allocate(capacity: 1)
+            contextPointer.initialize(to: connectionContext)
+            let connRefCon = UnsafeMutableRawPointer(contextPointer)
 
-            let endpointProtocolID = endpointIntProperty(source, kMIDIPropertyProtocolID).flatMap(MIDIProtocolID.init(rawValue:))
+            let endpointProtocolID = MIDIEndpointPropertyReader.int32Property(source, kMIDIPropertyProtocolID)
+                .flatMap(MIDIProtocolID.init(rawValue:))
             if endpointProtocolID == ._2_0, midi2InputPortRef == 0 {
                 lifecycleLogger.warning("Endpoint reports MIDI 2.0 but MIDI 2.0 port is unavailable; subscribing via MIDI 1.0 port: \(self.describeEndpoint(source) ?? "unknown", privacy: .public)")
             }
@@ -146,7 +149,8 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                 let description = (describeEndpoint(source) ?? "sourceIndex=\(index)") + ",subscribed=\(subscribed)"
                 connectedSourceDescriptions.append(description)
             } else {
-                Unmanaged<EndpointConnectionContext>.fromOpaque(connRefCon).release()
+                contextPointer.deinitialize(count: 1)
+                contextPointer.deallocate()
                 failedStatus = status
                 lifecycleLogger.error("Failed to connect source \(index, privacy: .public): \(status, privacy: .public)")
             }
@@ -340,11 +344,11 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     }
 
     private func describeEndpoint(_ endpoint: MIDIEndpointRef) -> String? {
-        let name = endpointStringProperty(endpoint, kMIDIPropertyName) ?? "unknown"
-        let manufacturer = endpointStringProperty(endpoint, kMIDIPropertyManufacturer)
-        let model = endpointStringProperty(endpoint, kMIDIPropertyModel)
-        let protocolID = endpointIntProperty(endpoint, kMIDIPropertyProtocolID)
-        let uniqueID = endpointIntProperty(endpoint, kMIDIPropertyUniqueID)
+        let name = MIDIEndpointPropertyReader.stringProperty(endpoint, kMIDIPropertyName) ?? "unknown"
+        let manufacturer = MIDIEndpointPropertyReader.stringProperty(endpoint, kMIDIPropertyManufacturer)
+        let model = MIDIEndpointPropertyReader.stringProperty(endpoint, kMIDIPropertyModel)
+        let protocolID = MIDIEndpointPropertyReader.int32Property(endpoint, kMIDIPropertyProtocolID)
+        let uniqueID = MIDIEndpointPropertyReader.int32Property(endpoint, kMIDIPropertyUniqueID)
 
         var parts: [String] = ["name=\(name)"]
         if let manufacturer { parts.append("manufacturer=\(manufacturer)") }
@@ -354,26 +358,12 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         return parts.joined(separator: ",")
     }
 
-    private func endpointStringProperty(_ endpoint: MIDIEndpointRef, _ property: CFString) -> String? {
-        var unmanagedValue: Unmanaged<CFString>?
-        let status = MIDIObjectGetStringProperty(endpoint, property, &unmanagedValue)
-        guard status == noErr, let unmanagedValue else { return nil }
-        return unmanagedValue.takeRetainedValue() as String
-    }
-
-    private func endpointIntProperty(_ endpoint: MIDIEndpointRef, _ property: CFString) -> Int32? {
-        var value: Int32 = 0
-        let status = MIDIObjectGetIntegerProperty(endpoint, property, &value)
-        guard status == noErr else { return nil }
-        return value
-    }
-
     private func sourceIdentity(from srcConnRefCon: UnsafeMutableRawPointer?) -> MIDI1InputEvent.Source {
         guard let srcConnRefCon else {
             return MIDI1InputEvent.Source(identifier: .sourceIndex(-1), endpointName: nil)
         }
 
-        let context = Unmanaged<EndpointConnectionContext>.fromOpaque(srcConnRefCon).takeUnretainedValue()
+        let context = srcConnRefCon.assumingMemoryBound(to: EndpointConnectionContext.self).pointee
         if let uniqueID = context.endpointUniqueID {
             return MIDI1InputEvent.Source(
                 identifier: .endpointUniqueID(uniqueID),
@@ -543,7 +533,9 @@ private struct ConnectedSource {
 
     func releaseConnRefConIfNeeded() {
         guard let connRefCon else { return }
-        Unmanaged<EndpointConnectionContext>.fromOpaque(connRefCon).release()
+        let contextPointer = connRefCon.assumingMemoryBound(to: EndpointConnectionContext.self)
+        contextPointer.deinitialize(count: 1)
+        contextPointer.deallocate()
     }
 }
 
