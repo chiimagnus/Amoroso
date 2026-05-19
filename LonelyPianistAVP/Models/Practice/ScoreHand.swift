@@ -1,4 +1,4 @@
-enum ScoreHand: String, CaseIterable {
+nonisolated enum ScoreHand: String, CaseIterable {
     case right
     case left
 
