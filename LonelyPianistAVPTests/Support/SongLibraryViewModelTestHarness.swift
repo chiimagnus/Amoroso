@@ -101,6 +101,8 @@ private final class NoopSongAudioPlayer: SongAudioPlayerProtocol {
     var onPlaybackFinished: ((UUID?) -> Void)?
     private(set) var currentEntryID: UUID?
 
+    init() {}
+
     func play(entryID: UUID, url _: URL) throws {
         currentEntryID = entryID
     }

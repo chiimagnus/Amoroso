@@ -95,14 +95,14 @@ private final class CapturingKeyGeometryService: PianoKeyGeometryServiceProtocol
     }
 }
 
-private final class SinglePracticeSessionViewModelProvider {
+@MainActor
+private final class SinglePracticeSessionViewModelProvider: @unchecked Sendable {
     private let session: PracticeSessionViewModel
 
     init(session: PracticeSessionViewModel) {
         self.session = session
     }
 
-    @MainActor
     func callAsFunction(_: String?) -> PracticeSessionViewModel {
         session
     }
@@ -110,6 +110,8 @@ private final class SinglePracticeSessionViewModelProvider {
 
 private struct EmptyPianoModeRegistry: PianoModeRegistryProtocol {
     let modes: [any PianoModeProtocol] = []
+
+    init() {}
 
     func mode(for _: String?) -> (any PianoModeProtocol)? {
         nil

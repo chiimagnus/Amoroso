@@ -68,7 +68,7 @@ func appStatePassesMeasureSpansToPracticeSession() {
         makePracticeSessionViewModel: SinglePracticeSessionViewModelProvider(session: sessionViewModel).callAsFunction
     )
     #expect(guideViewModel.practiceSessionViewModel === sessionViewModel)
-    practiceSetupState.setImportedSteps(from: PreparedPractice(
+    let prepared = PreparedPractice(
         steps: [
             PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)]),
             PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1)]),
@@ -87,7 +87,9 @@ func appStatePassesMeasureSpansToPracticeSession() {
             MusicXMLMeasureSpan(partID: "P1", measureNumber: 2, startTick: 480, endTick: 960),
         ],
         unsupportedNoteCount: 0
-    ))
+    )
+    practiceSetupState.setImportedSteps(from: prepared)
+    guideViewModel.applyPreparedPractice(prepared)
 
     // First "next" begins the practice session at step 1.
     sessionViewModel.skip()
@@ -97,7 +99,8 @@ func appStatePassesMeasureSpansToPracticeSession() {
     #expect(sessionViewModel.currentStepIndex == 2)
 }
 
-private final class SinglePracticeSessionViewModelProvider {
+@MainActor
+private final class SinglePracticeSessionViewModelProvider: @unchecked Sendable {
     private let session: PracticeSessionViewModel
 
     init(session: PracticeSessionViewModel) {

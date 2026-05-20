@@ -26,7 +26,7 @@ func resetToPreparationClearsPracticeSetupState() {
     ))
 
     let registry = PianoModeRegistryService(modes: [])
-    let service = WindowService(practiceSetupState: practiceSetupState, pianoModeRegistry: registry)
+    let service = WindowTransitionState(practiceSetupState: practiceSetupState, pianoModeRegistry: registry)
     service.resetToPreparation(reason: "test")
 
     #expect(practiceSetupState.selectedPianoModeID == nil)
@@ -41,7 +41,10 @@ func resetToPreparationClearsPracticeSetupState() {
 @Test
 @MainActor
 func consumePendingTransitionReturnsAndClears() {
-    let service = WindowService(practiceSetupState: PracticeSetupState(), pianoModeRegistry: PianoModeRegistryService(modes: []))
+    let service = WindowTransitionState(
+        practiceSetupState: PracticeSetupState(),
+        pianoModeRegistry: PianoModeRegistryService(modes: [])
+    )
 
     service.beginTransition(from: .library, to: .practice)
 

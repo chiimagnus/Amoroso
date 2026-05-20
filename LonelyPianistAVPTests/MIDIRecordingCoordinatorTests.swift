@@ -7,9 +7,9 @@ import os
 @MainActor
 func shutdownIsIdempotentAndEmitsAtMostOneTake() async {
     var recordedTakes: [RecordingTake] = []
-    var states: [MIDIRecordingService.State] = []
+    var states: [MIDIRecordingState.State] = []
 
-    let service = MIDIRecordingService(
+    let service = MIDIRecordingState(
         logger: Logger(subsystem: "test", category: "midi-recording"),
         nowUptimeSeconds: { 100 },
         nowDate: { Date(timeIntervalSince1970: 0) },
@@ -32,7 +32,7 @@ func shutdownIsIdempotentAndEmitsAtMostOneTake() async {
 func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() {
     var recordedTakes: [RecordingTake] = []
 
-    let service = MIDIRecordingService(
+    let service = MIDIRecordingState(
         logger: Logger(subsystem: "test", category: "midi-recording"),
         nowUptimeSeconds: { 0 },
         nowDate: { Date(timeIntervalSince1970: 0) },
@@ -70,4 +70,3 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() {
     #expect(recordedTakes.count == 1)
     #expect(recordedTakes[0].events.isEmpty == false)
 }
-

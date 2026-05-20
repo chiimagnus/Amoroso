@@ -270,7 +270,8 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() throws {
     #expect(session.keyboardGeometry == nil)
 }
 
-private final class SinglePracticeSessionViewModelProvider {
+@MainActor
+private final class SinglePracticeSessionViewModelProvider: @unchecked Sendable {
     private let session: PracticeSessionViewModel
 
     init(session: PracticeSessionViewModel) {
