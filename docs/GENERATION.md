@@ -4,8 +4,31 @@
 
 | Item | Value |
 | --- | --- |
-| Commit hash | d59123b |
-| Branch name | main |
-| Generated at | 2026-05-20T16:04:55+09:00 |
+| Commit hash | e67af4e |
+| Branch name | crh1 |
+| Generated at | 2026-05-20T20:17:13+08:00 |
 | Output language | Chinese |
-| Generation mode | Full docs reconciliation via `neat-freak` against uploaded archive |
+| Generation mode | Full docs reconciliation via `neat-freak` against current working tree |
+
+## Pages
+
+- `AGENTS.md`
+- `README.md`
+- `docs/overview.md`
+- `docs/architecture.md`
+- `docs/data-flow.md`
+- `docs/configuration.md`
+- `docs/dependencies.md`
+- `docs/storage.md`
+- `docs/glossary.md`
+- `docs/modules/lonelypianist-macos.md`
+- `docs/modules/lonelypianist-avp.md`
+- `docs/modules/lonelypianist-avp-practice.md`
+- `docs/modules/piano-dialogue-server.md`
+
+## Current Coverage Gaps
+
+- 本仓库没有 `.github/workflows/`，自动化验证以本地命令为准。
+- AVP 的手部追踪、平面检测、BLE MIDI、Bonjour/Local Network、Microphone 与空间舒适度需要真机验证。
+- `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` 仓库默认不内置。
+- Python 依赖没有 lockfile，模型权重与下载镜像依赖本地环境。

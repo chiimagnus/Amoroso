@@ -9,7 +9,7 @@
 | visionOS scheme | `LonelyPianistAVP` | AVP app 与 `LonelyPianistAVPTests`。 |
 | Python 服务 | `piano_dialogue_server/scripts/run_server.sh` | 创建 `.venv`、安装依赖并启动 uvicorn。 |
 
-当前压缩包没有 `.github/workflows/`，也没有 `Packages/RealityKitContent/` 目录。不要把这两者写成可用入口。
+当前仓库没有 `.github/workflows/`，自动化验证以本地命令为准。
 
 ## macOS app 配置
 
@@ -30,7 +30,7 @@
 | ATS local networking | `NSAppTransportSecurity` | 允许局域网 HTTP 连接。 |
 | MusicXML 文件类型 | `UTImportedTypeDeclarations` | 导入 `.musicxml` / `.xml`。 |
 | 字体 | `UIAppFonts` | `Bravura.otf`。 |
-| soundfont | `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` | 压缩包未包含；需要本地 sampler 回放时手动放入。 |
+| soundfont | `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` | 仓库默认不内置；需要本地 sampler 回放时手动放入。 |
 
 `PracticeSessionSettingsProvider` 使用 `UserDefaults` 保存练习开关。常见开关包括左右手分别判定、自动播放、手动推进粒度与高亮/谱面显示设置；修改时优先从 provider 和对应 UI 查找真实 key。
 
@@ -38,9 +38,9 @@
 
 | 项 | 默认值 / 位置 | 说明 |
 | --- | --- | --- |
-| host | `0.0.0.0` in `scripts/run_server.sh` | 便于 AVP 真机访问。 |
+| host | `0.0.0.0` in `piano_dialogue_server/scripts/run_server.sh` | 便于 AVP 真机访问。 |
 | port | `8765` | HTTP、WebSocket 与 Bonjour 广播使用同一端口。 |
-| Bonjour service type | `_lonelypianist._tcp.local.` | `server/media/bonjour.py` 与 AVP discovery 对齐。 |
+| Bonjour service type | `_lonelypianist._tcp.local.` | `piano_dialogue_server/server/media/bonjour.py` 与 AVP discovery 对齐。 |
 | `AMT_MODEL_DIR` | 无默认硬编码目录优先级之一 | 本地模型目录。 |
 | `AMT_MODEL_ID` | `stanford-crfm/music-large-800k` | Hugging Face 模型 ID。 |
 | `AMT_DEVICE` | 自动选择 | `mps` / `cuda` / `cpu`。 |

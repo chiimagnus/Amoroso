@@ -6,10 +6,10 @@
 
 | 入口 | 说明 |
 | --- | --- |
-| `LonelyPianistApp.swift` | 创建 SwiftData container、MIDI services、playback services 与 `LonelyPianistViewModel`。 |
-| `ContentView.swift` | `MainWindowView`，承载 recorder panel。 |
-| `Views/Recording/RecorderPanelView.swift` | 录制、导入、take 列表、回放输出与 piano roll UI。 |
-| `ViewModels/LonelyPianistViewModel.swift` | 状态编排与用户命令。 |
+| `LonelyPianist/LonelyPianistApp.swift` | 创建 SwiftData container、MIDI services、playback services 与 `LonelyPianistViewModel`。 |
+| `LonelyPianist/ContentView.swift` | `MainWindowView`，承载 recorder panel。 |
+| `LonelyPianist/Views/Recording/RecorderPanelView.swift` | 录制、导入、take 列表、回放输出与 piano roll UI。 |
+| `LonelyPianist/ViewModels/LonelyPianistViewModel.swift` | 状态编排与用户命令。 |
 
 ## 主要服务
 

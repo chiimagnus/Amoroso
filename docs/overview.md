@@ -10,7 +10,7 @@ LonelyPianist 是一个本地优先的钢琴交互系统。当前仓库包含 ma
 | --- | --- | --- | --- |
 | macOS recorder | `LonelyPianist/` | MIDI 监听、take 录制、MIDI 导入、sampler/外部 MIDI 回放 | [modules/lonelypianist-macos.md](modules/lonelypianist-macos.md) |
 | visionOS app | `LonelyPianistAVP/` | MusicXML 曲库、三种钢琴模式、空间练习、虚拟钢琴、BLE MIDI、AI 即兴 | [modules/lonelypianist-avp.md](modules/lonelypianist-avp.md) |
-| AVP Practice | `LonelyPianistAVP/ViewModels/PracticeSession/` + `Services/Practice/` | step 推进、五线谱、自动播放、输入匹配、贴皮高亮 | [modules/lonelypianist-avp-practice.md](modules/lonelypianist-avp-practice.md) |
+| AVP Practice | `LonelyPianistAVP/ViewModels/PracticeSession/` + `LonelyPianistAVP/Services/Practice/` | step 推进、五线谱、自动播放、输入匹配、贴皮高亮 | [modules/lonelypianist-avp-practice.md](modules/lonelypianist-avp-practice.md) |
 | Python backend | `piano_dialogue_server/` | `/generate`、`/ws`、`/upload-expand`、Bonjour、调试包 | [modules/piano-dialogue-server.md](modules/piano-dialogue-server.md) |
 
 ## 本地验证命令

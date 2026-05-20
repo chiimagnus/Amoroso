@@ -26,7 +26,7 @@
 
 | 数据 | 位置 | 说明 |
 | --- | --- | --- |
-| 调试包 | `piano_dialogue_server/out/dialogue_debug/` | `DIALOGUE_DEBUG=1` 时由 `server/media/debug_artifacts.py` 写入。 |
+| 调试包 | `piano_dialogue_server/out/dialogue_debug/` | `DIALOGUE_DEBUG=1` 时由 `piano_dialogue_server/server/media/debug_artifacts.py` 写入。 |
 | 模型权重 | `AMT_MODEL_DIR` 或本地 `models/` | 不应提交到 git。 |
 | 静态前端 | `piano_dialogue_server/static/` | `GET /` 返回 playground。 |
 

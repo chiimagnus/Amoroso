@@ -6,19 +6,19 @@
 
 | 位置 | 说明 |
 | --- | --- |
-| `server/api/main.py` | FastAPI app、路由、lifespan Bonjour。 |
-| `server/api/protocol.py` | `DialogueNote`、`GenerateRequest`、`ResultResponse`、`ErrorResponse`。 |
-| `server/engines/` | model、deterministic、rule 生成。 |
-| `server/media/` | MIDI/MusicXML 处理、Bonjour、debug artifacts。 |
-| `static/` | `GET /` 返回的本地 playground。 |
-| `scripts/run_server.sh` | 创建 venv、安装依赖、启动服务。 |
+| `piano_dialogue_server/server/api/main.py` | FastAPI app、路由、lifespan Bonjour。 |
+| `piano_dialogue_server/server/api/protocol.py` | `DialogueNote`、`GenerateRequest`、`ResultResponse`、`ErrorResponse`。 |
+| `piano_dialogue_server/server/engines/` | model、deterministic、rule 生成。 |
+| `piano_dialogue_server/server/media/` | MIDI/MusicXML 处理、Bonjour、debug artifacts。 |
+| `piano_dialogue_server/static/` | `GET /` 返回的本地 playground。 |
+| `piano_dialogue_server/scripts/run_server.sh` | 创建 venv、安装依赖、启动服务。 |
 
 ## API
 
 | API | 输入 | 输出 | 说明 |
 | --- | --- | --- | --- |
 | `GET /health` | 无 | `{"status":"ok"}` | 健康检查。 |
-| `GET /` | 无 | HTML | 返回 `static/index.html` 或 fallback HTML。 |
+| `GET /` | 无 | HTML | 返回 `piano_dialogue_server/static/index.html` 或 fallback HTML。 |
 | `POST /generate` | JSON `GenerateRequest` | `ResultResponse` | 标准生成接口。 |
 | `WS /ws` | JSON `GenerateRequest` | `ResultResponse` 或 `ErrorResponse` | WebSocket 生成接口。 |
 | `POST /upload-expand` | multipart MIDI + strategy/mode | base64 MIDI + analysis | 浏览器上传 MIDI 扩展。 |
@@ -48,7 +48,7 @@ Bonjour 失败不阻止 HTTP 服务启动；AVP 自动发现会受影响。
 
 ## 调试
 
-`DIALOGUE_DEBUG=1` 时，`server/media/debug_artifacts.py` 会写出 request、response、MIDI 和 summary bundle 到：
+`DIALOGUE_DEBUG=1` 时，`piano_dialogue_server/server/media/debug_artifacts.py` 会写出 request、response、MIDI 和 summary bundle 到：
 
 ```text
 piano_dialogue_server/out/dialogue_debug/
