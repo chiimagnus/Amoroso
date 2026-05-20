@@ -1,36 +1,29 @@
 # Generation Metadata
 
 ## Run info
+
 | Item | Value |
 | --- | --- |
-| Commit hash | 7ba52ec |
+| Commit hash | d59123b |
 | Branch name | main |
-| Generated at | 2026-05-19T00:00:00+08:00 |
+| Generated at | 2026-05-20T16:04:55+09:00 |
 | Output language | Chinese |
-| Generation mode | Incremental update via `neat-freak` (docs-as-canonical) |
+| Generation mode | Full docs reconciliation via `neat-freak` against uploaded archive |
 
-## Key updates in this generation
+## Updated document scope
+
 | Area | Update |
 | --- | --- |
-| BLE MIDI step 判定 | BLE MIDI 输入改为 multicast，并在 Step 3 使用 `MIDIPracticeStepMatcher` 做 deterministic step advance；为排查事件分流加入 `debugEventID` 日志链路。 |
-| INDEX 移除 | 删除 `docs/INDEX.md`，把「按问题导航」迁移到 `docs/overview.md`。 |
-| Overview 合并 | 把 `docs/business-context.md` 的剩余有效信息合并进 `docs/overview.md`，并删除 `docs/business-context.md`。 |
-| Architecture 去重 | `docs/architecture.md` 用“按模块入口”替代组件长表，并移除重复的 CI/Actions 段落。 |
-| Testing 移除 | 删除 `docs/testing.md`，把“本地验证命令”收敛进 `docs/overview.md`。 |
-| Troubleshooting 移除 | 删除 `docs/troubleshooting.md`（故障定位按模块页/README 自行下钻）。 |
-| Workflow 移除 | 删除 `docs/workflow.md`，把“本地验证命令”收敛进 `docs/overview.md`。 |
-| Modules 精简 | `docs/modules/` 合并为 4 页：`lonelypianist-macos.md`、`lonelypianist-avp.md`、`lonelypianist-avp-practice.md`、`piano-dialogue-server.md`。 |
+| Repository entry docs | Rewrote root README/README.en/AGENTS around the current macOS recorder, AVP practice app and Python backend. |
+| Canonical docs | Rebuilt overview, architecture, data flow, configuration, dependencies, storage, glossary and fallback pages around current code paths. |
+| Module docs | Reconciled macOS, AVP, AVP practice and Python backend module pages with actual files and type names. |
+| Subdirectory docs | Updated `LonelyPianist/README.md`, `LonelyPianistAVP/README.md`, `LonelyPianistAVP/AGENTS.md` and `piano_dialogue_server/README.md`. |
+| Debug docs | Updated BLE MIDI protocol debugging notes for current MIDI 1.0/2.0 broadcaster and matching pipeline. |
 
 ## Current Coverage Gaps
-- The repo currently has no GitHub Actions workflows; all tests are manual/local.
-- There is no unified release workflow.
-- There is no full macOS -> Python -> AVP end-to-end automated test.
-- Audio recognition fallback behavior and performance tuning still requires real-device verification.
-- Audio recognition engine failures (e.g., RemoteIO -10851) are still environment-dependent; simulator behavior is not a reliable proxy for Vision Pro devices.
-- AutoplayPerformanceTimeline complex edge cases (e.g., simultaneous pedal up/down) may need more test coverage.
-- Virtual piano placement experience (plane detection stability, palm confirmation thresholds) and 3D rendering (key size, spacing, material) need Vision Pro real-device verification.
-- KeyContactDetectionService hysteresis thresholds (press 2mm / release 8mm) need real-device tuning.
-- Decal highlight alignment, z-fighting, and visual comfort need Vision Pro real-device verification.
-- AVP Bonjour 发现与 `/generate` 请求强依赖同一局域网与 Local Network 授权；denied/解析失败仍需真机验证与网络环境排查。
-- 单谱表自动分手是工程启发式：对交错声部/极端音域分配的曲谱，可能与人类分手不一致；目前不提供 per-score override。
-- 双 part 归一化仅处理恰好 2 个 part 且各自单谱号的情况；三声部或更复杂的拆分模式不在覆盖范围内。
+
+- The uploaded archive does not contain `.git` history, so this sync used the archive contents as a temporary baseline.
+- The repository contains no `.github/workflows/`; validation commands are local/manual.
+- The archive does not include `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2`.
+- Vision Pro hardware behavior still needs real-device validation for hand tracking, plane detection, Bluetooth MIDI, microphone input, Local Network/Bonjour and visual comfort.
+- There is no automated end-to-end test covering macOS recorder -> Python backend -> AVP practice.
