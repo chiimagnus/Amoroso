@@ -1,6 +1,6 @@
 import Foundation
 
-protocol PracticeInputEventSourceProtocol: AnyObject {
+nonisolated protocol PracticeInputEventSourceProtocol: AnyObject {
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent>
     func midi2EventsStream() -> AsyncStream<MIDI2InputEvent>
 

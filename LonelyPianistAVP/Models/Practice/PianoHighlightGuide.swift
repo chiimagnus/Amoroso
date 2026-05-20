@@ -1,13 +1,13 @@
 import Foundation
 
-enum PianoHighlightGuideKind: String, Equatable, Hashable {
+nonisolated enum PianoHighlightGuideKind: String, Equatable, Hashable {
     case trigger
     case sustain
     case release
     case gap
 }
 
-struct PianoHighlightNote: Equatable, Hashable, Identifiable {
+nonisolated struct PianoHighlightNote: Equatable, Hashable, Identifiable {
     var id: String {
         occurrenceID
     }
@@ -63,7 +63,7 @@ struct PianoHighlightNote: Equatable, Hashable, Identifiable {
     }
 }
 
-struct PianoHighlightGuide: Equatable, Identifiable {
+nonisolated struct PianoHighlightGuide: Equatable, Identifiable {
     let id: Int
     let kind: PianoHighlightGuideKind
     let tick: Int
