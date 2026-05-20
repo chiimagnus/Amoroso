@@ -12,7 +12,7 @@ private final class CapturingPracticeAudioRecognitionEffectHandler: PracticeSess
 }
 
 @MainActor
-private final class FakePracticeAudioRecognitionCoordinatorService: PracticeAudioRecognitionServiceProtocol {
+private final class FakePracticeAudioRecognitionInputServiceService: PracticeAudioRecognitionServiceProtocol {
     let events: AsyncStream<DetectedNoteEvent> = AsyncStream { _ in }
     let statusUpdates: AsyncStream<PracticeAudioRecognitionStatus> = AsyncStream { _ in }
     let debugSnapshots: AsyncStream<PracticeAudioRecognitionDebugSnapshot> = AsyncStream { _ in }
@@ -40,10 +40,10 @@ private final class FakePracticeAudioRecognitionCoordinatorService: PracticeAudi
 
 @Test
 @MainActor
-func practiceAudioRecognitionCoordinator_serviceNilHasNoSideEffects() async {
+func practiceAudioRecognitionService_serviceNilHasNoSideEffects() async {
     let stateStore = PracticeSessionStateStore()
     let effectHandler = CapturingPracticeAudioRecognitionEffectHandler()
-    let coordinator = PracticeAudioRecognitionCoordinator(
+    let service = PracticeAudioRecognitionInputService(
         service: nil,
         accumulator: AudioStepAttemptAccumulator(),
         stateStore: stateStore,
@@ -51,7 +51,7 @@ func practiceAudioRecognitionCoordinator_serviceNilHasNoSideEffects() async {
         consumeStreams: false
     )
 
-    coordinator.refresh(
+    service.refresh(
         for: .init(
             practiceState: .guiding(stepIndex: 0),
             autoplayState: .off,
@@ -66,8 +66,8 @@ func practiceAudioRecognitionCoordinator_serviceNilHasNoSideEffects() async {
             suppressUntil: nil
         )
     )
-    coordinator.stop()
-    coordinator.shutdown()
+    service.stop()
+    service.shutdown()
     await Task.yield()
 
     #expect(stateStore.isAudioRecognitionRunning == false)
@@ -75,11 +75,11 @@ func practiceAudioRecognitionCoordinator_serviceNilHasNoSideEffects() async {
 
 @Test
 @MainActor
-func practiceAudioRecognitionCoordinator_shutdownIsIdempotent() {
-    let service = FakePracticeAudioRecognitionCoordinatorService()
+func practiceAudioRecognitionService_shutdownIsIdempotent() {
+    let service = FakePracticeAudioRecognitionInputServiceService()
     let stateStore = PracticeSessionStateStore()
     let effectHandler = CapturingPracticeAudioRecognitionEffectHandler()
-    let coordinator = PracticeAudioRecognitionCoordinator(
+    let service = PracticeAudioRecognitionInputService(
         service: service,
         accumulator: AudioStepAttemptAccumulator(),
         stateStore: stateStore,
@@ -87,20 +87,20 @@ func practiceAudioRecognitionCoordinator_shutdownIsIdempotent() {
         consumeStreams: false
     )
 
-    coordinator.shutdown()
-    coordinator.shutdown()
+    service.shutdown()
+    service.shutdown()
 
     #expect(service.stopCallCount == 1)
 }
 
 @Test
 @MainActor
-func practiceAudioRecognitionCoordinator_refreshOutsideGuidingStopsService() {
-    let service = FakePracticeAudioRecognitionCoordinatorService()
+func practiceAudioRecognitionService_refreshOutsideGuidingStopsService() {
+    let service = FakePracticeAudioRecognitionInputServiceService()
     let stateStore = PracticeSessionStateStore()
     let effectHandler = CapturingPracticeAudioRecognitionEffectHandler()
     stateStore.isAudioRecognitionRunning = true
-    let coordinator = PracticeAudioRecognitionCoordinator(
+    let service = PracticeAudioRecognitionInputService(
         service: service,
         accumulator: AudioStepAttemptAccumulator(),
         stateStore: stateStore,
@@ -108,7 +108,7 @@ func practiceAudioRecognitionCoordinator_refreshOutsideGuidingStopsService() {
         consumeStreams: false
     )
 
-    coordinator.refresh(
+    service.refresh(
         for: .init(
             practiceState: .ready,
             autoplayState: .off,
