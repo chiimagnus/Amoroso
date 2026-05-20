@@ -179,7 +179,7 @@ struct PianoKeyboard88View: View {
         blackPitchClasses.contains(midiNote % 12)
     }
 
-    static func highlightKeyViewID(
+    nonisolated static func highlightKeyViewID(
         isBlackKey: Bool,
         midiNote: Int,
         highlightOccurrenceID: Int?,
