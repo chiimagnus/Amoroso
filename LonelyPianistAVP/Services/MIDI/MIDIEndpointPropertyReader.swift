@@ -1,7 +1,7 @@
 import CoreMIDI
 import Foundation
 
-struct MIDIEndpointPropertyReader {
+nonisolated struct MIDIEndpointPropertyReader {
     struct Adapter: Sendable {
         var getStringProperty: @Sendable (MIDIEndpointRef, CFString) -> (OSStatus, Unmanaged<CFString>?)
         var getIntegerProperty: @Sendable (MIDIEndpointRef, CFString) -> (OSStatus, Int32)

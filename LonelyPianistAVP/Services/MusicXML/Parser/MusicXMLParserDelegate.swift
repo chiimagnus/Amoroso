@@ -1,6 +1,6 @@
 import Foundation
 
-final class MusicXMLParserDelegate: NSObject {
+nonisolated final class MusicXMLParserDelegate: NSObject {
     typealias TempoSource = MusicXMLParserDelegateState.TempoSource
     typealias RawTempoEvent = MusicXMLParserDelegateState.RawTempoEvent
 

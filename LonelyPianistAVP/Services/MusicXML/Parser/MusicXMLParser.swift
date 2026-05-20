@@ -5,12 +5,12 @@ enum MusicXMLParserError: Error, Equatable {
     case parseFailed
 }
 
-protocol MusicXMLParserProtocol {
+nonisolated protocol MusicXMLParserProtocol {
     func parse(data: Data) throws -> MusicXMLScore
     func parse(fileURL: URL) throws -> MusicXMLScore
 }
 
-struct MusicXMLParser: MusicXMLParserProtocol {
+nonisolated struct MusicXMLParser: MusicXMLParserProtocol {
     func parse(fileURL: URL) throws -> MusicXMLScore {
         let data: Data = if fileURL.pathExtension.lowercased() == "mxl" {
             try MXLReader().readScoreXMLData(from: fileURL)

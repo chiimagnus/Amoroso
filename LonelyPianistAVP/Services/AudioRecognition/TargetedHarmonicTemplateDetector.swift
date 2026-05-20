@@ -1,6 +1,6 @@
 import Foundation
 
-protocol HarmonicTemplateDetectingProtocol: Sendable {
+nonisolated protocol HarmonicTemplateDetectingProtocol: Sendable {
     func detect(
         spectrumFrame: AudioSpectrumFrame,
         expectedMIDINotes: [Int],

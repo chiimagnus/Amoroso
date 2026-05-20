@@ -1,7 +1,7 @@
 import CoreMIDI
 import Foundation
 
-struct MIDI2MessageDecoder: Sendable {
+nonisolated struct MIDI2MessageDecoder: Sendable {
     func decode(_ message: MIDIUniversalMessage) -> MIDI2InputEvent.Kind? {
         guard message.type == .channelVoice2 else { return nil }
 
@@ -39,4 +39,3 @@ struct MIDI2MessageDecoder: Sendable {
         }
     }
 }
-

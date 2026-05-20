@@ -3,7 +3,7 @@ import Foundation
     import Accelerate
 #endif
 
-protocol AudioSpectrumAnalyzingProtocol: Sendable {
+nonisolated protocol AudioSpectrumAnalyzingProtocol: Sendable {
     func analyze(samples: [Float], sampleRate: Double, timestamp: Date) throws -> AudioSpectrumFrame
 }
 

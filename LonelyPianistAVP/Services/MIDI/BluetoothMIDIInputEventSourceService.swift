@@ -20,7 +20,7 @@ enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
     }
 }
 
-final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol {
+nonisolated final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol, @unchecked Sendable {
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
         midi1EventsBroadcaster.makeStream()
     }
@@ -500,7 +500,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     }
 }
 
-private struct BluetoothMIDIInputEventSourceState {
+nonisolated private struct BluetoothMIDIInputEventSourceState {
     var isRunning: Bool = false
     var eventListProtocolCounts: [Int32: Int] = [:]
     var midi1MessageTypeCounts: [String: Int] = [:]
@@ -514,7 +514,7 @@ private struct BluetoothMIDIInputEventSourceState {
     var lastProtocolMismatchLoggedAtUptimeSeconds: TimeInterval = 0
 }
 
-private final class EndpointConnectionContext {
+nonisolated private final class EndpointConnectionContext {
     let sourceIndex: Int
     let endpointUniqueID: Int32?
     let endpointName: String?
@@ -526,7 +526,7 @@ private final class EndpointConnectionContext {
     }
 }
 
-private struct ConnectedSource {
+nonisolated private struct ConnectedSource {
     let portRef: MIDIPortRef
     let endpoint: MIDIEndpointRef
     let connRefCon: UnsafeMutableRawPointer?
@@ -539,13 +539,13 @@ private struct ConnectedSource {
     }
 }
 
-private struct MIDIEventListVisitorContext {
+nonisolated private struct MIDIEventListVisitorContext {
     let service: BluetoothMIDIInputEventSourceService
     let protocolID: MIDIProtocolID
     let srcConnRefCon: UnsafeMutableRawPointer?
 }
 
-private func midiEventVisitor(
+nonisolated private func midiEventVisitor(
     context: UnsafeMutableRawPointer?,
     timeStamp: MIDITimeStamp,
     message: MIDIUniversalMessage

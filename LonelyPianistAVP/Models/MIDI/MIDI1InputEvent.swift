@@ -1,6 +1,6 @@
 import Foundation
 
-struct MIDI1InputEvent: Equatable, Sendable {
+nonisolated struct MIDI1InputEvent: Equatable, Sendable {
     struct Source: Equatable, Hashable, Sendable {
         enum Identifier: Equatable, Hashable, Sendable {
             case endpointUniqueID(Int32)
@@ -82,4 +82,3 @@ struct MIDI1InputEvent: Equatable, Sendable {
         Swift.max(min, Swift.min(max, value))
     }
 }
-
