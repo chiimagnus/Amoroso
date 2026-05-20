@@ -1,11 +1,11 @@
 import Foundation
 
-nonisolated enum MusicXMLTimewiseConverterError: Error, Equatable {
+enum MusicXMLTimewiseConverterError: Error, Equatable {
     case invalidXML
     case unsupportedRootElement
 }
 
-nonisolated struct MusicXMLTimewiseConverter {
+struct MusicXMLTimewiseConverter {
     func convertToPartwiseIfNeeded(data: Data) throws -> Data {
         let root = detectRootElementName(in: data)
         switch root {
@@ -76,12 +76,12 @@ nonisolated struct MusicXMLTimewiseConverter {
     }
 }
 
-nonisolated private struct TimewiseMeasure {
+private struct TimewiseMeasure {
     let numberToken: String
     var partIDToInnerXML: [String: String]
 }
 
-nonisolated private final class MusicXMLTimewiseParsingDelegate: NSObject, XMLParserDelegate {
+private final class MusicXMLTimewiseParsingDelegate: NSObject, XMLParserDelegate {
     private(set) var scoreVersion: String?
     private(set) var partListXML: String?
     private(set) var measures: [TimewiseMeasure] = []
@@ -209,7 +209,7 @@ nonisolated private final class MusicXMLTimewiseParsingDelegate: NSObject, XMLPa
     }
 }
 
-nonisolated private struct XMLStringBuilder {
+private struct XMLStringBuilder {
     private var output = ""
 
     mutating func startElement(_ name: String, attributes: [String: String]) {

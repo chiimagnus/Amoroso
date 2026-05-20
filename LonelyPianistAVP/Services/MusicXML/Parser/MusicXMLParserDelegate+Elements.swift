@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated extension MusicXMLParserDelegate {
+extension MusicXMLParserDelegate {
     func handleStartElement(_ elementName: String, attributes attributeDict: [String: String]) {
         switch elementName {
             case "score-partwise", "score-timewise":

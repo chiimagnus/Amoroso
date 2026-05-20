@@ -19,7 +19,7 @@ enum CoreMIDISourceMonitoringServiceError: LocalizedError {
     }
 }
 
-nonisolated final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol, @unchecked Sendable {
+final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol, @unchecked Sendable {
     var onConnectionStateChange: (@Sendable (MIDISourceMonitoringConnectionState) -> Void)?
     var onSourceNamesChange: (@Sendable ([String]) -> Void)?
     var onLastErrorMessageChange: (@Sendable (String?) -> Void)?
@@ -207,7 +207,7 @@ nonisolated final class CoreMIDISourceMonitoringService: MIDISourceMonitoringSer
     }
 }
 
-nonisolated private struct ConnectedSource {
+private struct ConnectedSource {
     let portRef: MIDIPortRef
     let endpoint: MIDIEndpointRef
 }

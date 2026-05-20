@@ -6,7 +6,7 @@ private let musicXMLNoteSpanLogger = Logger(
     category: "MusicXMLNoteSpanBuilder"
 )
 
-nonisolated struct MusicXMLNoteSpanBuilder {
+struct MusicXMLNoteSpanBuilder {
     private struct Key: Hashable {
         let partID: String
         let midiNote: Int

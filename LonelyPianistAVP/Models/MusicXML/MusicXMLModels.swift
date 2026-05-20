@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct MusicXMLScore: Equatable {
+struct MusicXMLScore: Equatable {
     var scoreVersion: String?
     var notes: [MusicXMLNoteEvent]
     var tempoEvents: [MusicXMLTempoEvent] = []
@@ -19,18 +19,18 @@ nonisolated struct MusicXMLScore: Equatable {
     var endingDirectives: [MusicXMLEndingDirective] = []
 }
 
-nonisolated struct MusicXMLEventScope: Equatable, Sendable {
+struct MusicXMLEventScope: Equatable, Sendable {
     let partID: String
     let staff: Int?
     let voice: Int?
 }
 
-nonisolated enum MusicXMLDynamicEventSource: Equatable {
+enum MusicXMLDynamicEventSource: Equatable {
     case directionDynamics
     case soundDynamicsAttribute
 }
 
-nonisolated struct MusicXMLDynamicEvent: Equatable, Identifiable {
+struct MusicXMLDynamicEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(velocity)-\(scope.partID)-\(scope.staff ?? -1)-\(scope.voice ?? -1)-\(source)"
     }
@@ -41,13 +41,13 @@ nonisolated struct MusicXMLDynamicEvent: Equatable, Identifiable {
     let source: MusicXMLDynamicEventSource
 }
 
-nonisolated enum MusicXMLWedgeKind: Equatable {
+enum MusicXMLWedgeKind: Equatable {
     case crescendoStart
     case diminuendoStart
     case stop
 }
 
-nonisolated struct MusicXMLWedgeEvent: Equatable, Identifiable {
+struct MusicXMLWedgeEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(kind)-\(numberToken ?? "")-\(scope.partID)-\(scope.staff ?? -1)-\(scope.voice ?? -1)"
     }
@@ -58,12 +58,12 @@ nonisolated struct MusicXMLWedgeEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated enum MusicXMLFermataEventSource: Equatable {
+enum MusicXMLFermataEventSource: Equatable {
     case noteNotations
     case directionType
 }
 
-nonisolated struct MusicXMLFermataEvent: Equatable, Identifiable {
+struct MusicXMLFermataEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(scope.partID)-\(scope.staff ?? -1)-\(scope.voice ?? -1)-\(source)"
     }
@@ -73,17 +73,17 @@ nonisolated struct MusicXMLFermataEvent: Equatable, Identifiable {
     let source: MusicXMLFermataEventSource
 }
 
-nonisolated struct MusicXMLArpeggiate: Equatable, Hashable {
+struct MusicXMLArpeggiate: Equatable, Hashable {
     let numberToken: String?
     let directionToken: String?
 }
 
-nonisolated enum MusicXMLSlurEventKind: Equatable {
+enum MusicXMLSlurEventKind: Equatable {
     case start
     case stop
 }
 
-nonisolated struct MusicXMLSlurEvent: Equatable, Identifiable {
+struct MusicXMLSlurEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(kind)-\(numberToken ?? "")-\(scope.partID)-\(scope.staff ?? -1)-\(scope.voice ?? -1)"
     }
@@ -94,7 +94,7 @@ nonisolated struct MusicXMLSlurEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated struct MusicXMLTimeSignatureEvent: Equatable, Identifiable {
+struct MusicXMLTimeSignatureEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(beats)-\(beatType)-\(scope.partID)"
     }
@@ -105,7 +105,7 @@ nonisolated struct MusicXMLTimeSignatureEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated struct MusicXMLKeySignatureEvent: Equatable, Identifiable {
+struct MusicXMLKeySignatureEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(fifths)-\(modeToken ?? "")-\(scope.partID)"
     }
@@ -116,7 +116,7 @@ nonisolated struct MusicXMLKeySignatureEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated struct MusicXMLClefEvent: Equatable, Identifiable {
+struct MusicXMLClefEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(signToken ?? "")-\(line ?? -1)-\(octaveChange ?? 0)-\(numberToken ?? "")-\(scope.partID)"
     }
@@ -129,7 +129,7 @@ nonisolated struct MusicXMLClefEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated struct MusicXMLWordsEvent: Equatable, Identifiable {
+struct MusicXMLWordsEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(scope.partID)-\(scope.staff ?? -1)-\(scope.voice ?? -1)-\(text)"
     }
@@ -139,7 +139,7 @@ nonisolated struct MusicXMLWordsEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated enum MusicXMLArticulation: String, CaseIterable, Equatable, Hashable {
+enum MusicXMLArticulation: String, CaseIterable, Equatable, Hashable {
     case staccato
     case accent
     case tenuto
@@ -148,7 +148,7 @@ nonisolated enum MusicXMLArticulation: String, CaseIterable, Equatable, Hashable
     case detachedLegato = "detached-legato"
 }
 
-nonisolated struct MusicXMLTempoEvent: Equatable, Identifiable {
+struct MusicXMLTempoEvent: Equatable, Identifiable {
     var id: String {
         "\(tick)-\(quarterBPM)-\(scope.partID)-\(scope.staff ?? -1)-\(scope.voice ?? -1)"
     }
@@ -158,7 +158,7 @@ nonisolated struct MusicXMLTempoEvent: Equatable, Identifiable {
     let scope: MusicXMLEventScope
 }
 
-nonisolated struct MusicXMLSoundDirective: Equatable, Identifiable {
+struct MusicXMLSoundDirective: Equatable, Identifiable {
     var id: String {
         "\(partID)-\(measureNumber)-\(tick)-\(segno ?? "")-\(coda ?? "")-\(tocoda ?? "")-\(dalsegno ?? "")-\(dacapo ?? "")-\(timeOnlyPasses?.map(String.init).joined(separator: ",") ?? "")"
     }
@@ -174,14 +174,14 @@ nonisolated struct MusicXMLSoundDirective: Equatable, Identifiable {
     let timeOnlyPasses: [Int]?
 }
 
-nonisolated enum MusicXMLPedalEventKind: String, Equatable {
+enum MusicXMLPedalEventKind: String, Equatable {
     case start
     case stop
     case change
     case `continue`
 }
 
-nonisolated struct MusicXMLPedalEvent: Equatable, Identifiable {
+struct MusicXMLPedalEvent: Equatable, Identifiable {
     var id: String {
         "\(partID)-\(measureNumber)-\(tick)-\(kind.rawValue)-\(isDown.map { $0 ? "down" : "up" } ?? "keep")-\(timeOnlyPasses?.map(String.init).joined(separator: ",") ?? "")"
     }
@@ -194,7 +194,7 @@ nonisolated struct MusicXMLPedalEvent: Equatable, Identifiable {
     let timeOnlyPasses: [Int]?
 }
 
-nonisolated struct MusicXMLMeasureSpan: Equatable, Identifiable {
+struct MusicXMLMeasureSpan: Equatable, Identifiable {
     var id: String {
         "\(partID)-\(measureIndex)-\(startTick)-\(endTick)"
     }
@@ -232,31 +232,31 @@ nonisolated struct MusicXMLMeasureSpan: Equatable, Identifiable {
     }
 }
 
-nonisolated enum MusicXMLRepeatDirection: String, Equatable {
+enum MusicXMLRepeatDirection: String, Equatable {
     case forward
     case backward
 }
 
-nonisolated struct MusicXMLRepeatDirective: Equatable {
+struct MusicXMLRepeatDirective: Equatable {
     let partID: String
     let measureNumber: Int
     let direction: MusicXMLRepeatDirection
 }
 
-nonisolated enum MusicXMLEndingType: String, Equatable {
+enum MusicXMLEndingType: String, Equatable {
     case start
     case stop
     case discontinue
 }
 
-nonisolated struct MusicXMLEndingDirective: Equatable {
+struct MusicXMLEndingDirective: Equatable {
     let partID: String
     let measureNumber: Int
     let number: String
     let type: MusicXMLEndingType
 }
 
-nonisolated struct MusicXMLNoteEvent: Equatable, Identifiable {
+struct MusicXMLNoteEvent: Equatable, Identifiable {
     var id: String {
         "\(partID)-\(measureNumber)-\(tick)-\(midiNote ?? -1)-\(durationTicks)-\(isRest)-\(isChord)-\(isGrace)-\(graceSlash)-\(graceStealTimePrevious ?? 0)-\(graceStealTimeFollowing ?? 0)-\(tieStart)-\(tieStop)-\(attackTicks ?? 0)-\(releaseTicks ?? 0)-\(dynamicsOverrideVelocity ?? 0)-\(articulations.map(\.rawValue).sorted().joined(separator: ","))-\(arpeggiate?.numberToken ?? "")-\(arpeggiate?.directionToken ?? "")-\(fingeringText ?? "")"
     }
@@ -333,7 +333,7 @@ nonisolated struct MusicXMLNoteEvent: Equatable, Identifiable {
     }
 }
 
-nonisolated struct MusicXMLNoteSpan: Equatable, Identifiable {
+struct MusicXMLNoteSpan: Equatable, Identifiable {
     var id: String {
         "\(midiNote)-\(staff)-\(voice)-\(onTick)-\(offTick)"
     }

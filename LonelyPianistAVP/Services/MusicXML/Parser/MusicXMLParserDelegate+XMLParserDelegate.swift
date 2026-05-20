@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated extension MusicXMLParserDelegate: XMLParserDelegate {
+extension MusicXMLParserDelegate: XMLParserDelegate {
     func parser(
         _: XMLParser,
         didStartElement elementName: String,

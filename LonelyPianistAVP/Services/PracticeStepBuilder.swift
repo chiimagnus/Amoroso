@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated protocol PracticeStepBuilderProtocol {
+protocol PracticeStepBuilderProtocol {
     func buildSteps(from score: MusicXMLScore, expressivity: MusicXMLExpressivityOptions) -> PracticeStepBuildResult
 }
 
@@ -10,7 +10,7 @@ extension PracticeStepBuilderProtocol {
     }
 }
 
-nonisolated struct PracticeStepBuilder: PracticeStepBuilderProtocol {
+struct PracticeStepBuilder: PracticeStepBuilderProtocol {
     private struct StepNoteKey: Hashable {
         let midiNote: Int
         let staff: Int

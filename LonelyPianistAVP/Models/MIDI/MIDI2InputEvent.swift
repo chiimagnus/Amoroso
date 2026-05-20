@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct MIDI2InputEvent: Equatable, Sendable {
+struct MIDI2InputEvent: Equatable, Sendable {
     struct Source: Equatable, Hashable, Sendable {
         enum Identifier: Equatable, Hashable, Sendable {
             case endpointUniqueID(Int32)

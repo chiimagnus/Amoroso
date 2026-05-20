@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct MusicXMLExpressivityOptions: Equatable {
+struct MusicXMLExpressivityOptions: Equatable {
     var wedgeEnabled: Bool = false
     var graceEnabled: Bool = false
     var fermataEnabled: Bool = false

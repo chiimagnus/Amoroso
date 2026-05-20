@@ -1,7 +1,7 @@
 import Foundation
 import ZIPFoundation
 
-nonisolated enum MXLReaderError: Error, Equatable {
+enum MXLReaderError: Error, Equatable {
     case invalidArchive
     case missingContainerXML
     case missingRootfileFullPath
@@ -26,7 +26,7 @@ extension MXLReaderError: LocalizedError {
     }
 }
 
-nonisolated struct MXLReader {
+struct MXLReader {
     func readScoreXMLData(from mxlFileURL: URL) throws -> Data {
         let archive: Archive
         do {
@@ -73,7 +73,7 @@ nonisolated struct MXLReader {
     }
 }
 
-nonisolated private final class MXLContainerXMLParserDelegate: NSObject, XMLParserDelegate {
+private final class MXLContainerXMLParserDelegate: NSObject, XMLParserDelegate {
     private(set) var rootfileFullPath: String?
 
     func parser(

@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct PianoHighlightGuideBuildInput {
+struct PianoHighlightGuideBuildInput {
     let score: MusicXMLScore
     let steps: [PracticeStep]
     let noteSpans: [MusicXMLNoteSpan]
@@ -19,7 +19,7 @@ nonisolated struct PianoHighlightGuideBuildInput {
     }
 }
 
-nonisolated struct PianoHighlightGuideBuilderService {
+struct PianoHighlightGuideBuilderService {
     private struct SourceNoteKey: Hashable {
         let midiNote: Int
         let staff: Int

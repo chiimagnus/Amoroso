@@ -1,7 +1,7 @@
 import CoreMIDI
 import Foundation
 
-nonisolated struct MIDI1MessageDecoder: Sendable {
+struct MIDI1MessageDecoder: Sendable {
     func decode(_ message: MIDIUniversalMessage) -> MIDI1InputEvent.Kind? {
         guard message.type == .channelVoice1 else { return nil }
 

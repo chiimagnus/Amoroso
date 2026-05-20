@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct MusicXMLParserDelegateState {
+struct MusicXMLParserDelegateState {
     let normalizedTicksPerQuarter = 480
 
     var scoreVersion: String?
