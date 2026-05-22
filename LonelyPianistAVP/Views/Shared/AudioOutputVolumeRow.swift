@@ -6,7 +6,7 @@ struct AudioOutputVolumeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("输出音量")
+            Text("输出音量（AVP）")
             HStack {
                 Slider(value: $audioOutputVolume, in: 0...1)
                 Text(audioOutputVolume, format: .percent)
@@ -14,7 +14,9 @@ struct AudioOutputVolumeRow: View {
                     .foregroundStyle(.secondary)
                     .frame(width: 56, alignment: .trailing)
             }
+            Text("调到 0 可避免与真实钢琴叠音。")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 }
-
