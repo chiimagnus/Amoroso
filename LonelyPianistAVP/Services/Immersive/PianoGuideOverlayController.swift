@@ -1,5 +1,6 @@
 import Foundation
 import RealityKit
+import UIKit
 import SwiftUI
 
 @MainActor
@@ -70,8 +71,12 @@ final class PianoGuideOverlayController {
     }
 
     private func beamMaterial(for descriptor: PianoGuideBeamDescriptor) -> UnlitMaterial {
-        let tintColor = (descriptor.hand == .left) ? AVPOverlayPalette.leftHandGuideColor : AVPOverlayPalette.rightHandGuideColor
-        let tinted = tintColor.withAlphaComponent(CGFloat(max(0, min(1, descriptor.alpha))))
+        let style = PianoGuideHighlightStyle.resolve(
+            hand: descriptor.hand,
+            phase: descriptor.phase,
+            keyKind: descriptor.keyKind
+        )
+        let tinted = style.tintToken.uiColor.withAlphaComponent(CGFloat(max(0, min(1, style.opacity))))
         let texture = loadDecalTextureIfNeeded()
 
         var material = UnlitMaterial()
