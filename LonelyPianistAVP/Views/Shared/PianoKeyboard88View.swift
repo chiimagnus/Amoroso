@@ -3,7 +3,7 @@ import SwiftUI
 struct PianoKeyboard88Highlight: Equatable, Sendable {
     enum Fill: Equatable, Sendable {
         case guide(PianoGuideHighlightStyle)
-        case custom(phase: PianoGuideHighlightPhase, tint: Color)
+        case solid(color: Color, opacity: Double)
     }
 
     let fill: Fill
@@ -106,9 +106,8 @@ struct PianoKeyboard88View: View {
         switch highlight.fill {
         case let .guide(style):
             return style.tintToken.swiftUIColor.opacity(style.opacity)
-        case let .custom(phase, tint):
-            let style = PianoGuideHighlightStyle.resolve(hand: .left, phase: phase, keyKind: .white)
-            return tint.opacity(style.opacity)
+        case let .solid(color, opacity):
+            return color.opacity(opacity)
         }
     }
 
@@ -117,9 +116,8 @@ struct PianoKeyboard88View: View {
         switch highlight.fill {
         case let .guide(style):
             return style.tintToken.swiftUIColor.opacity(style.opacity)
-        case let .custom(phase, tint):
-            let style = PianoGuideHighlightStyle.resolve(hand: .left, phase: phase, keyKind: .black)
-            return tint.opacity(style.opacity)
+        case let .solid(color, opacity):
+            return color.opacity(opacity)
         }
     }
 

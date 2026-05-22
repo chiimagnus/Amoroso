@@ -129,15 +129,15 @@ struct CalibrationStageCard: View {
     private var highlightByMIDINote: [Int: PianoKeyboard88Highlight] {
         switch step {
             case .a0:
-                return [21: PianoKeyboard88Highlight(fill: .custom(phase: .triggered, tint: .blue))]
+                return [21: PianoKeyboard88Highlight(fill: .solid(color: .blue, opacity: 0.75))]
             case .c8:
                 if isA0Locked {
                     return [
-                        21: PianoKeyboard88Highlight(fill: .custom(phase: .active, tint: .green)),
-                        108: PianoKeyboard88Highlight(fill: .custom(phase: .triggered, tint: .blue)),
+                        21: PianoKeyboard88Highlight(fill: .solid(color: .green, opacity: 0.55)),
+                        108: PianoKeyboard88Highlight(fill: .solid(color: .blue, opacity: 0.75)),
                     ]
                 }
-                return [108: PianoKeyboard88Highlight(fill: .custom(phase: .triggered, tint: .blue))]
+                return [108: PianoKeyboard88Highlight(fill: .solid(color: .blue, opacity: 0.75))]
         }
     }
 }
