@@ -1,5 +1,6 @@
 import Foundation
 import RealityKit
+import UIKit
 import SwiftUI
 
 @MainActor
@@ -70,8 +71,13 @@ final class PianoGuideOverlayController {
     }
 
     private func beamMaterial(for descriptor: PianoGuideBeamDescriptor) -> UnlitMaterial {
-        let tintColor = (descriptor.hand == .left) ? AVPOverlayPalette.leftHandGuideColor : AVPOverlayPalette.rightHandGuideColor
-        let tinted = tintColor.withAlphaComponent(CGFloat(max(0, min(1, descriptor.alpha))))
+        let style = PianoGuideHighlightStyle.resolve(
+            hand: descriptor.hand,
+            phase: descriptor.phase,
+            keyKind: descriptor.keyKind
+        )
+        let intensity = max(0, min(1, style.opacity))
+        let tinted = style.tintToken.uiColor.scaledRGB(intensity: intensity)
         let texture = loadDecalTextureIfNeeded()
 
         var material = UnlitMaterial()
@@ -80,6 +86,9 @@ final class PianoGuideOverlayController {
         } else {
             material.color = .init(tint: tinted)
         }
+        // Keep a solid-looking decal like 2D (difference is driven by tint intensity),
+        // while still honoring the decal texture's soft edges.
+        material.blending = .transparent(opacity: .init(floatLiteral: 1))
         return material
     }
 
