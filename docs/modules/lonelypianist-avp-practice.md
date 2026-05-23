@@ -66,6 +66,13 @@ flowchart TD
 
 启动自动播放前必须具备 pedal timeline、fermata timeline、highlight guides 和严格 trigger guide index。缺失时返回中文错误消息并阻止启动。
 
+## 回放与发声路由（蓝牙 MIDI）
+
+练习回放通过 `PracticeSequencerPlaybackServiceProtocol` 抽象输出；在蓝牙 MIDI 模式下会根据用户设置切换实现：
+
+- `AVAudioSequencerPracticePlaybackService`：本地 sampler（仅 AVP 发声，受 AVP 输出音量影响）。
+- `CoreMIDIPracticePlaybackService`：外部 MIDI destination（仅真实钢琴发声，音量/力度由 MIDI velocity 与钢琴自身响应决定）。
+
 ## 录制与 take library
 
 | 代码 | 说明 |
