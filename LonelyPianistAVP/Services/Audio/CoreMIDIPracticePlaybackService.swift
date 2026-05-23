@@ -126,6 +126,39 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
     }
 
+    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
+        let notes = noteOns.compactMap { noteOn -> (note: UInt8, velocity: UInt8)? in
+            guard let note = UInt8(exactly: noteOn.midiNote) else { return nil }
+            return (note, noteOn.velocity)
+        }
+        guard notes.isEmpty == false else { return }
+
+        try ensureReady()
+
+        oneShotStopTask?.cancel()
+        oneShotStopTask = nil
+
+        stopOneShotNotes()
+
+        for (note, velocity) in notes {
+            try? outputService.sendNoteOn(
+                note: note,
+                velocity: velocity,
+                channel: channel,
+                destinationUniqueID: destinationUniqueID
+            )
+            playingOneShotNotes.insert(note)
+        }
+
+        oneShotStopTask = Task.detached(priority: .userInitiated) { [weak self] in
+            try? await Task.sleep(for: .seconds(max(0, durationSeconds)))
+            guard Task.isCancelled == false else { return }
+            await MainActor.run { [weak self] in
+                self?.stopOneShotNotes()
+            }
+        }
+    }
+
     func startLiveNotes(midiNotes: Set<Int>) throws {
         try ensureReady()
         for midiNote in midiNotes {

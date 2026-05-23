@@ -8,6 +8,11 @@ struct PracticeSequencerSequence: Sendable {
     let events: [PracticeSequencerMIDIEvent]
 }
 
+struct PracticeOneShotNoteOn: Hashable, Sendable {
+    let midiNote: Int
+    let velocity: UInt8
+}
+
 @MainActor
 protocol PracticeSequencerPlaybackServiceProtocol: AnyObject {
     func warmUp() throws
@@ -16,9 +21,16 @@ protocol PracticeSequencerPlaybackServiceProtocol: AnyObject {
     func play(fromSeconds start: TimeInterval) throws
     func currentSeconds() -> TimeInterval
     func playOneShot(midiNotes: [Int], durationSeconds: TimeInterval) throws
+    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws
     func startLiveNotes(midiNotes: Set<Int>) throws
     func stopLiveNotes(midiNotes: Set<Int>)
     func stopAllLiveNotes()
+}
+
+extension PracticeSequencerPlaybackServiceProtocol {
+    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
+        try playOneShot(midiNotes: noteOns.map(\.midiNote), durationSeconds: durationSeconds)
+    }
 }
 
 @MainActor
@@ -125,6 +137,34 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         stopOneShotNotes()
 
         for note in notes {
+            sampler.startNote(note, withVelocity: velocity, onChannel: channel)
+            playingOneShotNotes.insert(note)
+        }
+
+        oneShotStopTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .seconds(max(0, durationSeconds)))
+            guard Task.isCancelled == false else { return }
+            stopOneShotNotes()
+        }
+    }
+
+    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
+        let notes = noteOns.compactMap { noteOn -> (note: UInt8, velocity: UInt8)? in
+            guard let note = UInt8(exactly: noteOn.midiNote) else { return nil }
+            return (note, noteOn.velocity)
+        }
+        guard notes.isEmpty == false else { return }
+
+        try ensureReady()
+        applyAudioOutputVolumeIfNeeded()
+
+        oneShotStopTask?.cancel()
+        oneShotStopTask = nil
+
+        stopOneShotNotes()
+
+        for (note, velocity) in notes {
             sampler.startNote(note, withVelocity: velocity, onChannel: channel)
             playingOneShotNotes.insert(note)
         }

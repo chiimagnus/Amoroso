@@ -92,12 +92,16 @@ final class PracticePlaybackControlService: PracticePlaybackControlServiceProtoc
 
         let mode = handModeProvider()
         let expectedNotes = mode == .both ? currentStep.notes : currentStep.notes.filter { mode.allows(hand: $0.hand) }
-        let midiNotes = Set(expectedNotes.map(\.midiNote)).sorted()
-        guard midiNotes.isEmpty == false else { return }
+        let velocityByMIDINote = Dictionary(grouping: expectedNotes, by: \.midiNote)
+            .compactMapValues { notes in notes.map(\.velocity).max() }
+        let noteOns = velocityByMIDINote
+            .map { PracticeOneShotNoteOn(midiNote: $0.key, velocity: $0.value) }
+            .sorted { $0.midiNote < $1.midiNote }
+        guard noteOns.isEmpty == false else { return }
 
         do {
             try sequencerPlaybackService.playOneShot(
-                midiNotes: midiNotes,
+                noteOns: noteOns,
                 durationSeconds: 0.35
             )
         } catch {

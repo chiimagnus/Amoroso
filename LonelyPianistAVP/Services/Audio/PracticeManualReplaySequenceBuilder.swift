@@ -46,12 +46,14 @@ struct PracticeManualReplaySequenceBuilder {
                 )
             )
 
-            let uniqueMIDINotes = Set(step.notes.map(\.midiNote)).sorted()
-            for midi in uniqueMIDINotes {
+            let velocityByMIDINote = Dictionary(grouping: step.notes, by: \.midiNote)
+                .compactMapValues { notes in notes.map(\.velocity).max() ?? velocity }
+
+            for (midi, noteVelocity) in velocityByMIDINote.sorted(by: { $0.key < $1.key }) {
                 schedule.append(
                     PracticeSequencerMIDIEvent(
                         timeSeconds: stepSeconds,
-                        kind: .noteOn(midi: midi, velocity: velocity)
+                        kind: .noteOn(midi: midi, velocity: noteVelocity)
                     )
                 )
                 schedule.append(
