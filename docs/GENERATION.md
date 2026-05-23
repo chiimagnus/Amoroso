@@ -4,9 +4,9 @@
 
 | Item | Value |
 | --- | --- |
-| Commit hash | e50d88b |
+| Commit hash | e07275f4 |
 | Branch name | crh2 |
-| Generated at | 2026-05-23T02:25:20+08:00 |
+| Generated at | 2026-05-23T11:01:47+08:00 |
 | Output language | Chinese |
 | Generation mode | Full docs reconciliation via `neat-freak` against current working tree |
 

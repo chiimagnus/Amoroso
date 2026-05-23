@@ -97,7 +97,6 @@ struct PracticeStepView: View {
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
                 .hoverEffect()
-                .disabled(viewModel.isAIPerformanceActive)
                 .popover(isPresented: $isSettingsPopoverPresented) {
                     PracticeSettingsView(
                         virtualPerformerEnabled: $isVirtualPerformerEnabled,
@@ -106,6 +105,7 @@ struct PracticeStepView: View {
                         recordingSourceText: viewModel.recordingSourceText,
                         isAIPerformanceActive: viewModel.isAIPerformanceActive,
                         isVirtualPianoMode: isVirtualPianoMode,
+                        isBluetoothMIDIMode: viewModel.isBluetoothMIDIMode,
                         gazePlaneDiskStatusText: viewModel.gazePlaneDiskStatusText,
                         onOpenTakeLibrary: {
                             isSettingsPopoverPresented = false
@@ -113,6 +113,9 @@ struct PracticeStepView: View {
                         },
                         onRetryVirtualPianoPlacement: {
                             viewModel.retryVirtualPianoPlacement()
+                        },
+                        onRequestSessionRebuild: {
+                            viewModel.replacePracticeSessionViewModel()
                         }
                     )
                 }

@@ -34,6 +34,17 @@
 
 `PracticeSessionSettingsProvider` 使用 `UserDefaults` 保存练习相关设置；修改时优先从 provider 和对应 UI 查找真实 key。
 
+### 练习发声路由与音量（AVP）
+
+以下键值由 `UserDefaultsPracticeSessionSettingsProvider` 与练习设置 UI 共同维护（以代码为准）：
+
+| Key | 说明 |
+| --- | --- |
+| `practiceSoundOutputRoute` | 发声路由：`localSampler`（仅 AVP 发声）或 `externalMIDIDestination`（仅真实钢琴发声）。 |
+| `practiceMIDIDestinationUniqueID` | 外部 MIDI 输出目的地的 `kMIDIPropertyUniqueID`（`Int32`，可能为负数；`0` 表示未选择）。 |
+| `practiceSendLocalControlOff` | 是否 best-effort 向目的地发送 Local Control Off（CC122）。兼容性不保证，默认关闭。 |
+| `AudioOutputVolumeSettings.userDefaultsKey` | AVP 本地采样器输出音量（0…1）。仅影响 AVP sampler，不影响外部 MIDI 发往真实钢琴的力度/音量。 |
+
 说明（练习判定与设置项）：
 - “练习判定：左右手分别满足”已改为强制启用（不再作为可配置项，也不再暴露 UI 开关）。
 - 当前仍会通过 `UserDefaults` 保存练习手（左/右/双手）、手动推进方式与音频识别模式等设置项。

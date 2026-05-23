@@ -24,6 +24,13 @@
 
 模式注册由 `PianoModeCatalogService.makeDefaultModes()` 与 `PianoModeRegistryService` 完成。
 
+### 蓝牙 MIDI 模式的发声路由
+
+当选择“真实钢琴（蓝牙 MIDI）”时，练习回放支持两种路由：
+
+- 仅 AVP 发声：使用 AVP 内置 sampler（音量由练习设置里的“输出音量（AVP）”控制）。
+- 仅真实钢琴发声：把回放事件通过 CoreMIDI 发送到用户选择的 MIDI destination（`kMIDIPropertyUniqueID` 可能为负数；`0` 表示未选择）。
+
 ## 准备阶段 UI
 
 | 代码 | 说明 |

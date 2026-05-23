@@ -5,6 +5,12 @@ import Foundation
 struct PracticeSequencerSequence: Sendable {
     let midiData: Data
     let durationSeconds: TimeInterval
+    let events: [PracticeSequencerMIDIEvent]
+}
+
+struct PracticeOneShotNoteOn: Hashable, Sendable {
+    let midiNote: Int
+    let velocity: UInt8
 }
 
 @MainActor
@@ -14,7 +20,7 @@ protocol PracticeSequencerPlaybackServiceProtocol: AnyObject {
     func load(sequence: PracticeSequencerSequence) throws
     func play(fromSeconds start: TimeInterval) throws
     func currentSeconds() -> TimeInterval
-    func playOneShot(midiNotes: [Int], durationSeconds: TimeInterval) throws
+    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws
     func startLiveNotes(midiNotes: Set<Int>) throws
     func stopLiveNotes(midiNotes: Set<Int>)
     func stopAllLiveNotes()
@@ -25,6 +31,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
     private let engine: AVAudioEngine
     private let sampler: AVAudioUnitSampler
     private let sequencer: AVAudioSequencer
+    private let userDefaults: UserDefaults
 
     private let soundFontResourceName: String
     private let program: UInt8
@@ -32,12 +39,15 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
     private let channel: UInt8
 
     private var isReady = false
+    private var currentAudioOutputVolume: Float?
+    private let volumeObserver = VolumeChangeObserver()
     private var playingOneShotNotes: Set<UInt8> = []
     private var oneShotStopTask: Task<Void, Never>?
     private var liveNotes: Set<UInt8> = []
 
     init(
         soundFontResourceName: String,
+        userDefaults: UserDefaults = .standard,
         program: UInt8 = 0,
         velocity: UInt8 = 96,
         channel: UInt8 = 0
@@ -45,6 +55,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         engine = AVAudioEngine()
         sampler = AVAudioUnitSampler()
         sequencer = AVAudioSequencer(audioEngine: engine)
+        self.userDefaults = userDefaults
 
         self.soundFontResourceName = soundFontResourceName
         self.program = program
@@ -53,6 +64,14 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
         engine.attach(sampler)
         engine.connect(sampler, to: engine.mainMixerNode, format: nil)
+
+        applyAudioOutputVolumeIfNeeded()
+        volumeObserver.observeUserDefaultsDidChange { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.applyAudioOutputVolumeIfNeeded()
+            }
+        }
     }
 
     func warmUp() throws {
@@ -71,6 +90,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
     func load(sequence: PracticeSequencerSequence) throws {
         try ensureReady()
+        applyAudioOutputVolumeIfNeeded()
 
         stop()
 
@@ -87,6 +107,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
     func play(fromSeconds start: TimeInterval) throws {
         try ensureReady()
+        applyAudioOutputVolumeIfNeeded()
 
         sequencer.currentPositionInSeconds = max(0, start)
         try sequencer.start()
@@ -96,18 +117,22 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         sequencer.currentPositionInSeconds
     }
 
-    func playOneShot(midiNotes: [Int], durationSeconds: TimeInterval) throws {
-        let notes = midiNotes.compactMap { UInt8(exactly: $0) }
+    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
+        let notes = noteOns.compactMap { noteOn -> (note: UInt8, velocity: UInt8)? in
+            guard let note = UInt8(exactly: noteOn.midiNote) else { return nil }
+            return (note, noteOn.velocity)
+        }
         guard notes.isEmpty == false else { return }
 
         try ensureReady()
+        applyAudioOutputVolumeIfNeeded()
 
         oneShotStopTask?.cancel()
         oneShotStopTask = nil
 
         stopOneShotNotes()
 
-        for note in notes {
+        for (note, velocity) in notes {
             sampler.startNote(note, withVelocity: velocity, onChannel: channel)
             playingOneShotNotes.insert(note)
         }
@@ -122,6 +147,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
     func startLiveNotes(midiNotes: Set<Int>) throws {
         try ensureReady()
+        applyAudioOutputVolumeIfNeeded()
         for midiNote in midiNotes {
             guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) == false else { continue }
             sampler.startNote(note, withVelocity: velocity, onChannel: channel)
@@ -171,6 +197,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
             if engine.isRunning == false {
                 configureSessionBestEffort()
                 do {
+                    applyAudioOutputVolumeIfNeeded()
                     engine.prepare()
                     try engine.start()
                 } catch {
@@ -196,6 +223,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
                 bankMSB: UInt8(kAUSampler_DefaultMelodicBankMSB),
                 bankLSB: 0
             )
+            applyAudioOutputVolumeIfNeeded()
             engine.prepare()
             try engine.start()
             isReady = true
@@ -204,6 +232,34 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
                 resourceName: soundFontResourceName,
                 detail: error.localizedDescription
             )
+        }
+    }
+
+    private func applyAudioOutputVolumeIfNeeded() {
+        let volume = AudioOutputVolumeSettings.readAudioOutputVolume(from: userDefaults)
+        guard currentAudioOutputVolume != volume else { return }
+        currentAudioOutputVolume = volume
+        engine.mainMixerNode.outputVolume = volume
+    }
+}
+
+private final class VolumeChangeObserver: @unchecked Sendable {
+    private var token: NSObjectProtocol?
+
+    func observeUserDefaultsDidChange(_ onChange: @escaping @Sendable () -> Void) {
+        guard token == nil else { return }
+        token = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            onChange()
+        }
+    }
+
+    deinit {
+        if let token {
+            NotificationCenter.default.removeObserver(token)
         }
     }
 }
