@@ -1,0 +1,20 @@
+# SwiftFormat configuration for this repository.
+# Tool: https://github.com/nicklockwood/SwiftFormat
+
+--swiftversion 6.0
+--indent 4
+--linebreaks lf
+
+# Keep diffs stable: do not reflow long lines automatically.
+--maxwidth 0
+
+# Prefer trailing commas in multiline literals (matches existing style in this repo).
+--commas always
+
+# SwiftFormat's `redundantSelf` rule can remove `self.` in contexts where Swift 6 still
+# requires it (e.g. some escaping closure captures). Keep existing `self.` to avoid
+# introducing build breaks when running `swiftformat .`.
+--disable redundantSelf
+
+# Avoid touching generated/build artifacts or non-Swift workspaces.
+--exclude .build,**/.build,.swiftpm,**/.swiftpm,.derivedData,.derivedData-avp,tmp,.codegraph,.xcodebuildmcp,piano_dialogue_server
