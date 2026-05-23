@@ -71,3 +71,12 @@
 | 真实音频模式无法推进 | Microphone 权限、输入源噪声、音频识别阈值 | `PracticeAudioRecognitionService` 状态与 debug snapshot。 |
 | 虚拟钢琴无法继续 | 平面检测或放置确认未完成 | `VirtualPianoPlacementViewModel`、`GazePlaneHitTestService`。 |
 | Python 首次生成很慢 | 使用 `strategy=model` 加载模型 | 使用 `strategy=rule` 或 `strategy=deterministic` 验证轻量链路。 |
+
+## 代码格式化（SwiftFormat）
+
+仓库根目录提供 `.swiftformat` 配置文件，供 `swiftformat`（nicklockwood/SwiftFormat）统一 Swift 代码风格。
+
+常用命令（需本机安装 SwiftFormat）：
+- `brew install swiftformat`：通过 Homebrew 安装命令行工具。
+- `swiftformat .`：格式化整个仓库（会跳过 `.swiftformat` 中 `--exclude` 的目录）。
+- `swiftformat . --lint`：仅检查格式差异，不改文件。
