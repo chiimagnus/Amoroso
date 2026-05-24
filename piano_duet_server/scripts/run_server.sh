@@ -29,5 +29,12 @@ source .venv/bin/activate
 PIP_PROGRESS_BAR=off python -m pip install -q -U pip
 PIP_PROGRESS_BAR=off pip install -q -r requirements.txt
 
+if [ "${DUET_ENGINE:-auto}" = "magenta" ]; then
+  if [ -f "requirements-magenta.txt" ]; then
+    echo "Installing Magenta requirements..."
+    PIP_PROGRESS_BAR=off pip install -q -r requirements-magenta.txt
+  fi
+fi
+
 PORT="${PORT:-8766}"
 exec python -m uvicorn server.api.main:app --host 0.0.0.0 --port "$PORT"

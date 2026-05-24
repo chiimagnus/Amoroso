@@ -33,6 +33,15 @@ async def _lifespan(_: FastAPI):
         print(f"[Bonjour] failed to start: {type(error).__name__}: {error!r}")
 
     try:
+        from ..engines.inference_engine import get_inference_engine
+
+        engine = get_inference_engine()
+        print(f"[DuetEngine] ready: {type(engine).__name__}")
+    except Exception as error:  # noqa: BLE001
+        # Best-effort: keep server alive even if model init fails.
+        print(f"[DuetEngine] failed to init: {type(error).__name__}: {error!r}")
+
+    try:
         yield
     finally:
         if broadcaster is not None:
@@ -56,7 +65,7 @@ def health() -> dict[str, str]:
 
 @app.post("/generate")
 async def generate(request: GenerateRequest) -> ResultResponse:
-    from ..engines.placeholder_inference import get_inference_engine
+    from ..engines.inference_engine import get_inference_engine
 
     t0 = time.perf_counter()
     engine = get_inference_engine()
