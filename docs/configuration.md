@@ -53,7 +53,7 @@
 
 | 项 | 默认值 / 位置 | 说明 |
 | --- | --- | --- |
-| host | `0.0.0.0` in `python_backend/duet/scripts/run_server.sh` | 便于 AVP 真机访问。 |
+| host | `0.0.0.0` in `python_backend/scripts/run_duet_server.sh` | 便于 AVP 真机访问。 |
 | port | `8766` | HTTP 与 Bonjour 广播使用同一端口（可用 `PORT` 覆盖）。 |
 | Bonjour service type | `_lpduet._tcp.local.` | `python_backend/shared/bonjour.py`（服务端调用）与 AVP discovery 对齐。 |
 | TXT record | `path=/generate` `protocol_version=1` `engine=magenta` | AVP 用于筛选实例避免误连。 |
