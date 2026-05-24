@@ -3,6 +3,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+DUET_ENGINE="${DUET_ENGINE:-placeholder}"
+VENV_DIR=".venv"
+if [ "$DUET_ENGINE" = "magenta" ]; then
+  VENV_DIR=".venv-magenta"
+fi
+
 PORT="${PORT:-8766}"
 HOST="127.0.0.1"
 BASE_URL="http://${HOST}:${PORT}"
@@ -31,7 +37,7 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   exit 1
 fi
 
-if [ "${DUET_ENGINE:-placeholder}" = "magenta" ]; then
+if [ "$DUET_ENGINE" = "magenta" ]; then
   py_ver="$("$PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
   if [ "$py_ver" != "3.9" ]; then
     echo "Error: DUET_ENGINE=magenta requires Python 3.9 (got ${py_ver})." >&2
@@ -41,28 +47,28 @@ if [ "${DUET_ENGINE:-placeholder}" = "magenta" ]; then
 fi
 
 desired_py_ver="$("$PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-if [ -d ".venv" ]; then
+if [ -d "$VENV_DIR" ]; then
   venv_py_ver=""
-  if [ -x ".venv/bin/python" ]; then
-    venv_py_ver="$(.venv/bin/python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
+  if [ -x "$VENV_DIR/bin/python" ]; then
+    venv_py_ver="$("$VENV_DIR/bin/python" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || true)"
   fi
   if [ -n "$venv_py_ver" ] && [ "$venv_py_ver" != "$desired_py_ver" ]; then
-    echo "Existing .venv uses Python ${venv_py_ver}; recreating with Python ${desired_py_ver}..." >&2
-    rm -rf .venv
+    echo "Existing ${VENV_DIR} uses Python ${venv_py_ver}; recreating with Python ${desired_py_ver}..." >&2
+    rm -rf "$VENV_DIR"
   fi
 fi
 
-if [ ! -d ".venv" ]; then
-  "$PYTHON" -m venv .venv
+if [ ! -d "$VENV_DIR" ]; then
+  "$PYTHON" -m venv "$VENV_DIR"
 fi
 
 # shellcheck disable=SC1091
-source .venv/bin/activate
+source "$VENV_DIR/bin/activate"
 
 PIP_PROGRESS_BAR=off python -m pip install -q -U pip
 PIP_PROGRESS_BAR=off pip install -q -r requirements.txt
 
-if [ "${DUET_ENGINE:-placeholder}" = "magenta" ]; then
+if [ "$DUET_ENGINE" = "magenta" ]; then
   magenta_requirements="requirements-magenta.txt"
   if [ -f "requirements-magenta-locked.txt" ]; then
     magenta_requirements="requirements-magenta-locked.txt"
