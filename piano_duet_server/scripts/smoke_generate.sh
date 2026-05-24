@@ -98,3 +98,23 @@ if [ "${reply_notes_min_time}" != "0.0" ] && [ "${reply_notes_min_time}" != "0" 
 fi
 
 echo "generate ok reply_notes_count=${reply_notes_count}"
+
+span_for_max_tokens() {
+  local max_tokens="$1"
+  local payload_local
+  payload_local="$(echo "$payload" | python -c 'import json,sys; p=json.loads(sys.stdin.read()); p["params"]["max_tokens"]=int(sys.argv[1]); print(json.dumps(p))' "${max_tokens}")"
+  local response_local
+  response_local="$(curl -fsS -H 'Content-Type: application/json' -d "$payload_local" "${BASE_URL}/generate")"
+  echo "$response_local" | python -c 'import json,sys; notes=json.loads(sys.stdin.read()).get("notes", []); end=max((float(n["time"])+float(n["duration"]) for n in notes), default=0.0); print(end)'
+}
+
+span_64="$(span_for_max_tokens 64)"
+span_512="$(span_for_max_tokens 512)"
+
+python - <<PY
+span_64 = float("${span_64}")
+span_512 = float("${span_512}")
+if not (span_512 > span_64):
+    raise SystemExit(f"max_tokens span check failed: span_64={span_64} span_512={span_512}")
+print(f"span ok span_64={span_64} span_512={span_512}")
+PY

@@ -101,16 +101,60 @@ class MagentaPerformanceRNNEngine(InferenceEngineProtocol):
 
         primer_sequence = dialogue_notes_to_note_sequence(notes, qpm=120.0)
 
-        # P2-T2: correctness first; parameter mapping in P2-T3.
-        reply_len_sec = 6.0
+        reply_len_sec = self._reply_len_sec_from_max_tokens(int(params.max_tokens))
         start_time = prompt_end_sec
         end_time = prompt_end_sec + reply_len_sec
 
         with self._lock:
             generator_options = self._generator_pb2.GeneratorOptions()
-            generator_options.args["temperature"].float_value = 1.0
+            generator_options.args["temperature"].float_value = self._temperature_from_top_p(float(params.top_p))
             generator_options.generate_sections.add(start_time=float(start_time), end_time=float(end_time))
             sequence = self._generator.generate(primer_sequence, generator_options)
 
         reply = note_sequence_to_dialogue_notes(sequence, start_at_sec=float(prompt_end_sec))
+        reply = self._postprocess_reply_notes(reply, prompt_notes=notes)
         return legalize_notes(reply)
+
+    def _reply_len_sec_from_max_tokens(self, max_tokens: int) -> float:
+        # Keep behavior consistent with the local rule backend.
+        seconds = float(max_tokens) / 64.0
+        return max(2.0, min(12.0, seconds))
+
+    def _temperature_from_top_p(self, top_p: float) -> float:
+        # Performance RNN doesn't have `top_p`; we map it to `temperature`.
+        # More top_p -> more randomness (higher temperature).
+        top_p = max(0.0, min(1.0, float(top_p)))
+        t = 0.0
+        if top_p <= 0.7:
+            t = 0.0
+        elif top_p >= 1.0:
+            t = 1.0
+        else:
+            t = (top_p - 0.7) / 0.3
+        temperature = 0.8 + (1.2 - 0.8) * t
+        return max(0.5, min(1.5, temperature))
+
+    def _postprocess_reply_notes(self, reply_notes: list[DialogueNote], prompt_notes: list[DialogueNote]) -> list[DialogueNote]:
+        # Clamp to a piano-friendly range and avoid extreme values.
+        default_velocity = 80
+        if prompt_notes:
+            velocities = [int(n.velocity) for n in prompt_notes if int(n.velocity) > 0]
+            if velocities:
+                default_velocity = int(sum(velocities) / len(velocities))
+                default_velocity = max(1, min(127, default_velocity))
+
+        processed: list[DialogueNote] = []
+        for n in reply_notes:
+            duration = float(n.duration)
+            if duration < 0.03:
+                continue
+            processed.append(
+                DialogueNote(
+                    note=max(21, min(108, int(n.note))),
+                    velocity=max(1, min(127, int(n.velocity) if int(n.velocity) > 0 else default_velocity)),
+                    time=float(n.time),
+                    duration=duration,
+                )
+            )
+
+        return processed
