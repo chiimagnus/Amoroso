@@ -3,7 +3,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from ..api.protocol import DialogueNote, GenerateParams, legalize_notes
+from api.protocol import DialogueNote, GenerateParams, legalize_notes
 
 
 @dataclass(frozen=True)
