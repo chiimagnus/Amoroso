@@ -118,9 +118,6 @@ struct PracticeStepView: View {
                         onRequestSessionRebuild: {
                             viewModel.replacePracticeSessionViewModel()
                         },
-                        onRestartBackendDiscovery: {
-                            viewModel.restartBackendDiscoveryForSelectedBackend()
-                        }
                     )
                 }
 

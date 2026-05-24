@@ -16,7 +16,6 @@ struct PracticeSettingsView: View {
     let onOpenTakeLibrary: () -> Void
     let onRetryVirtualPianoPlacement: () -> Void
     let onRequestSessionRebuild: () -> Void
-    let onRestartBackendDiscovery: () -> Void
 
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
     @AppStorage(AudioOutputVolumeSettings.userDefaultsKey)
@@ -127,30 +126,6 @@ struct PracticeSettingsView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if ImprovBackendKind(rawValue: improvBackendKindRawValue) == .networkBonjourHTTPDuet {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("电脑端启动命令（在仓库根目录执行）")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-
-                            Text(duetServerStartCommand)
-                                .font(.footnote.monospaced())
-                                .textSelection(.enabled)
-
-                            HStack(spacing: 12) {
-                                Button("复制启动命令", systemImage: "doc.on.doc") {
-                                    copyToPasteboard(duetServerStartCommand)
-                                }
-                                .buttonStyle(.bordered)
-
-                                Button("重新发现后端", systemImage: "arrow.clockwise") {
-                                    onRestartBackendDiscovery()
-                                }
-                                .buttonStyle(.bordered)
-                            }
-                        }
-                    }
-
                     if let lastImprovStatusText {
                         Text(lastImprovStatusText)
                             .font(.footnote)
@@ -251,15 +226,6 @@ struct PracticeSettingsView: View {
             "按谱片段回放（tick-range replay）"
         }
     }
-
-    @MainActor
-    private func copyToPasteboard(_ value: String) {
-        #if canImport(UIKit)
-        UIPasteboard.general.string = value
-        #else
-        _ = value
-        #endif
-    }
 }
 
 #Preview("练习设置") {
@@ -275,7 +241,6 @@ struct PracticeSettingsView: View {
         gazePlaneDiskStatusText: "GazePlaneDisk: OK",
         onOpenTakeLibrary: {},
         onRetryVirtualPianoPlacement: {},
-        onRequestSessionRebuild: {},
-        onRestartBackendDiscovery: {}
+        onRequestSessionRebuild: {}
     )
 }
