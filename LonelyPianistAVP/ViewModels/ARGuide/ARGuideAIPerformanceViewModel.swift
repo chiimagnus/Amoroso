@@ -148,6 +148,7 @@ final class ARGuideAIPerformanceViewModel {
         ImprovBackendRegistry(
             backends: [
                 DuetNetworkBonjourHTTPImprovBackend(discoveryService: duetDiscoveryService),
+                LocalCoreMLDuetImprovBackend(),
                 LocalRuleImprovBackend(),
                 TickRangeReplayImprovBackend(),
             ]
