@@ -27,6 +27,25 @@ rtk ./python_backend/scripts/smoke_duet_generate.sh
 
 看到 `health ok` 与 `generate ok` 即表示服务可用。
 
+## 默认行为（重要）
+
+当前 `run_duet_server.sh` 默认：
+
+- `DUET_ENGINE=magenta`（优先追求生成质量）
+- `DUET_DEBUG=1`（默认落盘 debug bundle 便于调参/回归）
+
+如需关闭 debug bundle：
+
+```bash
+rtk env DUET_DEBUG=0 ./python_backend/scripts/run_duet_server.sh
+```
+
+如需强制使用 placeholder（无 Magenta 依赖，质量较低但启动快）：
+
+```bash
+rtk env DUET_ENGINE=placeholder ./python_backend/scripts/run_duet_server.sh
+```
+
 ## 启用 Magenta（Performance RNN）
 
 P1 阶段默认使用占位生成器；要启用 Magenta Performance RNN：
