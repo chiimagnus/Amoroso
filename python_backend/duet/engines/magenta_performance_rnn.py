@@ -4,7 +4,7 @@ import os
 import threading
 import time
 
-from ..api.protocol import DialogueNote, GenerateParams, legalize_notes
+from api.protocol import DialogueNote, GenerateParams, legalize_notes
 from .inference_engine_protocol import InferenceEngineProtocol
 from .note_conversion import dialogue_notes_to_note_sequence, note_sequence_to_dialogue_notes
 
@@ -60,7 +60,7 @@ class MagentaPerformanceRNNEngine(InferenceEngineProtocol):
             basename = os.path.basename(bundle_file)
             return (bundle_file, self._infer_model_name_from_bundle_basename(basename))
 
-        models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "models"))
+        models_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "models"))
         candidates: list[tuple[str, str]] = [
             ("performance_with_dynamics_and_modkey.mag", "performance_with_dynamics_and_modkey"),
             ("performance_with_dynamics.mag", "performance_with_dynamics"),
@@ -72,7 +72,7 @@ class MagentaPerformanceRNNEngine(InferenceEngineProtocol):
 
         raise FileNotFoundError(
             "Magenta bundle (.mag) not found.\n"
-            "Run: ./scripts/download_model.sh\n"
+            "Run: ./python_backend/scripts/download_model.sh\n"
             "Or set DUET_BUNDLE_FILE=/path/to/bundle.mag"
         )
 

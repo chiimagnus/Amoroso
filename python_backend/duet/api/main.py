@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .protocol import GenerateRequest, ResultResponse, legalize_notes
-from ..service_profile import DEBUG_ENV_KEY, DEFAULT_PORT, INSTANCE_NAME, SERVICE_TYPE, TXT_RECORD
+from service_profile import DEBUG_ENV_KEY, DEFAULT_PORT, INSTANCE_NAME, SERVICE_TYPE, TXT_RECORD
 
 
 @asynccontextmanager
@@ -18,7 +18,7 @@ async def _lifespan(_: FastAPI):
     engine = None
     engine_impl = None
     try:
-        from ..engines.inference_engine import get_inference_engine
+        from engines.inference_engine import get_inference_engine
 
         engine = get_inference_engine()
         engine_impl = type(engine).__name__
@@ -71,7 +71,7 @@ def health() -> dict[str, str]:
 
 @app.post("/generate")
 async def generate(request: GenerateRequest) -> ResultResponse:
-    from ..engines.inference_engine import get_inference_engine
+    from engines.inference_engine import get_inference_engine
 
     t0 = time.perf_counter()
     engine = get_inference_engine()
@@ -85,7 +85,7 @@ async def generate(request: GenerateRequest) -> ResultResponse:
 
         if debug_enabled(DEBUG_ENV_KEY):
             req_id = new_request_id()
-            service_root = Path(__file__).resolve().parents[3]
+            service_root = Path(__file__).resolve().parents[2]
 
             def span(notes_dump: list[dict]) -> dict[str, float]:
                 if not notes_dump:
