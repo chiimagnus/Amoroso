@@ -194,12 +194,14 @@ struct PracticeSettingsView: View {
 
     private var effectiveBackendStatusText: String? {
         guard let selectedKind = ImprovBackendKind(rawValue: improvBackendKindRawValue) else {
-            return "Backend: invalid kind"
+            return backendStatusText ?? "即兴后端设置已变更，请重新选择。"
         }
 
         switch selectedKind {
         case .networkBonjourHTTP:
             return backendStatusText ?? "Backend: network"
+        case .networkBonjourHTTPDuet:
+            return backendStatusText ?? "Backend: duet"
         case .localRule:
             return "Backend: local rule"
         case .tickRangeReplay:
@@ -211,6 +213,8 @@ struct PracticeSettingsView: View {
         switch kind {
         case .networkBonjourHTTP:
             "网络本地连接（电脑端 Python）"
+        case .networkBonjourHTTPDuet:
+            "网络本地连接（A.I. Duet / Magenta）"
         case .localRule:
             "本地 rule（AVP）"
         case .tickRangeReplay:
