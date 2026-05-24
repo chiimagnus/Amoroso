@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..api.protocol import DialogueNote
+from api.protocol import DialogueNote
 
 
 def dialogue_notes_to_note_sequence(

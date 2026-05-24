@@ -34,7 +34,7 @@ P1 阶段默认使用占位生成器；要启用 Magenta Performance RNN：
 1) 下载模型：
 
 ```bash
-rtk ./python_backend/duet/scripts/download_model.sh
+rtk ./python_backend/scripts/download_model.sh
 ```
 
 2) 用 Python 3.9 启动（并启用 `DUET_ENGINE=magenta`）：
@@ -43,7 +43,7 @@ rtk ./python_backend/duet/scripts/download_model.sh
 rtk env DUET_ENGINE=magenta PYTHON=python3.9 ./python_backend/scripts/run_duet_server.sh
 ```
 
-当 `DUET_ENGINE=magenta` 时，`run_server.sh` 会额外安装 Magenta 依赖（优先使用 `requirements-magenta-locked.txt`；否则回退到 `requirements-magenta.txt`）。
+当 `DUET_ENGINE=magenta` 时，`run_duet_server.sh` 会额外安装 Magenta 依赖（优先使用 `requirements-magenta-locked.txt`；否则回退到 `requirements-magenta.txt`）。
 如果 Magenta 依赖或模型缺失，服务会明确报错（不会静默降级到占位引擎）。
 
 ### 参数影响（简化版）

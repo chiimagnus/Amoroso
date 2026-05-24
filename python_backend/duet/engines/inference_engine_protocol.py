@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from ..api.protocol import DialogueNote, GenerateParams
+from api.protocol import DialogueNote, GenerateParams
 
 
 class InferenceEngineProtocol(Protocol):
