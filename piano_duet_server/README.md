@@ -2,8 +2,6 @@
 
 一个本机运行的 HTTP 服务：接收 “对话音符 JSON 协议” 的 `/generate` 请求，并返回一段可播放的回复音符。
 
-P1 阶段只提供占位生成器（用于打通 AVP 端到端链路）；P2 才接入 Magenta Performance RNN。
-
 ## 启动
 
 ```bash
@@ -39,13 +37,13 @@ P1 阶段默认使用占位生成器；要启用 Magenta Performance RNN：
 rtk ./scripts/download_model.sh
 ```
 
-2) 用 Python 3.10 启动（并启用 `DUET_ENGINE=magenta`）：
+2) 用 Python 3.9 启动（并启用 `DUET_ENGINE=magenta`）：
 
 ```bash
-rtk env DUET_ENGINE=magenta PYTHON=python3.10 ./scripts/run_server.sh
+rtk env DUET_ENGINE=magenta PYTHON=python3.9 ./scripts/run_server.sh
 ```
 
-当 `DUET_ENGINE=magenta` 时，`run_server.sh` 会额外安装 `requirements-magenta.txt`。
+当 `DUET_ENGINE=magenta` 时，`run_server.sh` 会额外安装 Magenta 依赖（优先使用 `requirements-magenta-locked.txt`；否则回退到 `requirements-magenta.txt`）。
 如果 Magenta 依赖或模型缺失，服务会明确报错（不会静默降级到占位引擎）。
 
 ### 参数影响（简化版）
@@ -57,7 +55,7 @@ rtk env DUET_ENGINE=magenta PYTHON=python3.10 ./scripts/run_server.sh
 
 ## 常见问题
 
-- 发现不到 Python 3.10：Magenta 依赖链需要 Python 3.9/3.10。建议使用 `pyenv` 安装 `3.10.x` 并用 `PYTHON=python3.10` 指定。
+- 发现不到 Python 3.9：当前这套 Magenta/TF pins 需要 Python 3.9。可用 Homebrew 安装 `python@3.9`，并用 `PYTHON=python3.9` 指定。
 - AVP 连不上：确保服务用 `--host 0.0.0.0` 监听（本项目已默认），并确认端口与 Bonjour 广播一致（默认都是 `8766`）。
 
 ## Bonjour 发现（给排障用）
