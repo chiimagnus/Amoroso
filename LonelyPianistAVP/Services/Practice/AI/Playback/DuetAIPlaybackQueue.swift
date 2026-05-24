@@ -5,6 +5,8 @@ actor DuetAIPlaybackQueue {
     struct EnqueueResult: Equatable, Sendable {
         let shiftedSchedule: [PracticeSequencerMIDIEvent]
         let baseDelaySeconds: TimeInterval
+        let queueCount: Int
+        let aiEndUptimeSeconds: TimeInterval
     }
 
     private struct QueueItem: Sendable {
@@ -69,7 +71,12 @@ actor DuetAIPlaybackQueue {
         queue.append(QueueItem(schedule: shifted, routing: routing, enqueuedAtUptimeSeconds: now))
         ensurePlaybackLoop()
 
-        return EnqueueResult(shiftedSchedule: shifted, baseDelaySeconds: baseDelay)
+        return EnqueueResult(
+            shiftedSchedule: shifted,
+            baseDelaySeconds: baseDelay,
+            queueCount: queue.count,
+            aiEndUptimeSeconds: aiEndUptimeSeconds
+        )
     }
 
     private func ensurePlaybackLoop() {

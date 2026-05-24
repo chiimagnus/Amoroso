@@ -41,7 +41,7 @@ func duetPhraseBufferFlushTrimsLast15SecondsAndRebasesWhenOver10Seconds() {
 func duetPhrasePolicyAdditionalSecondsClampsToRange() {
     func additional(endTime: TimeInterval) -> TimeInterval {
         DuetPhrasePolicy.makeResult(
-            from: DuetPhraseBuffer.FlushResult(trimmedNotes: [], endTimeSeconds: endTime)
+            from: DuetPhraseBuffer.FlushResult(trimmedNotes: [], untrimmedEndTimeSeconds: endTime, endTimeSeconds: endTime)
         ).desiredReplySeconds
     }
 

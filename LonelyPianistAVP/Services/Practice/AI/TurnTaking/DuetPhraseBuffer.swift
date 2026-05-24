@@ -9,6 +9,9 @@ struct DuetPhraseBuffer: Sendable {
         /// Trimmed and rebased notes (A.I. Duet style: if duration > 10s keep last 15s and rebase).
         let trimmedNotes: [ImprovDialogueNote]
 
+        /// Phrase duration before trimming/rebasing.
+        let untrimmedEndTimeSeconds: TimeInterval
+
         /// Phrase duration after trimming.
         let endTimeSeconds: TimeInterval
     }
@@ -75,7 +78,7 @@ struct DuetPhraseBuffer: Sendable {
 
         guard recordedNotes.isEmpty == false else {
             phraseStartTimestampSeconds = nil
-            return FlushResult(trimmedNotes: [], endTimeSeconds: 0)
+            return FlushResult(trimmedNotes: [], untrimmedEndTimeSeconds: 0, endTimeSeconds: 0)
         }
 
         let base = phraseStartTimestampSeconds ?? (recordedNotes.map(\.time).min() ?? 0)
@@ -98,13 +101,17 @@ struct DuetPhraseBuffer: Sendable {
 
         let phraseEndTimeSeconds = sorted.map { $0.time + $0.duration }.max() ?? 0
         if phraseEndTimeSeconds <= 10 {
-            return FlushResult(trimmedNotes: sorted, endTimeSeconds: phraseEndTimeSeconds)
+            return FlushResult(
+                trimmedNotes: sorted,
+                untrimmedEndTimeSeconds: phraseEndTimeSeconds,
+                endTimeSeconds: phraseEndTimeSeconds
+            )
         }
 
         let windowStartSeconds = max(0, phraseEndTimeSeconds - 15)
         let windowed = sorted.filter { $0.time >= windowStartSeconds }
         guard windowed.isEmpty == false else {
-            return FlushResult(trimmedNotes: [], endTimeSeconds: 0)
+            return FlushResult(trimmedNotes: [], untrimmedEndTimeSeconds: phraseEndTimeSeconds, endTimeSeconds: 0)
         }
 
         let windowBase = windowStartSeconds
@@ -120,7 +127,11 @@ struct DuetPhraseBuffer: Sendable {
             return lhs.note < rhs.note
         }
         let rebasedEndTimeSeconds = rebasedWindow.map { $0.time + $0.duration }.max() ?? 0
-        return FlushResult(trimmedNotes: rebasedWindow, endTimeSeconds: rebasedEndTimeSeconds)
+        return FlushResult(
+            trimmedNotes: rebasedWindow,
+            untrimmedEndTimeSeconds: phraseEndTimeSeconds,
+            endTimeSeconds: rebasedEndTimeSeconds
+        )
     }
 
     mutating func reset() {

@@ -28,6 +28,11 @@ protocol ImprovBackendDiscoveryOrchestrating: AnyObject, Sendable {
 
 @MainActor
 final class AIPerformanceService {
+    private enum TriggerReason: String, Sendable {
+        case shortPhrase = "short"
+        case longPhrase = "long"
+    }
+
     struct State: Equatable {
         var isAIPerformanceActive: Bool
         var isAIGenerating: Bool
@@ -55,6 +60,7 @@ final class AIPerformanceService {
 
     private var turnTakingCore = DuetTurnTakingCore()
     private var pendingSendTask: Task<Void, Never>?
+    private var pendingSendReason: TriggerReason?
     private var inFlightGenerateTasks: [Int: Task<Void, Never>] = [:]
     private var nextGenerateSequenceID = 0
 
@@ -120,6 +126,7 @@ final class AIPerformanceService {
 
             pendingSendTask?.cancel()
             pendingSendTask = nil
+            pendingSendReason = nil
 
             for task in inFlightGenerateTasks.values {
                 task.cancel()
@@ -151,7 +158,7 @@ final class AIPerformanceService {
 
         if wasEnabled == false {
             turnTakingCore.reset()
-            lastImprovStatusText = "AI 即兴：松手后约 0.6 秒触发（长句松手立即触发）"
+            lastImprovStatusText = "AI 即兴：松手后约 0.6 秒触发（长句松手立即触发；播放期间也可继续触发）"
             latestSchedule = []
             notifyStateChanged()
         }
@@ -236,25 +243,31 @@ final class AIPerformanceService {
         case .cancelPendingSend:
             pendingSendTask?.cancel()
             pendingSendTask = nil
+            pendingSendReason = nil
+            logger.debug("turn-taking cancel pending send")
         case let .scheduleSend(deadlineTimestampSeconds):
             pendingSendTask?.cancel()
+            pendingSendReason = .shortPhrase
             pendingSendTask = Task { @MainActor [weak self] in
                 guard let self else { return }
                 let delaySeconds = max(0, deadlineTimestampSeconds - nowUptimeSeconds())
+                logger.debug("turn-taking schedule send in \(delaySeconds, privacy: .public)s")
                 await sleepFor(.seconds(delaySeconds))
                 guard Task.isCancelled == false else { return }
-                await triggerSendNow()
+                await triggerSendNow(reason: pendingSendReason ?? .shortPhrase)
             }
         case .sendNow:
             pendingSendTask?.cancel()
             pendingSendTask = nil
+            pendingSendReason = .longPhrase
+            logger.debug("turn-taking send now (long phrase)")
             Task { @MainActor [weak self] in
-                await self?.triggerSendNow()
+                await self?.triggerSendNow(reason: .longPhrase)
             }
         }
     }
 
-    private func triggerSendNow() async {
+    private func triggerSendNow(reason: TriggerReason) async {
         guard isEnabled else { return }
         guard let practiceSession else { return }
         guard practiceSession.autoplayState == .off else { return }
@@ -267,10 +280,20 @@ final class AIPerformanceService {
 
         let maxTokens = max(1, Int((policy.desiredReplySeconds * 64.0).rounded()))
         let estimatedReplySeconds = estimatedBackendReplySeconds(maxTokens: maxTokens)
+        let wasTrimmed = flushedPhrase.untrimmedEndTimeSeconds > 10 && abs(flushedPhrase.untrimmedEndTimeSeconds - flushedPhrase.endTimeSeconds) > 1e-9
         lastImprovStatusText = "即兴：prompt=\(formatSeconds(policy.promptEndTimeSeconds))s " +
             "replyWanted=\(formatSeconds(policy.desiredReplySeconds))s " +
             "replyMapped≈\(formatSeconds(estimatedReplySeconds))s"
         notifyStateChanged()
+
+        let triggerLogMessage =
+            "trigger send reason=\(reason.rawValue) " +
+            "prompt=\(policy.promptEndTimeSeconds)s " +
+            "untrimmed=\(flushedPhrase.untrimmedEndTimeSeconds)s " +
+            "trimmed=\(flushedPhrase.endTimeSeconds)s " +
+            "trim=\(wasTrimmed) " +
+            "maxTokens=\(maxTokens)"
+        logger.info("\(triggerLogMessage, privacy: .public)")
 
         let kind = selectedBackendKind()
         let sequenceID = nextGenerateSequenceID
@@ -286,6 +309,7 @@ final class AIPerformanceService {
                 notifyStateChanged()
             }
 
+            logger.debug("improv generate start kind=\(kind.rawValue, privacy: .public) seq=\(sequenceID, privacy: .public)")
             await attemptSelectedBackendImprov(kind: kind, promptNotes: policy.promptNotes, maxTokens: maxTokens)
         }
         inFlightGenerateTasks[sequenceID] = task
@@ -327,6 +351,11 @@ final class AIPerformanceService {
 
         switch playbackPlan {
         case let .schedule(schedule, backendLatencyMS):
+            if let backendLatencyMS {
+                logger.info("improv reply kind=\(kind.rawValue, privacy: .public) latencyMS=\(backendLatencyMS, privacy: .public)")
+            } else {
+                logger.info("improv reply kind=\(kind.rawValue, privacy: .public)")
+            }
             await enqueueAIPlaybackSchedule(schedule)
             if kind == .networkBonjourHTTPDuet, let backendLatencyMS {
                 lastImprovStatusText = "上次生成耗时：\(backendLatencyMS)ms"
@@ -353,6 +382,12 @@ final class AIPerformanceService {
         let result = await aiPlaybackQueue.enqueue(schedule: schedule, routing: routing, enqueuedAtUptimeSeconds: now)
         latestSchedule = result.shiftedSchedule
         notifyStateChanged()
+
+        let enqueueLogMessage =
+            "ai enqueue baseDelay=\(result.baseDelaySeconds)s " +
+            "queueCount=\(result.queueCount) " +
+            "aiEnd=\(result.aiEndUptimeSeconds)"
+        logger.info("\(enqueueLogMessage, privacy: .public)")
     }
 
     private func enqueueAIPlaybackTickRange(_ tickRange: (startTick: Int, endTick: Int)) async {
