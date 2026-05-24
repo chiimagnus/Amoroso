@@ -571,7 +571,6 @@ final class ARGuideViewModel {
         case .practice:
             let nowUptime = ProcessInfo.processInfo.systemUptime
             placementViewModel.updateLatestDeviceWorldPosition(nowUptime: nowUptime)
-            guard isAIPerformanceActive == false else { return }
 
             if isVirtualPianoEnabled {
                 placementViewModel.updateGuidance(fingerTips: fingerTips, nowUptime: nowUptime)
