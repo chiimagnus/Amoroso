@@ -13,4 +13,3 @@ TXT_RECORD: dict[bytes, bytes] = {
     # Product identifier used for client-side filtering.
     b"engine": b"magenta",
 }
-
