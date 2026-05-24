@@ -27,11 +27,14 @@ class PlaceholderInferenceEngine:
         base = max(36, min(84, last_note))
         velocity = max(0, min(127, max(40, min(110, last_velocity))))
 
-        reply: list[DialogueNote] = []
+        reply_len_sec = max(2.0, min(12.0, float(params.max_tokens) / 64.0))
         step = 0.18
         dur = 0.16
-        for i in range(len(pattern)):
-            pitch = base + pattern[i] + rng.choice([0, 0, 0, 12])
+        count = max(1, int(reply_len_sec / step))
+
+        reply: list[DialogueNote] = []
+        for i in range(count):
+            pitch = base + pattern[i % len(pattern)] + rng.choice([0, 0, 0, 12])
             reply.append(
                 DialogueNote(
                     note=int(pitch),

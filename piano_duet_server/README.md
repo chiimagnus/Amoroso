@@ -47,6 +47,13 @@ rtk env DUET_ENGINE=magenta PYTHON=python3.10 ./scripts/run_server.sh
 
 当 `DUET_ENGINE=magenta` 时，`run_server.sh` 会额外安装 `requirements-magenta.txt`。
 
+### 参数影响（简化版）
+
+`/generate` 的参数会影响回应的长度与随机性：
+
+- `max_tokens`：映射为回应时长（约 `max_tokens / 64` 秒，最终 clamp 到 2–12 秒）
+- `top_p`：映射为 Magenta 的 `temperature`（更高更随机）
+
 ## 常见问题
 
 - 发现不到 Python 3.10：Magenta 依赖链需要 Python 3.9/3.10。建议使用 `pyenv` 安装 `3.10.x` 并用 `PYTHON=python3.10` 指定。
