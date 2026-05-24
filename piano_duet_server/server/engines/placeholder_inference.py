@@ -2,18 +2,8 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Protocol
 
 from ..api.protocol import DialogueNote, GenerateParams, legalize_notes
-
-
-class InferenceEngineProtocol(Protocol):
-    def generate_response(
-        self,
-        notes: list[DialogueNote],
-        params: GenerateParams,
-        session_id: str | None,
-    ) -> list[DialogueNote]: ...
 
 
 @dataclass(frozen=True)
@@ -52,13 +42,3 @@ class PlaceholderInferenceEngine:
             )
 
         return legalize_notes(reply)
-
-
-_ENGINE: InferenceEngineProtocol | None = None
-
-
-def get_inference_engine() -> InferenceEngineProtocol:
-    global _ENGINE  # noqa: PLW0603
-    if _ENGINE is None:
-        _ENGINE = PlaceholderInferenceEngine()
-    return _ENGINE

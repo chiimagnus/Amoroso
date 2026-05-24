@@ -29,10 +29,28 @@ rtk ./scripts/smoke_generate.sh
 
 看到 `health ok` 与 `generate ok` 即表示服务可用。
 
+## 启用 Magenta（Performance RNN）
+
+P1 阶段默认使用占位生成器；要启用 Magenta Performance RNN：
+
+1) 下载模型：
+
+```bash
+rtk ./scripts/download_model.sh
+```
+
+2) 用 Python 3.10 启动（并启用 `DUET_ENGINE=magenta`）：
+
+```bash
+rtk env DUET_ENGINE=magenta PYTHON=python3.10 ./scripts/run_server.sh
+```
+
+当 `DUET_ENGINE=magenta` 时，`run_server.sh` 会额外安装 `requirements-magenta.txt`。
+
 ## 常见问题
 
-- 发现不到 Python 3.10：安装 Python 3.10，或用 `PYTHON=python3` 指向你本机的 Python。
-- AVP 连不上：确保服务用 `--host 0.0.0.0` 监听（本项目已默认），并确认端口与 Bonjour 广播一致（P2 会补齐 Bonjour）。
+- 发现不到 Python 3.10：Magenta 依赖链需要 Python 3.9/3.10。建议使用 `pyenv` 安装 `3.10.x` 并用 `PYTHON=python3.10` 指定。
+- AVP 连不上：确保服务用 `--host 0.0.0.0` 监听（本项目已默认），并确认端口与 Bonjour 广播一致（默认都是 `8766`）。
 
 ## Bonjour 发现（给排障用）
 
