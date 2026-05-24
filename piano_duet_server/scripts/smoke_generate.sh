@@ -74,12 +74,26 @@ payload='{
 
 response="$(curl -fsS -H 'Content-Type: application/json' -d "$payload" "${BASE_URL}/generate")"
 reply_notes_count="$(echo "$response" | python -c 'import json,sys; print(len(json.loads(sys.stdin.read()).get("notes", [])))')"
+reply_notes_min_time="$(echo "$response" | python -c 'import json,sys; notes=json.loads(sys.stdin.read()).get("notes", []); print(min([float(n.get("time", 0.0)) for n in notes], default=0.0))')"
+reply_notes_has_invalid="$(echo "$response" | python -c 'import json,sys; notes=json.loads(sys.stdin.read()).get("notes", []); bad=any(float(n.get("time",0.0))<0 or float(n.get("duration",0.0))<=0 for n in notes); print("1" if bad else "0")')"
 
 if [ "${reply_notes_count}" -le 0 ]; then
   echo "generate failed: reply_notes_count<=0"
   echo "$response"
   echo "--- server log ---"
   tail -n 200 /tmp/piano_duet_server_smoke.log || true
+  exit 1
+fi
+
+if [ "${reply_notes_has_invalid}" != "0" ]; then
+  echo "generate failed: invalid time/duration in reply"
+  echo "$response"
+  exit 1
+fi
+
+if [ "${reply_notes_min_time}" != "0.0" ] && [ "${reply_notes_min_time}" != "0" ]; then
+  echo "generate failed: min reply time != 0 (got ${reply_notes_min_time})"
+  echo "$response"
   exit 1
 fi
 

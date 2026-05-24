@@ -6,6 +6,7 @@ import time
 
 from ..api.protocol import DialogueNote, GenerateParams, legalize_notes
 from .inference_engine_protocol import InferenceEngineProtocol
+from .note_conversion import dialogue_notes_to_note_sequence, note_sequence_to_dialogue_notes
 
 
 class MagentaPerformanceRNNEngine(InferenceEngineProtocol):
@@ -89,28 +90,27 @@ class MagentaPerformanceRNNEngine(InferenceEngineProtocol):
         params: GenerateParams,
         session_id: str | None,
     ) -> list[DialogueNote]:
-        # P2-T1: 先打通“可生成”；primer/continuation correctness 在 P2-T2 再完善。
         # NOTE: Generator is not guaranteed thread-safe. Serialize generation.
-        del notes
-        del params
         del session_id
 
         self._ensure_loaded()
+
+        prompt_end_sec = 0.0
+        for note in notes:
+            prompt_end_sec = max(prompt_end_sec, float(note.time) + float(note.duration))
+
+        primer_sequence = dialogue_notes_to_note_sequence(notes, qpm=120.0)
+
+        # P2-T2: correctness first; parameter mapping in P2-T3.
+        reply_len_sec = 6.0
+        start_time = prompt_end_sec
+        end_time = prompt_end_sec + reply_len_sec
+
         with self._lock:
             generator_options = self._generator_pb2.GeneratorOptions()
             generator_options.args["temperature"].float_value = 1.0
-            generator_options.generate_sections.add(start_time=0.0, end_time=6.0)
-            sequence = self._generator.generate(self._music_pb2.NoteSequence(), generator_options)
+            generator_options.generate_sections.add(start_time=float(start_time), end_time=float(end_time))
+            sequence = self._generator.generate(primer_sequence, generator_options)
 
-        reply: list[DialogueNote] = []
-        for note in getattr(sequence, "notes", []):
-            reply.append(
-                DialogueNote(
-                    note=int(note.pitch),
-                    velocity=int(note.velocity),
-                    time=float(note.start_time),
-                    duration=float(note.end_time - note.start_time),
-                )
-            )
-
+        reply = note_sequence_to_dialogue_notes(sequence, start_at_sec=float(prompt_end_sec))
         return legalize_notes(reply)
