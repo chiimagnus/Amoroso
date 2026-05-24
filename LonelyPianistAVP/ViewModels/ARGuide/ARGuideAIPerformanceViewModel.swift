@@ -68,6 +68,23 @@ final class ARGuideAIPerformanceViewModel {
         }
     }
 
+    var duetServerStartCommand: String {
+        "rtk ./piano_duet_server/scripts/run_server.sh"
+    }
+
+    func restartDiscoveryForSelectedBackend() {
+        switch backendSelection.selectedKind() {
+        case .networkBonjourHTTP:
+            dialogueDiscoveryService.stop()
+            dialogueDiscoveryService.start()
+        case .networkBonjourHTTPDuet:
+            duetDiscoveryService.stop()
+            duetDiscoveryService.start()
+        case .localRule, .tickRangeReplay:
+            break
+        }
+    }
+
     func updatePracticeSession(_ practiceSessionViewModel: PracticeSessionViewModel) {
         aiPerformanceService.updatePracticeSession(practiceSessionViewModel)
     }

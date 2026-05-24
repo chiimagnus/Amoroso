@@ -1,9 +1,13 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 struct PracticeSettingsView: View {
     @Binding var virtualPerformerEnabled: Bool
     let backendStatusText: String?
     let lastImprovStatusText: String?
+    let duetServerStartCommand: String
     let recordingSourceText: String?
     let isAIPerformanceActive: Bool
     let isVirtualPianoMode: Bool
@@ -12,6 +16,7 @@ struct PracticeSettingsView: View {
     let onOpenTakeLibrary: () -> Void
     let onRetryVirtualPianoPlacement: () -> Void
     let onRequestSessionRebuild: () -> Void
+    let onRestartBackendDiscovery: () -> Void
 
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
     @AppStorage(AudioOutputVolumeSettings.userDefaultsKey)
@@ -121,6 +126,31 @@ struct PracticeSettingsView: View {
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
+
+                    if ImprovBackendKind(rawValue: improvBackendKindRawValue) == .networkBonjourHTTPDuet {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("电脑端启动命令（在仓库根目录执行）")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+
+                            Text(duetServerStartCommand)
+                                .font(.footnote.monospaced())
+                                .textSelection(.enabled)
+
+                            HStack(spacing: 12) {
+                                Button("复制启动命令", systemImage: "doc.on.doc") {
+                                    copyToPasteboard(duetServerStartCommand)
+                                }
+                                .buttonStyle(.bordered)
+
+                                Button("重新发现后端", systemImage: "arrow.clockwise") {
+                                    onRestartBackendDiscovery()
+                                }
+                                .buttonStyle(.bordered)
+                            }
+                        }
+                    }
+
                     if let lastImprovStatusText {
                         Text(lastImprovStatusText)
                             .font(.footnote)
@@ -221,6 +251,15 @@ struct PracticeSettingsView: View {
             "按谱片段回放（tick-range replay）"
         }
     }
+
+    @MainActor
+    private func copyToPasteboard(_ value: String) {
+        #if canImport(UIKit)
+        UIPasteboard.general.string = value
+        #else
+        _ = value
+        #endif
+    }
 }
 
 #Preview("练习设置") {
@@ -228,6 +267,7 @@ struct PracticeSettingsView: View {
         virtualPerformerEnabled: .constant(false),
         backendStatusText: nil,
         lastImprovStatusText: nil,
+        duetServerStartCommand: "rtk ./piano_duet_server/scripts/run_server.sh",
         recordingSourceText: "录制来源：Bluetooth MIDI（弹奏琴键即可录制）",
         isAIPerformanceActive: false,
         isVirtualPianoMode: true,
@@ -235,6 +275,7 @@ struct PracticeSettingsView: View {
         gazePlaneDiskStatusText: "GazePlaneDisk: OK",
         onOpenTakeLibrary: {},
         onRetryVirtualPianoPlacement: {},
-        onRequestSessionRebuild: {}
+        onRequestSessionRebuild: {},
+        onRestartBackendDiscovery: {}
     )
 }
