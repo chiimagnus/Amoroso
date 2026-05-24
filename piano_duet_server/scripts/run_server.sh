@@ -19,6 +19,15 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
   exit 1
 fi
 
+if [ "${DUET_ENGINE:-placeholder}" = "magenta" ]; then
+  py_ver="$("$PYTHON" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+  if [ "$py_ver" != "3.10" ] && [ "$py_ver" != "3.9" ]; then
+    echo "Error: DUET_ENGINE=magenta requires Python 3.9/3.10 (got ${py_ver})." >&2
+    echo "Install python3.10 and run: PYTHON=python3.10 DUET_ENGINE=magenta ./scripts/run_server.sh" >&2
+    exit 1
+  fi
+fi
+
 if [ ! -d ".venv" ]; then
   "$PYTHON" -m venv .venv
 fi
