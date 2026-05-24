@@ -82,7 +82,7 @@ rtk env DUET_DEBUG=1 ./python_backend/scripts/run_duet_server.sh
 
 输出目录：
 
-- `python_backend/duet/out/debug/requests/<req_id>/`
+- `python_backend/out/debug/requests/<req_id>/`
 
 包含（best-effort）：
 
