@@ -158,15 +158,23 @@ final class ARGuideAIPerformanceViewModel {
     ) -> String {
         switch state {
         case .idle:
-            "后端：\(backendName)（未开始发现）"
+            return "后端：\(backendName)（未开始发现）"
         case .discovering:
-            "后端：\(backendName)（正在发现…）若长时间找不到，\(notFoundHint)"
-        case let .resolved(host, port):
-            "后端：\(backendName)（已找到 \(host):\(port)）"
+            return "后端：\(backendName)（正在发现…）若长时间找不到，\(notFoundHint)"
+        case let .resolved(host, port, txtRecord):
+            let engine = txtRecord["engine"]
+            let engineImpl = txtRecord["engine_impl"]
+            let details: String = {
+                var parts: [String] = []
+                if let engine, engine.isEmpty == false { parts.append("engine=\(engine)") }
+                if let engineImpl, engineImpl.isEmpty == false { parts.append("impl=\(engineImpl)") }
+                return parts.isEmpty ? "" : " \(parts.joined(separator: " "))"
+            }()
+            return "后端：\(backendName)（已找到 \(host):\(port)\(details)）"
         case let .failed(message):
-            "后端：\(backendName)（发现失败：\(message)）"
+            return "后端：\(backendName)（发现失败：\(message)）"
         case .denied:
-            "后端：\(backendName)（Local Network 权限被拒）请到系统设置开启后重试。"
+            return "后端：\(backendName)（Local Network 权限被拒）请到系统设置开启后重试。"
         }
     }
 }
