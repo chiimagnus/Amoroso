@@ -33,6 +33,9 @@ final class VirtualPerformerOverlayController {
     private var usesAlternatingArms: Bool = false
     private var alternateNextIsLeftArm: Bool = true
     private var latestActiveMIDINote: Int?
+    private var lateralScheduleStartUptime: TimeInterval?
+    private var lateralTargetTimeline: [(timeSeconds: TimeInterval, midi: Int)] = []
+    private var latestLateralTargetMIDINote: Int?
     private var currentLateralOffsetMeters: Float = 0
     private var currentLateralSpeedMetersPerSecond: Float = 0
     private var lastLateralUpdateUptime: TimeInterval?
@@ -68,9 +71,16 @@ final class VirtualPerformerOverlayController {
             let centerX = (minX + maxX) / 2
             let raw = key.localCenter.x - centerX
 
-            // Don't let the performer travel the full keyboard range; keep it subtle.
+            // Don't let the performer travel the full keyboard range; keep it subtle but visible.
             let maxTravel = (maxX - minX) * 0.32
-            return min(maxTravel, max(-maxTravel, raw))
+            let clamped = min(maxTravel, max(-maxTravel, raw))
+
+            // Ensure small note ranges still produce a perceptible slide.
+            let minVisibleTravelMeters: Float = 0.06
+            if abs(clamped) < minVisibleTravelMeters {
+                return clamped == 0 ? 0 : minVisibleTravelMeters * (clamped > 0 ? 1 : -1)
+            }
+            return clamped
         }
     }
 
@@ -251,6 +261,9 @@ final class VirtualPerformerOverlayController {
         latestSchedule = []
         wasPerforming = false
         latestActiveMIDINote = nil
+        lateralScheduleStartUptime = nil
+        lateralTargetTimeline.removeAll(keepingCapacity: true)
+        latestLateralTargetMIDINote = nil
         currentLateralOffsetMeters = 0
         currentLateralSpeedMetersPerSecond = 0
         lastLateralUpdateUptime = nil
@@ -281,14 +294,18 @@ final class VirtualPerformerOverlayController {
         keyboardGeometry: PianoKeyboardGeometry,
         lateralRootEntity: Entity
     ) {
+        // Resolve a time-based "active note" from the schedule, so lateral motion stays real-time even
+        // if arm/rig animation tasks are delayed on the MainActor (common in Simulator).
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        latestLateralTargetMIDINote = resolveLateralTargetMIDINote(nowUptimeSeconds: nowUptime)
+
         let desired = lateralMotionResolver.desiredLateralOffsetMeters(
             keyboardGeometry: keyboardGeometry,
-            activeMIDINote: latestActiveMIDINote
+            activeMIDINote: latestLateralTargetMIDINote
         )
 
-        let now = ProcessInfo.processInfo.systemUptime
-        let dt = lastLateralUpdateUptime.map { max(0, now - $0) } ?? 0
-        lastLateralUpdateUptime = now
+        let dt = lastLateralUpdateUptime.map { max(0, nowUptime - $0) } ?? 0
+        lastLateralUpdateUptime = nowUptime
 
         // Exponential-ish smoothing with a short time constant for perceptible, non-jittery motion.
         let timeConstant: TimeInterval = 0.22
@@ -305,6 +322,56 @@ final class VirtualPerformerOverlayController {
         } else {
             currentLateralSpeedMetersPerSecond = 0
         }
+    }
+
+    private func rebuildLateralTargetTimeline(schedule: [PracticeSequencerMIDIEvent]) {
+        lateralTargetTimeline.removeAll(keepingCapacity: true)
+        guard schedule.isEmpty == false else { return }
+
+        let sorted = schedule.sorted { $0.timeSeconds < $1.timeSeconds }
+        let groupEpsilon: TimeInterval = 0.0005
+
+        var index = 0
+        while index < sorted.count {
+            let groupTime = sorted[index].timeSeconds
+            var noteOns: [Int] = []
+            while index < sorted.count {
+                let event = sorted[index]
+                if abs(event.timeSeconds - groupTime) > groupEpsilon { break }
+                if case let .noteOn(midi, _) = event.kind {
+                    noteOns.append(midi)
+                }
+                index += 1
+            }
+            guard noteOns.isEmpty == false else { continue }
+            noteOns.sort()
+            let median = noteOns[noteOns.count / 2]
+            lateralTargetTimeline.append((timeSeconds: groupTime, midi: median))
+        }
+    }
+
+    private func resolveLateralTargetMIDINote(nowUptimeSeconds: TimeInterval) -> Int? {
+        guard let start = lateralScheduleStartUptime else { return nil }
+        guard lateralTargetTimeline.isEmpty == false else { return nil }
+
+        let elapsed = max(0, nowUptimeSeconds - start)
+
+        // After the phrase ends, recentre after a short tail so the performer doesn't get stuck.
+        if let last = lateralTargetTimeline.last, elapsed > last.timeSeconds + 0.45 {
+            return nil
+        }
+
+        // Pick the most recent target at or before "now".
+        // Linear scan is fine for these small schedules; keep it simple.
+        var candidate: Int?
+        for item in lateralTargetTimeline {
+            if item.timeSeconds <= elapsed {
+                candidate = item.midi
+            } else {
+                break
+            }
+        }
+        return candidate
     }
 
     private func advanceGaitPhase(dtSeconds: TimeInterval) {
@@ -356,7 +423,7 @@ final class VirtualPerformerOverlayController {
         }
 
         debugLogger.info(
-            "update enabled=\(isEnabled, privacy: .public) performing=\(isPerforming, privacy: .public) keys=\(keyboardGeometry.keys.count, privacy: .public) \(scheduleSummary, privacy: .public) activeMidi=\(String(describing: self.latestActiveMIDINote), privacy: .public) x=\(self.currentLateralOffsetMeters, privacy: .public) vx=\(self.currentLateralSpeedMetersPerSecond, privacy: .public) \(rigSummary, privacy: .public)"
+            "update enabled=\(isEnabled, privacy: .public) performing=\(isPerforming, privacy: .public) keys=\(keyboardGeometry.keys.count, privacy: .public) \(scheduleSummary, privacy: .public) activeMidi=\(String(describing: self.latestActiveMIDINote), privacy: .public) lateralMidi=\(String(describing: self.latestLateralTargetMIDINote), privacy: .public) x=\(self.currentLateralOffsetMeters, privacy: .public) vx=\(self.currentLateralSpeedMetersPerSecond, privacy: .public) \(rigSummary, privacy: .public)"
         )
     }
 
@@ -456,6 +523,8 @@ final class VirtualPerformerOverlayController {
             )
         }
         latestSchedule = schedule
+        lateralScheduleStartUptime = schedule.isEmpty ? nil : ProcessInfo.processInfo.systemUptime
+        rebuildLateralTargetTimeline(schedule: schedule)
         startHandAnimation(schedule: schedule)
     }
 
