@@ -1,3 +1,4 @@
+import Foundation
 import os
 import RealityKit
 import RealityKitContent
@@ -11,6 +12,7 @@ final class VirtualPerformerOverlayController {
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
     private var performerRootEntity: Entity?
+    private var performerLateralRootEntity: Entity?
     private var performerVisualRootEntity: Entity?
     private var performerPianoEntity: Entity?
     private var handAnimationTask: Task<Void, Never>?
@@ -29,10 +31,41 @@ final class VirtualPerformerOverlayController {
     private var armSplitMidi: Int = 60
     private var usesAlternatingArms: Bool = false
     private var alternateNextIsLeftArm: Bool = true
+    private var latestActiveMIDINote: Int?
+    private var currentLateralOffsetMeters: Float = 0
+    private var lastLateralUpdateUptime: TimeInterval?
+
+    private let lateralMotionResolver: any VirtualPerformerLateralMotionResolving = DefaultVirtualPerformerLateralMotionResolver()
 
     private struct ArmPulse {
         let startUptimeNanos: UInt64
         let amplitudeRadians: Float
+    }
+
+    protocol VirtualPerformerLateralMotionResolving {
+        func desiredLateralOffsetMeters(
+            keyboardGeometry: PianoKeyboardGeometry,
+            activeMIDINote: Int?
+        ) -> Float
+    }
+
+    struct DefaultVirtualPerformerLateralMotionResolver: VirtualPerformerLateralMotionResolving {
+        func desiredLateralOffsetMeters(
+            keyboardGeometry: PianoKeyboardGeometry,
+            activeMIDINote: Int?
+        ) -> Float {
+            guard let activeMIDINote, let key = keyboardGeometry.key(for: activeMIDINote) else { return 0 }
+
+            // Map the active key center's X into a centered offset (A0..C8 => roughly -L/2..+L/2).
+            let xs = keyboardGeometry.keys.map(\.localCenter.x)
+            guard let minX = xs.min(), let maxX = xs.max(), maxX > minX else { return 0 }
+            let centerX = (minX + maxX) / 2
+            let raw = key.localCenter.x - centerX
+
+            // Don't let the performer travel the full keyboard range; keep it subtle.
+            let maxTravel = (maxX - minX) * 0.32
+            return min(maxTravel, max(-maxTravel, raw))
+        }
     }
 
     func update(
@@ -132,6 +165,14 @@ final class VirtualPerformerOverlayController {
         ))
 
         performerRootEntity.transform = Transform(matrix: performerWorldFromRoot)
+
+        if let performerLateralRootEntity {
+            applyLateralOffsetIfNeeded(
+                keyboardGeometry: geometry,
+                lateralRootEntity: performerLateralRootEntity
+            )
+        }
+
         guard let performerVisualRootEntity else { return }
         let toKeyboardWorld = keyboardCenterWorld - performerPositionWorld
         let toKeyboardOnPlane = toKeyboardWorld - upAxisWorld * simd_dot(toKeyboardWorld, upAxisWorld)
@@ -152,6 +193,7 @@ final class VirtualPerformerOverlayController {
         performerLoadTask = nil
         performerRootEntity?.removeFromParent()
         performerRootEntity = nil
+        performerLateralRootEntity = nil
         performerVisualRootEntity = nil
         performerPianoEntity = nil
         performerEntity = nil
@@ -159,12 +201,18 @@ final class VirtualPerformerOverlayController {
         xiaochengNodAngleRadians = 0
         latestSchedule = []
         wasPerforming = false
+        latestActiveMIDINote = nil
+        currentLateralOffsetMeters = 0
+        lastLateralUpdateUptime = nil
     }
 
     private func makePerformerRootEntity(geometry: PianoKeyboardGeometry) -> Entity {
         let root = Entity()
+        let lateralRoot = Entity()
+        root.addChild(lateralRoot)
+        performerLateralRootEntity = lateralRoot
         let visualRoot = Entity()
-        root.addChild(visualRoot)
+        lateralRoot.addChild(visualRoot)
         performerVisualRootEntity = visualRoot
         let piano = makePerformerPianoEntity(geometry: geometry)
         visualRoot.addChild(piano)
@@ -174,6 +222,28 @@ final class VirtualPerformerOverlayController {
         performerEntity = performer
         loadXiaochengIfNeeded(into: performer)
         return root
+    }
+
+    private func applyLateralOffsetIfNeeded(
+        keyboardGeometry: PianoKeyboardGeometry,
+        lateralRootEntity: Entity
+    ) {
+        let desired = lateralMotionResolver.desiredLateralOffsetMeters(
+            keyboardGeometry: keyboardGeometry,
+            activeMIDINote: latestActiveMIDINote
+        )
+
+        let now = ProcessInfo.processInfo.systemUptime
+        let dt = lastLateralUpdateUptime.map { max(0, now - $0) } ?? 0
+        lastLateralUpdateUptime = now
+
+        // Exponential-ish smoothing with a short time constant for perceptible, non-jittery motion.
+        let timeConstant: TimeInterval = 0.22
+        let alpha = dt > 0 ? min(1, dt / timeConstant) : 1
+        currentLateralOffsetMeters = currentLateralOffsetMeters
+            + (desired - currentLateralOffsetMeters) * Float(alpha)
+
+        lateralRootEntity.position.x = currentLateralOffsetMeters
     }
 
     private func loadXiaochengIfNeeded(into placeholder: Entity) {
@@ -262,6 +332,7 @@ final class VirtualPerformerOverlayController {
     private func startHandAnimation(schedule: [PracticeSequencerMIDIEvent]) {
         stopHandAnimation()
         resetArmsToRest(animated: false)
+        latestActiveMIDINote = nil
 
         let sortedSchedule = schedule.sorted { lhs, rhs in
             if lhs.timeSeconds != rhs.timeSeconds { return lhs.timeSeconds < rhs.timeSeconds }
@@ -276,25 +347,38 @@ final class VirtualPerformerOverlayController {
         handAnimationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var previousTimeSeconds: TimeInterval = 0
-            for event in sortedSchedule {
+            var index = 0
+            let groupEpsilon: TimeInterval = 0.0005
+
+            while index < sortedSchedule.count {
                 guard Task.isCancelled == false else { return }
-                let delaySeconds = max(0, event.timeSeconds - previousTimeSeconds)
+                let groupTime = sortedSchedule[index].timeSeconds
+                let delaySeconds = max(0, groupTime - previousTimeSeconds)
                 if delaySeconds > 0 {
                     try? await Task.sleep(for: .seconds(delaySeconds))
                 }
                 guard Task.isCancelled == false else { return }
 
-                switch event.kind {
-                case let .noteOn(midi, velocity):
-                    animateArmSwing(midi: midi, velocity: velocity)
-                case .noteOff:
-                    break
-                case .controlChange:
-                    break
-                case .pitchBend, .programChange, .channelPressure, .polyPressure:
-                    break
+                var noteOns: [(midi: Int, velocity: UInt8)] = []
+                while index < sortedSchedule.count {
+                    let event = sortedSchedule[index]
+                    if abs(event.timeSeconds - groupTime) > groupEpsilon { break }
+                    if case let .noteOn(midi, velocity) = event.kind {
+                        noteOns.append((midi: midi, velocity: velocity))
+                    }
+                    index += 1
                 }
-                previousTimeSeconds = event.timeSeconds
+
+                if noteOns.isEmpty == false {
+                    let target = resolvedTargetMIDINote(noteOns: noteOns)
+                    latestActiveMIDINote = target
+
+                    for item in noteOns {
+                        animateArmSwing(midi: item.midi, velocity: item.velocity)
+                    }
+                }
+
+                previousTimeSeconds = groupTime
             }
         }
     }
@@ -308,6 +392,12 @@ final class VirtualPerformerOverlayController {
         rightArmPendingVelocities.removeAll(keepingCapacity: true)
         leftArmPulses.removeAll(keepingCapacity: true)
         rightArmPulses.removeAll(keepingCapacity: true)
+        latestActiveMIDINote = nil
+    }
+
+    private func resolvedTargetMIDINote(noteOns: [(midi: Int, velocity: UInt8)]) -> Int {
+        let midis = noteOns.map(\.midi).sorted()
+        return midis[midis.count / 2]
     }
 
     private func animateArmSwing(midi: Int, velocity: UInt8) {
