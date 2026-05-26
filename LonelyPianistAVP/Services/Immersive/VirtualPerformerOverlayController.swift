@@ -33,9 +33,12 @@ final class VirtualPerformerOverlayController {
     private var alternateNextIsLeftArm: Bool = true
     private var latestActiveMIDINote: Int?
     private var currentLateralOffsetMeters: Float = 0
+    private var currentLateralSpeedMetersPerSecond: Float = 0
     private var lastLateralUpdateUptime: TimeInterval?
+    private var gaitPhaseRadians: Float = 0
 
     private let lateralMotionResolver: any VirtualPerformerLateralMotionResolving = DefaultVirtualPerformerLateralMotionResolver()
+    private let gaitResolver: any VirtualPerformerGaitResolving = DefaultVirtualPerformerGaitResolver()
 
     private struct ArmPulse {
         let startUptimeNanos: UInt64
@@ -65,6 +68,38 @@ final class VirtualPerformerOverlayController {
             // Don't let the performer travel the full keyboard range; keep it subtle.
             let maxTravel = (maxX - minX) * 0.32
             return min(maxTravel, max(-maxTravel, raw))
+        }
+    }
+
+    struct VirtualPerformerGaitPose: Equatable {
+        let leftAngleRadians: Float
+        let rightAngleRadians: Float
+    }
+
+    protocol VirtualPerformerGaitResolving {
+        func gaitPose(
+            phaseRadians: Float,
+            lateralSpeedMetersPerSecond: Float
+        ) -> VirtualPerformerGaitPose
+    }
+
+    struct DefaultVirtualPerformerGaitResolver: VirtualPerformerGaitResolving {
+        func gaitPose(
+            phaseRadians: Float,
+            lateralSpeedMetersPerSecond: Float
+        ) -> VirtualPerformerGaitPose {
+            let speed = abs(lateralSpeedMetersPerSecond)
+            guard speed > 0.02 else {
+                return VirtualPerformerGaitPose(leftAngleRadians: 0, rightAngleRadians: 0)
+            }
+
+            // Conservative "walk-in-place" swing. Direction doesn't matter for the visual.
+            let amplitude: Float = min(0.45, 0.12 + speed * 0.25)
+            let s = sin(phaseRadians)
+            return VirtualPerformerGaitPose(
+                leftAngleRadians: amplitude * s,
+                rightAngleRadians: amplitude * -s
+            )
         }
     }
 
@@ -173,6 +208,10 @@ final class VirtualPerformerOverlayController {
             )
         }
 
+        if let xiaochengRig, shouldAnimateGait() {
+            startArmMixerIfNeeded(rig: xiaochengRig)
+        }
+
         guard let performerVisualRootEntity else { return }
         let toKeyboardWorld = keyboardCenterWorld - performerPositionWorld
         let toKeyboardOnPlane = toKeyboardWorld - upAxisWorld * simd_dot(toKeyboardWorld, upAxisWorld)
@@ -203,7 +242,9 @@ final class VirtualPerformerOverlayController {
         wasPerforming = false
         latestActiveMIDINote = nil
         currentLateralOffsetMeters = 0
+        currentLateralSpeedMetersPerSecond = 0
         lastLateralUpdateUptime = nil
+        gaitPhaseRadians = 0
     }
 
     private func makePerformerRootEntity(geometry: PianoKeyboardGeometry) -> Entity {
@@ -240,10 +281,31 @@ final class VirtualPerformerOverlayController {
         // Exponential-ish smoothing with a short time constant for perceptible, non-jittery motion.
         let timeConstant: TimeInterval = 0.22
         let alpha = dt > 0 ? min(1, dt / timeConstant) : 1
+        let previous = currentLateralOffsetMeters
         currentLateralOffsetMeters = currentLateralOffsetMeters
             + (desired - currentLateralOffsetMeters) * Float(alpha)
 
         lateralRootEntity.position.x = currentLateralOffsetMeters
+
+        if dt > 0 {
+            currentLateralSpeedMetersPerSecond = (currentLateralOffsetMeters - previous) / Float(dt)
+            advanceGaitPhase(dtSeconds: dt)
+        } else {
+            currentLateralSpeedMetersPerSecond = 0
+        }
+    }
+
+    private func advanceGaitPhase(dtSeconds: TimeInterval) {
+        let speed = abs(currentLateralSpeedMetersPerSecond)
+        let baseHz: Float = 1.2
+        let extraHz: Float = min(2.8, speed * 3.0)
+        let hz = baseHz + extraHz
+        gaitPhaseRadians += 2 * .pi * hz * Float(dtSeconds)
+        if gaitPhaseRadians > 10000 { gaitPhaseRadians.formTruncatingRemainder(dividingBy: 2 * .pi) }
+    }
+
+    private func shouldAnimateGait() -> Bool {
+        abs(currentLateralSpeedMetersPerSecond) > 0.02
     }
 
     private func loadXiaochengIfNeeded(into placeholder: Entity) {
@@ -478,10 +540,17 @@ final class VirtualPerformerOverlayController {
 
                 drainPendingVelocitiesIntoPulses(nowNanos: nowNanos)
 
+                let gaitPose = gaitResolver.gaitPose(
+                    phaseRadians: gaitPhaseRadians,
+                    lateralSpeedMetersPerSecond: currentLateralSpeedMetersPerSecond
+                )
+
                 let hasPendingWork = leftArmPendingVelocities.isEmpty == false
                     || rightArmPendingVelocities.isEmpty == false
                     || leftArmPulses.isEmpty == false
                     || rightArmPulses.isEmpty == false
+                    || gaitPose.leftAngleRadians != 0
+                    || gaitPose.rightAngleRadians != 0
                 if hasPendingWork == false {
                     rig.modelEntity.jointTransforms = XiaochengPoseService.baseTransforms(
                         rig: rig,
@@ -517,9 +586,60 @@ final class VirtualPerformerOverlayController {
                         transforms[index].rotation = transforms[index].rotation * delta
                     }
                 }
+
+                applyGaitPose(
+                    gaitPose,
+                    transforms: &transforms,
+                    rig: rig
+                )
                 rig.modelEntity.jointTransforms = transforms
 
                 try? await Task.sleep(for: .milliseconds(tickMilliseconds))
+            }
+        }
+    }
+
+    private func applyGaitPose(
+        _ pose: VirtualPerformerGaitPose,
+        transforms: inout [Transform],
+        rig: XiaochengRig
+    ) {
+        guard pose.leftAngleRadians != 0 || pose.rightAngleRadians != 0 else { return }
+
+        applyLegSwing(
+            swingAngleRadians: pose.leftAngleRadians,
+            jointIndices: rig.leftLegJointIndices,
+            transforms: &transforms
+        )
+        applyLegSwing(
+            swingAngleRadians: pose.rightAngleRadians,
+            jointIndices: rig.rightLegJointIndices,
+            transforms: &transforms
+        )
+    }
+
+    private func applyLegSwing(
+        swingAngleRadians: Float,
+        jointIndices: [Int],
+        transforms: inout [Transform]
+    ) {
+        guard swingAngleRadians != 0 else { return }
+        guard jointIndices.isEmpty == false else { return }
+
+        // The exact joint axes depend on the asset. We intentionally keep the motion small and simple:
+        // a forward/back thigh swing + a slightly counter-rotated lower leg to mimic stepping.
+        let thighDelta = simd_quatf(angle: swingAngleRadians, axis: [1, 0, 0])
+        let calfDelta = simd_quatf(angle: -swingAngleRadians * 0.55, axis: [1, 0, 0])
+        let footDelta = simd_quatf(angle: swingAngleRadians * 0.15, axis: [1, 0, 0])
+
+        for (slot, index) in jointIndices.enumerated() where index < transforms.count {
+            switch slot {
+            case 0:
+                transforms[index].rotation = transforms[index].rotation * thighDelta
+            case 1:
+                transforms[index].rotation = transforms[index].rotation * calfDelta
+            default:
+                transforms[index].rotation = transforms[index].rotation * footDelta
             }
         }
     }

@@ -6,6 +6,8 @@ struct XiaochengRig {
     let restJointTransforms: [Transform]
     let leftArmJointIndices: [Int]
     let rightArmJointIndices: [Int]
+    let leftLegJointIndices: [Int]
+    let rightLegJointIndices: [Int]
     let neckJointIndex: Int?
     let headJointIndex: Int?
 }
@@ -20,6 +22,20 @@ enum XiaochengRigBuilder {
             jointNames.firstIndex { $0 == component || $0.hasSuffix("/\(component)") }
         }
 
+        func index(endsWithAny components: [String]) -> Int? {
+            guard components.isEmpty == false else { return nil }
+            return jointNames.firstIndex { name in
+                components.contains { component in
+                    name == component
+                        || name.hasSuffix("/\(component)")
+                        || name.hasSuffix(":\(component)")
+                        || name.hasSuffix(".\(component)")
+                        || name.hasSuffix("_\(component)")
+                        || name.hasSuffix(component)
+                }
+            }
+        }
+
         let leftIndices = [
             index(endsWith: "LeftShoulder"),
             index(endsWith: "LeftArm"),
@@ -31,6 +47,19 @@ enum XiaochengRigBuilder {
             index(endsWith: "RightForeArm"),
         ].compactMap(\.self)
         guard leftIndices.isEmpty == false || rightIndices.isEmpty == false else { return nil }
+
+        let leftLegIndices = [
+            index(endsWithAny: ["LeftUpLeg", "LeftThigh"]),
+            index(endsWithAny: ["LeftLeg", "LeftCalf", "LeftShin"]),
+            index(endsWithAny: ["LeftFoot"]),
+            index(endsWithAny: ["LeftToeBase", "LeftToe"]),
+        ].compactMap(\.self)
+        let rightLegIndices = [
+            index(endsWithAny: ["RightUpLeg", "RightThigh"]),
+            index(endsWithAny: ["RightLeg", "RightCalf", "RightShin"]),
+            index(endsWithAny: ["RightFoot"]),
+            index(endsWithAny: ["RightToeBase", "RightToe"]),
+        ].compactMap(\.self)
 
         let neckIndex = index(endsWith: "Neck")
         let headIndex = index(endsWith: "Head")
@@ -44,6 +73,8 @@ enum XiaochengRigBuilder {
             restJointTransforms: restTransforms,
             leftArmJointIndices: leftIndices,
             rightArmJointIndices: rightIndices,
+            leftLegJointIndices: leftLegIndices,
+            rightLegJointIndices: rightLegIndices,
             neckJointIndex: neckIndex,
             headJointIndex: headIndex
         )
