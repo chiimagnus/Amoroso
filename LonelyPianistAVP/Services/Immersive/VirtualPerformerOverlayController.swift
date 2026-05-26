@@ -124,14 +124,15 @@ final class VirtualPerformerOverlayController {
             return
         }
 
+        showPerformer(geometry: keyboardGeometry, cameraWorldPosition: cameraWorldPosition)
+
+        // Log after `showPerformer` so x/vx reflect the latest lateral update in this frame.
         logDebugStatusIfNeeded(
             isEnabled: isEnabled,
             isPerforming: isPerforming,
             keyboardGeometry: keyboardGeometry,
             performanceSchedule: performanceSchedule
         )
-
-        showPerformer(geometry: keyboardGeometry, cameraWorldPosition: cameraWorldPosition)
 
         if wasPerforming != isPerforming {
             animateHead(isPerforming: isPerforming)
@@ -260,17 +261,17 @@ final class VirtualPerformerOverlayController {
 
     private func makePerformerRootEntity(geometry: PianoKeyboardGeometry) -> Entity {
         let root = Entity()
-        let lateralRoot = Entity()
-        root.addChild(lateralRoot)
-        performerLateralRootEntity = lateralRoot
         let visualRoot = Entity()
-        lateralRoot.addChild(visualRoot)
+        root.addChild(visualRoot)
         performerVisualRootEntity = visualRoot
         let piano = makePerformerPianoEntity(geometry: geometry)
         visualRoot.addChild(piano)
         performerPianoEntity = piano
+        let lateralRoot = Entity()
+        visualRoot.addChild(lateralRoot)
+        performerLateralRootEntity = lateralRoot
         let performer = Entity()
-        visualRoot.addChild(performer)
+        lateralRoot.addChild(performer)
         performerEntity = performer
         loadXiaochengIfNeeded(into: performer)
         return root
