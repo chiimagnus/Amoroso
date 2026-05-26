@@ -5,6 +5,7 @@ import os
 @MainActor
 @Observable
 final class ARGuideAIPerformanceViewModel {
+    private let debugLogger = Logger(subsystem: "LonelyPianistAVP", category: "AIPerformanceDebug")
     let duetDiscoveryService: BonjourBackendDiscoveryService
     private let backendSelection = ImprovBackendSelection()
     private let aiPlaybackServiceFactory: @MainActor () -> DuetAIPlaybackServiceFactory
@@ -123,6 +124,59 @@ final class ARGuideAIPerformanceViewModel {
         aiPerformanceService.updatePracticeSession(practiceSessionViewModel)
         aiPerformanceService.setEnabled(isEnabled)
     }
+
+    #if DEBUG
+        func debugInjectImprovTestPhraseIfPossible() {
+            guard isVirtualPerformerEnabled else { return }
+
+            debugLogger.info("debug inject improv phrase requested")
+
+            let baseUptime = ProcessInfo.processInfo.systemUptime
+            let baseDate = Date.now
+            let source = MIDI1InputEvent.Source(
+                identifier: .sourceIndex(-1),
+                endpointName: "DEBUG"
+            )
+
+            // A short phrase that spans the keyboard so we can visually verify lateral motion in simulator.
+            // We intentionally keep it "short phrase" so DuetTurnTakingCore triggers send ~600ms after release.
+            let notes: [(note: Int, velocity: Int, at: TimeInterval)] = [
+                (33, 92, 0.00),
+                (45, 90, 0.06),
+                (57, 88, 0.12),
+                (69, 90, 0.18),
+                (81, 92, 0.24),
+            ]
+
+            for (index, item) in notes.enumerated() {
+                recordMIDI1EventForPhraseRecordingIfNeeded(
+                    MIDI1InputEvent(
+                        kind: .noteOn(note: item.note, velocity: item.velocity),
+                        channel: 1,
+                        group: 0,
+                        source: source,
+                        receivedAt: baseDate,
+                        receivedAtUptimeSeconds: baseUptime + item.at,
+                        debugEventID: Int64(10_000 + index)
+                    )
+                )
+            }
+
+            for (index, item) in notes.enumerated() {
+                recordMIDI1EventForPhraseRecordingIfNeeded(
+                    MIDI1InputEvent(
+                        kind: .noteOff(note: item.note, velocity: 0),
+                        channel: 1,
+                        group: 0,
+                        source: source,
+                        receivedAt: baseDate,
+                        receivedAtUptimeSeconds: baseUptime + 0.38 + item.at,
+                        debugEventID: Int64(20_000 + index)
+                    )
+                )
+            }
+        }
+    #endif
 
     func recordMIDI1EventForPhraseRecordingIfNeeded(_ event: MIDI1InputEvent) {
         aiPerformanceService.recordMIDI1EventForPhraseRecordingIfNeeded(event)

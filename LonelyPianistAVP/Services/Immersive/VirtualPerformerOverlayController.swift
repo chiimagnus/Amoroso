@@ -1,3 +1,4 @@
+import Foundation
 import os
 import RealityKit
 import RealityKitContent
@@ -8,9 +9,11 @@ import UIKit
 @MainActor
 final class VirtualPerformerOverlayController {
     private let logger = Logger(subsystem: "LonelyPianistAVP", category: "VirtualPerformer")
+    private let debugLogger = Logger(subsystem: "LonelyPianistAVP", category: "VirtualPerformerDebug")
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
     private var performerRootEntity: Entity?
+    private var performerLateralRootEntity: Entity?
     private var performerVisualRootEntity: Entity?
     private var performerPianoEntity: Entity?
     private var handAnimationTask: Task<Void, Never>?
@@ -29,10 +32,88 @@ final class VirtualPerformerOverlayController {
     private var armSplitMidi: Int = 60
     private var usesAlternatingArms: Bool = false
     private var alternateNextIsLeftArm: Bool = true
+    private var latestActiveMIDINote: Int?
+    private var lateralScheduleStartUptime: TimeInterval?
+    private var lateralTargetTimeline: [(timeSeconds: TimeInterval, midi: Int)] = []
+    private var latestLateralTargetMIDINote: Int?
+    private var currentLateralOffsetMeters: Float = 0
+    private var currentLateralSpeedMetersPerSecond: Float = 0
+    private var lastLateralUpdateUptime: TimeInterval?
+    private var gaitPhaseRadians: Float = 0
+    private var lastDebugLogUptime: TimeInterval?
+    private var didLogMissingLegJoints = false
+
+    private let lateralMotionResolver: any VirtualPerformerLateralMotionResolving = DefaultVirtualPerformerLateralMotionResolver()
+    private let gaitResolver: any VirtualPerformerGaitResolving = DefaultVirtualPerformerGaitResolver()
 
     private struct ArmPulse {
         let startUptimeNanos: UInt64
         let amplitudeRadians: Float
+    }
+
+    protocol VirtualPerformerLateralMotionResolving {
+        func desiredLateralOffsetMeters(
+            keyboardGeometry: PianoKeyboardGeometry,
+            activeMIDINote: Int?
+        ) -> Float
+    }
+
+    struct DefaultVirtualPerformerLateralMotionResolver: VirtualPerformerLateralMotionResolving {
+        func desiredLateralOffsetMeters(
+            keyboardGeometry: PianoKeyboardGeometry,
+            activeMIDINote: Int?
+        ) -> Float {
+            guard let activeMIDINote, let key = keyboardGeometry.key(for: activeMIDINote) else { return 0 }
+
+            // Map the active key center's X into a centered offset (A0..C8 => roughly -L/2..+L/2).
+            let xs = keyboardGeometry.keys.map(\.localCenter.x)
+            guard let minX = xs.min(), let maxX = xs.max(), maxX > minX else { return 0 }
+            let centerX = (minX + maxX) / 2
+            let raw = key.localCenter.x - centerX
+
+            // Don't let the performer travel the full keyboard range; keep it subtle but visible.
+            let maxTravel = (maxX - minX) * 0.32
+            let clamped = min(maxTravel, max(-maxTravel, raw))
+
+            // Ensure small note ranges still produce a perceptible slide.
+            let minVisibleTravelMeters: Float = 0.06
+            if abs(clamped) < minVisibleTravelMeters {
+                return clamped == 0 ? 0 : minVisibleTravelMeters * (clamped > 0 ? 1 : -1)
+            }
+            return clamped
+        }
+    }
+
+    struct VirtualPerformerGaitPose: Equatable {
+        let leftAngleRadians: Float
+        let rightAngleRadians: Float
+    }
+
+    protocol VirtualPerformerGaitResolving {
+        func gaitPose(
+            phaseRadians: Float,
+            lateralSpeedMetersPerSecond: Float
+        ) -> VirtualPerformerGaitPose
+    }
+
+    struct DefaultVirtualPerformerGaitResolver: VirtualPerformerGaitResolving {
+        func gaitPose(
+            phaseRadians: Float,
+            lateralSpeedMetersPerSecond: Float
+        ) -> VirtualPerformerGaitPose {
+            let speed = abs(lateralSpeedMetersPerSecond)
+            guard speed > 0.02 else {
+                return VirtualPerformerGaitPose(leftAngleRadians: 0, rightAngleRadians: 0)
+            }
+
+            // Conservative "walk-in-place" swing. Direction doesn't matter for the visual.
+            let amplitude: Float = min(0.45, 0.12 + speed * 0.25)
+            let s = sin(phaseRadians)
+            return VirtualPerformerGaitPose(
+                leftAngleRadians: amplitude * s,
+                rightAngleRadians: amplitude * -s
+            )
+        }
     }
 
     func update(
@@ -55,18 +136,25 @@ final class VirtualPerformerOverlayController {
 
         showPerformer(geometry: keyboardGeometry, cameraWorldPosition: cameraWorldPosition)
 
+        // Log after `showPerformer` so x/vx reflect the latest lateral update in this frame.
+        logDebugStatusIfNeeded(
+            isEnabled: isEnabled,
+            isPerforming: isPerforming,
+            keyboardGeometry: keyboardGeometry,
+            performanceSchedule: performanceSchedule
+        )
+
         if wasPerforming != isPerforming {
             animateHead(isPerforming: isPerforming)
-            if isPerforming == false {
-                stopHandAnimation()
-                resetArmsToRest(animated: true)
-            }
             wasPerforming = isPerforming
         }
 
-        if isPerforming {
-            updateHandAnimationIfNeeded(schedule: performanceSchedule)
-        }
+        // Drive hand/pose animation from the schedule itself, not from `isPerforming`.
+        //
+        // On visionOS Simulator, audio playback timing can be flaky (or even no-op), which can make
+        // `isAIPerformanceActive` / `isAIPlaybackActive` transiently false while a schedule is still present.
+        // If we stop the animation in that case, the performer "freezes" and never appears to move.
+        updateHandAnimationIfNeeded(schedule: performanceSchedule)
     }
 
     private func showPerformer(geometry: PianoKeyboardGeometry, cameraWorldPosition _: SIMD3<Float>?) {
@@ -132,6 +220,18 @@ final class VirtualPerformerOverlayController {
         ))
 
         performerRootEntity.transform = Transform(matrix: performerWorldFromRoot)
+
+        if let performerLateralRootEntity {
+            applyLateralOffsetIfNeeded(
+                keyboardGeometry: geometry,
+                lateralRootEntity: performerLateralRootEntity
+            )
+        }
+
+        if let xiaochengRig, shouldAnimateGait() {
+            startArmMixerIfNeeded(rig: xiaochengRig)
+        }
+
         guard let performerVisualRootEntity else { return }
         let toKeyboardWorld = keyboardCenterWorld - performerPositionWorld
         let toKeyboardOnPlane = toKeyboardWorld - upAxisWorld * simd_dot(toKeyboardWorld, upAxisWorld)
@@ -152,6 +252,7 @@ final class VirtualPerformerOverlayController {
         performerLoadTask = nil
         performerRootEntity?.removeFromParent()
         performerRootEntity = nil
+        performerLateralRootEntity = nil
         performerVisualRootEntity = nil
         performerPianoEntity = nil
         performerEntity = nil
@@ -159,6 +260,16 @@ final class VirtualPerformerOverlayController {
         xiaochengNodAngleRadians = 0
         latestSchedule = []
         wasPerforming = false
+        latestActiveMIDINote = nil
+        lateralScheduleStartUptime = nil
+        lateralTargetTimeline.removeAll(keepingCapacity: true)
+        latestLateralTargetMIDINote = nil
+        currentLateralOffsetMeters = 0
+        currentLateralSpeedMetersPerSecond = 0
+        lastLateralUpdateUptime = nil
+        gaitPhaseRadians = 0
+        lastDebugLogUptime = nil
+        didLogMissingLegJoints = false
     }
 
     private func makePerformerRootEntity(geometry: PianoKeyboardGeometry) -> Entity {
@@ -169,11 +280,151 @@ final class VirtualPerformerOverlayController {
         let piano = makePerformerPianoEntity(geometry: geometry)
         visualRoot.addChild(piano)
         performerPianoEntity = piano
+        let lateralRoot = Entity()
+        visualRoot.addChild(lateralRoot)
+        performerLateralRootEntity = lateralRoot
         let performer = Entity()
-        visualRoot.addChild(performer)
+        lateralRoot.addChild(performer)
         performerEntity = performer
         loadXiaochengIfNeeded(into: performer)
         return root
+    }
+
+    private func applyLateralOffsetIfNeeded(
+        keyboardGeometry: PianoKeyboardGeometry,
+        lateralRootEntity: Entity
+    ) {
+        // Resolve a time-based "active note" from the schedule, so lateral motion stays real-time even
+        // if arm/rig animation tasks are delayed on the MainActor (common in Simulator).
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        latestLateralTargetMIDINote = resolveLateralTargetMIDINote(nowUptimeSeconds: nowUptime)
+
+        let desired = lateralMotionResolver.desiredLateralOffsetMeters(
+            keyboardGeometry: keyboardGeometry,
+            activeMIDINote: latestLateralTargetMIDINote
+        )
+
+        let dt = lastLateralUpdateUptime.map { max(0, nowUptime - $0) } ?? 0
+        lastLateralUpdateUptime = nowUptime
+
+        // Exponential-ish smoothing with a short time constant for perceptible, non-jittery motion.
+        let timeConstant: TimeInterval = 0.22
+        let alpha = dt > 0 ? min(1, dt / timeConstant) : 1
+        let previous = currentLateralOffsetMeters
+        currentLateralOffsetMeters = currentLateralOffsetMeters
+            + (desired - currentLateralOffsetMeters) * Float(alpha)
+
+        lateralRootEntity.position.x = currentLateralOffsetMeters
+
+        if dt > 0 {
+            currentLateralSpeedMetersPerSecond = (currentLateralOffsetMeters - previous) / Float(dt)
+            advanceGaitPhase(dtSeconds: dt)
+        } else {
+            currentLateralSpeedMetersPerSecond = 0
+        }
+    }
+
+    private func rebuildLateralTargetTimeline(schedule: [PracticeSequencerMIDIEvent]) {
+        lateralTargetTimeline.removeAll(keepingCapacity: true)
+        guard schedule.isEmpty == false else { return }
+
+        let sorted = schedule.sorted { $0.timeSeconds < $1.timeSeconds }
+        let groupEpsilon: TimeInterval = 0.0005
+
+        var index = 0
+        while index < sorted.count {
+            let groupTime = sorted[index].timeSeconds
+            var noteOns: [Int] = []
+            while index < sorted.count {
+                let event = sorted[index]
+                if abs(event.timeSeconds - groupTime) > groupEpsilon { break }
+                if case let .noteOn(midi, _) = event.kind {
+                    noteOns.append(midi)
+                }
+                index += 1
+            }
+            guard noteOns.isEmpty == false else { continue }
+            noteOns.sort()
+            let median = noteOns[noteOns.count / 2]
+            lateralTargetTimeline.append((timeSeconds: groupTime, midi: median))
+        }
+    }
+
+    private func resolveLateralTargetMIDINote(nowUptimeSeconds: TimeInterval) -> Int? {
+        guard let start = lateralScheduleStartUptime else { return nil }
+        guard lateralTargetTimeline.isEmpty == false else { return nil }
+
+        let elapsed = max(0, nowUptimeSeconds - start)
+
+        // After the phrase ends, recentre after a short tail so the performer doesn't get stuck.
+        if let last = lateralTargetTimeline.last, elapsed > last.timeSeconds + 0.45 {
+            return nil
+        }
+
+        // Pick the most recent target at or before "now".
+        // Linear scan is fine for these small schedules; keep it simple.
+        var candidate: Int?
+        for item in lateralTargetTimeline {
+            if item.timeSeconds <= elapsed {
+                candidate = item.midi
+            } else {
+                break
+            }
+        }
+        return candidate
+    }
+
+    private func advanceGaitPhase(dtSeconds: TimeInterval) {
+        let speed = abs(currentLateralSpeedMetersPerSecond)
+        let baseHz: Float = 1.2
+        let extraHz: Float = min(2.8, speed * 3.0)
+        let hz = baseHz + extraHz
+        gaitPhaseRadians += 2 * .pi * hz * Float(dtSeconds)
+        if gaitPhaseRadians > 10000 { gaitPhaseRadians.formTruncatingRemainder(dividingBy: 2 * .pi) }
+    }
+
+    private func shouldAnimateGait() -> Bool {
+        abs(currentLateralSpeedMetersPerSecond) > 0.02
+    }
+
+    private func logDebugStatusIfNeeded(
+        isEnabled: Bool,
+        isPerforming: Bool,
+        keyboardGeometry: PianoKeyboardGeometry,
+        performanceSchedule: [PracticeSequencerMIDIEvent]
+    ) {
+        let now = ProcessInfo.processInfo.systemUptime
+        let interval: TimeInterval = 1.0
+        if let last = lastDebugLogUptime, now - last < interval {
+            return
+        }
+        lastDebugLogUptime = now
+
+        let scheduleNoteOnCount = performanceSchedule.reduce(into: 0) { partialResult, event in
+            if case .noteOn = event.kind { partialResult += 1 }
+        }
+        let scheduleSeconds: (min: TimeInterval, max: TimeInterval)? = {
+            guard performanceSchedule.isEmpty == false else { return nil }
+            let times = performanceSchedule.map(\.timeSeconds)
+            guard let min = times.min(), let max = times.max() else { return nil }
+            return (min, max)
+        }()
+
+        let rigSummary: String = if let xiaochengRig {
+            "rig=Y arms(L=\(xiaochengRig.leftArmJointIndices.count) R=\(xiaochengRig.rightArmJointIndices.count)) legs(L=\(xiaochengRig.leftLegJointIndices.count) R=\(xiaochengRig.rightLegJointIndices.count))"
+        } else {
+            "rig=N"
+        }
+
+        let scheduleSummary: String = if let scheduleSeconds {
+            "schedule=\(performanceSchedule.count) noteOn=\(scheduleNoteOnCount) t=[\(scheduleSeconds.min),\(scheduleSeconds.max)]"
+        } else {
+            "schedule=0"
+        }
+
+        debugLogger.info(
+            "update enabled=\(isEnabled, privacy: .public) performing=\(isPerforming, privacy: .public) keys=\(keyboardGeometry.keys.count, privacy: .public) \(scheduleSummary, privacy: .public) activeMidi=\(String(describing: self.latestActiveMIDINote), privacy: .public) lateralMidi=\(String(describing: self.latestLateralTargetMIDINote), privacy: .public) x=\(self.currentLateralOffsetMeters, privacy: .public) vx=\(self.currentLateralSpeedMetersPerSecond, privacy: .public) \(rigSummary, privacy: .public)"
+        )
     }
 
     private func loadXiaochengIfNeeded(into placeholder: Entity) {
@@ -198,6 +449,10 @@ final class VirtualPerformerOverlayController {
                 placeholder.children.removeAll(preservingWorldTransforms: false)
                 placeholder.addChild(entity)
                 xiaochengRig = rig
+
+                debugLogger.info(
+                    "xiaocheng loaded arms(L=\(rig.leftArmJointIndices.count, privacy: .public) R=\(rig.rightArmJointIndices.count, privacy: .public)) legs(L=\(rig.leftLegJointIndices.count, privacy: .public) R=\(rig.rightLegJointIndices.count, privacy: .public)) neck=\(rig.neckJointIndex != nil, privacy: .public) head=\(rig.headJointIndex != nil, privacy: .public)"
+                )
             } catch {
                 // No fallback.
             }
@@ -255,13 +510,28 @@ final class VirtualPerformerOverlayController {
 
     private func updateHandAnimationIfNeeded(schedule: [PracticeSequencerMIDIEvent]) {
         guard schedule != latestSchedule else { return }
+        if schedule.isEmpty {
+            debugLogger.info("schedule updated: empty")
+        } else {
+            let noteOnCount = schedule.reduce(into: 0) { partialResult, event in
+                if case .noteOn = event.kind { partialResult += 1 }
+            }
+            let minT = schedule.map(\.timeSeconds).min() ?? 0
+            let maxT = schedule.map(\.timeSeconds).max() ?? 0
+            debugLogger.info(
+                "schedule updated: count=\(schedule.count, privacy: .public) noteOn=\(noteOnCount, privacy: .public) t=[\(minT, privacy: .public),\(maxT, privacy: .public)]"
+            )
+        }
         latestSchedule = schedule
+        lateralScheduleStartUptime = schedule.isEmpty ? nil : ProcessInfo.processInfo.systemUptime
+        rebuildLateralTargetTimeline(schedule: schedule)
         startHandAnimation(schedule: schedule)
     }
 
     private func startHandAnimation(schedule: [PracticeSequencerMIDIEvent]) {
         stopHandAnimation()
         resetArmsToRest(animated: false)
+        latestActiveMIDINote = nil
 
         let sortedSchedule = schedule.sorted { lhs, rhs in
             if lhs.timeSeconds != rhs.timeSeconds { return lhs.timeSeconds < rhs.timeSeconds }
@@ -276,25 +546,38 @@ final class VirtualPerformerOverlayController {
         handAnimationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             var previousTimeSeconds: TimeInterval = 0
-            for event in sortedSchedule {
+            var index = 0
+            let groupEpsilon: TimeInterval = 0.0005
+
+            while index < sortedSchedule.count {
                 guard Task.isCancelled == false else { return }
-                let delaySeconds = max(0, event.timeSeconds - previousTimeSeconds)
+                let groupTime = sortedSchedule[index].timeSeconds
+                let delaySeconds = max(0, groupTime - previousTimeSeconds)
                 if delaySeconds > 0 {
                     try? await Task.sleep(for: .seconds(delaySeconds))
                 }
                 guard Task.isCancelled == false else { return }
 
-                switch event.kind {
-                case let .noteOn(midi, velocity):
-                    animateArmSwing(midi: midi, velocity: velocity)
-                case .noteOff:
-                    break
-                case .controlChange:
-                    break
-                case .pitchBend, .programChange, .channelPressure, .polyPressure:
-                    break
+                var noteOns: [(midi: Int, velocity: UInt8)] = []
+                while index < sortedSchedule.count {
+                    let event = sortedSchedule[index]
+                    if abs(event.timeSeconds - groupTime) > groupEpsilon { break }
+                    if case let .noteOn(midi, velocity) = event.kind {
+                        noteOns.append((midi: midi, velocity: velocity))
+                    }
+                    index += 1
                 }
-                previousTimeSeconds = event.timeSeconds
+
+                if noteOns.isEmpty == false {
+                    let target = resolvedTargetMIDINote(noteOns: noteOns)
+                    latestActiveMIDINote = target
+
+                    for item in noteOns {
+                        animateArmSwing(midi: item.midi, velocity: item.velocity)
+                    }
+                }
+
+                previousTimeSeconds = groupTime
             }
         }
     }
@@ -308,6 +591,12 @@ final class VirtualPerformerOverlayController {
         rightArmPendingVelocities.removeAll(keepingCapacity: true)
         leftArmPulses.removeAll(keepingCapacity: true)
         rightArmPulses.removeAll(keepingCapacity: true)
+        latestActiveMIDINote = nil
+    }
+
+    private func resolvedTargetMIDINote(noteOns: [(midi: Int, velocity: UInt8)]) -> Int {
+        let midis = noteOns.map(\.midi).sorted()
+        return midis[midis.count / 2]
     }
 
     private func animateArmSwing(midi: Int, velocity: UInt8) {
@@ -376,6 +665,13 @@ final class VirtualPerformerOverlayController {
     private func startArmMixerIfNeeded(rig: XiaochengRig) {
         guard armMixerTask == nil else { return }
 
+        if didLogMissingLegJoints == false {
+            didLogMissingLegJoints = true
+            if rig.leftLegJointIndices.isEmpty && rig.rightLegJointIndices.isEmpty {
+                debugLogger.info("gait: leg joints not found in rig; leg animation will be skipped")
+            }
+        }
+
         armMixerTask = Task { @MainActor [weak self] in
             guard let self else { return }
             defer { self.armMixerTask = nil }
@@ -388,10 +684,17 @@ final class VirtualPerformerOverlayController {
 
                 drainPendingVelocitiesIntoPulses(nowNanos: nowNanos)
 
+                let gaitPose = gaitResolver.gaitPose(
+                    phaseRadians: gaitPhaseRadians,
+                    lateralSpeedMetersPerSecond: currentLateralSpeedMetersPerSecond
+                )
+
                 let hasPendingWork = leftArmPendingVelocities.isEmpty == false
                     || rightArmPendingVelocities.isEmpty == false
                     || leftArmPulses.isEmpty == false
                     || rightArmPulses.isEmpty == false
+                    || gaitPose.leftAngleRadians != 0
+                    || gaitPose.rightAngleRadians != 0
                 if hasPendingWork == false {
                     rig.modelEntity.jointTransforms = XiaochengPoseService.baseTransforms(
                         rig: rig,
@@ -427,9 +730,60 @@ final class VirtualPerformerOverlayController {
                         transforms[index].rotation = transforms[index].rotation * delta
                     }
                 }
+
+                applyGaitPose(
+                    gaitPose,
+                    transforms: &transforms,
+                    rig: rig
+                )
                 rig.modelEntity.jointTransforms = transforms
 
                 try? await Task.sleep(for: .milliseconds(tickMilliseconds))
+            }
+        }
+    }
+
+    private func applyGaitPose(
+        _ pose: VirtualPerformerGaitPose,
+        transforms: inout [Transform],
+        rig: XiaochengRig
+    ) {
+        guard pose.leftAngleRadians != 0 || pose.rightAngleRadians != 0 else { return }
+
+        applyLegSwing(
+            swingAngleRadians: pose.leftAngleRadians,
+            jointIndices: rig.leftLegJointIndices,
+            transforms: &transforms
+        )
+        applyLegSwing(
+            swingAngleRadians: pose.rightAngleRadians,
+            jointIndices: rig.rightLegJointIndices,
+            transforms: &transforms
+        )
+    }
+
+    private func applyLegSwing(
+        swingAngleRadians: Float,
+        jointIndices: [Int],
+        transforms: inout [Transform]
+    ) {
+        guard swingAngleRadians != 0 else { return }
+        guard jointIndices.isEmpty == false else { return }
+
+        // The exact joint axes depend on the asset. We intentionally keep the motion small and simple:
+        // a forward/back thigh swing + a slightly counter-rotated lower leg to mimic stepping.
+        let thighDelta = simd_quatf(angle: swingAngleRadians, axis: [1, 0, 0])
+        let calfDelta = simd_quatf(angle: -swingAngleRadians * 0.55, axis: [1, 0, 0])
+        let footDelta = simd_quatf(angle: swingAngleRadians * 0.15, axis: [1, 0, 0])
+
+        for (slot, index) in jointIndices.enumerated() where index < transforms.count {
+            switch slot {
+            case 0:
+                transforms[index].rotation = transforms[index].rotation * thighDelta
+            case 1:
+                transforms[index].rotation = transforms[index].rotation * calfDelta
+            default:
+                transforms[index].rotation = transforms[index].rotation * footDelta
             }
         }
     }
