@@ -6,7 +6,7 @@
 | --- | --- |
 | Commit hash | cb3ae387 |
 | Branch name | crh3 |
-| Generated at | 2026-05-27T15:36:05+08:00 |
+| Generated at | 2026-05-27T15:41:00+08:00 |
 | Output language | Chinese |
 | Generation mode | Full docs reconciliation via `neat-freak` against current working tree |
 
@@ -15,7 +15,6 @@
 - `AGENTS.md`
 - `README.md`
 - `docs/overview.md`
-- `docs/ai-duet.md`
 - `docs/architecture.md`
 - `docs/data-flow.md`
 - `docs/configuration.md`
@@ -30,6 +29,5 @@
 ## Current Coverage Gaps
 
 - 本仓库没有 `.github/workflows/`，自动化验证以本地命令为准。
-- AVP 的手部追踪、平面检测、BLE MIDI、Bonjour/Local Network、Microphone 与空间舒适度需要真机验证。
+- AVP 的手部追踪、平面检测、BLE MIDI、Microphone 与空间舒适度需要真机验证。
 - `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` 仓库默认不内置。
-- Python 依赖没有 lockfile，模型权重与下载镜像依赖本地环境。
