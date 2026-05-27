@@ -70,4 +70,4 @@ xcodebuild -showdestinations -project LonelyPianist.xcodeproj -scheme LonelyPian
 xcodebuild test -project LonelyPianist.xcodeproj -scheme LonelyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO
 ```
 
-真机才可验证 hand tracking、plane detection、Bluetooth MIDI、Local Network/Bonjour、Microphone 与空间舒适度。
+真机才可验证 hand tracking、plane detection、Bluetooth MIDI、Microphone 与空间舒适度。
