@@ -271,6 +271,8 @@ struct PracticeSettingsView: View {
         switch selectedKind {
         case .networkBonjourHTTPDuet:
             return backendStatusText ?? "后端：网络本地连接（A.I. Duet / Magenta）"
+        case .networkBonjourHTTPAriaV2:
+            return backendStatusText ?? "后端：网络本地连接（Aria v2）"
         case .localCoreMLDuet:
             return backendStatusText ?? "后端：本地 CoreML（A.I. Duet / Performance RNN）"
         case .localRule:
@@ -284,6 +286,8 @@ struct PracticeSettingsView: View {
         switch kind {
         case .networkBonjourHTTPDuet:
             "网络本地连接（A.I. Duet / Magenta）"
+        case .networkBonjourHTTPAriaV2:
+            "网络本地连接（Aria v2）"
         case .localCoreMLDuet:
             "本地 CoreML（A.I. Duet / Performance RNN）"
         case .localRule:
