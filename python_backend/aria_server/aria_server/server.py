@@ -20,6 +20,7 @@ from shared.protocol_v2 import (
     ResultResponseV2,
     legalize_events,
 )
+from shared.cc_policy import DefaultCCPolicy, inject_defaults
 from shared.midi_events_v2 import MidiBuildConfig, events_to_mididict, mididict_to_events
 
 from aria.run import _load_inference_model_mlx
@@ -34,6 +35,8 @@ class ServerConfig:
     host: str
     port: int
     checkpoint: Path
+    default_cc7: int | None
+    default_cc11: int | None
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
@@ -81,13 +84,12 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         defaults: list[ControlChangeEvent] = []
         if not any(isinstance(e, ControlChangeEvent) and e.controller == 64 for e in events):
             defaults.append(ControlChangeEvent(controller=64, value=0, time=0.0))
-        if not any(isinstance(e, ControlChangeEvent) and e.controller == 7 for e in events):
-            defaults.append(ControlChangeEvent(controller=7, value=100, time=0.0))
-        if not any(isinstance(e, ControlChangeEvent) and e.controller == 11 for e in events):
-            defaults.append(ControlChangeEvent(controller=11, value=100, time=0.0))
 
         if defaults:
             events = legalize_events(defaults + events)
+
+        cc_policy = getattr(self.server, "cc_policy", DefaultCCPolicy())
+        events = inject_defaults(events, policy=cc_policy)
 
         response = ResultResponseV2(events=events, latency_ms=0)
         self._send_json(200, response.model_dump())
@@ -105,9 +107,27 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         return
 
 
+class _ThreadingTCPServer(socketserver.ThreadingTCPServer):
+    allow_reuse_address = True
+
+
 def _default_checkpoint_path() -> Path:
     python_backend_dir = Path(__file__).resolve().parents[2]
     return python_backend_dir / "aria" / "hf" / "model-demo.safetensors"
+
+
+def _parse_optional_cc_arg(raw: str) -> int | None:
+    value = raw.strip().lower()
+    if value in {"none", "off", "disable", "disabled", ""}:
+        return None
+    try:
+        parsed = int(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid cc value: {raw!r}") from None
+    if parsed == 0:
+        # Convention: treat 0 as "disabled" (even though 0 is a legal CC value).
+        return None
+    return max(0, min(127, parsed))
 
 
 def parse_args(argv: list[str] | None = None) -> ServerConfig:
@@ -115,8 +135,16 @@ def parse_args(argv: list[str] | None = None) -> ServerConfig:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8766)
     parser.add_argument("--checkpoint", type=Path, default=_default_checkpoint_path())
+    parser.add_argument("--default_cc7", default="100")
+    parser.add_argument("--default_cc11", default="100")
     args = parser.parse_args(argv)
-    return ServerConfig(host=args.host, port=args.port, checkpoint=args.checkpoint)
+    return ServerConfig(
+        host=args.host,
+        port=args.port,
+        checkpoint=args.checkpoint,
+        default_cc7=_parse_optional_cc_arg(args.default_cc7),
+        default_cc11=_parse_optional_cc_arg(args.default_cc11),
+    )
 
 
 def run(config: ServerConfig) -> None:
@@ -151,8 +179,9 @@ def run(config: ServerConfig) -> None:
     bonjour_thread.start()
 
     try:
-        with socketserver.ThreadingTCPServer((config.host, config.port), _Handler) as httpd:
+        with _ThreadingTCPServer((config.host, config.port), _Handler) as httpd:
             httpd.aria_pipeline = AriaPipeline(checkpoint=config.checkpoint)
+            httpd.cc_policy = DefaultCCPolicy(default_cc7=config.default_cc7, default_cc11=config.default_cc11)
             httpd.serve_forever(poll_interval=0.2)
     except KeyboardInterrupt:
         pass
