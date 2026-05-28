@@ -1,10 +1,24 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import http.server
+import json
 import socketserver
+import threading
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+from shared.bonjour import BonjourServiceBroadcaster
+from shared.protocol_v2 import (
+    ALLOWED_CC_CONTROLLERS,
+    ControlChangeEvent,
+    ErrorResponseV2,
+    GenerateRequestV2,
+    ResultResponseV2,
+    legalize_events,
+)
 
 
 @dataclass(frozen=True)
@@ -15,11 +29,61 @@ class ServerConfig:
 
 
 class _Handler(http.server.BaseHTTPRequestHandler):
+    server_version = "aria_server/0.0.1"
+
     def do_GET(self) -> None:  # noqa: N802
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
-        self.wfile.write(b"aria_server scaffold (P2-T1). Use POST /generate in P2.\n")
+        self.wfile.write(b"aria_server running. POST /generate with protocol_version=2.\n")
+
+    def do_POST(self) -> None:  # noqa: N802
+        if self.path != "/generate":
+            self._send_json(404, ErrorResponseV2(message="not_found").model_dump())
+            return
+
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_json(400, ErrorResponseV2(message="invalid_content_length").model_dump())
+            return
+
+        raw = self.rfile.read(max(0, content_length))
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except Exception:
+            self._send_json(400, ErrorResponseV2(message="invalid_json").model_dump())
+            return
+
+        try:
+            request = GenerateRequestV2.model_validate(payload)
+        except Exception as exc:
+            self._send_json(400, ErrorResponseV2(message=f"invalid_request: {exc}").model_dump())
+            return
+
+        # Echo mode (P2-T2): legalize + filter unknown CC, and always include at least one CC64.
+        events = legalize_events(request.events)
+        defaults: list[ControlChangeEvent] = []
+        if not any(isinstance(e, ControlChangeEvent) and e.controller == 64 for e in events):
+            defaults.append(ControlChangeEvent(controller=64, value=0, time=0.0))
+        if not any(isinstance(e, ControlChangeEvent) and e.controller == 7 for e in events):
+            defaults.append(ControlChangeEvent(controller=7, value=100, time=0.0))
+        if not any(isinstance(e, ControlChangeEvent) and e.controller == 11 for e in events):
+            defaults.append(ControlChangeEvent(controller=11, value=100, time=0.0))
+
+        if defaults:
+            events = legalize_events(defaults + events)
+
+        response = ResultResponseV2(events=events, latency_ms=0)
+        self._send_json(200, response.model_dump())
+
+    def _send_json(self, status_code: int, obj: dict[str, Any]) -> None:
+        body = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def log_message(self, format: str, *args: object) -> None:  # noqa: A002
         # Keep the default HTTP server quiet; use explicit prints in main.
@@ -43,14 +107,42 @@ def parse_args(argv: list[str] | None = None) -> ServerConfig:
 def run(config: ServerConfig) -> None:
     service_type = "_lpduet._tcp"
     txt = {"path": "/generate", "protocol_version": "2", "engine": "aria", "engine_impl": "aria"}
+    broadcaster = BonjourServiceBroadcaster(
+        service_type=service_type,
+        instance_name="LonelyPianist Aria",
+        port=config.port,
+        properties={k.encode("utf-8"): v.encode("utf-8") for k, v in txt.items()},
+    )
+
+    stop_event = threading.Event()
+
+    def bonjour_thread_main() -> None:
+        async def runner() -> None:
+            await broadcaster.start()
+            try:
+                while stop_event.is_set() is False:
+                    await asyncio.sleep(0.25)
+            finally:
+                await broadcaster.stop()
+
+        asyncio.run(runner())
 
     print(f"[aria_server] checkpoint={config.checkpoint}", flush=True)
     print(f"[aria_server] listening=http://{config.host}:{config.port}", flush=True)
     print(f"[aria_server] bonjour service_type={service_type} txt={txt}", flush=True)
-    print("[aria_server] NOTE: scaffold only; /generate will be implemented in P2-T2.", flush=True)
+    print(f"[aria_server] allowed_cc={sorted(ALLOWED_CC_CONTROLLERS)}", flush=True)
 
-    with socketserver.ThreadingTCPServer((config.host, config.port), _Handler) as httpd:
-        httpd.serve_forever(poll_interval=0.2)
+    bonjour_thread = threading.Thread(target=bonjour_thread_main, name="bonjour", daemon=True)
+    bonjour_thread.start()
+
+    try:
+        with socketserver.ThreadingTCPServer((config.host, config.port), _Handler) as httpd:
+            httpd.serve_forever(poll_interval=0.2)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        stop_event.set()
+        bonjour_thread.join(timeout=2)
 
 
 def main(argv: list[str] | None = None) -> None:

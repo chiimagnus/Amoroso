@@ -6,4 +6,4 @@
 
 ## Aria v2
 
-- 启动（先做骨架，路由逻辑在后续 tasks）：`uv run python scripts/aria_server.py --help`
+- 启动：`uv run --project aria_server python scripts/aria_server.py --help`
