@@ -99,3 +99,40 @@ func streamingChunkAssemblerRebasesEventsByTimeRangeStart() async throws {
         return false
     }))
 }
+
+@Test
+func streamingChunkTimeRangeDecodeSanitizesAndEnforcesNonDecreasingEnd() throws {
+    let data = Data(
+        """
+        {
+          "type": "chunk",
+          "protocol_version": 2,
+          "seq": 0,
+          "is_final": false,
+          "time_range": { "start": 1.0, "end": 0.5 },
+          "events": []
+        }
+        """.utf8
+    )
+
+    let decoded = try JSONDecoder().decode(ImprovStreamChunkV2.self, from: data)
+    #expect(decoded.timeRange.start == 1.0)
+    #expect(decoded.timeRange.end == 1.0)
+
+    let negative = Data(
+        """
+        {
+          "type": "chunk",
+          "protocol_version": 2,
+          "seq": 0,
+          "is_final": false,
+          "time_range": { "start": -1.0, "end": -2.0 },
+          "events": []
+        }
+        """.utf8
+    )
+
+    let decodedNegative = try JSONDecoder().decode(ImprovStreamChunkV2.self, from: negative)
+    #expect(decodedNegative.timeRange.start == 0.0)
+    #expect(decodedNegative.timeRange.end == 0.0)
+}

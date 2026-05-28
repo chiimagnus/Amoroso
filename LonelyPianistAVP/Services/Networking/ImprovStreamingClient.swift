@@ -1,13 +1,31 @@
 import Foundation
 import ImprovProtocol
 
+protocol WebSocketTaskProtocol: AnyObject, Sendable {
+    func resume()
+    func send(_ message: URLSessionWebSocketTask.Message) async throws
+    func receive() async throws -> URLSessionWebSocketTask.Message
+    func cancel(with closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?)
+}
+
+extension URLSessionWebSocketTask: WebSocketTaskProtocol {}
+
 enum ImprovStreamingClientError: Error, LocalizedError, Equatable {
     case invalidMessage
+    case timeout
+    case serverError(message: String)
+    case protocolVersionMismatch(expected: Int, actual: Int)
 
     var errorDescription: String? {
         switch self {
         case .invalidMessage:
             "Invalid WebSocket message."
+        case .timeout:
+            "WebSocket stream timed out."
+        case let .serverError(message):
+            "WebSocket server error: \(message)"
+        case let .protocolVersionMismatch(expected, actual):
+            "WebSocket protocol version mismatch (expected \(expected), got \(actual))."
         }
     }
 }
@@ -22,9 +40,22 @@ protocol ImprovStreamingClientProtocol: Sendable {
 
 actor ImprovStreamingClient: ImprovStreamingClientProtocol {
     private let urlSession: URLSession
+    private let makeWebSocketTask: @Sendable (URLRequest) -> any WebSocketTaskProtocol
 
-    init(urlSession: URLSession = .shared) {
+    init(
+        urlSession: URLSession = .shared,
+        makeWebSocketTask: (@Sendable (URLRequest, URLSession) -> any WebSocketTaskProtocol)? = nil
+    ) {
         self.urlSession = urlSession
+        if let makeWebSocketTask {
+            self.makeWebSocketTask = { request in
+                makeWebSocketTask(request, urlSession)
+            }
+        } else {
+            self.makeWebSocketTask = { request in
+                urlSession.webSocketTask(with: request)
+            }
+        }
     }
 
     func streamChunks(
@@ -44,7 +75,7 @@ actor ImprovStreamingClient: ImprovStreamingClientProtocol {
             var request = URLRequest(url: url)
             request.timeoutInterval = timeoutInterval
 
-            let wsTask = urlSession.webSocketTask(with: request)
+            let wsTask = makeWebSocketTask(request)
             wsTask.resume()
 
             let decoder = JSONDecoder()
@@ -61,7 +92,20 @@ actor ImprovStreamingClient: ImprovStreamingClientProtocol {
             let receiveTask = Task {
                 do {
                     while Task.isCancelled == false {
-                        let message = try await wsTask.receive()
+                        let message = try await withThrowingTaskGroup(of: URLSessionWebSocketTask.Message.self) { group in
+                            group.addTask { try await wsTask.receive() }
+                            group.addTask {
+                                try await Task.sleep(for: timeout)
+                                throw ImprovStreamingClientError.timeout
+                            }
+                            let next = try await group.next()
+                            group.cancelAll()
+                            guard let next else {
+                                throw CancellationError()
+                            }
+                            return next
+                        }
+
                         let data: Data
                         switch message {
                         case let .data(messageData):
@@ -75,7 +119,19 @@ actor ImprovStreamingClient: ImprovStreamingClientProtocol {
                             throw ImprovStreamingClientError.invalidMessage
                         }
 
+                        if let serverError = try? decoder.decode(ImprovErrorResponse.self, from: data),
+                           serverError.type == "error"
+                        {
+                            throw ImprovStreamingClientError.serverError(message: serverError.message)
+                        }
+
                         let chunk = try decoder.decode(ImprovStreamChunkV2.self, from: data)
+                        if chunk.protocolVersion != 2 {
+                            throw ImprovStreamingClientError.protocolVersionMismatch(expected: 2, actual: chunk.protocolVersion)
+                        }
+                        if chunk.type != "chunk" {
+                            throw ImprovStreamingClientError.invalidMessage
+                        }
                         continuation.yield(chunk)
 
                         if chunk.isFinal {

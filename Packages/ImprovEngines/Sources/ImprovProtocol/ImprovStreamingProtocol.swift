@@ -27,6 +27,19 @@ public struct ImprovStreamTimeRange: Codable, Equatable, Sendable {
         self.end = max(Self.sanitizeSeconds(end), self.start)
     }
 
+    enum CodingKeys: String, CodingKey {
+        case start
+        case end
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedStart = Self.sanitizeSeconds(try container.decode(Double.self, forKey: .start))
+        let decodedEnd = Self.sanitizeSeconds(try container.decode(Double.self, forKey: .end))
+        start = decodedStart
+        end = max(decodedEnd, decodedStart)
+    }
+
     private static func sanitizeSeconds(_ seconds: Double) -> Double {
         guard seconds.isFinite else { return 0 }
         return max(0, seconds)
@@ -69,4 +82,3 @@ public struct ImprovStreamChunkV2: Codable, Equatable, Sendable {
         self.latencyMS = latencyMS
     }
 }
-
