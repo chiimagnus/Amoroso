@@ -445,7 +445,7 @@ final class AIPerformanceService {
                 logger.info("improv reply kind=\(kind.rawValue, privacy: .public)")
             }
             await handleReplyPlan(.schedule(schedule), sequenceID: sequenceID, activationID: activationID)
-            if (kind == .networkBonjourHTTPDuet || kind == .networkBonjourHTTPAriaV2), let backendLatencyMS {
+            if kind == .networkBonjourHTTPAriaV2, let backendLatencyMS {
                 lastImprovStatusText = "上次生成耗时：\(backendLatencyMS)ms"
             } else {
                 lastImprovStatusText = "Last improv: \(kind.rawValue)"

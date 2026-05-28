@@ -184,7 +184,7 @@ func enableDisableAreIdempotent() async {
 
     let backendService = FakeBackendDiscoveryService()
     let orchestrator = FakeDiscoveryOrchestrator(service: backendService)
-    let selectedKind: ImprovBackendKind = .networkBonjourHTTPDuet
+    let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
     let aiPlaybackService = FakeSequencerPlaybackService()
     let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
         makeLocalSamplerPlaybackService: { aiPlaybackService },
@@ -317,7 +317,7 @@ func shutdownPreventsFurtherEnable() async {
 
     let backendService = FakeBackendDiscoveryService()
     let orchestrator = FakeDiscoveryOrchestrator(service: backendService)
-    let selectedKind: ImprovBackendKind = .networkBonjourHTTPDuet
+    let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
     let aiPlaybackService = FakeSequencerPlaybackService()
     let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
         makeLocalSamplerPlaybackService: { aiPlaybackService },
