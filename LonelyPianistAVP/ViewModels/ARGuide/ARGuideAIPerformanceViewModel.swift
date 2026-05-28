@@ -7,6 +7,7 @@ import os
 final class ARGuideAIPerformanceViewModel {
     private let debugLogger = Logger(subsystem: "LonelyPianistAVP", category: "AIPerformanceDebug")
     let duetDiscoveryService: BonjourBackendDiscoveryService
+    let ariaDiscoveryService: BonjourBackendDiscoveryService
     private let backendSelection = ImprovBackendSelection()
     private let aiPlaybackServiceFactory: @MainActor () -> DuetAIPlaybackServiceFactory
     @ObservationIgnored
@@ -30,6 +31,7 @@ final class ARGuideAIPerformanceViewModel {
         discoveryOrchestrator: ImprovBackendDiscoveryOrchestrator(
             servicesByKind: [
                 .networkBonjourHTTPDuet: duetDiscoveryService,
+                .networkBonjourHTTPAriaV2: ariaDiscoveryService,
             ]
         ),
         backendRegistry: makeBackendRegistry(),
@@ -51,6 +53,7 @@ final class ARGuideAIPerformanceViewModel {
 
     init(
         duetDiscoveryService: BonjourBackendDiscoveryService? = nil,
+        ariaDiscoveryService: BonjourBackendDiscoveryService? = nil,
         aiPlaybackServiceFactory: (@MainActor () -> DuetAIPlaybackServiceFactory)? = nil
     ) {
         self.duetDiscoveryService = duetDiscoveryService ?? BonjourBackendDiscoveryService(
@@ -59,6 +62,14 @@ final class ARGuideAIPerformanceViewModel {
                 "path": "/generate",
                 "protocol_version": "1",
                 "engine": "magenta",
+            ]
+        )
+        self.ariaDiscoveryService = ariaDiscoveryService ?? BonjourBackendDiscoveryService(
+            serviceType: "_lpduet._tcp",
+            requiredTXTRecord: [
+                "path": "/generate",
+                "protocol_version": "2",
+                "engine": "aria",
             ]
         )
         if let aiPlaybackServiceFactory {
@@ -93,6 +104,12 @@ final class ARGuideAIPerformanceViewModel {
                 state: duetDiscoveryService.state,
                 notFoundHint: "请先在电脑端启动 Duet Python 服务（默认端口 8766）。"
             )
+        case .networkBonjourHTTPAriaV2:
+            return backendDiscoveryStatusText(
+                backendName: "Aria v2",
+                state: ariaDiscoveryService.state,
+                notFoundHint: "请先在电脑端启动 Aria v2 Python 服务。"
+            )
         case .localCoreMLDuet:
             startLocalCoreMLDuetProbeIfNeeded()
             return localCoreMLDuetAvailability.statusText()
@@ -108,6 +125,9 @@ final class ARGuideAIPerformanceViewModel {
         case .networkBonjourHTTPDuet:
             duetDiscoveryService.stop()
             duetDiscoveryService.start()
+        case .networkBonjourHTTPAriaV2:
+            ariaDiscoveryService.stop()
+            ariaDiscoveryService.start()
         case .localCoreMLDuet:
             restartLocalCoreMLDuetProbe()
         case .localRule, .tickRangeReplay:
@@ -209,6 +229,7 @@ final class ARGuideAIPerformanceViewModel {
         ImprovBackendRegistry(
             backends: [
                 DuetNetworkBonjourHTTPImprovBackend(discoveryService: duetDiscoveryService),
+                AriaNetworkBonjourHTTPImprovBackend(discoveryService: ariaDiscoveryService),
                 LocalCoreMLDuetImprovBackend(modelLoader: localCoreMLModelLoader),
                 LocalRuleImprovBackend(),
                 TickRangeReplayImprovBackend(),
