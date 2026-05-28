@@ -269,8 +269,6 @@ struct PracticeSettingsView: View {
         }
 
         switch selectedKind {
-        case .networkBonjourHTTPDuet:
-            return backendStatusText ?? "后端：网络本地连接（A.I. Duet / Magenta）"
         case .networkBonjourHTTPAriaV2:
             return backendStatusText ?? "后端：网络本地连接（Aria v2）"
         case .networkBonjourWebSocketAriaV2:
@@ -286,8 +284,6 @@ struct PracticeSettingsView: View {
 
     private func backendTitle(_ kind: ImprovBackendKind) -> String {
         switch kind {
-        case .networkBonjourHTTPDuet:
-            "网络本地连接（A.I. Duet / Magenta）"
         case .networkBonjourHTTPAriaV2:
             "网络本地连接（Aria v2）"
         case .networkBonjourWebSocketAriaV2:

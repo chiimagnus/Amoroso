@@ -6,7 +6,6 @@ import os
 @Observable
 final class ARGuideAIPerformanceViewModel {
     private let debugLogger = Logger(subsystem: "LonelyPianistAVP", category: "AIPerformanceDebug")
-    let duetDiscoveryService: BonjourBackendDiscoveryService
     let ariaDiscoveryService: BonjourBackendDiscoveryService
     let ariaWebSocketDiscoveryService: BonjourBackendDiscoveryService
     private let backendSelection = ImprovBackendSelection()
@@ -31,7 +30,6 @@ final class ARGuideAIPerformanceViewModel {
         ),
         discoveryOrchestrator: ImprovBackendDiscoveryOrchestrator(
             servicesByKind: [
-                .networkBonjourHTTPDuet: duetDiscoveryService,
                 .networkBonjourHTTPAriaV2: ariaDiscoveryService,
                 .networkBonjourWebSocketAriaV2: ariaWebSocketDiscoveryService,
             ]
@@ -54,19 +52,10 @@ final class ARGuideAIPerformanceViewModel {
     )
 
     init(
-        duetDiscoveryService: BonjourBackendDiscoveryService? = nil,
         ariaDiscoveryService: BonjourBackendDiscoveryService? = nil,
         ariaWebSocketDiscoveryService: BonjourBackendDiscoveryService? = nil,
         aiPlaybackServiceFactory: (@MainActor () -> DuetAIPlaybackServiceFactory)? = nil
     ) {
-        self.duetDiscoveryService = duetDiscoveryService ?? BonjourBackendDiscoveryService(
-            serviceType: "_lpduet._tcp",
-            requiredTXTRecord: [
-                "path": "/generate",
-                "protocol_version": "1",
-                "engine": "magenta",
-            ]
-        )
         self.ariaDiscoveryService = ariaDiscoveryService ?? BonjourBackendDiscoveryService(
             serviceType: "_lpduet._tcp",
             requiredTXTRecord: [
@@ -109,12 +98,6 @@ final class ARGuideAIPerformanceViewModel {
 
     var backendStatusText: String? {
         switch backendSelection.selectedKind() {
-        case .networkBonjourHTTPDuet:
-            return backendDiscoveryStatusText(
-                backendName: "A.I. Duet",
-                state: duetDiscoveryService.state,
-                notFoundHint: "请先在电脑端启动 Duet Python 服务（默认端口 8766）。"
-            )
         case .networkBonjourHTTPAriaV2:
             return backendDiscoveryStatusText(
                 backendName: "Aria v2",
@@ -139,9 +122,6 @@ final class ARGuideAIPerformanceViewModel {
 
     func restartDiscoveryForSelectedBackend() {
         switch backendSelection.selectedKind() {
-        case .networkBonjourHTTPDuet:
-            duetDiscoveryService.stop()
-            duetDiscoveryService.start()
         case .networkBonjourHTTPAriaV2:
             ariaDiscoveryService.stop()
             ariaDiscoveryService.start()
@@ -248,7 +228,6 @@ final class ARGuideAIPerformanceViewModel {
     private func makeBackendRegistry() -> ImprovBackendRegistry {
         ImprovBackendRegistry(
             backends: [
-                DuetNetworkBonjourHTTPImprovBackend(discoveryService: duetDiscoveryService),
                 AriaNetworkBonjourHTTPImprovBackend(discoveryService: ariaDiscoveryService),
                 AriaNetworkBonjourWebSocketImprovBackend(discoveryService: ariaWebSocketDiscoveryService),
                 LocalCoreMLDuetImprovBackend(modelLoader: localCoreMLModelLoader),

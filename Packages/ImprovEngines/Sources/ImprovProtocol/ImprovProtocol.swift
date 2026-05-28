@@ -35,56 +35,6 @@ public struct ImprovGenerateParams: Codable, Equatable, Sendable {
     }
 }
 
-public struct ImprovGenerateRequest: Codable, Equatable, Sendable {
-    public var type: String
-    public var protocolVersion: Int
-    public var notes: [ImprovDialogueNote]
-    public var params: ImprovGenerateParams
-    public var sessionID: String?
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case protocolVersion = "protocol_version"
-        case notes
-        case params
-        case sessionID = "session_id"
-    }
-
-    public init(
-        protocolVersion: Int = 1,
-        notes: [ImprovDialogueNote],
-        params: ImprovGenerateParams,
-        sessionID: String? = nil
-    ) {
-        type = "generate"
-        self.protocolVersion = protocolVersion
-        self.notes = notes
-        self.params = params
-        self.sessionID = sessionID
-    }
-}
-
-public struct ImprovResultResponse: Codable, Equatable, Sendable {
-    public var type: String
-    public var protocolVersion: Int
-    public var notes: [ImprovDialogueNote]
-    public var latencyMS: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case type
-        case protocolVersion = "protocol_version"
-        case notes
-        case latencyMS = "latency_ms"
-    }
-
-    public init(type: String, protocolVersion: Int, notes: [ImprovDialogueNote], latencyMS: Int? = nil) {
-        self.type = type
-        self.protocolVersion = protocolVersion
-        self.notes = notes
-        self.latencyMS = latencyMS
-    }
-}
-
 public struct ImprovErrorResponse: Codable, Equatable, Sendable {
     public var type: String
     public var protocolVersion: Int
