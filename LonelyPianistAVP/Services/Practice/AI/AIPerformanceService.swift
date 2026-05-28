@@ -476,8 +476,7 @@ final class AIPerformanceService {
     ) async throws {
         let stream = try await backend.streamChunks(request: request, timeout: backendTimeout)
 
-        var lastSeq = -1
-        var lastRangeEnd: Double = 0
+        var assembler = ImprovStreamingChunkAssembler()
 
         for try await chunk in stream {
             guard isEnabled else { break }
@@ -488,25 +487,18 @@ final class AIPerformanceService {
             guard practiceSession != nil else { break }
             if Task.isCancelled { break }
 
-            if chunk.seq <= lastSeq {
-                logger.warning("drop streaming chunk: non-monotonic seq=\(chunk.seq, privacy: .public) last=\(lastSeq, privacy: .public)")
+            if chunk.seq <= assembler.lastSeq {
+                logger.warning("drop streaming chunk: non-monotonic seq=\(chunk.seq, privacy: .public) last=\(assembler.lastSeq, privacy: .public)")
                 continue
             }
-            if chunk.timeRange.start + 1e-9 < lastRangeEnd {
+            if chunk.timeRange.start + 1e-9 < assembler.lastTimeRangeEnd {
                 logger.warning(
-                    "drop streaming chunk: overlapping time_range start=\(chunk.timeRange.start, privacy: .public) lastEnd=\(lastRangeEnd, privacy: .public)"
+                    "drop streaming chunk: overlapping time_range start=\(chunk.timeRange.start, privacy: .public) lastEnd=\(assembler.lastTimeRangeEnd, privacy: .public)"
                 )
                 continue
             }
 
-            lastSeq = chunk.seq
-            lastRangeEnd = max(lastRangeEnd, chunk.timeRange.end)
-
-            let rebasedEvents = chunk.events.map { event in
-                var rebased = event
-                rebased.time = max(0, rebased.time - chunk.timeRange.start)
-                return rebased
-            }
+            guard let rebasedEvents = assembler.consume(chunk) else { continue }
 
             let schedule = try await Task.detached(priority: .userInitiated) {
                 ImprovScheduleBuilder().buildSchedule(from: rebasedEvents)
