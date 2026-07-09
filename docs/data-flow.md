@@ -18,7 +18,7 @@
 | AVP 准备 | 钢琴类型选择 | `PracticeSetupState` + `WindowTransitionState` | 进入曲库前的 readiness gate |
 | AVP 曲库 | bundled MusicXML / 用户导入 MusicXML | `SongLibraryViewModel` + `PracticePreparationService` | `PreparedPractice` |
 | AVP 练习 | `PreparedPractice` + selected piano mode | `ARGuideViewModel` + `PracticeSessionViewModel` | 步骤推进、谱面、高亮、录制与回放 |
-| AVP AI 即兴 | recorded phrase / selected clip | `AIPerformanceService` + `ImprovBackendRegistry` | 生成片段并排程回放（严格按所选后端） |
+| AVP AI 即兴 | rolling note/CC context | `AIPerformanceService` + `ImprovBackendRegistry` | 连续评估、短窗生成、整形后送入可替换调度器（严格按所选后端） |
 
 ## macOS recorder
 
