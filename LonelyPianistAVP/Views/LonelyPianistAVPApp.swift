@@ -47,6 +47,7 @@ struct LonelyPianistAVPApp: App {
         }
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
+        .defaultSize(width: 400, height: 760)
 
         ImmersiveSpace(id: appState.immersiveSpaceID) {
             ImmersiveView(viewModel: appState.arGuideViewModel)
