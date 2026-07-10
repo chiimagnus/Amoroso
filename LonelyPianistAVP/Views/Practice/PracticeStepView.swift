@@ -99,7 +99,6 @@ struct PracticeStepView: View {
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
 
                 if isAutoplayEnabled == false {
                     Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
@@ -107,7 +106,6 @@ struct PracticeStepView: View {
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
                     .disabled(viewModel.isAIPerformanceActive || viewModel.hasImportedSteps == false || viewModel
                         .practiceSessionViewModel.state == .completed)
 
@@ -120,7 +118,6 @@ struct PracticeStepView: View {
                     }
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
                     .disabled(
                         viewModel.isAIPerformanceActive ||
                             session.state == .ready ||
@@ -132,7 +129,6 @@ struct PracticeStepView: View {
                     .toggleStyle(.button)
                     .buttonStyle(.bordered)
                     .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
                 .disabled(viewModel.isAIPerformanceActive)
 
                 Button("设置", systemImage: "gearshape") {
@@ -140,7 +136,6 @@ struct PracticeStepView: View {
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
-                .hoverEffect()
 
                 Text("进度 \(viewModel.practiceProgressText)")
                     .monospacedDigit()

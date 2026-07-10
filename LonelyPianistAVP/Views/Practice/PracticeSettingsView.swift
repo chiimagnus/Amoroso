@@ -62,7 +62,6 @@ struct PracticeSettingsView: View {
                             }
                             .buttonStyle(.bordered)
                             .buttonBorderShape(.roundedRectangle)
-                            .hoverEffect()
                         }
 
                         Toggle("Local Control Off（可选）", isOn: $sendLocalControlOff)
@@ -76,7 +75,6 @@ struct PracticeSettingsView: View {
                         }
                         .buttonStyle(.bordered)
                         .buttonBorderShape(.roundedRectangle)
-                        .hoverEffect()
 
                         if let message = destinationConnectionViewModel.lastErrorMessage {
                             Text(message)
@@ -159,7 +157,6 @@ struct PracticeSettingsView: View {
                                     }
                                     .buttonStyle(.bordered)
                                     .buttonBorderShape(.roundedRectangle)
-                                    .hoverEffect()
 
                                     Text("用于 simulator：不依赖 Hand Tracking，直接触发 AI 生成/回放。")
                                         .font(.footnote)
@@ -177,7 +174,6 @@ struct PracticeSettingsView: View {
                                 .buttonStyle(.borderedProminent)
                                 .tint(.red)
                                 .buttonBorderShape(.roundedRectangle)
-                                .hoverEffect()
 
                                 Text(recordingElapsedText)
                                     .monospacedDigit()
@@ -189,7 +185,6 @@ struct PracticeSettingsView: View {
                                 .buttonStyle(.borderedProminent)
                                 .tint(.red)
                                 .buttonBorderShape(.roundedRectangle)
-                                .hoverEffect()
                                 .disabled(canStartRecording == false)
                             }
 
@@ -204,7 +199,6 @@ struct PracticeSettingsView: View {
                             }
                             .buttonStyle(.bordered)
                             .buttonBorderShape(.roundedRectangle)
-                            .hoverEffect()
                         }
                         .disabled(isAIPerformanceActive)
 
@@ -231,7 +225,6 @@ struct PracticeSettingsView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .buttonBorderShape(.roundedRectangle)
-                        .hoverEffect()
                     }
                     .disabled(isAIPerformanceActive)
                 }
