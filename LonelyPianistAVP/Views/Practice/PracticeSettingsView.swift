@@ -39,18 +39,15 @@ struct PracticeSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SettingsSection(title: "操作", systemImage: "slider.horizontal.3") {
-                    Button("回到选曲库", systemImage: "chevron.backward") {
-                        onBackToLibrary()
-                    }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
-                    .hoverEffect()
-
+                Button("回到选曲库", systemImage: "chevron.backward") {
+                    onBackToLibrary()
                 }
+                .buttonStyle(.bordered)
+                .buttonBorderShape(.roundedRectangle)
+                .hoverEffect()
 
                 if isBluetoothMIDIMode {
-                    SettingsSection(title: "MIDI 输出", systemImage: "cable.connector") {
+                    VStack(alignment: .leading, spacing: 12) {
                         Picker("发声路由", selection: $soundOutputRouteRawValue) {
                             ForEach(PracticeSoundOutputRoute.allCases) { route in
                                 Text(route.title).tag(route.rawValue)
@@ -108,7 +105,7 @@ struct PracticeSettingsView: View {
                     }
                 }
 
-                SettingsSection(title: "练习", systemImage: "music.note") {
+                VStack(alignment: .leading, spacing: 12) {
                     Picker("练习手", selection: $practiceHandModeRawValue) {
                         ForEach(PracticeHandMode.allCases) { mode in
                             Text(mode.title).tag(mode.rawValue)
@@ -127,24 +124,22 @@ struct PracticeSettingsView: View {
 
                 DisclosureGroup(isExpanded: $isAdvancedFeaturesExpanded) {
                     VStack(alignment: .leading, spacing: 16) {
-                        SettingsSection(title: "输出", systemImage: "speaker.wave.2") {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("输出音量（AVP）")
-                                    .font(.callout)
-                                HStack {
-                                    Slider(value: $audioOutputVolume, in: 0 ... 1)
-                                    Text(audioOutputVolume, format: .percent)
-                                        .font(.footnote)
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 56, alignment: .trailing)
-                                }
-                                Text("调到 0 可避免与真实钢琴叠音。")
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("输出音量（AVP）")
+                                .font(.callout)
+                            HStack {
+                                Slider(value: $audioOutputVolume, in: 0 ... 1)
+                                Text(audioOutputVolume, format: .percent)
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
+                                    .frame(width: 56, alignment: .trailing)
                             }
+                            Text("调到 0 可避免与真实钢琴叠音。")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
                         }
 
-                        SettingsSection(title: "AI 即兴", systemImage: "sparkles") {
+                        VStack(alignment: .leading, spacing: 12) {
                             Toggle("AI 即兴演奏（虚拟演奏家）", isOn: $virtualPerformerEnabled)
 
                             if virtualPerformerEnabled {
@@ -183,7 +178,7 @@ struct PracticeSettingsView: View {
                         }
                         .disabled(isAIPerformanceActive)
 
-                        SettingsSection(title: "录制", systemImage: "record.circle") {
+                        VStack(alignment: .leading, spacing: 12) {
                             if isRecording {
                                 Button("结束录制", systemImage: "stop.circle.fill") {
                                     onStopRecording()
@@ -222,9 +217,7 @@ struct PracticeSettingsView: View {
                         }
                         .disabled(isAIPerformanceActive)
 
-                        SettingsSection(title: "调试", systemImage: "ladybug") {
-                            Toggle("显示键盘坐标轴（X/Y/Z）", isOn: $debugKeyboardAxesOverlayEnabled)
-                        }
+                        Toggle("显示键盘坐标轴（X/Y/Z）", isOn: $debugKeyboardAxesOverlayEnabled)
                         .disabled(isAIPerformanceActive)
                     }
                     .padding(.top, 12)
@@ -235,7 +228,7 @@ struct PracticeSettingsView: View {
                 }
 
                 if isVirtualPianoMode {
-                    SettingsSection(title: "虚拟钢琴", systemImage: "viewfinder") {
+                    VStack(alignment: .leading, spacing: 12) {
                         if let gazePlaneDiskStatusText {
                             Text(gazePlaneDiskStatusText)
                                 .font(.callout)
@@ -301,23 +294,6 @@ struct PracticeSettingsView: View {
     private func migrateLegacyBackendKindIfNeeded() {
         guard ImprovBackendKind(rawValue: improvBackendKindRawValue) == nil else { return }
         improvBackendKindRawValue = ImprovBackendSelection.defaultKind.rawValue
-    }
-}
-
-private struct SettingsSection<Content: View>: View {
-    let title: String
-    let systemImage: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-                .foregroundStyle(.secondary)
-
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
