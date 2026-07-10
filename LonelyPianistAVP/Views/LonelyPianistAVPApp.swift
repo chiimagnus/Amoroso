@@ -41,6 +41,13 @@ struct LonelyPianistAVPApp: App {
             makeReplacementPlacementIfPossible(targetWindowID: WindowID.practice, context: context)
         }
 
+        Window("练习设置", id: WindowID.practiceSettings) {
+            PracticeSettingsWindowRootView(viewModel: appState.arGuideViewModel)
+                .environment(appState.windowState)
+        }
+        .windowStyle(.automatic)
+        .windowResizability(.contentSize)
+
         ImmersiveSpace(id: appState.immersiveSpaceID) {
             ImmersiveView(viewModel: appState.arGuideViewModel)
                 .onAppear {

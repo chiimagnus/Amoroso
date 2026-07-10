@@ -6,15 +6,14 @@ struct PracticeStepView: View {
     let onRestartFromTypePicker: () -> Void
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     @State private var hasRequestedImmersiveOpen = false
     @State private var isStepVisible = false
-    @State private var isSettingsPopoverPresented = false
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
-    @State private var isTakeLibraryPresented = false
 
-    @State private var isVirtualPerformerEnabled = false
     @State private var isAutoplayEnabled = false
     @AppStorage(PracticeSessionSettingsKeys.manualAdvanceMode) private var manualAdvanceModeRawValue = ManualAdvanceMode.step.rawValue
     @AppStorage(PracticeSessionSettingsKeys.handMode) private var practiceHandModeRawValue = PracticeHandMode.both.rawValue
@@ -84,55 +83,11 @@ struct PracticeStepView: View {
                     .disabled(viewModel.isAIPerformanceActive)
 
                 Button("设置", systemImage: "gearshape") {
-                    isSettingsPopoverPresented.toggle()
+                    openWindow(id: WindowID.practiceSettings)
                 }
                 .buttonStyle(.bordered)
                 .buttonBorderShape(.roundedRectangle)
                 .hoverEffect()
-                .popover(isPresented: $isSettingsPopoverPresented) {
-                    PracticeSettingsView(
-                        virtualPerformerEnabled: $isVirtualPerformerEnabled,
-                        backendStatusText: viewModel.backendStatusText,
-                        lastImprovStatusText: viewModel.lastImprovStatusText,
-                        recordingSourceText: viewModel.recordingSourceText,
-                        isAIPerformanceActive: viewModel.isAIPerformanceActive,
-                        isVirtualPianoMode: isVirtualPianoMode,
-                        isBluetoothMIDIMode: viewModel.isBluetoothMIDIMode,
-                        gazePlaneDiskStatusText: viewModel.gazePlaneDiskStatusText,
-                        isRecording: viewModel.isRecording,
-                        recordingElapsedText: viewModel.recordingElapsedText,
-                        canStartRecording: viewModel.canRecord && viewModel.isAIPerformanceActive == false && viewModel
-                            .takePlaybackViewModel.isPlaying == false,
-                        onBackToLibrary: {
-                            isSettingsPopoverPresented = false
-                            viewModel.practiceSessionViewModel.shutdown()
-                            onBackToLibrary()
-                        },
-                        onStartRecording: {
-                            isSettingsPopoverPresented = false
-                            viewModel.startRecording()
-                        },
-                        onStopRecording: {
-                            isSettingsPopoverPresented = false
-                            viewModel.stopRecording()
-                        },
-                        onOpenTakeLibrary: {
-                            isSettingsPopoverPresented = false
-                            isTakeLibraryPresented = true
-                        },
-                        onRetryVirtualPianoPlacement: {
-                            viewModel.retryVirtualPianoPlacement()
-                        },
-                        onRequestSessionRebuild: {
-                            viewModel.replacePracticeSessionViewModel()
-                        },
-                        onDebugInjectAIImprovPhrase: {
-                            #if DEBUG
-                            viewModel.debugInjectAIImprovPhrase()
-                            #endif
-                        }
-                    )
-                }
 
                 Text("进度 \(viewModel.practiceProgressText)")
                     .monospacedDigit()
@@ -167,9 +122,6 @@ struct PracticeStepView: View {
                     await viewModel.recoverImmersiveStateIfStuck()
                 }
             }
-        }
-        .onChange(of: isVirtualPerformerEnabled) {
-            viewModel.setPracticeVirtualPerformerEnabled(isVirtualPerformerEnabled)
         }
         .onChange(of: isAutoplayEnabled) {
             viewModel.setPracticeAutoplayEnabled(isAutoplayEnabled)
@@ -207,7 +159,7 @@ struct PracticeStepView: View {
         .onDisappear {
             isStepVisible = false
             hasRequestedImmersiveOpen = false
-            isVirtualPerformerEnabled = false
+            dismissWindow(id: WindowID.practiceSettings)
             viewModel.practiceSessionViewModel.shutdown()
             viewModel.stopRecording()
             viewModel.takePlaybackViewModel.stop()
@@ -220,30 +172,6 @@ struct PracticeStepView: View {
                 await viewModel.closeImmersiveForStep(dismissImmersiveSpace: dismissHandler)
                 await viewModel.recoverImmersiveStateIfStuck()
             }
-        }
-        .sheet(isPresented: $isTakeLibraryPresented) {
-            NavigationStack {
-                TakeLibraryView(
-                    takes: viewModel.takeLibraryTakes,
-                    playbackViewModel: viewModel.takePlaybackViewModel,
-                    isRecording: viewModel.isRecording,
-                    errorMessage: viewModel.takeLibraryErrorMessage,
-                    onErrorDismiss: { viewModel.dismissTakeLibraryError() },
-                    onRename: { id, name in viewModel.renameTake(id: id, name: name) },
-                    onDelete: { id in viewModel.deleteTake(id: id) },
-                    onClearAll: { viewModel.clearAllTakes() },
-                    makeMIDIExport: { take in try viewModel.makeMIDIExport(for: take) }
-                )
-                .navigationTitle("录制库")
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("关闭") {
-                            isTakeLibraryPresented = false
-                        }
-                    }
-                }
-            }
-            .frame(minWidth: 400, minHeight: 500)
         }
     }
 
