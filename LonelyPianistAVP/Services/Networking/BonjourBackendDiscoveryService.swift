@@ -174,7 +174,7 @@ final class BonjourBackendDiscoveryService: Sendable {
     }
 
     private nonisolated func resolveHostPort(from endpoint: NWEndpoint) async -> (host: String, port: Int)? {
-        await withCheckedContinuation(isolation: nil) { continuation in
+        await withCheckedContinuation { continuation in
             let connection = NWConnection(to: endpoint, using: .tcp)
             let lock = OSAllocatedUnfairLock(initialState: false)
 
