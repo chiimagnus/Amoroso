@@ -13,6 +13,7 @@ enum LibraryDesignTokens {
   static let recordScale = recordDiameter / recordReferenceDiameter
   static let recordSpacing: CGFloat = 294
   static let sideRecordScale: CGFloat = 0.80
+  static let sideRecordWidthScale: CGFloat = 0.74
   static let crateMinimumHeight: CGFloat = 410
 
   static let windowMinimumHeight: CGFloat = 620
