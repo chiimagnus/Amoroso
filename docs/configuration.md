@@ -4,9 +4,9 @@
 
 | 项目 | 位置 | 说明 |
 | --- | --- | --- |
-| Xcode 工程 | `LonelyPianist.xcodeproj` | 包含 macOS app、visionOS app 与测试 target。 |
-| macOS scheme | `LonelyPianist` | recorder app 与 `LonelyPianistTests`。 |
-| visionOS scheme | `LonelyPianistAVP` | AVP app 与 `LonelyPianistAVPTests`。 |
+| Xcode 工程 | `HappyPianist.xcodeproj` | 包含 macOS app、visionOS app 与测试 target。 |
+| macOS scheme | `HappyPianist` | recorder app 与 `HappyPianistTests`。 |
+| visionOS scheme | `HappyPianistAVP` | AVP app 与 `HappyPianistAVPTests`。 |
 | Python 工作区（可选） | `python_backend/` | 包含 Aria 模型源码与可运行的本地服务 `python_backend/aria_server/`（用于 AVP 网络即兴后端）。 |
 
 当前仓库没有 `.github/workflows/`，自动化验证以本地命令为准。
@@ -15,21 +15,21 @@
 
 | 配置面 | 位置 | 说明 |
 | --- | --- | --- |
-| 沙盒与权限 | `LonelyPianist/LonelyPianist.entitlements` | App Sandbox、network client、Bluetooth、user-selected read-only files。 |
-| 蓝牙说明 | `LonelyPianist/Info.plist` | `NSBluetoothAlwaysUsageDescription` 支持在 app 内打开 Bluetooth MIDI 面板。 |
-| 文件类型 | `LonelyPianist/Info.plist` | 导入 MIDI 文件。 |
-| 持久化 | `ModelContainerFactory` | SwiftData store 名为 `LonelyPianist.store`。 |
+| 沙盒与权限 | `HappyPianist/HappyPianist.entitlements` | App Sandbox、network client、Bluetooth、user-selected read-only files。 |
+| 蓝牙说明 | `HappyPianist/Info.plist` | `NSBluetoothAlwaysUsageDescription` 支持在 app 内打开 Bluetooth MIDI 面板。 |
+| 文件类型 | `HappyPianist/Info.plist` | 导入 MIDI 文件。 |
+| 持久化 | `ModelContainerFactory` | SwiftData store 名为 `HappyPianist.store`。 |
 | 回放输出 | recorder UI + `RoutedMIDIPlaybackService` | 内建 sampler 或外部 MIDI destination。 |
 
 ## visionOS app 配置
 
 | 配置面 | 位置 | 说明 |
 | --- | --- | --- |
-| 权限说明 | `LonelyPianistAVP/Resources/Info.plist` | Hand Tracking、World Sensing、Microphone、Bluetooth。 |
-| 网络（可选） | `LonelyPianistAVP/Resources/Info.plist` | 为网络即兴后端（Aria v2）预留 Local Network + Bonjour：`NSLocalNetworkUsageDescription`、`NSBonjourServices = _lpduet._tcp`、`NSAllowsLocalNetworking = true`。仅当用户在练习设置中选择网络后端时才会使用。 |
+| 权限说明 | `HappyPianistAVP/Resources/Info.plist` | Hand Tracking、World Sensing、Microphone、Bluetooth。 |
+| 网络（可选） | `HappyPianistAVP/Resources/Info.plist` | 为网络即兴后端（Aria v2）预留 Local Network + Bonjour：`NSLocalNetworkUsageDescription`、`NSBonjourServices = _lpduet._tcp`、`NSAllowsLocalNetworking = true`。仅当用户在练习设置中选择网络后端时才会使用。 |
 | MusicXML 文件类型 | `UTImportedTypeDeclarations` | 导入 `.musicxml` / `.xml`。 |
 | 字体 | `UIAppFonts` | `Bravura.otf`。 |
-| soundfont | `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` | 仓库默认不内置；需要本地 sampler 回放时手动放入。 |
+| soundfont | `HappyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` | 仓库默认不内置；需要本地 sampler 回放时手动放入。 |
 
 `PracticeSessionSettingsProvider` 使用 `UserDefaults` 保存练习相关设置；修改时优先从 provider 和对应 UI 查找真实 key。
 

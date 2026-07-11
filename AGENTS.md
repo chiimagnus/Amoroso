@@ -4,11 +4,11 @@
 
 本仓库包含一个 macOS 主应用与一个 visionOS（Apple Vision Pro）应用，并带有本机 Python 后端工作区。
 
-- Xcode 工程：`LonelyPianist.xcodeproj`
-- macOS App：`LonelyPianist/`（`Models/`、`Services/`、`ViewModels/`、`Views/`、`Utilities/`）
-- macOS 测试：`LonelyPianistTests/`（Swift Testing）
-- visionOS App：`LonelyPianistAVP/`
-- visionOS 测试：`LonelyPianistAVPTests/`（Swift Testing）
+- Xcode 工程：`HappyPianist.xcodeproj`
+- macOS App：`HappyPianist/`（`Models/`、`Services/`、`ViewModels/`、`Views/`、`Utilities/`）
+- macOS 测试：`HappyPianistTests/`（Swift Testing）
+- visionOS App：`HappyPianistAVP/`
+- visionOS 测试：`HappyPianistAVPTests/`（Swift Testing）
 - SwiftPM 包：`Packages/RealityKitContent/`
 - Python 工作区：`python_backend/`（保留 shared 工具与脚本目录；当前仓库不再内置 Duet Python 服务）
 - 规划/知识库：`.github/features/`、`docs/`
@@ -26,7 +26,7 @@
 
 平台支持（按项目选择）：
 - macOS 26.0+、visionOS 26.0+
-- VisionOS 开发以 `docs/overview.md` 与 `docs/modules/lonelypianist-avp.md` 为准
+- VisionOS 开发以 `docs/overview.md` 与 `docs/modules/happypianist-avp.md` 为准
 
 ## 设计原则
 

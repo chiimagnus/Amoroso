@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSHandsTrackingUsageDescription</key>
+	<string>HappyPianist uses hand tracking to detect which piano keys you press and to advance practice steps.</string>
+	<key>NSWorldSensingUsageDescription</key>
+	<string>用于在 Step3 虚拟钢琴模式中检测平面位置，并在平面上显示放双手引导与虚拟键盘。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>用于在 Step3 练习中识别你弹奏的真实钢琴音符，并判断是否匹配当前高亮音符。</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>用于在 App 内连接钢琴的蓝牙 MIDI，并接收你弹奏的音符用于练习引导。</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>用于在局域网中自动发现并连接本机运行的 AI 即兴后端服务（A.I. Duet），以生成虚拟演奏家回应。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_lpduet._tcp</string>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>UIAppFonts</key>
+	<array>
+		<string>Bravura.otf</string>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.xml</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>MusicXML</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.recordare.musicxml</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>musicxml</string>
+				</array>
+				<key>public.mime-type</key>
+				<string>application/vnd.recordare.musicxml+xml</string>
+			</dict>
+		</dict>
+	</array>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationPreferredDefaultSceneSessionRole</key>
+		<string>UIWindowSceneSessionRoleApplication</string>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UISceneSessionRoleImmersiveSpaceApplication</key>
+			<array>
+				<dict>
+					<key>UISceneInitialImmersionStyle</key>
+					<string>UIImmersionStyleMixed</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+</dict>
+</plist>

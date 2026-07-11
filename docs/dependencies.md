@@ -29,8 +29,8 @@
 
 | 资源 | 当前状态 | 使用方 |
 | --- | --- | --- |
-| `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` | 仓库默认不内置 | AVP sampler 回放。 |
-| `LonelyPianistAVP/Resources/Fonts/Bravura.otf` | 在 app bundle 中声明 | 谱面符号。 |
+| `HappyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` | 仓库默认不内置 | AVP sampler 回放。 |
+| `HappyPianistAVP/Resources/Fonts/Bravura.otf` | 在 app bundle 中声明 | 谱面符号。 |
 | Bundled MusicXML | 由 `BundledSongLibraryProvider` 扫描 | AVP 曲库。 |
 | CoreML 模型文件 | 不入库 | `AIDuetPerformanceRNN.mlpackage` / `.mlmodelc`（由开发者本地加入 Xcode target）。 |
 

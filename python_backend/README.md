@@ -1,6 +1,6 @@
 # Python Backend Workspace
 
-本目录是 LonelyPianist 的 **Mac 侧** Python 工作区：用于放置“可选”的本地服务/工具（例如给 AVP 真机提供网络即兴后端），**不是** AVP App 运行的必需依赖。
+本目录是 HappyPianist 的 **Mac 侧** Python 工作区：用于放置“可选”的本地服务/工具（例如给 AVP 真机提供网络即兴后端），**不是** AVP App 运行的必需依赖。
 
 ## Services
 
@@ -12,7 +12,7 @@
 ## Layout（目录约定）
 
 - `python_backend/aria/`：Aria 模型源码（用于本机推理；模型权重不入 git）。
-- `python_backend/aria_server/`：LonelyPianist 的 Aria v2 本地服务工程（uv project）。
+- `python_backend/aria_server/`：HappyPianist 的 Aria v2 本地服务工程（uv project）。
 - `python_backend/shared/`：Python 侧共享模块（Bonjour、v2 协议、CC policy、MIDI<->events 转换等）。
 - `python_backend/scripts/`：可运行入口与 smoketests（从这里启动服务/跑自检）。
 
