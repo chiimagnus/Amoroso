@@ -1,7 +1,5 @@
 # ===== swift =====
 
-xcuserdata/
-
 .build/
 **/build/
 .swiftpm/
