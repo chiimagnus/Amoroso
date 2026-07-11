@@ -6,7 +6,7 @@ protocol ChordAttemptAccumulatorProtocol {
         expectedNotes: [Int],
         tolerance: Int,
         at timestamp: Date
-    ) -> Bool
+    ) -> StepAttemptMatchResult
 
     func registerHandSeparated(
         pressedNotes: Set<Int>,
@@ -14,7 +14,7 @@ protocol ChordAttemptAccumulatorProtocol {
         expectedLeftNotes: [Int],
         tolerance: Int,
         at timestamp: Date
-    ) -> Bool
+    ) -> StepAttemptMatchResult
     func reset()
 }
 
@@ -25,11 +25,10 @@ extension ChordAttemptAccumulatorProtocol {
         expectedLeftNotes: [Int],
         tolerance: Int,
         at timestamp: Date
-    ) -> Bool {
-        let expectedUnion = Set(expectedRightNotes + expectedLeftNotes).sorted()
-        return register(
+    ) -> StepAttemptMatchResult {
+        register(
             pressedNotes: pressedNotes,
-            expectedNotes: expectedUnion,
+            expectedNotes: Set(expectedRightNotes + expectedLeftNotes).sorted(),
             tolerance: tolerance,
             at: timestamp
         )
@@ -53,29 +52,14 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         expectedNotes: [Int],
         tolerance: Int,
         at timestamp: Date
-    ) -> Bool {
-        guard pressedNotes.isEmpty == false else { return false }
-        guard expectedNotes.isEmpty == false else { return false }
-
-        if let windowStart, timestamp.timeIntervalSince(windowStart) > windowSeconds {
-            reset()
-        }
-
-        if windowStart == nil {
-            windowStart = timestamp
-        }
-        accumulatedPressedNotes.formUnion(pressedNotes)
-
-        let matched = matcher.matches(
-            expectedNotes: expectedNotes,
-            pressedNotes: accumulatedPressedNotes,
-            tolerance: tolerance
+    ) -> StepAttemptMatchResult {
+        registerHandSeparated(
+            pressedNotes: pressedNotes,
+            expectedRightNotes: expectedNotes,
+            expectedLeftNotes: [],
+            tolerance: tolerance,
+            at: timestamp
         )
-        if matched {
-            reset()
-            return true
-        }
-        return false
     }
 
     func registerHandSeparated(
@@ -84,45 +68,73 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         expectedLeftNotes: [Int],
         tolerance: Int,
         at timestamp: Date
-    ) -> Bool {
-        guard pressedNotes.isEmpty == false else { return false }
-
+    ) -> StepAttemptMatchResult {
         let expectedUnion = Set(expectedRightNotes + expectedLeftNotes)
-        guard expectedUnion.isEmpty == false else { return false }
+        let handMode: PracticeHandMode = if expectedRightNotes.isEmpty {
+            .left
+        } else if expectedLeftNotes.isEmpty {
+            .right
+        } else {
+            .both
+        }
+
+        guard pressedNotes.isEmpty == false, expectedUnion.isEmpty == false else {
+            return .insufficientEvidence(evidence: evidence(
+                expected: expectedUnion,
+                observed: accumulatedPressedNotes,
+                handMode: handMode,
+                message: "no contact evidence"
+            ))
+        }
 
         if let windowStart, timestamp.timeIntervalSince(windowStart) > windowSeconds {
             reset()
         }
-
-        if windowStart == nil {
-            windowStart = timestamp
-        }
+        if windowStart == nil { windowStart = timestamp }
         accumulatedPressedNotes.formUnion(pressedNotes)
 
-        let rightMatched = expectedRightNotes.isEmpty
-            ? true
-            : matcher.matches(
-                expectedNotes: expectedRightNotes,
-                pressedNotes: accumulatedPressedNotes,
-                tolerance: tolerance
-            )
-        let leftMatched = expectedLeftNotes.isEmpty
-            ? true
-            : matcher.matches(
-                expectedNotes: expectedLeftNotes,
-                pressedNotes: accumulatedPressedNotes,
-                tolerance: tolerance
-            )
+        let rightMatched = expectedRightNotes.isEmpty || matcher.matches(
+            expectedNotes: expectedRightNotes,
+            pressedNotes: accumulatedPressedNotes,
+            tolerance: tolerance
+        )
+        let leftMatched = expectedLeftNotes.isEmpty || matcher.matches(
+            expectedNotes: expectedLeftNotes,
+            pressedNotes: accumulatedPressedNotes,
+            tolerance: tolerance
+        )
 
+        let currentEvidence = evidence(
+            expected: expectedUnion,
+            observed: accumulatedPressedNotes,
+            handMode: handMode,
+            message: rightMatched && leftMatched ? "hand contact matched" : "hand contact pending"
+        )
         if rightMatched, leftMatched {
             reset()
-            return true
+            return .matched(evidence: currentEvidence)
         }
-        return false
+        return .insufficientEvidence(evidence: currentEvidence)
     }
 
     func reset() {
         windowStart = nil
         accumulatedPressedNotes.removeAll()
+    }
+
+    private func evidence(
+        expected: Set<Int>,
+        observed: Set<Int>,
+        handMode: PracticeHandMode,
+        message: String
+    ) -> PracticeAttemptEvidence {
+        PracticeAttemptEvidence(
+            expectedNotes: expected,
+            observedNotes: observed,
+            handMode: handMode,
+            source: .handContact,
+            isPartialEvidence: false,
+            debugMessage: message
+        )
     }
 }

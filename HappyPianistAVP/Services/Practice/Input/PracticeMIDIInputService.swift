@@ -158,7 +158,8 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
         switch event.kind {
         case let .noteOn(note, _):
             let matchResult = matcher.registerNoteOn(note: note, at: event.receivedAt)
-            if case .matched = matchResult {
+            effectHandler?.handle(effect: .attemptEvaluated(matchResult))
+            if matchResult.isMatched {
                 effectHandler?.handle(effect: .advanceToNextStep)
             }
         case let .noteOff(note, _):
@@ -183,7 +184,8 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
         switch event.kind {
         case let .noteOn(note, _):
             let matchResult = matcher.registerNoteOn(note: note, at: event.receivedAt)
-            if case .matched = matchResult {
+            effectHandler?.handle(effect: .attemptEvaluated(matchResult))
+            if matchResult.isMatched {
                 effectHandler?.handle(effect: .advanceToNextStep)
             }
         case let .noteOff(note, _):

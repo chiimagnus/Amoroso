@@ -208,7 +208,8 @@ final class PracticeAudioRecognitionInputService: PracticeAudioRecognitionInputS
             handGateBoost: snapshot.handGateBoost
         )
 
-        if case .matched = matchResult {
+        effectHandler?.handle(effect: .attemptEvaluated(matchResult))
+        if matchResult.isMatched {
             accumulator.markMatchedAndRequireRearm(
                 expectedMIDINotes: snapshot.expectedMIDINotes,
                 at: event.timestamp

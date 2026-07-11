@@ -159,6 +159,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
 
     func handle(effect: PracticeSessionEffect) {
         switch effect {
+        case let .attemptEvaluated(outcome):
+            lastAttemptOutcome = outcome
         case .advanceToNextStep:
             advanceToNextStep()
         case .refreshPracticeInput:
