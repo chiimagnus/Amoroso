@@ -87,7 +87,7 @@ func mismatchedGenerationEventsAreIgnored() {
 
 @Test
 @MainActor
-func triadMatchesWhenTwoExpectedNotesDetectedWithoutStrongWrongNote() {
+func triadMajorityIsPartialEvidenceRatherThanMatch() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2000)
     accumulator.resetForNewStep(generation: 2)
@@ -107,7 +107,8 @@ func triadMatchesWhenTwoExpectedNotesDetectedWithoutStrongWrongNote() {
         at: now.addingTimeInterval(0.04)
     )
 
-    #expect(result.category == .matched)
+    #expect(result.category == .insufficientEvidence)
+    #expect(result.evidence.isPartialEvidence)
 }
 
 @Test
@@ -380,7 +381,7 @@ func chordDoesNotCountLowConfidenceOnsetsTowardMajority() {
 
 @Test
 @MainActor
-func fourNoteChordRequiresCeilTwoThirdsMatches() {
+func fourNoteChordMajorityRemainsPartialEvidence() {
     let accumulator = AudioStepAttemptAccumulator()
     let now = Date(timeIntervalSince1970: 2800)
     accumulator.resetForNewStep(generation: 14)
@@ -400,6 +401,7 @@ func fourNoteChordRequiresCeilTwoThirdsMatches() {
         at: now.addingTimeInterval(0.02)
     )
     #expect(twoOfFour.category == .insufficientEvidence)
+    #expect(twoOfFour.evidence.isPartialEvidence == false)
 
     accumulator.register(event: makeEvent(
         midiNote: 67,
@@ -414,5 +416,6 @@ func fourNoteChordRequiresCeilTwoThirdsMatches() {
         generation: 14,
         at: now.addingTimeInterval(0.04)
     )
-    #expect(threeOfFour.category == .matched)
+    #expect(threeOfFour.category == .insufficientEvidence)
+    #expect(threeOfFour.evidence.isPartialEvidence)
 }

@@ -52,7 +52,13 @@ func chordMatchAdvancesToNextStepViaEffect() {
         practiceHandMode: .both
     )
 
-    #expect(effectHandler.effects == [.advanceToNextStep])
+    #expect(effectHandler.effects.count == 2)
+    if case .attemptEvaluated(.matched) = effectHandler.effects.first {
+        // Expected typed attempt evidence before advancement.
+    } else {
+        Issue.record("Expected a matched attempt effect")
+    }
+    #expect(effectHandler.effects.last == .advanceToNextStep)
 }
 
 @Test
