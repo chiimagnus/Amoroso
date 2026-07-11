@@ -50,12 +50,12 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
 
     func registerNoteOn(note: Int, at timestamp: Date) -> StepAttemptMatchResult {
         guard expectedUnion.isEmpty == false else {
-            return .insufficient(progress: "no expected notes")
+            return .insufficientEvidence(evidence: evidence(observed: [], message: "no expected notes"))
         }
 
         pruneRearm(now: timestamp)
         guard isRearmSatisfied(note: note, at: timestamp) else {
-            return .insufficient(progress: "rearm blocked")
+            return .insufficientEvidence(evidence: evidence(observed: accumulatedNotes, message: "rearm blocked"))
         }
 
         if windowStart == nil {
@@ -68,12 +68,15 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
             accumulatedNotes.removeAll(keepingCapacity: true)
         }
 
-        if expectedUnion.contains(note) {
-            accumulatedNotes.insert(note)
-        } else {
-            return .wrong(reason: "unexpected note")
+        guard expectedUnion.contains(note) else {
+            let observed = accumulatedNotes.union([note])
+            return .wrongNote(
+                evidence: evidence(observed: observed, message: "unexpected note"),
+                unexpectedNotes: [note]
+            )
         }
 
+        accumulatedNotes.insert(note)
         return evaluate(at: timestamp)
     }
 
@@ -83,39 +86,39 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
     }
 
     private func evaluate(at timestamp: Date) -> StepAttemptMatchResult {
-        func isSatisfied(expected: Set<Int>, accumulated: Set<Int>) -> (Bool, String?) {
-            guard expected.isEmpty == false else { return (true, nil) }
-            if expected.count == 1 {
-                let note = expected.first!
-                return accumulated.contains(note) ? (true, nil) : (false, "single pending")
-            }
-            let matched = expected.intersection(accumulated).count
-            return matched == expected.count ? (true, nil) : (false, "\(matched)/\(expected.count)")
-        }
+        let rightSatisfied = expectedRight.isSubset(of: accumulatedNotes)
+        let leftSatisfied = expectedLeft.isSubset(of: accumulatedNotes)
 
-        let right = isSatisfied(expected: expectedRight, accumulated: accumulatedNotes)
-        let left = isSatisfied(expected: expectedLeft, accumulated: accumulatedNotes)
-
-        if right.0, left.0 {
+        if rightSatisfied, leftSatisfied {
             for note in expectedUnion {
                 rearmBlockedUntil[note] = timestamp.addingTimeInterval(configuration.rearmSilenceWindow)
             }
-            return .matched(reason: "midi deterministic matched")
+            return .matched(evidence: evidence(observed: accumulatedNotes, message: "midi deterministic matched"))
         }
 
-        var progressItems: [String] = []
-        if right.0 == false, let p = right.1 { progressItems.append("R \(p)") }
-        if left.0 == false, let p = left.1 { progressItems.append("L \(p)") }
-        if expectedRight.isEmpty, expectedLeft.isEmpty == false {
-            return .insufficient(progress: progressItems.joined(separator: " "))
-        }
-        if expectedLeft.isEmpty, expectedRight.isEmpty == false {
-            return .insufficient(progress: progressItems.joined(separator: " "))
-        }
+        return .insufficientEvidence(
+            evidence: evidence(
+                observed: accumulatedNotes,
+                message: "pending \(accumulatedNotes.count)/\(expectedUnion.count)"
+            )
+        )
+    }
 
-        let required = expectedUnion.count
-        let matched = expectedUnion.intersection(accumulatedNotes).count
-        return .insufficient(progress: "chord \(matched)/\(required)")
+    private func evidence(observed: Set<Int>, message: String) -> PracticeAttemptEvidence {
+        PracticeAttemptEvidence(
+            expectedNotes: expectedUnion,
+            observedNotes: observed,
+            handMode: handMode,
+            source: .midi,
+            isPartialEvidence: false,
+            debugMessage: message
+        )
+    }
+
+    private var handMode: PracticeHandMode {
+        if expectedRight.isEmpty == false, expectedLeft.isEmpty == false { return .both }
+        if expectedLeft.isEmpty == false { return .left }
+        return .right
     }
 
     private func isRearmSatisfied(note: Int, at timestamp: Date) -> Bool {

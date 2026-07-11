@@ -13,7 +13,7 @@ func accumulatorMatchesChordWithinWindowAcrossMultiplePresses() {
         tolerance: 0,
         at: base
     )
-    #expect(first == false)
+    #expect(first.isMatched == false)
 
     let second = accumulator.register(
         pressedNotes: [64],
@@ -21,7 +21,7 @@ func accumulatorMatchesChordWithinWindowAcrossMultiplePresses() {
         tolerance: 0,
         at: base.addingTimeInterval(0.2)
     )
-    #expect(second == false)
+    #expect(second.isMatched == false)
 
     let third = accumulator.register(
         pressedNotes: [67],

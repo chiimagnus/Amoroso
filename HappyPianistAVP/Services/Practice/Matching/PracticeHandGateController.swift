@@ -70,7 +70,7 @@ final class PracticeHandGateController: PracticeSessionLifecycleProtocol {
         guard expectedMIDINotes.isEmpty == false else { return }
 
         let expectedByHand = uniqueMIDINotesByHand(notes: expectedNotes)
-        let matched = chordAttemptAccumulator.registerHandSeparated(
+        let outcome = chordAttemptAccumulator.registerHandSeparated(
             pressedNotes: pressedNotes,
             expectedRightNotes: expectedByHand.right,
             expectedLeftNotes: expectedByHand.left,
@@ -78,7 +78,8 @@ final class PracticeHandGateController: PracticeSessionLifecycleProtocol {
             at: timestamp
         )
 
-        if matched {
+        effectHandler?.handle(effect: .attemptEvaluated(outcome))
+        if outcome.isMatched {
             effectHandler?.handle(effect: .advanceToNextStep)
         }
     }

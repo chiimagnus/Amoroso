@@ -36,6 +36,7 @@ protocol PracticeInputEventSourceProtocol: AnyObject {
 }
 
 enum PracticeSessionEffect: Equatable {
+    case attemptEvaluated(StepAttemptMatchResult)
     case advanceToNextStep
     case refreshPracticeInput
     case refreshAudioRecognition
