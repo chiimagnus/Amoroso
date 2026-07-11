@@ -21,7 +21,8 @@ struct LibraryCrateView: View {
 
     ZStack {
       LibraryImportLiftView(liftOffset: liftOffset)
-        .zIndex(1)
+      .offset(y: LibraryDesignTokens.recordDiameter / 2 - 74)
+      .zIndex(1)
 
       ForEach(entries.enumerated(), id: \.element.id) { index, entry in
         let relativeIndex = index - selectedIndex
@@ -122,7 +123,7 @@ struct LibraryCrateView: View {
         Text("↑ 上拽唱片导入乐谱")
           .font(.caption)
           .foregroundStyle(LibraryDesignTokens.faintText)
-          .padding(.bottom, 31)
+          .padding(.bottom, 54)
       }
       .zIndex(35)
       .accessibilityHidden(true)
