@@ -21,14 +21,14 @@
 - `docs/dependencies.md`
 - `docs/storage.md`
 - `docs/glossary.md`
-- `docs/modules/lonelypianist-macos.md`
-- `docs/modules/lonelypianist-avp.md`
-- `docs/modules/lonelypianist-avp-practice.md`
+- `docs/modules/happypianist-macos.md`
+- `docs/modules/happypianist-avp.md`
+- `docs/modules/happypianist-avp-practice.md`
 - `docs/modules/improv-engines.md`
 
 ## Current Coverage Gaps
 
 - 本仓库没有 `.github/workflows/`，自动化验证以本地命令为准。
 - AVP 的手部追踪、平面检测、BLE MIDI、Microphone 与空间舒适度需要真机验证。
-- `LonelyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` 仓库默认不内置。
+- `HappyPianistAVP/Resources/Audio/SoundFonts/SalC5Light2.sf2` 仓库默认不内置。
 - AVP 的 Local Network（Bonjour 发现 + HTTP/WS 连接）需要真机与局域网环境配合（用于可选网络后端 Aria v2）。

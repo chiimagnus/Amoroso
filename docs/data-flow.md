@@ -11,7 +11,7 @@
 
 | 流程 | 入口 | 关键对象 | 输出 |
 | --- | --- | --- | --- |
-| macOS MIDI 监听 | CoreMIDI source | `CoreMIDIInputService` -> `LonelyPianistViewModel` | UI pressed notes、事件计数、录制输入 |
+| macOS MIDI 监听 | CoreMIDI source | `CoreMIDIInputService` -> `HappyPianistViewModel` | UI pressed notes、事件计数、录制输入 |
 | macOS take 录制 | record button + MIDI note events | `DefaultRecordingService` | `RecordingTake` |
 | macOS MIDI 导入 | `.mid` / `.midi` 文件 | `MIDIFileImporter` | take 列表中的导入 take |
 | macOS 回放 | selected take | `RoutedMIDIPlaybackService` | 内建 sampler 或外部 MIDI destination |
@@ -24,8 +24,8 @@
 
 ```mermaid
 sequenceDiagram
-  participant App as LonelyPianistApp
-  participant VM as LonelyPianistViewModel
+  participant App as HappyPianistApp
+  participant VM as HappyPianistViewModel
   participant MIDI as CoreMIDIInputService
   participant Rec as DefaultRecordingService
   participant Repo as SwiftDataRecordingTakeRepository
@@ -60,7 +60,7 @@ flowchart TD
   K --> L[practice window]
 ```
 
-`LonelyPianistAVPApp` 声明 `preparation`、`library`、`practice` 三个窗口和一个 `ImmersiveSpace`。窗口切换不依赖旧 `FlowState`；当前状态由 `PracticeSetupState` 与 `WindowTransitionState` 承载。
+`HappyPianistAVPApp` 声明 `preparation`、`library`、`practice` 三个窗口和一个 `ImmersiveSpace`。窗口切换不依赖旧 `FlowState`；当前状态由 `PracticeSetupState` 与 `WindowTransitionState` 承载。
 
 ## AVP MusicXML 到练习
 

@@ -25,14 +25,14 @@ flowchart LR
 
 | 运行单元 | 位置 | 生命周期 | 核心职责 |
 | --- | --- | --- | --- |
-| macOS app | `LonelyPianist/` | 单窗口 app | CoreMIDI 输入、take 录制、MIDI 导入、回放输出选择、SwiftData 持久化 |
-| visionOS app | `LonelyPianistAVP/` | 3 个 Window + 1 个 mixed `ImmersiveSpace` | 钢琴准备、曲库、校准、练习、虚拟钢琴、BLE MIDI、AI 即兴 |
+| macOS app | `HappyPianist/` | 单窗口 app | CoreMIDI 输入、take 录制、MIDI 导入、回放输出选择、SwiftData 持久化 |
+| visionOS app | `HappyPianistAVP/` | 3 个 Window + 1 个 mixed `ImmersiveSpace` | 钢琴准备、曲库、校准、练习、虚拟钢琴、BLE MIDI、AI 即兴 |
 
 ## macOS 架构
 
 ```mermaid
 flowchart TD
-  APP[LonelyPianistApp] --> VM[LonelyPianistViewModel]
+  APP[HappyPianistApp] --> VM[HappyPianistViewModel]
   VM --> IN[CoreMIDIInputService]
   VM --> REC[DefaultRecordingService]
   VM --> REPO[SwiftDataRecordingTakeRepository]
@@ -40,12 +40,12 @@ flowchart TD
   ROUTE --> SAMPLER[AVSamplerMIDIPlaybackService]
   ROUTE --> MIDI_OUT[CoreMIDIOutputMIDIPlaybackService]
   MIDI_OUT --> OUT[CoreMIDIOutputService]
-  REPO --> DATA[(LonelyPianist.store)]
+  REPO --> DATA[(HappyPianist.store)]
 ```
 
 当前 macOS app 的核心对象：
 
-- `LonelyPianistViewModel`：状态、take 列表、录制/回放命令、MIDI import。
+- `HappyPianistViewModel`：状态、take 列表、录制/回放命令、MIDI import。
 - `CoreMIDIInputService`：MIDI 1.0/2.0 note/control 事件输入。
 - `RoutedMIDIPlaybackService`：内建 sampler 与外部 destination 的输出路由。
 - `SwiftDataRecordingTakeRepository`：`RecordingTakeEntity` / `RecordedNoteEntity` 持久化。
@@ -54,7 +54,7 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-  APP[LonelyPianistAVPApp] --> STATE[AppState]
+  APP[HappyPianistAVPApp] --> STATE[AppState]
   STATE --> SETUP[PracticeSetupState]
   STATE --> WIN[WindowTransitionState]
   STATE --> ARVM[ARGuideViewModel]
@@ -102,7 +102,7 @@ flowchart TD
 
 | 区域 | 风险 | 建议验证 |
 | --- | --- | --- |
-| `LonelyPianistViewModel.handleMIDIEvent` | 影响 macOS pressed notes、录制 preview 与 take 内容 | macOS tests + 手工录制/回放 |
+| `HappyPianistViewModel.handleMIDIEvent` | 影响 macOS pressed notes、录制 preview 与 take 内容 | macOS tests + 手工录制/回放 |
 | `CoreMIDIInputService.handleUniversalMessage` | MIDI 1.0/2.0 velocity 与 noteOff 语义漂移 | macOS tests + MIDI 设备冒烟 |
 | `PracticePreparationService.prepare` | 影响 MusicXML parsing、分手、tempo、pedal、guide 与 step 全链路 | AVP MusicXML tests |
 | `PracticePlaybackControlService` | 影响 autoplay、manual replay、audio recognition suppress 与错误提示 | AVP practice tests |

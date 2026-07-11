@@ -5,7 +5,7 @@
 | 数据 | 代码位置 | 落盘位置 |
 | --- | --- | --- |
 | take 列表 | `SwiftDataRecordingTakeRepository` | SwiftData store。 |
-| take 实体 | `RecordingTakeEntity`、`RecordedNoteEntity` | `LonelyPianist.store`。 |
+| take 实体 | `RecordingTakeEntity`、`RecordedNoteEntity` | `HappyPianist.store`。 |
 | MIDI 导入结果 | `MIDIFileImporter` -> repository | 转成 `RecordingTake` 后进入同一 store。 |
 
 `ModelContainerFactory` 创建 SwiftData container。当前 schema 只包含录制 take 与 note 实体；不要写入 mapping、Dialogue session 或 keyboard injection 相关 store 描述。

@@ -9,7 +9,7 @@ xcuserdata/
 .derivedData
 .derivedData-avp
 *.sf2
-LonelyPianistAVP/Resources/SeedScores/
+HappyPianistAVP/Resources/SeedScores/
 Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/xiaocheng.usdz
 *.zip
 
@@ -38,4 +38,4 @@ __pycache__/
 *.mlpackage
 *.mlmodel
 *.mlmodelc
-LonelyPianistAVP/Resources/Models/
+HappyPianistAVP/Resources/Models/

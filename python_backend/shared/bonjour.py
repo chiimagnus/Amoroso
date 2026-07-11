@@ -14,7 +14,7 @@ def local_hostname_fqdn() -> str:
     return f"{raw}.local."
 
 
-def sanitize_dns_sd_instance_name(name: str, *, fallback: str = "LonelyPianist Server") -> str:
+def sanitize_dns_sd_instance_name(name: str, *, fallback: str = "HappyPianist Server") -> str:
     # DNS-SD "instance name" is encoded as a single DNS label.
     # Dots would split the label, so normalize them away.
     cleaned = " ".join(name.replace(".", " ").split()).strip()

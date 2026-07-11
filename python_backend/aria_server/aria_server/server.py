@@ -265,7 +265,7 @@ async def _bonjour_start(app: web.Application) -> None:
 
     broadcaster = BonjourServiceBroadcaster(
         service_type="_lpduet._tcp",
-        instance_name="LonelyPianist Aria",
+        instance_name="HappyPianist Aria",
         port=config.port,
         properties={k.encode("utf-8"): v.encode("utf-8") for k, v in txt.items()},
     )
