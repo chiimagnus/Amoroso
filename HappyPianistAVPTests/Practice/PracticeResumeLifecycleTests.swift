@@ -294,12 +294,14 @@ func automaticLoopStartsANewAttemptRound() {
 @MainActor
 @Test
 func automaticLoopStopsWhenPassageReachesTarget() {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
     let span = makeResumeSpans()[0]
     let session = PracticeSessionViewModel(
         pressDetectionService: ResumeNoopPressDetectionService(),
         chordAttemptAccumulator: ResumeNoopChordAccumulator(),
         sleeper: TaskSleeper()
     )
+    session.songIdentity = identity
     session.setSteps(
         [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
         tempoMap: MusicXMLTempoMap(tempoEvents: []),

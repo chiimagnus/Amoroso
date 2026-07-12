@@ -11,7 +11,11 @@ func nextActionDoesNotInventAdviceWithoutEvidence() throws {
 func nextActionLowersTempoWithoutInventingAProblemHand() throws {
     let facts = feedbackFacts(index: 2, failures: 2, issue: .missedNote)
     let context = try feedbackContext(facts: [facts])
-    #expect(PracticeNextActionPolicy().nextAction(for: context) == .lowerTempo(0.7))
+    guard case let .lowerTempo(scale) = PracticeNextActionPolicy().nextAction(for: context) else {
+        Issue.record("Expected lower-tempo advice")
+        return
+    }
+    #expect(abs(scale - 0.7) < 0.0001)
 }
 
 @Test
