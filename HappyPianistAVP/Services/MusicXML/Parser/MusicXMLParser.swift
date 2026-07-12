@@ -1,7 +1,7 @@
 import Foundation
 
 enum MusicXMLParserError: Error, Equatable {
-    case parseFailed
+    case parseFailed(line: Int?, column: Int?, reason: String)
 }
 
 protocol MusicXMLParserProtocol {
@@ -25,7 +25,11 @@ struct MusicXMLParser: MusicXMLParserProtocol {
         let parser = XMLParser(data: normalizedData)
         parser.delegate = delegate
         guard parser.parse() else {
-            throw MusicXMLParserError.parseFailed
+            throw MusicXMLParserError.parseFailed(
+                line: parser.lineNumber > 0 ? parser.lineNumber : nil,
+                column: parser.columnNumber > 0 ? parser.columnNumber : nil,
+                reason: parser.parserError?.localizedDescription ?? "Unknown XML parser error"
+            )
         }
         return MusicXMLScore(
             scoreVersion: delegate.scoreVersion,
