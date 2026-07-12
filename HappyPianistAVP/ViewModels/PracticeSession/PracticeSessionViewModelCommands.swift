@@ -501,41 +501,6 @@ extension PracticeSessionViewModel {
         startAutoplayTaskIfNeeded()
     }
 
-    func prepareStartOver(at timestamp: Date = .now) {
-        stopManualReplayTask()
-        stopAutoplayTask()
-        stopAutoplayAudio()
-        stopAudioRecognition()
-        if let firstMeasure = self.measureSpans.first,
-           let lastMeasure = self.measureSpans.last,
-           let fullPassage = PracticePassage(
-               start: firstMeasure.occurrenceID,
-               end: lastMeasure.occurrenceID
-           )
-        {
-            roundConfigurationController.pendingPassage = fullPassage
-            _ = roundConfigurationController.applyPending()
-            rebuildActiveRange()
-        }
-        self.acceptsPracticeAttempts = true
-        self.isRestoredSessionPaused = false
-        self.currentStepIndex = self.activeRange?.firstStepIndex ?? 0
-        self.state = self.steps.isEmpty ? .idle : .ready
-        setCurrentHighlightGuideForStepIndex(self.currentStepIndex)
-        if let occurrenceID = self.measureIndex?.occurrenceID(forStepIndex: self.currentStepIndex),
-           var progress = self.sessionProgress
-        {
-            progress.resumePoint = PracticeResumePoint(
-                occurrenceID: occurrenceID,
-                stepIndex: self.currentStepIndex,
-                updatedAt: timestamp
-            )
-            progress.updatedAt = timestamp
-            self.sessionProgress = progress
-        }
-        recordPassageRestart(at: timestamp)
-    }
-
     func retryMeasure(_ sourceMeasureID: PracticeSourceMeasureID) {
         let span = self.activeRange?.measureSpans.first(where: {
             $0.occurrenceID.sourceMeasureID == sourceMeasureID

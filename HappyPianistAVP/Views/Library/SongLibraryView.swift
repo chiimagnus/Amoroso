@@ -12,8 +12,6 @@ struct SongLibraryView: View {
   @State private var isAudioImporterPresented = false
   @State private var pendingAudioBindingEntryID: UUID?
   @State private var pendingDeletionEntryID: UUID?
-  @State private var isPracticeOptionsPresented = false
-  @State private var isPassageSetupPresented = false
   @State private var isDiagnosticsPresented = false
   @State private var libraryViewHeight: CGFloat = LibraryDesignTokens.windowIdealHeight
 
@@ -107,8 +105,8 @@ struct SongLibraryView: View {
     ) {
       LibraryPracticeOrnamentView(
         viewModel: viewModel,
-        isStartEnabled: false,
-        onStartPractice: onStartPractice,
+        isStartEnabled: viewModel.canStartSelectedPractice,
+        onStartPractice: startSelectedPractice,
         onImportMusicXML: viewModel.didTapImportMusicXML
       )
       .frame(height: libraryViewHeight)
@@ -156,34 +154,6 @@ struct SongLibraryView: View {
       Button("好", action: viewModel.dismissError)
     } message: {
       Text(viewModel.errorMessage ?? "未知错误")
-    }
-    .confirmationDialog(
-      "如何开始练习？",
-      isPresented: $isPracticeOptionsPresented,
-      titleVisibility: .visible
-    ) {
-      if let selectedEntryID, viewModel.hasResumableProgress(entryID: selectedEntryID) {
-        Button("继续上次练习", action: continueSelectedPractice)
-      }
-      Button("从头练习", action: startSelectedPracticeFromBeginning)
-      Button("选择片段练习", action: preparePassageSelection)
-      Button("取消", role: .cancel) {}
-    } message: {
-      if let selectedEntryID, let summary = viewModel.practiceSummary(entryID: selectedEntryID) {
-        Text(summary)
-      }
-    }
-    .sheet(isPresented: $isPassageSetupPresented) {
-      if let controller = viewModel.preparedRoundConfigurationController {
-        PracticePassageSetupView(
-          roundConfigurationController: controller,
-          measureSpans: viewModel.preparedMeasureSpans,
-          onCancel: { isPassageSetupPresented = false },
-          onStart: startPreparedPassage
-        )
-      } else {
-        ContentUnavailableView("无法配置练习片段", systemImage: "music.note.list")
-      }
     }
     .confirmationDialog(
       "确认删除该曲目？",
@@ -281,29 +251,8 @@ struct SongLibraryView: View {
     viewModel.didTapListen(entryID: entryID)
   }
 
-  private func presentPracticeOptions() {
-    guard selectedEntryID != nil else { return }
-    isPracticeOptionsPresented = true
-  }
-
-  private func continueSelectedPractice() {
-    guard viewModel.isSelectedPracticeReady else { return }
-    onStartPractice()
-  }
-
-  private func startSelectedPracticeFromBeginning() {
-    guard viewModel.prepareStartOverForSelectedPractice() else { return }
-    onStartPractice()
-  }
-
-  private func preparePassageSelection() {
-    guard viewModel.isSelectedPracticeReady else { return }
-    isPassageSetupPresented = true
-  }
-
-  private func startPreparedPassage() {
-    _ = viewModel.applyPreparedPassageConfiguration()
-    isPassageSetupPresented = false
+  private func startSelectedPractice() {
+    guard viewModel.startSelectedPractice() else { return }
     onStartPractice()
   }
 

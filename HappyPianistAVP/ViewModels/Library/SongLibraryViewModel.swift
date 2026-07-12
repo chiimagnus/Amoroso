@@ -111,19 +111,6 @@ final class SongLibraryViewModel {
         )
     }
 
-    func hasResumableProgress(entryID: UUID) -> Bool {
-        practiceProgressBySongID[entryID]?.resumePoint != nil
-    }
-
-    func practiceSummary(entryID: UUID) -> String? {
-        guard let progress = practiceProgressBySongID[entryID],
-              let configuration = progress.activeConfiguration
-        else { return nil }
-        let start = configuration.passage.start.sourceMeasureID.sourceMeasureIndex + 1
-        let end = configuration.passage.end.sourceMeasureID.sourceMeasureIndex + 1
-        return "上次练习：第 \(start)–\(end) 小节 · \(configuration.handMode.title) · \(configuration.tempoScale.formatted(.percent.precision(.fractionLength(0))))"
-    }
-
     var preparedRoundConfigurationController: PracticeRoundConfigurationController? {
         currentPreparedPracticeSession?.roundConfigurationController
     }
@@ -168,9 +155,19 @@ final class SongLibraryViewModel {
         return session
     }
 
+    var canStartSelectedPractice: Bool {
+        isSelectedPracticeReady && preparedRoundConfigurationController?.pendingConfiguration != nil
+    }
+
     @discardableResult
-    func applyPreparedPassageConfiguration() -> Bool {
-        appState.arGuideViewModel?.practiceSessionViewModel.applyPendingRoundConfiguration() ?? false
+    func startSelectedPractice() -> Bool {
+        guard canStartSelectedPractice,
+              let session = currentPreparedPracticeSession
+        else { return false }
+        if session.roundConfigurationController.hasPendingChanges {
+            _ = session.applyPendingRoundConfiguration()
+        }
+        return session.activeRange != nil && session.activeRangeDiagnostic == nil
     }
 
     func dismissError() {
@@ -243,12 +240,6 @@ final class SongLibraryViewModel {
         practicePreparationGeneration += 1
         selectedPracticeEntryID = nil
         practicePreparationState = .idle
-    }
-
-    func prepareStartOverForSelectedPractice() -> Bool {
-        guard isSelectedPracticeReady else { return false }
-        appState.arGuideViewModel?.practiceSessionViewModel.prepareStartOver()
-        return true
     }
 
     private func beginPracticePreparation(entryID: UUID) {
