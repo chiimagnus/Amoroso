@@ -215,13 +215,17 @@ extension PracticeSessionViewModel {
 
     func suspendAndFlushProgress() async {
         self.acceptsPracticeAttempts = false
-        self.latestFeedbackEvent = nil
+        invalidateFeedbackPresentation()
         stopManualReplayTask()
         stopAutoplayTask()
         stopAutoplayAudio()
         stopAudioRecognition()
         stopPracticeInput()
         await flushProgress()
+    }
+
+    func invalidateFeedbackPresentation() {
+        self.latestFeedbackEvent = nil
     }
 
     func resumeAfterSuspension() {
