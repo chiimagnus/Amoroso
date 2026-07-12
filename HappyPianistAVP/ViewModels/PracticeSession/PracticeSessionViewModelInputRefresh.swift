@@ -103,11 +103,6 @@ extension PracticeSessionViewModel {
         self.audioRecognitionGeneration
     }
 
-    var audioRecognitionSuppressRemainingSeconds: TimeInterval {
-        guard let suppressUntil = self.audioRecognitionSuppressUntil else { return 0 }
-        return max(0, suppressUntil.timeIntervalSinceNow)
-    }
-
     private static func profile(for _: PracticeAudioRecognitionDetectorMode) -> HarmonicTemplateTuningProfile {
         .lowLatencyDefault
     }

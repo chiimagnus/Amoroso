@@ -73,10 +73,6 @@ struct PianoHighlightGuide: Equatable, Identifiable {
     let triggeredNotes: [PianoHighlightNote]
     let releasedMIDINotes: Set<Int>
 
-    var isRestOrGap: Bool {
-        kind == .gap || (activeNotes.isEmpty && triggeredNotes.isEmpty)
-    }
-
     var highlightedMIDINotes: Set<Int> {
         var result = Set(activeNotes.map(\.midiNote))
         result.formUnion(triggeredNotes.map(\.midiNote))

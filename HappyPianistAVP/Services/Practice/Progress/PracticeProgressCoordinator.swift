@@ -121,11 +121,6 @@ actor PracticeProgressCoordinator {
         return status
     }
 
-    func status(generation: Int) -> PracticeProgressSaveStatus {
-        guard generation == currentGeneration else { return .idle }
-        return saveStatus
-    }
-
     private func accepts(progress: SongPracticeProgress, generation: Int) -> Bool {
         generation == currentGeneration && progress.identity == currentIdentity
     }

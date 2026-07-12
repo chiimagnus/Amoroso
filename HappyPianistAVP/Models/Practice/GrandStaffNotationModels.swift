@@ -119,15 +119,4 @@ struct GrandStaffNotationItem: Equatable, Identifiable {
     let arpeggiate: MusicXMLArpeggiate?
     let dotCount: Int
 
-    var usesOpenNoteHead: Bool {
-        (noteValue == .whole || noteValue == .half) && isGrace == false
-    }
-
-    var hasStem: Bool {
-        noteValue != .whole
-    }
-
-    var hasFlag: Bool {
-        (noteValue == .eighth || noteValue == .sixteenth || noteValue == .thirtySecond) && beamID == nil
-    }
 }

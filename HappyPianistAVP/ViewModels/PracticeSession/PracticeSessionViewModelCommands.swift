@@ -20,32 +20,6 @@ extension PracticeSessionViewModel {
         return self.highlightGuides[currentHighlightGuideIndex]
     }
 
-    var currentMusicXMLAttributeSummaryText: String? {
-        guard let attributeTimeline = self.attributeTimeline else { return nil }
-        guard let currentStep = self.currentStep else { return nil }
-
-        let tick = currentStep.tick
-
-        var parts: [String] = []
-        if let time = attributeTimeline.timeSignature(atTick: tick) {
-            parts.append("\(time.beats)/\(time.beatType)")
-        }
-        if let key = attributeTimeline.keySignature(atTick: tick) {
-            let fifths = key.fifths
-            let token = fifths >= 0 ? "+\(fifths)" : "\(fifths)"
-            parts.append("Key \(token)")
-        }
-
-        let rh = attributeTimeline.clef(atTick: tick, staffNumber: 1).flatMap { Self.clefToken(for: $0) }
-        let lh = attributeTimeline.clef(atTick: tick, staffNumber: 2).flatMap { Self.clefToken(for: $0) }
-        let clefTokens = [rh, lh].compactMap(\.self)
-        if clefTokens.isEmpty == false {
-            parts.append("Clef \(clefTokens.joined(separator: "/"))")
-        }
-
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
     var notationMeasureSpans: [MusicXMLMeasureSpan] {
         guard self.stateStore.isActiveRangeInvalid == false else { return [] }
         return self.activeRange?.measureSpans ?? self.measureSpans
@@ -91,20 +65,6 @@ extension PracticeSessionViewModel {
         )
     }
 
-    private static func clefToken(for event: MusicXMLClefEvent) -> String? {
-        guard let sign = event.signToken, sign.isEmpty == false else { return nil }
-        switch sign.uppercased() {
-        case "G":
-            return "G"
-        case "F":
-            return "F"
-        case "C":
-            return "C"
-        default:
-            return sign
-        }
-    }
-
     private static func notationClefSymbol(for event: MusicXMLClefEvent) -> String? {
         guard let sign = event.signToken, sign.isEmpty == false else { return nil }
         switch sign.uppercased() {
@@ -129,18 +89,8 @@ extension PracticeSessionViewModel {
         return String(repeating: "\u{E260}", count: min(abs(fifths), 7)) // SMuFL accidentalFlat
     }
 
-    var isMusicXMLSlurActive: Bool {
-        guard let slurTimeline = self.slurTimeline else { return false }
-        guard let currentStep = self.currentStep else { return false }
-        return slurTimeline.isActive(atTick: currentStep.tick)
-    }
-
     var manualAdvanceMode: ManualAdvanceMode {
         stateStore.activeManualAdvanceMode
-    }
-
-    var canReplayCurrentManualUnit: Bool {
-        self.currentStep != nil
     }
 
     private var manualAdvanceContext: ManualAdvanceContext {
@@ -807,9 +757,5 @@ extension PracticeSessionViewModel {
             facts: facts,
             sourceMeasureIDs: self.activeRange?.sourceMeasureIDs ?? []
         )
-    }
-
-    func uniqueMIDINotes(in step: PracticeStep) -> [Int] {
-        Set(step.notes.map(\.midiNote)).sorted()
     }
 }

@@ -100,8 +100,6 @@ final class PracticeSessionStateStore {
     var isPracticeInputRunning = false
     var practiceInputActiveSinceUptimeSeconds: TimeInterval?
     var practiceInputLastResetStepIndex: Int?
-    var practiceInputDebugLastLoggedAtUptimeSeconds: TimeInterval = 0
-    var practiceInputDebugLastMessage: String?
     var audioRecognitionSuppressUntil: Date?
     var practiceAudioRecognitionDetectorModeSnapshot: PracticeAudioRecognitionDetectorMode = .harmonicTemplate
     var harmonicTemplateTuningProfileSnapshot: HarmonicTemplateTuningProfile = .lowLatencyDefault

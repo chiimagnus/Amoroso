@@ -6,31 +6,6 @@ extension PracticeSessionViewModel {
         return currentPianoHighlightGuide?.fingeringByMIDINote ?? [:]
     }
 
-    var currentLeftHandHighlightedMIDINotes: Set<Int> {
-        guard let guide = currentPianoHighlightGuide else { return [] }
-
-        var triggeredNotesByMidi: [Int: [PianoHighlightNote]] = [:]
-        for note in guide.triggeredNotes {
-            triggeredNotesByMidi[note.midiNote, default: []].append(note)
-        }
-
-        var activeNotesByMidi: [Int: [PianoHighlightNote]] = [:]
-        for note in guide.activeNotes {
-            activeNotesByMidi[note.midiNote, default: []].append(note)
-        }
-
-        var result: Set<Int> = []
-        for midiNote in guide.highlightedMIDINotes {
-            let preferredHand = triggeredNotesByMidi[midiNote].flatMap(Self.resolvedHand)
-                ?? activeNotesByMidi[midiNote].flatMap(Self.resolvedHand)
-
-            if preferredHand == .left {
-                result.insert(midiNote)
-            }
-        }
-        return result
-    }
-
     func setCurrentHighlightGuideForStepIndex(_ stepIndex: Int) {
         highlightGuideController?.setCurrentHighlightGuideForStepIndex(stepIndex)
     }
@@ -44,11 +19,5 @@ extension PracticeSessionViewModel {
 
     func strictTriggerGuideIndex(forStepIndex stepIndex: Int) -> Int? {
         stateStore.strictTriggerGuideIndex(forStepIndex: stepIndex)
-    }
-
-    private static func resolvedHand(notes: [PianoHighlightNote]) -> ScoreHand? {
-        guard notes.isEmpty == false else { return nil }
-        if notes.contains(where: { $0.hand == .left }) { return .left }
-        return .right
     }
 }
