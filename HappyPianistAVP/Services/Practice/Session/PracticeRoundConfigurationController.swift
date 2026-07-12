@@ -24,12 +24,13 @@ struct UserDefaultsPracticeRoundDefaultsStore: PracticeRoundDefaultsStoreProtoco
     }
 
     var tempoScale: Double {
-        let stored = userDefaults.object(forKey: PracticeSessionSettingsKeys.tempoScale) as? Double ?? 1
+        let stored = userDefaults.object(forKey: PracticeSessionSettingsKeys.tempoScale) as? Double ?? 0.6
         return min(max(stored, PracticeRoundConfiguration.supportedTempoRange.lowerBound), PracticeRoundConfiguration.supportedTempoRange.upperBound)
     }
 
     var loopEnabled: Bool {
-        userDefaults.bool(forKey: PracticeSessionSettingsKeys.loopEnabled)
+        guard userDefaults.object(forKey: PracticeSessionSettingsKeys.loopEnabled) != nil else { return true }
+        return userDefaults.bool(forKey: PracticeSessionSettingsKeys.loopEnabled)
     }
 
     var requiredSuccesses: Int {
