@@ -14,7 +14,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
     let title: String
     let explanation: String
     let stage: String
-    let file: DiagnosticFileReference
+    let file: DiagnosticFileReference?
     let sourceLocation: DiagnosticSourceLocation?
     let reason: String
 
@@ -25,7 +25,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
         title: String,
         explanation: String,
         stage: String,
-        file: DiagnosticFileReference,
+        file: DiagnosticFileReference?,
         sourceLocation: DiagnosticSourceLocation? = nil,
         reason: String
     ) {
@@ -73,7 +73,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
     static func map(
         _ error: PracticePreparationError,
         entryID: UUID,
-        file: DiagnosticFileReference
+        file: DiagnosticFileReference?
     ) -> LibraryPracticePreparationFailure {
         switch error {
         case .scoreFileNotFound:

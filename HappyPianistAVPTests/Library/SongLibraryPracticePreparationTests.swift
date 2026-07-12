@@ -69,19 +69,21 @@ func latestPreparationGenerationWins() async throws {
         indexStore: PreparationTestIndexStore(),
         fileStore: PreparationTestFileStore(),
         audioImportService: PreparationTestAudioImporter(),
-        paths: SongLibraryPaths(),
         bundledProvider: PreparationTestBundledProvider(entries: entries, scoreURL: url),
         audioPlayer: PreparationTestAudioPlayer(),
-        practiceProgressRepository: PreparationTestProgressRepository()
+        practiceProgressRepository: PreparationTestProgressRepository(),
+        diagnosticsReporter: InMemoryDiagnosticsReporter()
     )
 
-    async let oldResult = viewModel.preparePractice(entryID: firstID)
+    viewModel.selectEntryForPractice(firstID)
     try await Task.sleep(for: .milliseconds(10))
-    let newResult = await viewModel.preparePractice(entryID: secondID)
-    let staleResult = await oldResult
+    viewModel.selectEntryForPractice(secondID)
+    try await waitForPreparation(viewModel, entryID: secondID)
 
-    #expect(newResult)
-    #expect(staleResult == false)
+    #expect(viewModel.practicePreparationState == .ready(
+        entryID: secondID,
+        identity: PracticeSongIdentity(songID: secondID, scoreRevision: secondID.uuidString)
+    ))
     #expect(appState.practiceSetupState.preparedPracticeIdentity?.songID == secondID)
 }
 
@@ -109,15 +111,49 @@ func preparationWithoutMeasureSpansIsRejectedAtTheLibraryBoundary() async throws
         indexStore: PreparationTestIndexStore(),
         fileStore: PreparationTestFileStore(),
         audioImportService: PreparationTestAudioImporter(),
-        paths: SongLibraryPaths(),
         bundledProvider: PreparationTestBundledProvider(entries: [entry], scoreURL: url),
         audioPlayer: PreparationTestAudioPlayer(),
-        practiceProgressRepository: PreparationTestProgressRepository()
+        practiceProgressRepository: PreparationTestProgressRepository(),
+        diagnosticsReporter: InMemoryDiagnosticsReporter()
     )
 
-    #expect(await viewModel.preparePractice(entryID: entryID) == false)
-    #expect(viewModel.errorMessage == "该曲目缺少可用的练习步骤或小节信息。")
+    viewModel.selectEntryForPractice(entryID)
+    try await waitForPreparationFailure(viewModel, entryID: entryID)
+
+    guard case let .failure(failure) = viewModel.practicePreparationState else {
+        Issue.record("Expected preparation failure")
+        return
+    }
+    #expect(failure.code == .practiceMissingMeasureStructure)
     #expect(appState.practiceSetupState.preparedPracticeIdentity == nil)
+}
+
+private func waitForPreparation(
+    _ viewModel: SongLibraryViewModel,
+    entryID: UUID
+) async throws {
+    for _ in 0..<100 {
+        if case let .ready(readyEntryID, _) = viewModel.practicePreparationState,
+           readyEntryID == entryID {
+            return
+        }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    Issue.record("Timed out waiting for ready preparation")
+}
+
+private func waitForPreparationFailure(
+    _ viewModel: SongLibraryViewModel,
+    entryID: UUID
+) async throws {
+    for _ in 0..<100 {
+        if case let .failure(failure) = viewModel.practicePreparationState,
+           failure.entryID == entryID {
+            return
+        }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    Issue.record("Timed out waiting for preparation failure")
 }
 
 private final class PreparationTestIndexStore: SongLibraryIndexStoreProtocol {

@@ -131,13 +131,20 @@ struct SongLibraryView: View {
       viewModel.reload()
       synchronizeSelection()
       Task { await viewModel.reloadPracticeProgress() }
+      if let selectedEntryID {
+        viewModel.selectEntryForPractice(selectedEntryID)
+      }
     }
     .onChange(of: viewModel.entries) {
       synchronizeSelection()
       Task { await viewModel.reloadPracticeProgress() }
+      if let selectedEntryID {
+        viewModel.selectEntryForPractice(selectedEntryID)
+      }
     }
     .onDisappear {
       viewModel.stopListening()
+      viewModel.cancelPracticePreparation()
     }
     .alert(
       "提示",
@@ -257,6 +264,7 @@ struct SongLibraryView: View {
     {
       viewModel.stopListening()
     }
+    viewModel.selectEntryForPractice(entryID)
   }
 
   private func toggleSelectedPlayback() {
@@ -283,33 +291,24 @@ struct SongLibraryView: View {
   }
 
   private func continueSelectedPractice() {
-    prepareAndOpenPractice(mode: .continueLast)
+    guard viewModel.isSelectedPracticeReady else { return }
+    onStartPractice()
   }
 
   private func startSelectedPracticeFromBeginning() {
-    prepareAndOpenPractice(mode: .startOver)
+    guard viewModel.prepareStartOverForSelectedPractice() else { return }
+    onStartPractice()
   }
 
   private func preparePassageSelection() {
-    guard let selectedEntryID else { return }
-    Task { @MainActor in
-      guard await viewModel.preparePractice(entryID: selectedEntryID, launchMode: .selectPassage) else { return }
-      isPassageSetupPresented = true
-    }
+    guard viewModel.isSelectedPracticeReady else { return }
+    isPassageSetupPresented = true
   }
 
   private func startPreparedPassage() {
     _ = viewModel.applyPreparedPassageConfiguration()
     isPassageSetupPresented = false
     onStartPractice()
-  }
-
-  private func prepareAndOpenPractice(mode: PracticeLaunchMode) {
-    guard let selectedEntryID else { return }
-    Task { @MainActor in
-      guard await viewModel.preparePractice(entryID: selectedEntryID, launchMode: mode) else { return }
-      onStartPractice()
-    }
   }
 
   private func presentAudioImporter(_ entryID: UUID) {
@@ -365,7 +364,6 @@ struct SongLibraryView: View {
   let songLibraryIndexStore: SongLibraryIndexStoreProtocol = SongLibraryIndexStore()
   let songFileStore: SongFileStoreProtocol = SongFileStore()
   let audioImportService: AudioImportServiceProtocol = AudioImportService()
-  let songLibraryPaths = SongLibraryPaths()
   let bundledSongLibraryProvider: BundledSongLibraryProviderProtocol = BundledSongLibraryProvider()
   let songAudioPlayer: SongAudioPlayerProtocol = SongAudioPlayer()
   let appState = AppState(
@@ -380,10 +378,10 @@ struct SongLibraryView: View {
     indexStore: songLibraryIndexStore,
     fileStore: songFileStore,
     audioImportService: audioImportService,
-    paths: songLibraryPaths,
     bundledProvider: bundledSongLibraryProvider,
     audioPlayer: songAudioPlayer,
-    practiceProgressRepository: FilePracticeProgressRepository()
+    practiceProgressRepository: FilePracticeProgressRepository(),
+    diagnosticsReporter: InMemoryDiagnosticsReporter()
   )
   return SongLibraryView(
     viewModel: viewModel,

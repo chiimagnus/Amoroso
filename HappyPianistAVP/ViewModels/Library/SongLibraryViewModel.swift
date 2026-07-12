@@ -1,12 +1,6 @@
 import Foundation
 import Observation
 
-enum PracticeLaunchMode: Equatable {
-    case continueLast
-    case startOver
-    case selectPassage
-}
-
 @MainActor
 @Observable
 final class SongLibraryViewModel {
@@ -14,13 +8,14 @@ final class SongLibraryViewModel {
     private let indexStore: SongLibraryIndexStoreProtocol
     private let fileStore: SongFileStoreProtocol
     private let audioImportService: AudioImportServiceProtocol
-    private let paths: SongLibraryPaths
     private let bundledProvider: BundledSongLibraryProviderProtocol
     private let bundledEntries: [SongLibraryEntry]
     private let practicePreparationService: PracticePreparationServiceProtocol
     private let audioPlaybackController: SongAudioPlaybackStateController
     private let practiceProgressRepository: any PracticeProgressRepositoryProtocol
+    private let diagnosticsReporter: any DiagnosticsReporting
     @ObservationIgnored private var playbackProgressTask: Task<Void, Never>?
+    @ObservationIgnored private var practicePreparationTask: Task<Void, Never>?
     @ObservationIgnored private var practicePreparationGeneration = 0
 
     static let supportedAudioFileExtensions = ["mp3", "m4a"]
@@ -33,8 +28,21 @@ final class SongLibraryViewModel {
     var listeningCurrentTime: TimeInterval = 0
     var listeningDuration: TimeInterval = 0
     var isMusicXMLImporterPresented = false
-    var isPreparingPractice = false
+    var practicePreparationState: LibraryPracticePreparationState = .idle
+    var selectedPracticeEntryID: UUID?
     var practiceProgressBySongID: [UUID: SongPracticeProgress] = [:]
+
+    var isPreparingPractice: Bool {
+        if case .loading = practicePreparationState {
+            return true
+        }
+        return false
+    }
+
+    var isSelectedPracticeReady: Bool {
+        guard case let .ready(entryID, _) = practicePreparationState else { return false }
+        return entryID == selectedPracticeEntryID
+    }
 
     init(
         appState: AppState,
@@ -42,19 +50,19 @@ final class SongLibraryViewModel {
         indexStore: SongLibraryIndexStoreProtocol,
         fileStore: SongFileStoreProtocol,
         audioImportService: AudioImportServiceProtocol,
-        paths: SongLibraryPaths,
         bundledProvider: BundledSongLibraryProviderProtocol,
         audioPlayer: SongAudioPlayerProtocol,
-        practiceProgressRepository: any PracticeProgressRepositoryProtocol
+        practiceProgressRepository: any PracticeProgressRepositoryProtocol,
+        diagnosticsReporter: any DiagnosticsReporting
     ) {
         self.appState = appState
         self.practicePreparationService = practicePreparationService
         self.indexStore = indexStore
         self.fileStore = fileStore
         self.audioImportService = audioImportService
-        self.paths = paths
         self.bundledProvider = bundledProvider
         self.practiceProgressRepository = practiceProgressRepository
+        self.diagnosticsReporter = diagnosticsReporter
         bundledEntries = bundledProvider.bundledEntries()
         audioPlaybackController = SongAudioPlaybackStateController(player: audioPlayer)
 
@@ -172,33 +180,77 @@ final class SongLibraryViewModel {
         }
     }
 
-    func preparePractice(
-        entryID: UUID,
-        launchMode: PracticeLaunchMode = .continueLast
-    ) async -> Bool {
-        guard let entry = entries.first(where: { $0.id == entryID }) else {
-            return false
+    func selectEntryForPractice(_ entryID: UUID) {
+        guard entries.contains(where: { $0.id == entryID }) else {
+            cancelPracticePreparation()
+            return
         }
-
-        practicePreparationGeneration += 1
-        let generation = practicePreparationGeneration
-        isPreparingPractice = true
-        defer {
-            if generation == practicePreparationGeneration {
-                isPreparingPractice = false
+        if selectedPracticeEntryID == entryID {
+            switch practicePreparationState {
+            case .loading, .ready:
+                return
+            case .idle, .failure:
+                break
             }
         }
+        beginPracticePreparation(entryID: entryID)
+    }
+
+    func retrySelectedPracticePreparation() {
+        guard let selectedPracticeEntryID else { return }
+        beginPracticePreparation(entryID: selectedPracticeEntryID)
+    }
+
+    func cancelPracticePreparation() {
+        practicePreparationTask?.cancel()
+        practicePreparationTask = nil
+        practicePreparationGeneration += 1
+        selectedPracticeEntryID = nil
+        practicePreparationState = .idle
+    }
+
+    func prepareStartOverForSelectedPractice() -> Bool {
+        guard isSelectedPracticeReady else { return false }
+        appState.arGuideViewModel?.practiceSessionViewModel.prepareStartOver()
+        return true
+    }
+
+    private func beginPracticePreparation(entryID: UUID) {
+        practicePreparationTask?.cancel()
+        practicePreparationGeneration += 1
+        let generation = practicePreparationGeneration
+        selectedPracticeEntryID = entryID
+        practicePreparationState = .loading(entryID: entryID)
+        persistSelectedEntry(entryID)
+
+        practicePreparationTask = Task { @MainActor [weak self] in
+            await self?.prepareSelectedEntry(entryID: entryID, generation: generation)
+        }
+    }
+
+    private func prepareSelectedEntry(entryID: UUID, generation: Int) async {
+        guard let entry = entries.first(where: { $0.id == entryID }) else { return }
+        let fileReference = diagnosticFileReference(for: entry)
 
         do {
             let scoreURL: URL
             if entry.isBundled == true {
                 guard let bundledURL = bundledProvider.musicXMLURL(fileName: entry.musicXMLFileName) else {
-                    errorMessage = "未在应用资源中找到该曲谱文件。"
-                    return false
+                    throw PracticePreparationError.scoreFileNotFound
                 }
                 scoreURL = bundledURL
             } else {
-                scoreURL = try paths.scoresDirectoryURL().appending(path: entry.musicXMLFileName)
+                do {
+                    scoreURL = try fileStore.scoreFileURL(fileName: entry.musicXMLFileName)
+                } catch {
+                    let cocoaError = error as? CocoaError
+                    if cocoaError?.code == .fileNoSuchFile || cocoaError?.code == .fileReadNoSuchFile {
+                        throw PracticePreparationError.scoreFileNotFound
+                    }
+                    throw PracticePreparationError.scoreFileUnreadable(
+                        reason: error.localizedDescription
+                    )
+                }
             }
 
             let file = ImportedMusicXMLFile(
@@ -211,35 +263,76 @@ final class SongLibraryViewModel {
                 from: scoreURL,
                 file: file
             )
-
-            guard generation == practicePreparationGeneration, Task.isCancelled == false else {
-                return false
+            try Task.checkCancellation()
+            guard isCurrentPracticePreparation(entryID: entryID, generation: generation) else { return }
+            guard prepared.steps.isEmpty == false else {
+                throw PracticePreparationError.noPlayableNotes
             }
-            guard prepared.steps.isEmpty == false, prepared.measureSpans.isEmpty == false else {
-                errorMessage = "该曲目缺少可用的练习步骤或小节信息。"
-                return false
+            guard prepared.measureSpans.isEmpty == false else {
+                throw PracticePreparationError.missingMeasureStructure
             }
 
             await appState.applyPreparedPractice(prepared)
-            if launchMode == .startOver {
-                appState.arGuideViewModel.practiceSessionViewModel.prepareStartOver()
-            }
-
-            var updatedIndex = index
-            updatedIndex.lastSelectedEntryID = entry.id
-            try? indexStore.save(updatedIndex)
-            index = updatedIndex
-
-            return true
+            guard isCurrentPracticePreparation(entryID: entryID, generation: generation) else { return }
+            practicePreparationState = .ready(entryID: entryID, identity: prepared.identity)
+            practicePreparationTask = nil
+            _ = await diagnosticsReporter.record(
+                DiagnosticEvent(
+                    severity: .info,
+                    code: .practicePreparationSucceeded,
+                    category: .practicePreparation,
+                    stage: "selectedScorePreparation",
+                    summary: "曲谱练习数据已准备完成",
+                    reason: "Prepared \(prepared.steps.count) steps and \(prepared.measureSpans.count) measure occurrences.",
+                    songID: entryID,
+                    scoreRevision: prepared.identity.scoreRevision,
+                    file: fileReference,
+                    persistence: .exportable
+                )
+            )
         } catch is CancellationError {
-            return false
+            return
         } catch {
-            guard generation == practicePreparationGeneration else { return false }
-            errorMessage = "加载曲目失败：\(error.localizedDescription)"
-            return false
+            guard isCurrentPracticePreparation(entryID: entryID, generation: generation) else { return }
+            let preparationError = (error as? PracticePreparationError) ?? .unexpected(
+                stage: "selectedScorePreparation",
+                reason: String(describing: error)
+            )
+            let failure = LibraryPracticePreparationFailure.map(
+                preparationError,
+                entryID: entryID,
+                file: fileReference
+            )
+            practicePreparationState = .failure(failure)
+            practicePreparationTask = nil
+            _ = await diagnosticsReporter.record(failure.diagnosticEvent)
         }
     }
 
+    private func isCurrentPracticePreparation(entryID: UUID, generation: Int) -> Bool {
+        generation == practicePreparationGeneration &&
+            selectedPracticeEntryID == entryID &&
+            Task.isCancelled == false
+    }
+
+    private func diagnosticFileReference(for entry: SongLibraryEntry) -> DiagnosticFileReference? {
+        let fileName = URL(fileURLWithPath: entry.musicXMLFileName).lastPathComponent
+        let relativePath = entry.isBundled == true
+            ? "Bundle/\(fileName)"
+            : "SongLibrary/scores/\(fileName)"
+        return DiagnosticFileReference(fileName: fileName, relativePath: relativePath)
+    }
+
+    private func persistSelectedEntry(_ entryID: UUID) {
+        var updatedIndex = index
+        updatedIndex.lastSelectedEntryID = entryID
+        do {
+            try indexStore.save(updatedIndex)
+            index = updatedIndex
+        } catch {
+            errorMessage = "保存曲库选择失败：\(error.localizedDescription)"
+        }
+    }
 
     func deleteEntry(entryID: UUID) async {
         if bundledEntries.contains(where: { $0.id == entryID }) {

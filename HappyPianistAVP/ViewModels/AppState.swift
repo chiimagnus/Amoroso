@@ -284,7 +284,6 @@ class AppState {
         let songLibraryIndexStore: SongLibraryIndexStoreProtocol = SongLibraryIndexStore()
         let songFileStore: SongFileStoreProtocol = SongFileStore()
         let audioImportService: AudioImportServiceProtocol = AudioImportService()
-        let songLibraryPaths = SongLibraryPaths()
         let bundledSongLibraryProvider: BundledSongLibraryProviderProtocol = BundledSongLibraryProvider()
         let songAudioPlayer: SongAudioPlayerProtocol = SongAudioPlayer()
         let progressRepository: any PracticeProgressRepositoryProtocol = FilePracticeProgressRepository()
@@ -405,10 +404,10 @@ class AppState {
             indexStore: songLibraryIndexStore,
             fileStore: songFileStore,
             audioImportService: audioImportService,
-            paths: songLibraryPaths,
             bundledProvider: bundledSongLibraryProvider,
             audioPlayer: songAudioPlayer,
-            practiceProgressRepository: progressRepository
+            practiceProgressRepository: progressRepository,
+            diagnosticsReporter: diagnosticsReporter
         )
 
         arGuideViewModel = guideViewModel

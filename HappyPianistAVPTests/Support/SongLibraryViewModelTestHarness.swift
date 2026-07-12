@@ -8,7 +8,8 @@ enum SongLibraryViewModelTestHarness {
         index: SongLibraryIndex? = nil,
         bundledEntries: [SongLibraryEntry] = [],
         practicePreparationService: (any PracticePreparationServiceProtocol)? = nil,
-        practiceProgressRepository: (any PracticeProgressRepositoryProtocol)? = nil
+        practiceProgressRepository: (any PracticeProgressRepositoryProtocol)? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) -> SongLibraryViewModel {
         let resolvedAppState = appState ?? AppState()
         let resolvedIndex = index ?? .empty
@@ -18,10 +19,10 @@ enum SongLibraryViewModelTestHarness {
             indexStore: InMemorySongLibraryIndexStore(index: resolvedIndex),
             fileStore: InMemorySongFileStore(),
             audioImportService: NoopAudioImportService(),
-            paths: SongLibraryPaths(),
             bundledProvider: StubBundledSongLibraryProvider(entries: bundledEntries),
             audioPlayer: NoopSongAudioPlayer(),
-            practiceProgressRepository: practiceProgressRepository ?? InMemoryPracticeProgressRepository()
+            practiceProgressRepository: practiceProgressRepository ?? InMemoryPracticeProgressRepository(),
+            diagnosticsReporter: diagnosticsReporter ?? InMemoryDiagnosticsReporter()
         )
     }
 }
