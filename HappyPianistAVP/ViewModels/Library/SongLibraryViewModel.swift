@@ -17,7 +17,7 @@ final class SongLibraryViewModel {
     @ObservationIgnored private var playbackProgressTask: Task<Void, Never>?
     @ObservationIgnored private var practicePreparationTask: Task<Void, Never>?
     @ObservationIgnored private var practicePreparationGeneration = 0
-    @ObservationIgnored private var recordedPreparationFailureID: UUID?
+    private var recordedPreparationFailureID: UUID?
 
     static let supportedAudioFileExtensions = ["mp3", "m4a"]
     private static let supportedAudioFileExtensionSet = Set(supportedAudioFileExtensions)

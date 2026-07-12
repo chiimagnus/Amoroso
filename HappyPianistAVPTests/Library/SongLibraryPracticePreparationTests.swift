@@ -393,10 +393,24 @@ func preparationFailureDoesNotClaimExportWhenStoreRejectsEvent() async throws {
 
     fixture.viewModel.selectEntryForPractice(fixture.entryID)
     _ = try await waitForPreparationFailure(fixture.viewModel, entryID: fixture.entryID)
-    try await Task.sleep(for: .milliseconds(20))
+    try await waitForDiagnosticEventCount(fixture.reporter, count: 1)
 
     #expect(fixture.viewModel.wasSelectedPreparationFailureRecorded == false)
     #expect(await fixture.reporter.events.count == 1)
+}
+
+
+private func waitForDiagnosticEventCount(
+    _ reporter: InMemoryDiagnosticsReporter,
+    count: Int
+) async throws {
+    for _ in 0..<100 {
+        if await reporter.events.count >= count {
+            return
+        }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    Issue.record("Timed out waiting for diagnostic events")
 }
 
 @MainActor
