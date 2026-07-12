@@ -175,6 +175,19 @@ private func repeatedPresentationSpans() -> [MusicXMLMeasureSpan] {
     ]
 }
 
+
+@Test
+func measureOptionsLabelRepeatedOccurrencesWithoutQuadraticViewWork() {
+    let options = LibraryPracticeMeasureOption.make(from: repeatedPresentationSpans())
+
+    #expect(options.map(\.title) == [
+        "第 1 小节 · 第 1 次",
+        "第 2 小节",
+        "第 1 小节 · 第 2 次",
+    ])
+    #expect(options.map(\.occurrenceIndex) == [0, 1, 2])
+}
+
 @Test
 func measureMapDoesNotMarkHotspotOutsideCurrentPassage() throws {
     let spans = presentationSpans()

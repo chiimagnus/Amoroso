@@ -74,40 +74,43 @@ struct LibraryPracticeOrnamentView: View {
 
 private struct LibraryPracticeReadyView: View {
     @Bindable var roundConfigurationController: PracticeRoundConfigurationController
-    let measureSpans: [MusicXMLMeasureSpan]
+    let measureOptions: [LibraryPracticeMeasureOption]
     let presentation: LibraryPracticePanelPresentation
 
-    @State private var startIndex = 0
-    @State private var endIndex = 0
+    init(
+        roundConfigurationController: PracticeRoundConfigurationController,
+        measureSpans: [MusicXMLMeasureSpan],
+        presentation: LibraryPracticePanelPresentation
+    ) {
+        self.roundConfigurationController = roundConfigurationController
+        measureOptions = LibraryPracticeMeasureOption.make(from: measureSpans)
+        self.presentation = presentation
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                practiceOverview
+                LibraryPracticeOverviewView(presentation: presentation)
                 Divider()
-                passageSettings
+                LibraryPracticePassageSettingsView(
+                    roundConfigurationController: roundConfigurationController,
+                    measureOptions: measureOptions
+                )
                 Divider()
-                roundSettings
+                LibraryPracticeRoundSettingsView(
+                    roundConfigurationController: roundConfigurationController
+                )
             }
             .padding(20)
         }
         .scrollIndicators(.hidden)
-        .onAppear(perform: synchronizePassageSelection)
-        .onChange(of: roundConfigurationController.pendingPassage) {
-            synchronizePassageSelection()
-        }
-        .onChange(of: startIndex) {
-            if endIndex < startIndex {
-                endIndex = startIndex
-            }
-            updatePendingPassage()
-        }
-        .onChange(of: endIndex) {
-            updatePendingPassage()
-        }
     }
+}
 
-    private var practiceOverview: some View {
+private struct LibraryPracticeOverviewView: View {
+    let presentation: LibraryPracticePanelPresentation
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("练习概览")
                 .font(.headline)
@@ -128,27 +131,83 @@ private struct LibraryPracticeReadyView: View {
             PracticeMeasureMapView(viewModel: presentation.measureMap)
         }
     }
+}
 
-    private var passageSettings: some View {
+private struct LibraryPracticePassageSettingsView: View {
+    @Bindable var roundConfigurationController: PracticeRoundConfigurationController
+    let measureOptions: [LibraryPracticeMeasureOption]
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("练习片段")
                 .font(.headline)
 
-            Picker("开始小节", selection: $startIndex) {
-                ForEach(measureSpans.indices, id: \.self) { index in
-                    Text(measureTitle(at: index)).tag(index)
+            Picker("开始小节", selection: startSelection) {
+                ForEach(measureOptions) { option in
+                    Text(option.title)
+                        .tag(Optional(option.id))
                 }
             }
 
-            Picker("结束小节", selection: $endIndex) {
-                ForEach(startIndex ..< measureSpans.count, id: \.self) { index in
-                    Text(measureTitle(at: index)).tag(index)
+            Picker("结束小节", selection: endSelection) {
+                ForEach(availableEndOptions) { option in
+                    Text(option.title)
+                        .tag(Optional(option.id))
                 }
             }
         }
     }
 
-    private var roundSettings: some View {
+    private var startSelection: Binding<PracticeMeasureOccurrenceID?> {
+        Binding(
+            get: { roundConfigurationController.pendingPassage?.start },
+            set: updateStart
+        )
+    }
+
+    private var endSelection: Binding<PracticeMeasureOccurrenceID?> {
+        Binding(
+            get: { roundConfigurationController.pendingPassage?.end },
+            set: updateEnd
+        )
+    }
+
+    private var availableEndOptions: [LibraryPracticeMeasureOption] {
+        guard let start = roundConfigurationController.pendingPassage?.start else {
+            return measureOptions
+        }
+        return measureOptions.filter { $0.occurrenceIndex >= start.occurrenceIndex }
+    }
+
+    private func updateStart(_ newStart: PracticeMeasureOccurrenceID?) {
+        guard let newStart,
+              let fallbackEnd = measureOptions.last?.id
+        else { return }
+        let currentEnd = roundConfigurationController.pendingPassage?.end
+        let resolvedEnd = currentEnd.map {
+            $0.occurrenceIndex >= newStart.occurrenceIndex ? $0 : newStart
+        } ?? fallbackEnd
+        guard let passage = PracticePassage(start: newStart, end: resolvedEnd) else { return }
+        roundConfigurationController.pendingPassage = passage
+    }
+
+    private func updateEnd(_ newEnd: PracticeMeasureOccurrenceID?) {
+        guard let newEnd,
+              let fallbackStart = measureOptions.first?.id
+        else { return }
+        let currentStart = roundConfigurationController.pendingPassage?.start
+        let resolvedStart = currentStart.map {
+            $0.occurrenceIndex <= newEnd.occurrenceIndex ? $0 : newEnd
+        } ?? fallbackStart
+        guard let passage = PracticePassage(start: resolvedStart, end: newEnd) else { return }
+        roundConfigurationController.pendingPassage = passage
+    }
+}
+
+private struct LibraryPracticeRoundSettingsView: View {
+    @Bindable var roundConfigurationController: PracticeRoundConfigurationController
+
+    var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("本轮设置")
                 .font(.headline)
@@ -182,44 +241,5 @@ private struct LibraryPracticeReadyView: View {
                 in: PracticeRoundConfiguration.supportedSuccessRange
             )
         }
-    }
-
-    private func synchronizePassageSelection() {
-        guard measureSpans.isEmpty == false else { return }
-        guard let passage = roundConfigurationController.pendingPassage else {
-            startIndex = 0
-            endIndex = measureSpans.count - 1
-            updatePendingPassage()
-            return
-        }
-        startIndex = measureSpans.firstIndex { $0.occurrenceID == passage.start } ?? 0
-        endIndex = measureSpans.firstIndex { $0.occurrenceID == passage.end } ?? startIndex
-    }
-
-    private func updatePendingPassage() {
-        guard measureSpans.indices.contains(startIndex),
-              measureSpans.indices.contains(endIndex),
-              let passage = PracticePassage(
-                  start: measureSpans[startIndex].occurrenceID,
-                  end: measureSpans[endIndex].occurrenceID
-              )
-        else { return }
-        if roundConfigurationController.pendingPassage != passage {
-            roundConfigurationController.pendingPassage = passage
-        }
-    }
-
-    private func measureTitle(at index: Int) -> String {
-        let span = measureSpans[index]
-        let baseTitle = PracticePassagePresentation.measureTitle(span.sourceMeasureID)
-        let matchingIndices = measureSpans.indices.filter {
-            measureSpans[$0].sourceMeasureID == span.sourceMeasureID
-        }
-        guard matchingIndices.count > 1,
-              let repeatedIndex = matchingIndices.firstIndex(of: index)
-        else {
-            return "第 \(baseTitle) 小节"
-        }
-        return "第 \(baseTitle) 小节 · 第 \(repeatedIndex + 1) 次"
     }
 }

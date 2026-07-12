@@ -195,6 +195,33 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
     }
 }
 
+
+struct LibraryPracticeMeasureOption: Equatable, Identifiable, Sendable {
+    let id: PracticeMeasureOccurrenceID
+    let title: String
+    let occurrenceIndex: Int
+
+    static func make(from measureSpans: [MusicXMLMeasureSpan]) -> [LibraryPracticeMeasureOption] {
+        let occurrenceTotals = Dictionary(grouping: measureSpans, by: \.sourceMeasureID)
+            .mapValues(\.count)
+        var occurrenceCounts: [PracticeSourceMeasureID: Int] = [:]
+
+        return measureSpans.map { span in
+            let occurrenceNumber = occurrenceCounts[span.sourceMeasureID, default: 0] + 1
+            occurrenceCounts[span.sourceMeasureID] = occurrenceNumber
+            let measureTitle = PracticePassagePresentation.measureTitle(span.sourceMeasureID)
+            let title = occurrenceTotals[span.sourceMeasureID, default: 0] > 1
+                ? "第 \(measureTitle) 小节 · 第 \(occurrenceNumber) 次"
+                : "第 \(measureTitle) 小节"
+            return LibraryPracticeMeasureOption(
+                id: span.occurrenceID,
+                title: title,
+                occurrenceIndex: span.occurrenceIndex
+            )
+        }
+    }
+}
+
 struct LibraryPracticePanelPresentation: Equatable {
     let entryID: UUID
     let identity: PracticeSongIdentity
