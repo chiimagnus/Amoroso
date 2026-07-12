@@ -16,8 +16,7 @@ func audioAccumulatorRequiresBothHandsWhenEnabled() {
         onsetScore: 1.0,
         isOnset: true,
         timestamp: t0,
-        generation: generation,
-        source: .audio
+        generation: generation
     ))
 
     let rightOnly = accumulator.evaluateHandSeparated(
@@ -39,8 +38,7 @@ func audioAccumulatorRequiresBothHandsWhenEnabled() {
         onsetScore: 1.0,
         isOnset: true,
         timestamp: t0,
-        generation: generation,
-        source: .audio
+        generation: generation
     ))
 
     let both = accumulator.evaluateHandSeparated(

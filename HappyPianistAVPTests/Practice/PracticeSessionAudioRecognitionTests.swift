@@ -12,8 +12,7 @@ func fakeAudioRecognitionServiceEmitsEventToConsumer() async {
         onsetScore: 0.8,
         isOnset: true,
         timestamp: Date(timeIntervalSince1970: 1000),
-        generation: 1,
-        source: .audio
+        generation: 1
     )
 
     let stream = service.events
@@ -125,8 +124,7 @@ func staleGenerationEventDoesNotAdvanceStep() async {
             onsetScore: 0.8,
             isOnset: true,
             timestamp: .now,
-            generation: generation - 1,
-            source: .audio
+            generation: generation - 1
         )
     )
     await settleTaskQueue()
@@ -159,8 +157,7 @@ func matchingAudioEventAdvancesStep() async {
             onsetScore: 0.9,
             isOnset: true,
             timestamp: Date().addingTimeInterval(0.8),
-            generation: generation,
-            source: .audio
+            generation: generation
         )
     )
     await settleTaskQueue()
@@ -207,8 +204,7 @@ func suppressWindowBlocksThenAllowsAdvance() async {
             onsetScore: 0.8,
             isOnset: true,
             timestamp: suppressUntil.addingTimeInterval(-0.1),
-            generation: generation,
-            source: .audio
+            generation: generation
         )
     )
     await settleTaskQueue()
@@ -221,8 +217,7 @@ func suppressWindowBlocksThenAllowsAdvance() async {
             onsetScore: 0.8,
             isOnset: true,
             timestamp: suppressUntil.addingTimeInterval(0.2),
-            generation: generation,
-            source: .audio
+            generation: generation
         )
     )
     await settleTaskQueue()
@@ -310,8 +305,7 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
             onsetScore: 0.9,
             isOnset: true,
             timestamp: Date().addingTimeInterval(0.8),
-            generation: generation,
-            source: .audio
+            generation: generation
         )
     )
     await settleTaskQueue()
@@ -327,8 +321,7 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
             onsetScore: 0.9,
             isOnset: true,
             timestamp: Date().addingTimeInterval(1.6),
-            generation: resumedGeneration,
-            source: .audio
+            generation: resumedGeneration
         )
     )
     await settleTaskQueue()
@@ -525,8 +518,7 @@ func disablingAudioRecognitionSettingIgnoresQueuedEvents() async {
             onsetScore: 0.9,
             isOnset: true,
             timestamp: Date().addingTimeInterval(0.8),
-            generation: generation,
-            source: .audio
+            generation: generation
         )
     )
     await settleTaskQueue()
@@ -556,8 +548,7 @@ func detectorModeSettingRefreshConfiguresServiceWithoutEventTimeUserDefaultsRead
             onsetScore: 0.9,
             isOnset: true,
             timestamp: Date().addingTimeInterval(1.0),
-            generation: 999,
-            source: .audio
+            generation: 999
         )
     )
     await settleTaskQueue()

@@ -70,21 +70,8 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         at timestamp: Date
     ) -> StepAttemptMatchResult {
         let expectedUnion = Set(expectedRightNotes + expectedLeftNotes)
-        let handMode: PracticeHandMode = if expectedRightNotes.isEmpty {
-            .left
-        } else if expectedLeftNotes.isEmpty {
-            .right
-        } else {
-            .both
-        }
-
         guard pressedNotes.isEmpty == false, expectedUnion.isEmpty == false else {
-            return .insufficientEvidence(evidence: evidence(
-                expected: expectedUnion,
-                observed: accumulatedPressedNotes,
-                handMode: handMode,
-                message: "no contact evidence"
-            ))
+            return .insufficientEvidence
         }
 
         if let windowStart, timestamp.timeIntervalSince(windowStart) > windowSeconds {
@@ -104,17 +91,11 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
             tolerance: tolerance
         )
 
-        let currentEvidence = evidence(
-            expected: expectedUnion,
-            observed: accumulatedPressedNotes,
-            handMode: handMode,
-            message: rightMatched && leftMatched ? "hand contact matched" : "hand contact pending"
-        )
         if rightMatched, leftMatched {
             reset()
-            return .matched(evidence: currentEvidence)
+            return .matched
         }
-        return .insufficientEvidence(evidence: currentEvidence)
+        return .insufficientEvidence
     }
 
     func reset() {
@@ -122,19 +103,5 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         accumulatedPressedNotes.removeAll()
     }
 
-    private func evidence(
-        expected: Set<Int>,
-        observed: Set<Int>,
-        handMode: PracticeHandMode,
-        message: String
-    ) -> PracticeAttemptEvidence {
-        PracticeAttemptEvidence(
-            expectedNotes: expected,
-            observedNotes: observed,
-            handMode: handMode,
-            source: .handContact,
-            isPartialEvidence: false,
-            debugMessage: message
-        )
-    }
+
 }

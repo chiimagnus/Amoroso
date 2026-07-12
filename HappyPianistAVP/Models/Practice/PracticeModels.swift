@@ -58,13 +58,6 @@ enum PracticeHandMode: String, CaseIterable, Identifiable, Codable, Sendable {
     }
 }
 
-enum DetectedNoteSource: Equatable {
-    case audio
-    case bluetoothMIDI
-    case handExactHit
-    case handGateBoost
-}
-
 struct DetectedNoteEvent: Equatable {
     let midiNote: Int
     let confidence: Double
@@ -72,7 +65,6 @@ struct DetectedNoteEvent: Equatable {
     let isOnset: Bool
     let timestamp: Date
     let generation: Int
-    let source: DetectedNoteSource
 }
 
 struct PracticeStepNote: Equatable, Hashable, Identifiable {
@@ -176,63 +168,14 @@ enum ManualAdvanceMode: String, CaseIterable, Identifiable, Codable, Equatable, 
     }
 }
 
-enum PracticeAttemptSource: String, Codable, Equatable, Sendable {
-    case midi
-    case audio
-    case handContact
-}
-
-enum PracticeAttemptCategory: String, Codable, Equatable, Sendable {
+enum StepAttemptMatchResult: Equatable, Sendable {
     case matched
     case wrongNote
     case missingNotes
     case incompleteChord
     case insufficientEvidence
-}
-
-struct PracticeAttemptEvidence: Equatable, Sendable {
-    let expectedNotes: Set<Int>
-    let observedNotes: Set<Int>
-    let handMode: PracticeHandMode
-    let source: PracticeAttemptSource
-    let isPartialEvidence: Bool
-    let debugMessage: String
-}
-
-enum StepAttemptMatchResult: Equatable, Sendable {
-    case matched(evidence: PracticeAttemptEvidence)
-    case wrongNote(evidence: PracticeAttemptEvidence, unexpectedNotes: Set<Int>)
-    case missingNotes(evidence: PracticeAttemptEvidence, missingNotes: Set<Int>)
-    case incompleteChord(evidence: PracticeAttemptEvidence, missingNotes: Set<Int>)
-    case insufficientEvidence(evidence: PracticeAttemptEvidence)
-
-    var category: PracticeAttemptCategory {
-        switch self {
-        case .matched:
-            .matched
-        case .wrongNote:
-            .wrongNote
-        case .missingNotes:
-            .missingNotes
-        case .incompleteChord:
-            .incompleteChord
-        case .insufficientEvidence:
-            .insufficientEvidence
-        }
-    }
-
-    var evidence: PracticeAttemptEvidence {
-        switch self {
-        case let .matched(evidence),
-             let .wrongNote(evidence, _),
-             let .missingNotes(evidence, _),
-             let .incompleteChord(evidence, _),
-             let .insufficientEvidence(evidence):
-            evidence
-        }
-    }
 
     var isMatched: Bool {
-        category == .matched
+        self == .matched
     }
 }

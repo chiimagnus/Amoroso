@@ -91,8 +91,7 @@ struct TargetedHarmonicTemplateDetector: HarmonicTemplateDetectingProtocol {
                 onsetScore: spectrumFrame.onsetScore,
                 isOnset: spectrumFrame.isOnset,
                 timestamp: spectrumFrame.timestamp,
-                generation: generation,
-                source: .audio
+                generation: generation
             )
         }
     }

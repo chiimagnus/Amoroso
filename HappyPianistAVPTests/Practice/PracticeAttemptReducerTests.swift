@@ -285,20 +285,11 @@ private struct Fixture {
         )
     }
 
-    func matched(stepIndex: Int) -> StepAttemptMatchResult {
-        .matched(evidence: evidence(stepIndex: stepIndex, observed: [60 + stepIndex * 2]))
-    }
+    func matched(stepIndex _: Int) -> StepAttemptMatchResult { .matched }
 
-    func wrong(stepIndex: Int) -> StepAttemptMatchResult {
-        .wrongNote(
-            evidence: evidence(stepIndex: stepIndex, observed: [71]),
-            unexpectedNotes: [71]
-        )
-    }
+    func wrong(stepIndex _: Int) -> StepAttemptMatchResult { .wrongNote }
 
-    func insufficient(stepIndex: Int) -> StepAttemptMatchResult {
-        .insufficientEvidence(evidence: evidence(stepIndex: stepIndex, observed: []))
-    }
+    func insufficient(stepIndex _: Int) -> StepAttemptMatchResult { .insufficientEvidence }
 
     func configuration(tempoScale: Double) -> PracticeRoundConfiguration {
         PracticeRoundConfiguration(
@@ -310,14 +301,4 @@ private struct Fixture {
         )
     }
 
-    private func evidence(stepIndex: Int, observed: Set<Int>) -> PracticeAttemptEvidence {
-        PracticeAttemptEvidence(
-            expectedNotes: [60 + stepIndex * 2],
-            observedNotes: observed,
-            handMode: .right,
-            source: .midi,
-            isPartialEvidence: false,
-            debugMessage: "fixture"
-        )
-    }
 }

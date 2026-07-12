@@ -85,8 +85,7 @@ func gateInactiveStillAllowsAudioMatchedAdvance() async {
             onsetScore: 0.9,
             isOnset: true,
             timestamp: Date().addingTimeInterval(0.9),
-            generation: generation,
-            source: .audio
+            generation: generation
         )
     )
     await settleTaskQueue()

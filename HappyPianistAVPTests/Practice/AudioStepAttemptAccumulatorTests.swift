@@ -22,7 +22,7 @@ func singleNoteMatchesWhenExactMIDIWithOnset() {
         at: now
     )
 
-    #expect(result.category == .matched)
+    #expect(result == .matched)
 }
 
 @Test
@@ -40,7 +40,7 @@ func singleNoteDoesNotMatchAdjacentSemitone() {
         at: now
     )
 
-    #expect(result.category == .insufficientEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -58,7 +58,7 @@ func singleNoteReturnsInsufficientWhenConfidenceBelowThreshold() {
         at: now
     )
 
-    #expect(result.category == .insufficientEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -82,7 +82,7 @@ func mismatchedGenerationEventsAreIgnored() {
         at: now
     )
 
-    #expect(result.category == .insufficientEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -107,8 +107,7 @@ func triadMajorityIsPartialEvidenceRatherThanMatch() {
         at: now.addingTimeInterval(0.04)
     )
 
-    #expect(result.category == .insufficientEvidence)
-    #expect(result.evidence.isPartialEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -125,7 +124,7 @@ func dyadRequiresBothExpectedNotes() {
         generation: 3,
         at: now.addingTimeInterval(0.02)
     )
-    #expect(insufficient.category == .insufficientEvidence)
+    #expect(insufficient == .insufficientEvidence)
 
     accumulator.register(event: makeEvent(
         midiNote: 64,
@@ -140,7 +139,7 @@ func dyadRequiresBothExpectedNotes() {
         generation: 3,
         at: now.addingTimeInterval(0.05)
     )
-    #expect(matched.category == .matched)
+    #expect(matched == .matched)
 }
 
 @Test
@@ -165,7 +164,7 @@ func strongWrongNoteBlocksMatch() {
         at: now.addingTimeInterval(0.02)
     )
 
-    #expect(result.category == .wrongNote)
+    #expect(result == .wrongNote)
 }
 
 @Test
@@ -183,7 +182,7 @@ func expiredEventsAreIgnored() {
         at: now.addingTimeInterval(0.6)
     )
 
-    #expect(result.category == .insufficientEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -202,7 +201,7 @@ func resetForNewStepClearsOldGenerationEvents() {
         at: now.addingTimeInterval(0.01)
     )
 
-    #expect(result.category == .insufficientEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -219,7 +218,7 @@ func repeatedSameNoteNeedsRearmOrNewOnset() {
         generation: 8,
         at: now
     )
-    #expect(first.category == .matched)
+    #expect(first == .matched)
     accumulator.markMatchedAndRequireRearm(expectedMIDINotes: [60], at: now)
 
     accumulator.register(
@@ -238,7 +237,7 @@ func repeatedSameNoteNeedsRearmOrNewOnset() {
         generation: 8,
         at: now.addingTimeInterval(0.02)
     )
-    #expect(blocked.category == .insufficientEvidence)
+    #expect(blocked == .insufficientEvidence)
 
     accumulator.register(event: makeEvent(
         midiNote: 60,
@@ -253,7 +252,7 @@ func repeatedSameNoteNeedsRearmOrNewOnset() {
         generation: 8,
         at: now.addingTimeInterval(0.03)
     )
-    #expect(second.category == .matched)
+    #expect(second == .matched)
 }
 
 @Test
@@ -273,7 +272,7 @@ func recognitionModesUseDifferentThresholds() {
         generation: 11,
         at: now
     )
-    #expect(lowLatencyResult.category == .matched)
+    #expect(lowLatencyResult == .matched)
 
     stricter.resetForNewStep(generation: 11)
     stricter.register(event: makeEvent(midiNote: 60, confidence: 0.56, isOnset: true, timestamp: now, generation: 11))
@@ -283,7 +282,7 @@ func recognitionModesUseDifferentThresholds() {
         generation: 11,
         at: now
     )
-    #expect(stricterResult.category == .insufficientEvidence)
+    #expect(stricterResult == .insufficientEvidence)
 }
 
 @Test
@@ -301,7 +300,7 @@ func wrongNoteGraceWindowDoesNotRollbackImmediateMatch() {
         generation: 12,
         at: now
     )
-    #expect(matched.category == .matched)
+    #expect(matched == .matched)
     accumulator.markMatchedAndRequireRearm(expectedMIDINotes: [60], at: now)
 
     accumulator.register(event: makeEvent(
@@ -317,7 +316,7 @@ func wrongNoteGraceWindowDoesNotRollbackImmediateMatch() {
         generation: 12,
         at: now.addingTimeInterval(0.08)
     )
-    #expect(graceResult.category == .insufficientEvidence)
+    #expect(graceResult == .insufficientEvidence)
 
     accumulator.register(event: makeEvent(
         midiNote: 61,
@@ -332,7 +331,7 @@ func wrongNoteGraceWindowDoesNotRollbackImmediateMatch() {
         generation: 12,
         at: now.addingTimeInterval(0.40)
     )
-    #expect(lateWrong.category == .wrongNote)
+    #expect(lateWrong == .wrongNote)
 }
 
 private func makeEvent(
@@ -349,8 +348,7 @@ private func makeEvent(
         onsetScore: onsetScore ?? (isOnset ? 1.0 : 0.0),
         isOnset: isOnset,
         timestamp: timestamp,
-        generation: generation,
-        source: .audio
+        generation: generation
     )
 }
 
@@ -376,7 +374,7 @@ func chordDoesNotCountLowConfidenceOnsetsTowardMajority() {
         at: now.addingTimeInterval(0.03)
     )
 
-    #expect(result.category == .insufficientEvidence)
+    #expect(result == .insufficientEvidence)
 }
 
 @Test
@@ -400,8 +398,7 @@ func fourNoteChordMajorityRemainsPartialEvidence() {
         generation: 14,
         at: now.addingTimeInterval(0.02)
     )
-    #expect(twoOfFour.category == .insufficientEvidence)
-    #expect(twoOfFour.evidence.isPartialEvidence == false)
+    #expect(twoOfFour == .insufficientEvidence)
 
     accumulator.register(event: makeEvent(
         midiNote: 67,
@@ -416,6 +413,5 @@ func fourNoteChordMajorityRemainsPartialEvidence() {
         generation: 14,
         at: now.addingTimeInterval(0.04)
     )
-    #expect(threeOfFour.category == .insufficientEvidence)
-    #expect(threeOfFour.evidence.isPartialEvidence)
+    #expect(threeOfFour == .insufficientEvidence)
 }

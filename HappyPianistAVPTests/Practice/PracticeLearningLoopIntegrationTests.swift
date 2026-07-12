@@ -94,16 +94,7 @@ private func learningLoopSpan() -> MusicXMLMeasureSpan {
 }
 
 private func matchedLearningLoopOutcome() -> StepAttemptMatchResult {
-    .matched(
-        evidence: PracticeAttemptEvidence(
-            expectedNotes: [60],
-            observedNotes: [60],
-            handMode: .both,
-            source: .midi,
-            isPartialEvidence: false,
-            debugMessage: "matched"
-        )
-    )
+    .matched
 }
 
 private actor LearningLoopRepository: PracticeProgressRepositoryProtocol {
@@ -159,16 +150,7 @@ private final class LearningLoopChordAccumulator: ChordAttemptAccumulatorProtoco
         tolerance _: Int,
         at _: Date
     ) -> StepAttemptMatchResult {
-        .insufficientEvidence(
-            evidence: PracticeAttemptEvidence(
-                expectedNotes: Set(expectedNotes),
-                observedNotes: pressedNotes,
-                handMode: .both,
-                source: .handContact,
-                isPartialEvidence: false,
-                debugMessage: "noop"
-            )
-        )
+.insufficientEvidence
     }
 
     func reset() {}

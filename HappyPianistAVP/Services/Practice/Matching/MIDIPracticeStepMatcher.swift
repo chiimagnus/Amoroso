@@ -50,12 +50,12 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
 
     func registerNoteOn(note: Int, at timestamp: Date) -> StepAttemptMatchResult {
         guard expectedUnion.isEmpty == false else {
-            return .insufficientEvidence(evidence: evidence(observed: [], message: "no expected notes"))
+            return .insufficientEvidence
         }
 
         pruneRearm(now: timestamp)
         guard isRearmSatisfied(note: note, at: timestamp) else {
-            return .insufficientEvidence(evidence: evidence(observed: accumulatedNotes, message: "rearm blocked"))
+            return .insufficientEvidence
         }
 
         if windowStart == nil {
@@ -69,11 +69,7 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
         }
 
         guard expectedUnion.contains(note) else {
-            let observed = accumulatedNotes.union([note])
-            return .wrongNote(
-                evidence: evidence(observed: observed, message: "unexpected note"),
-                unexpectedNotes: [note]
-            )
+            return .wrongNote
         }
 
         accumulatedNotes.insert(note)
@@ -93,32 +89,10 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
             for note in expectedUnion {
                 rearmBlockedUntil[note] = timestamp.addingTimeInterval(configuration.rearmSilenceWindow)
             }
-            return .matched(evidence: evidence(observed: accumulatedNotes, message: "midi deterministic matched"))
+            return .matched
         }
 
-        return .insufficientEvidence(
-            evidence: evidence(
-                observed: accumulatedNotes,
-                message: "pending \(accumulatedNotes.count)/\(expectedUnion.count)"
-            )
-        )
-    }
-
-    private func evidence(observed: Set<Int>, message: String) -> PracticeAttemptEvidence {
-        PracticeAttemptEvidence(
-            expectedNotes: expectedUnion,
-            observedNotes: observed,
-            handMode: handMode,
-            source: .midi,
-            isPartialEvidence: false,
-            debugMessage: message
-        )
-    }
-
-    private var handMode: PracticeHandMode {
-        if expectedRight.isEmpty == false, expectedLeft.isEmpty == false { return .both }
-        if expectedLeft.isEmpty == false { return .left }
-        return .right
+        return .insufficientEvidence
     }
 
     private func isRearmSatisfied(note: Int, at timestamp: Date) -> Bool {

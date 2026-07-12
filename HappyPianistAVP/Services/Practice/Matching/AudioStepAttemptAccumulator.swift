@@ -92,69 +92,32 @@ final class AudioStepAttemptAccumulator {
         pruneExpiredEvents(now: timestamp)
 
         let expectedSet = Set(expectedMIDINotes)
+        guard expectedSet.isEmpty == false else { return .insufficientEvidence }
+
         let threshold = threshold(for: handGateBoost)
         let activeEvents = makeActiveEvents(generation: generation, at: timestamp, threshold: threshold)
         let observed = Set(activeEvents.map(\.midiNote))
-        let evidence = makeEvidence(
-            expected: expectedSet,
-            observed: observed,
-            handMode: .both,
-            message: "audio evaluation"
-        )
-        guard expectedSet.isEmpty == false else {
-            return .insufficientEvidence(evidence: evidence)
-        }
-
         let strongestExpected = activeEvents
             .filter { expectedSet.contains($0.midiNote) }
             .map(\.confidence)
             .max() ?? 0
-        let wrongEvents = activeEvents.filter { wrongCandidateMIDINotes.contains($0.midiNote) }
-        let strongestWrong = wrongEvents.map(\.confidence).max() ?? 0
+        let strongestWrong = activeEvents
+            .filter { wrongCandidateMIDINotes.contains($0.midiNote) }
+            .map(\.confidence)
+            .max() ?? 0
 
         if strongestWrong >= configuration.wrongNoteThreshold,
            strongestWrong >= max(strongestExpected, 0.01) * configuration.wrongDominanceRatio
         {
             if let lastMatchedAt, timestamp.timeIntervalSince(lastMatchedAt) <= configuration.wrongNoteGraceWindow {
-                return .insufficientEvidence(evidence: makeEvidence(
-                    expected: expectedSet,
-                    observed: observed,
-                    handMode: .both,
-                    message: "wrong note grace"
-                ))
+                return .insufficientEvidence
             }
-            return .wrongNote(
-                evidence: makeEvidence(
-                    expected: expectedSet,
-                    observed: observed,
-                    handMode: .both,
-                    message: "wrong note dominates window"
-                ),
-                unexpectedNotes: Set(wrongEvents.map(\.midiNote))
-            )
+            return .wrongNote
         }
 
-        let matchedNotes = expectedSet.intersection(observed)
-        if matchedNotes == expectedSet {
-            lastMatchedAt = timestamp
-            return .matched(evidence: makeEvidence(
-                expected: expectedSet,
-                observed: observed,
-                handMode: .both,
-                message: expectedSet.count == 1 ? "single note matched" : "complete chord matched"
-            ))
-        }
-
-        let isPartialChordEvidence = expectedSet.count >= 3
-            && matchedNotes.count >= requiredMatchCount(expectedCount: expectedSet.count)
-        return .insufficientEvidence(evidence: PracticeAttemptEvidence(
-            expectedNotes: expectedSet,
-            observedNotes: observed,
-            handMode: .both,
-            source: .audio,
-            isPartialEvidence: isPartialChordEvidence,
-            debugMessage: isPartialChordEvidence ? "experimental chord majority" : "expected notes pending"
-        ))
+        guard expectedSet.isSubset(of: observed) else { return .insufficientEvidence }
+        lastMatchedAt = timestamp
+        return .matched
     }
 
     func evaluateHandSeparated(
@@ -171,97 +134,33 @@ final class AudioStepAttemptAccumulator {
         }
         pruneExpiredEvents(now: timestamp)
 
-        let expectedRightSet = Set(expectedRightMIDINotes)
-        let expectedLeftSet = Set(expectedLeftMIDINotes)
-        let expectedUnion = expectedRightSet.union(expectedLeftSet)
-        let handMode: PracticeHandMode = if expectedRightSet.isEmpty {
-            .left
-        } else if expectedLeftSet.isEmpty {
-            .right
-        } else {
-            .both
-        }
+        let expectedUnion = Set(expectedRightMIDINotes + expectedLeftMIDINotes)
+        guard expectedUnion.isEmpty == false else { return .insufficientEvidence }
+
         let threshold = threshold(for: handGateBoost)
         let activeEvents = makeActiveEvents(generation: generation, at: timestamp, threshold: threshold)
         let observed = Set(activeEvents.map(\.midiNote))
-        guard expectedUnion.isEmpty == false else {
-            return .insufficientEvidence(evidence: makeEvidence(
-                expected: expectedUnion,
-                observed: observed,
-                handMode: handMode,
-                message: "no expected notes"
-            ))
-        }
-
         let strongestExpected = activeEvents
             .filter { expectedUnion.contains($0.midiNote) }
             .map(\.confidence)
             .max() ?? 0
-        let wrongEvents = activeEvents.filter { wrongCandidateMIDINotes.contains($0.midiNote) }
-        let strongestWrong = wrongEvents.map(\.confidence).max() ?? 0
+        let strongestWrong = activeEvents
+            .filter { wrongCandidateMIDINotes.contains($0.midiNote) }
+            .map(\.confidence)
+            .max() ?? 0
 
         if strongestWrong >= configuration.wrongNoteThreshold,
            strongestWrong >= max(strongestExpected, 0.01) * configuration.wrongDominanceRatio
         {
             if let lastMatchedAt, timestamp.timeIntervalSince(lastMatchedAt) <= configuration.wrongNoteGraceWindow {
-                return .insufficientEvidence(evidence: makeEvidence(
-                    expected: expectedUnion,
-                    observed: observed,
-                    handMode: handMode,
-                    message: "wrong note grace"
-                ))
+                return .insufficientEvidence
             }
-            return .wrongNote(
-                evidence: makeEvidence(
-                    expected: expectedUnion,
-                    observed: observed,
-                    handMode: handMode,
-                    message: "wrong note dominates window"
-                ),
-                unexpectedNotes: Set(wrongEvents.map(\.midiNote))
-            )
+            return .wrongNote
         }
 
-        let matched = expectedUnion.intersection(observed)
-        if matched == expectedUnion {
-            lastMatchedAt = timestamp
-            return .matched(evidence: makeEvidence(
-                expected: expectedUnion,
-                observed: observed,
-                handMode: handMode,
-                message: "hand-separated complete match"
-            ))
-        }
-
-        let partialThresholdReached = [expectedRightSet, expectedLeftSet].contains { expected in
-            expected.count >= 3
-                && expected.intersection(observed).count >= requiredMatchCount(expectedCount: expected.count)
-                && expected.isSubset(of: observed) == false
-        }
-        return .insufficientEvidence(evidence: PracticeAttemptEvidence(
-            expectedNotes: expectedUnion,
-            observedNotes: observed,
-            handMode: handMode,
-            source: .audio,
-            isPartialEvidence: partialThresholdReached,
-            debugMessage: partialThresholdReached ? "experimental hand chord majority" : "hand notes pending"
-        ))
-    }
-
-    private func makeEvidence(
-        expected: Set<Int>,
-        observed: Set<Int>,
-        handMode: PracticeHandMode,
-        message: String
-    ) -> PracticeAttemptEvidence {
-        PracticeAttemptEvidence(
-            expectedNotes: expected,
-            observedNotes: observed,
-            handMode: handMode,
-            source: .audio,
-            isPartialEvidence: false,
-            debugMessage: message
-        )
+        guard expectedUnion.isSubset(of: observed) else { return .insufficientEvidence }
+        lastMatchedAt = timestamp
+        return .matched
     }
 
     func resetForNewStep(generation: Int) {
@@ -308,16 +207,5 @@ final class AudioStepAttemptAccumulator {
         return timestamp.timeIntervalSince(blockedAt) >= configuration.rearmSilenceWindow
     }
 
-    private func requiredMatchCount(expectedCount: Int) -> Int {
-        switch expectedCount {
-        case ...0:
-            0
-        case 1:
-            1
-        case 2:
-            2
-        default:
-            Int(ceil(Double(expectedCount) * 2.0 / 3.0))
-        }
-    }
+
 }

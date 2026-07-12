@@ -168,16 +168,7 @@ func flushAndShutdownPersistsLatestResumePointBeforeTeardown() async throws {
     await session.restoreProgressIfAvailable()
     session.startGuidingIfReady()
     session.recordAttemptOutcome(
-        .matched(
-            evidence: PracticeAttemptEvidence(
-                expectedNotes: [60],
-                observedNotes: [60],
-                handMode: .both,
-                source: .midi,
-                isPartialEvidence: false,
-                debugMessage: "matched"
-            )
-        )
+.matched
     )
 
     await session.flushAndShutdown()
@@ -265,17 +256,7 @@ func automaticLoopStartsANewAttemptRound() {
     _ = session.applyPendingRoundConfiguration()
     session.startGuidingIfReady()
     let firstGeneration = session.roundGeneration
-    let wrong = StepAttemptMatchResult.wrongNote(
-        evidence: PracticeAttemptEvidence(
-            expectedNotes: [60],
-            observedNotes: [71],
-            handMode: .both,
-            source: .midi,
-            isPartialEvidence: false,
-            debugMessage: "wrong"
-        ),
-        unexpectedNotes: [71]
-    )
+    let wrong = StepAttemptMatchResult.wrongNote
 
     session.recordAttemptOutcome(wrong)
     session.advanceToNextStep()
@@ -307,14 +288,7 @@ func automaticLoopStopsWhenPassageReachesTarget() {
     _ = session.applyPendingRoundConfiguration()
     session.startGuidingIfReady()
     let generation = session.roundGeneration
-    session.recordAttemptOutcome(.matched(evidence: PracticeAttemptEvidence(
-        expectedNotes: [60],
-        observedNotes: [60],
-        handMode: .both,
-        source: .midi,
-        isPartialEvidence: false,
-        debugMessage: "matched"
-    )))
+    session.recordAttemptOutcome(.matched)
 
     session.advanceToNextStep()
 
@@ -414,16 +388,7 @@ private final class ResumeNoopChordAccumulator: ChordAttemptAccumulatorProtocol 
         tolerance _: Int,
         at _: Date
     ) -> StepAttemptMatchResult {
-        .insufficientEvidence(
-            evidence: PracticeAttemptEvidence(
-                expectedNotes: Set(expectedNotes),
-                observedNotes: pressedNotes,
-                handMode: .both,
-                source: .handContact,
-                isPartialEvidence: false,
-                debugMessage: "noop"
-            )
-        )
+.insufficientEvidence
     }
 
     func reset() {}

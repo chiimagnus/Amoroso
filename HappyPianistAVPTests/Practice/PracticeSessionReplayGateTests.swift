@@ -58,8 +58,7 @@ func manualReplayBlocksAudioRecognitionAdvance() async {
             onsetScore: 1,
             isOnset: true,
             timestamp: Date(),
-            generation: viewModel.audioRecognitionGenerationForTesting,
-            source: .audio
+            generation: viewModel.audioRecognitionGenerationForTesting
         )
     )
     await Task.yield()
