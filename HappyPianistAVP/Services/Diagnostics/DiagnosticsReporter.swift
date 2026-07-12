@@ -23,16 +23,23 @@ struct OSLogDiagnosticsSink: SystemDiagnosticsSinkProtocol {
 
     func record(_ event: DiagnosticEvent) {
         let logger = Logger(subsystem: subsystem, category: event.category.rawValue)
-        let message = "[\(event.code.rawValue, privacy: .public)] \(event.summary, privacy: .public) | stage=\(event.stage, privacy: .public) | reason=\(event.reason, privacy: .private(mask: .hash))"
         switch event.severity {
         case .debug:
-            logger.debug("\(message)")
+            logger.debug(
+                "[\(event.code.rawValue, privacy: .public)] \(event.summary, privacy: .public) | stage=\(event.stage, privacy: .public) | reason=\(event.reason, privacy: .private(mask: .hash))"
+            )
         case .info:
-            logger.info("\(message)")
+            logger.info(
+                "[\(event.code.rawValue, privacy: .public)] \(event.summary, privacy: .public) | stage=\(event.stage, privacy: .public) | reason=\(event.reason, privacy: .private(mask: .hash))"
+            )
         case .warning:
-            logger.warning("\(message)")
+            logger.warning(
+                "[\(event.code.rawValue, privacy: .public)] \(event.summary, privacy: .public) | stage=\(event.stage, privacy: .public) | reason=\(event.reason, privacy: .private(mask: .hash))"
+            )
         case .error:
-            logger.error("\(message)")
+            logger.error(
+                "[\(event.code.rawValue, privacy: .public)] \(event.summary, privacy: .public) | stage=\(event.stage, privacy: .public) | reason=\(event.reason, privacy: .private(mask: .hash))"
+            )
         }
     }
 }
