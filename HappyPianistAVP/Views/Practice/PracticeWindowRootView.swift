@@ -56,8 +56,11 @@ struct PracticeWindowRootView: View {
     }
 
     private func handleScenePhaseChange() {
-        sceneLifecycleTask?.cancel()
         let phase = scenePhase
+        if phase != .active {
+            viewModel.invalidatePracticeFeedbackPresentation()
+        }
+        sceneLifecycleTask?.cancel()
         sceneLifecycleTask = Task { @MainActor in
             guard Task.isCancelled == false else { return }
             if phase == .active {

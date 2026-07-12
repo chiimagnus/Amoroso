@@ -470,8 +470,13 @@ final class ARGuideViewModel {
     }
 
     func suspendPracticeAndFlushProgress() async {
-        practiceFeedbackViewModel.cancel()
+        invalidatePracticeFeedbackPresentation()
         await practiceSessionViewModel.suspendAndFlushProgress()
+    }
+
+    func invalidatePracticeFeedbackPresentation() {
+        practiceFeedbackViewModel.cancel()
+        practiceSessionViewModel.invalidateFeedbackPresentation()
     }
 
     func resumePracticeAfterSuspension() {

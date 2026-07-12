@@ -20,6 +20,29 @@ func feedbackViewModelReplacesAndCancelsCue() {
     #expect(viewModel.cue == nil)
 }
 
+@Test @MainActor
+func scenePresentationInvalidationIsSynchronous() {
+    let viewModel = ARGuideViewModel(
+        appState: AppState(),
+        practiceSetupState: PracticeSetupState()
+    )
+    let event = PracticeFeedbackEvent(
+        identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "r"),
+        sessionGeneration: 1,
+        roundGeneration: 1,
+        sequence: 1,
+        sourceMeasureID: nil,
+        kind: .roundSummaryReady
+    )
+    viewModel.practiceFeedbackViewModel.present(event)
+    viewModel.practiceSessionViewModel.latestFeedbackEvent = event
+
+    viewModel.invalidatePracticeFeedbackPresentation()
+
+    #expect(viewModel.practiceFeedbackViewModel.cue == nil)
+    #expect(viewModel.practiceSessionViewModel.latestFeedbackEvent == nil)
+}
+
 private struct NeverFeedbackSleeper: SleeperProtocol {
     func sleep(for _: Duration) async throws {
         try await Task.sleep(for: .seconds(60))
