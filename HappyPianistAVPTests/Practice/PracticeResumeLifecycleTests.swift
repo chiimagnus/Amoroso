@@ -317,6 +317,30 @@ func automaticLoopStopsWhenPassageReachesTarget() {
     #expect(session.latestFeedbackEvent?.kind == .passageStable)
 }
 
+@MainActor
+@Test
+func continuePassageStartsANewRoundInPractice() {
+    let span = makeResumeSpans()[0]
+    let session = PracticeSessionViewModel(
+        pressDetectionService: ResumeNoopPressDetectionService(),
+        chordAttemptAccumulator: ResumeNoopChordAccumulator(),
+        sleeper: TaskSleeper()
+    )
+    session.setSteps(
+        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        measureSpans: [span]
+    )
+    session.startGuidingIfReady()
+    session.advanceToNextStep()
+    let completedGeneration = session.roundGeneration
+
+    #expect(session.perform(.continuePassage))
+    #expect(session.roundGeneration == completedGeneration + 1)
+    #expect(session.state == .guiding(stepIndex: 0))
+    #expect(session.currentStepIndex == 0)
+}
+
 private func makeResumeSteps() -> [PracticeStep] {
     [
         PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)]),

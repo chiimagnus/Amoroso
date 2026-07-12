@@ -632,7 +632,8 @@ extension PracticeSessionViewModel {
             _ = applyPendingRoundConfiguration()
             startGuidingIfReady()
         case .continuePassage:
-            return false
+            _ = applyPendingRoundConfiguration()
+            startGuidingIfReady()
         }
         return true
     }
