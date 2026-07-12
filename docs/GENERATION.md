@@ -5,9 +5,9 @@
 | Item | Value |
 | --- | --- |
 | Source snapshot | `HappyPianist-20260712-101747-docs-synced.zip` + library practice ornament/diagnostics feature |
-| Commit hash | `e9158cd` (source baseline before canonical-doc synchronization) |
+| Commit hash | `4289c13` (source baseline before canonical-doc synchronization) |
 | Branch name | `master` |
-| Generated at | 2026-07-12T23:30:00+08:00 |
+| Generated at | 2026-07-12T23:26:03+08:00 |
 | Output language | Chinese |
 | Generation mode | Full canonical-doc reconciliation with `neat-freak` |
 
