@@ -36,7 +36,6 @@ struct SongLibraryView: View {
       presentation: selectedPresentation, selectedEntry: selectedEntry)
     let selectedCurrentTime = resolvedCurrentTime(selectedEntry: selectedEntry)
     let selectedProgress = selectedDuration > 0 ? selectedCurrentTime / selectedDuration : 0
-    let hasResumeProgress = selectedEntry.map { viewModel.hasResumableProgress(entryID: $0.id) } ?? false
     let requiresAudioImport =
       selectedEntry != nil && selectedEntry?.audioFileName == nil
       && selectedEntry?.isBundled != true
@@ -70,6 +69,16 @@ struct SongLibraryView: View {
           currentTime: selectedCurrentTime,
           duration: selectedDuration,
           canSeek: viewModel.currentListeningEntryID == selectedEntry.id && selectedDuration > 0,
+          playbackTitle: playbackButtonTitle(
+            requiresAudioImport: requiresAudioImport,
+            isPlaying: selectedIsPlaying
+          ),
+          playbackSystemImage: playbackButtonSystemImage(
+            requiresAudioImport: requiresAudioImport,
+            isPlaying: selectedIsPlaying
+          ),
+          canPerformPlaybackAction: canPerformPlaybackAction,
+          onPlayback: toggleSelectedPlayback,
           onSeek: { progress in
             viewModel.seekListening(entryID: selectedEntry.id, progress: progress)
           }
@@ -87,35 +96,6 @@ struct SongLibraryView: View {
       idealHeight: LibraryDesignTokens.windowIdealHeight,
       maxHeight: LibraryDesignTokens.windowMaximumHeight
     )
-    .toolbar {
-      ToolbarItemGroup(placement: .bottomOrnament) {
-        Button(
-          playbackButtonTitle(
-            requiresAudioImport: requiresAudioImport,
-            isPlaying: selectedIsPlaying
-          ),
-          systemImage: playbackButtonSystemImage(
-            requiresAudioImport: requiresAudioImport,
-            isPlaying: selectedIsPlaying
-          ),
-          action: toggleSelectedPlayback
-        )
-        .labelStyle(.iconOnly)
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.circle)
-        .disabled(canPerformPlaybackAction == false)
-
-        Button(
-          hasResumeProgress ? "继续练习" : "开始练习",
-          systemImage: hasResumeProgress ? "arrow.forward.circle.fill" : "music.note",
-          action: presentPracticeOptions
-        )
-          .buttonStyle(.borderedProminent)
-          .buttonBorderShape(.capsule)
-          .tint(LibraryDesignTokens.accent)
-          .disabled(selectedEntry == nil || viewModel.isPreparingPractice)
-      }
-    }
     .sheet(isPresented: $isDiagnosticsPresented) {
       DiagnosticsView(viewModel: diagnosticsViewModel)
     }
@@ -439,6 +419,10 @@ private struct LibraryTrackInfoView: View {
   let currentTime: TimeInterval
   let duration: TimeInterval
   let canSeek: Bool
+  let playbackTitle: String
+  let playbackSystemImage: String
+  let canPerformPlaybackAction: Bool
+  let onPlayback: () -> Void
   let onSeek: (Double) -> Void
 
   @State private var progressBarWidth: CGFloat = 0
@@ -457,52 +441,60 @@ private struct LibraryTrackInfoView: View {
         .foregroundStyle(LibraryDesignTokens.secondaryText)
         .lineLimit(1)
 
-      VStack(spacing: 7) {
-        ZStack(alignment: .leading) {
-          Capsule()
-            .fill(LibraryDesignTokens.line)
+      HStack(alignment: .bottom, spacing: 14) {
+        VStack(spacing: 7) {
+          ZStack(alignment: .leading) {
+            Capsule()
+              .fill(LibraryDesignTokens.line)
 
-          Capsule()
-            .fill(LibraryDesignTokens.text)
-            .frame(width: progressBarWidth * min(max(progress, 0), 1))
-        }
-        .frame(height: 5)
-        .contentShape(.rect)
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
-          progressBarWidth = width
-        }
-        .gesture(
-          SpatialTapGesture()
-            .onEnded { value in
-              guard canSeek, progressBarWidth > 0 else { return }
-              onSeek(min(max(value.location.x / progressBarWidth, 0), 1))
-            }
-        )
-        .accessibilityLabel("播放进度")
-        .accessibilityValue("\(Int(min(max(progress, 0), 1) * 100))%")
-        .accessibilityAdjustableAction { direction in
-          guard canSeek else { return }
-          let currentProgress = min(max(progress, 0), 1)
-          switch direction {
-          case .increment:
-            onSeek(min(currentProgress + 0.05, 1))
-          case .decrement:
-            onSeek(max(currentProgress - 0.05, 0))
-          @unknown default:
-            break
+            Capsule()
+              .fill(LibraryDesignTokens.text)
+              .frame(width: progressBarWidth * min(max(progress, 0), 1))
           }
-        }
+          .frame(height: 5)
+          .contentShape(.rect)
+          .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width in
+            progressBarWidth = width
+          }
+          .gesture(
+            SpatialTapGesture()
+              .onEnded { value in
+                guard canSeek, progressBarWidth > 0 else { return }
+                onSeek(min(max(value.location.x / progressBarWidth, 0), 1))
+              }
+          )
+          .accessibilityLabel("播放进度")
+          .accessibilityValue("\(Int(min(max(progress, 0), 1) * 100))%")
+          .accessibilityAdjustableAction { direction in
+            guard canSeek else { return }
+            let currentProgress = min(max(progress, 0), 1)
+            switch direction {
+            case .increment:
+              onSeek(min(currentProgress + 0.05, 1))
+            case .decrement:
+              onSeek(max(currentProgress - 0.05, 0))
+            @unknown default:
+              break
+            }
+          }
 
-        HStack {
-          Text(Self.formattedTime(currentTime))
-          Spacer()
-          Text(Self.formattedTime(duration))
+          HStack {
+            Text(Self.formattedTime(currentTime))
+            Spacer()
+            Text(Self.formattedTime(duration))
+          }
+          .font(.caption)
+          .monospacedDigit()
+          .foregroundStyle(LibraryDesignTokens.faintText)
         }
-        .font(.caption)
-        .monospacedDigit()
-        .foregroundStyle(LibraryDesignTokens.faintText)
+        .frame(maxWidth: 340)
+
+        Button(playbackTitle, systemImage: playbackSystemImage, action: onPlayback)
+          .labelStyle(.iconOnly)
+          .buttonStyle(.bordered)
+          .buttonBorderShape(.circle)
+          .disabled(canPerformPlaybackAction == false)
       }
-      .frame(maxWidth: 340)
       .padding(.top, 9)
     }
   }
