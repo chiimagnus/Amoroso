@@ -386,7 +386,7 @@ extension PracticeSessionViewModel {
         self.tempoMap = tempoMap
         self.measureSpans = measureSpans
         if let firstMeasure = measureSpans.first,
-           let lastMeasure = measureSpans.last,
+           let lastMeasure = measureSpans.prefix(4).last,
            let passage = PracticePassage(start: firstMeasure.occurrenceID, end: lastMeasure.occurrenceID)
         {
             roundConfigurationController.installInitialPassageIfNeeded(passage)

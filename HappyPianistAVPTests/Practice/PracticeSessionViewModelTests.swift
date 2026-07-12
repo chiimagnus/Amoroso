@@ -1345,6 +1345,37 @@ func disablingAutoplayStopsAudioAndClearsPendingScheduling() async {
     #expect(playbackService.stopCount == stopCountBeforeDisable + 1)
 }
 
+@Test
+@MainActor
+func freshScoreDefaultsToFirstFourMeasures() {
+    let viewModel = makePracticeSessionViewModel(
+        pressDetectionService: NoopPressDetectionService(),
+        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
+        sleeper: TaskSleeper()
+    )
+    let spans = (0 ..< 6).map { index in
+        MusicXMLMeasureSpan(
+            partID: "P1",
+            measureNumber: index + 1,
+            sourceMeasureIndex: index,
+            sourceMeasureNumberToken: "\(index + 1)",
+            occurrenceIndex: index,
+            startTick: index * 480,
+            endTick: (index + 1) * 480
+        )
+    }
+    viewModel.setSteps(
+        (0 ..< 6).map { index in
+            PracticeStep(tick: index * 480, notes: [PracticeStepNote(midiNote: 60 + index, staff: 1)])
+        },
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        measureSpans: spans
+    )
+
+    #expect(viewModel.activeRoundConfiguration?.passage.start == spans[0].occurrenceID)
+    #expect(viewModel.activeRoundConfiguration?.passage.end == spans[3].occurrenceID)
+}
+
 @MainActor
 private func makePracticeSessionViewModel(
     pressDetectionService: PressDetectionServiceProtocol,

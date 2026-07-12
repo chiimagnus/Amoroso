@@ -4,6 +4,22 @@ import Testing
 
 @MainActor
 struct PracticeRoundConfigurationControllerTests {
+    @Test func emptyDefaultsUseApprovedFreshValues() throws {
+        let suiteName = "PracticeRoundDefaults-\(UUID().uuidString)"
+        let userDefaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { userDefaults.removePersistentDomain(forName: suiteName) }
+        let store = UserDefaultsPracticeRoundDefaultsStore(userDefaults: userDefaults)
+
+        #expect(store.tempoScale == 0.6)
+        #expect(store.loopEnabled)
+        #expect(store.requiredSuccesses == 3)
+
+        userDefaults.set(1.0, forKey: PracticeSessionSettingsKeys.tempoScale)
+        userDefaults.set(false, forKey: PracticeSessionSettingsKeys.loopEnabled)
+        #expect(store.tempoScale == 1.0)
+        #expect(store.loopEnabled == false)
+    }
+
     @Test func pendingChangesDoNotMutateActiveRoundUntilApply() throws {
         let stateStore = PracticeSessionStateStore()
         let defaults = CapturingRoundDefaultsStore()
