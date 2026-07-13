@@ -49,8 +49,11 @@ actor AriaNetworkBonjourWebSocketImprovBackend: ImprovBackendProtocol {
         timeout: Duration
     ) async throws -> AsyncThrowingStream<ImprovStreamChunkV2, Error> {
         await MainActor.run {
-            if case .idle = discoveryService.state {
+            switch discoveryService.state {
+            case .idle, .failed:
                 discoveryService.start()
+            case .discovering, .resolved, .denied:
+                break
             }
         }
 

@@ -1,6 +1,5 @@
 import Foundation
 import Network
-import os
 
 @MainActor
 final class BonjourBackendDiscoveryService: Sendable {
@@ -21,11 +20,13 @@ final class BonjourBackendDiscoveryService: Sendable {
 
     private var browser: NWBrowser?
     private var resolveTask: Task<Void, Never>?
+    private var discoveryGeneration: UInt64 = 0
+    private var resolutionGeneration: UInt64 = 0
 
     init(
         serviceType: String = BonjourBackendDiscoveryService.defaultServiceType,
         requiredTXTRecord: [String: String] = [:],
-        resolutionTimeout: Duration = .seconds(2)
+        resolutionTimeout: Duration = .seconds(5)
     ) {
         self.serviceType = serviceType
         self.requiredTXTRecord = requiredTXTRecord
@@ -41,6 +42,8 @@ final class BonjourBackendDiscoveryService: Sendable {
 
     func start() {
         guard browser == nil else { return }
+        discoveryGeneration &+= 1
+        let generation = discoveryGeneration
         state = .discovering
 
         let descriptor = NWBrowser.Descriptor.bonjourWithTXTRecord(type: serviceType, domain: "local.")
@@ -49,19 +52,18 @@ final class BonjourBackendDiscoveryService: Sendable {
 
         browser.stateUpdateHandler = { [weak self] newState in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, discoveryGeneration == generation else { return }
                 switch newState {
                 case let .failed(error):
+                    let failureState: State
                     if case let .posix(code) = error, code == .EPERM {
-                        state = .denied
+                        failureState = .denied
                     } else {
-                        state = .failed(message: String(describing: error))
+                        failureState = .failed(message: String(describing: error))
                     }
-                    stop()
+                    cancelDiscovery(nextState: failureState)
                 case .cancelled:
-                    if case .discovering = state {
-                        state = .idle
-                    }
+                    cancelDiscovery(nextState: .idle)
                 default:
                     break
                 }
@@ -70,13 +72,22 @@ final class BonjourBackendDiscoveryService: Sendable {
 
         browser.browseResultsChangedHandler = { [weak self] results, _ in
             Task { @MainActor [weak self] in
-                guard let self else { return }
+                guard let self, discoveryGeneration == generation else { return }
                 guard resolvedEndpoint == nil else { return }
-                guard resolveTask == nil else { return }
+
+                resolutionGeneration &+= 1
+                let resolution = resolutionGeneration
+                resolveTask?.cancel()
+                resolveTask = nil
+
                 let candidates = selectCandidates(from: results)
                 guard candidates.isEmpty == false else { return }
                 resolveTask = Task { [weak self] in
-                    await self?.resolveAndPublish(candidates: candidates)
+                    await self?.resolveAndPublish(
+                        candidates: candidates,
+                        discoveryGeneration: generation,
+                        resolutionGeneration: resolution
+                    )
                 }
             }
         }
@@ -85,18 +96,37 @@ final class BonjourBackendDiscoveryService: Sendable {
     }
 
     func stop() {
-        resolveTask?.cancel()
-        resolveTask = nil
-
-        browser?.cancel()
-        browser = nil
+        cancelDiscovery(nextState: .idle)
     }
 
-    private func resolveAndPublish(candidates: [NWBrowser.Result]) async {
-        defer { resolveTask = nil }
+    private func cancelDiscovery(nextState: State) {
+        discoveryGeneration &+= 1
+        resolutionGeneration &+= 1
+        resolveTask?.cancel()
+        resolveTask = nil
+        browser?.cancel()
+        browser = nil
+        state = nextState
+    }
+
+    private func resolveAndPublish(
+        candidates: [NWBrowser.Result],
+        discoveryGeneration: UInt64,
+        resolutionGeneration: UInt64
+    ) async {
+        defer {
+            if self.discoveryGeneration == discoveryGeneration,
+               self.resolutionGeneration == resolutionGeneration
+            {
+                resolveTask = nil
+            }
+        }
 
         for result in candidates {
-            guard Task.isCancelled == false else { return }
+            guard isCurrentResolution(
+                discoveryGeneration: discoveryGeneration,
+                resolutionGeneration: resolutionGeneration
+            ) else { return }
 
             let endpoint = result.endpoint
             let txtRecord = extractTXTRecordStrings(from: result.metadata) ?? [:]
@@ -105,7 +135,10 @@ final class BonjourBackendDiscoveryService: Sendable {
                 timeout: resolutionTimeout
             )
 
-            guard Task.isCancelled == false else { return }
+            guard isCurrentResolution(
+                discoveryGeneration: discoveryGeneration,
+                resolutionGeneration: resolutionGeneration
+            ) else { return }
             if let resolved {
                 state = .resolved(
                     host: resolved.host,
@@ -115,6 +148,21 @@ final class BonjourBackendDiscoveryService: Sendable {
                 return
             }
         }
+
+        guard isCurrentResolution(
+            discoveryGeneration: discoveryGeneration,
+            resolutionGeneration: resolutionGeneration
+        ) else { return }
+        cancelDiscovery(nextState: .failed(message: "Unable to resolve the Bonjour service endpoint."))
+    }
+
+    private func isCurrentResolution(
+        discoveryGeneration: UInt64,
+        resolutionGeneration: UInt64
+    ) -> Bool {
+        Task.isCancelled == false
+            && self.discoveryGeneration == discoveryGeneration
+            && self.resolutionGeneration == resolutionGeneration
     }
 
     private func selectCandidates(from results: Set<NWBrowser.Result>) -> [NWBrowser.Result] {

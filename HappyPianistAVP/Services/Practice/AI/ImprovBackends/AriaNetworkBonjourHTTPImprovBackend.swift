@@ -43,8 +43,11 @@ actor AriaNetworkBonjourHTTPImprovBackend: ImprovBackendProtocol {
         timeout: Duration
     ) async throws -> ImprovBackendPlaybackPlan {
         await MainActor.run {
-            if case .idle = discoveryService.state {
+            switch discoveryService.state {
+            case .idle, .failed:
                 discoveryService.start()
+            case .discovering, .resolved, .denied:
+                break
             }
         }
 
