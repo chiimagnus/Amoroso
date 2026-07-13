@@ -98,6 +98,36 @@ func progressCoordinatorRejectsOlderSnapshotWithinSameGeneration() async throws 
 }
 
 @Test
+func progressCoordinatorRejectsSnapshotOlderThanTimestampedCheckpoint() async throws {
+    let repository = InMemoryPracticeProgressRepository()
+    let clock = FixedPracticeProgressClock(date: Date(timeIntervalSince1970: 300))
+    let coordinator = PracticeProgressCoordinator(
+        repository: repository,
+        clock: clock,
+        checkpointDelay: .seconds(60)
+    )
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
+    let session = await coordinator.begin(identity: identity)
+
+    var first = SongPracticeProgress(
+        identity: identity,
+        updatedAt: Date(timeIntervalSince1970: 100)
+    )
+    first.measureFacts = [makeFacts(successes: 3)]
+    var stale = first
+    stale.updatedAt = Date(timeIntervalSince1970: 200)
+    stale.measureFacts = [makeFacts(successes: 1)]
+
+    await coordinator.checkpoint(first, generation: session.generation)
+    await coordinator.checkpoint(stale, generation: session.generation)
+    _ = await coordinator.flush(generation: session.generation)
+
+    let saved = await repository.progress(for: identity)
+    #expect(saved?.updatedAt == clock.date)
+    #expect(saved?.measureFacts.first?.successfulAttempts == 3)
+}
+
+@Test
 func progressCoordinatorReportsStoreFailureWithoutCrashingSession() async throws {
     let repository = InMemoryPracticeProgressRepository(upsertError: TestProgressError.writeFailed)
     let coordinator = PracticeProgressCoordinator(repository: repository, checkpointDelay: .seconds(60))

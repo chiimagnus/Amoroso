@@ -70,7 +70,7 @@ actor PracticeProgressCoordinator {
         }
         var timestamped = progress
         timestamped.updatedAt = max(progress.updatedAt, clock.now())
-        lastAcceptedUpdatedAt = progress.updatedAt
+        lastAcceptedUpdatedAt = timestamped.updatedAt
         pendingProgress = timestamped
         saveStatus = .pending
 
