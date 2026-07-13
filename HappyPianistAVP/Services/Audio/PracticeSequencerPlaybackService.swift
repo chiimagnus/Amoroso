@@ -40,7 +40,7 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
     private var isReady = false
     private var currentAudioOutputVolume: Float?
-    private let volumeObserver = VolumeChangeObserver()
+    private var volumeObservationTask: Task<Void, Never>?
     private var playingOneShotNotes: Set<UInt8> = []
     private var oneShotStopTask: Task<Void, Never>?
     private var liveNotes: Set<UInt8> = []
@@ -66,10 +66,10 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         engine.connect(sampler, to: engine.mainMixerNode, format: nil)
 
         applyAudioOutputVolumeIfNeeded()
-        volumeObserver.observeUserDefaultsDidChange { [weak self] in
-            guard let self else { return }
-            Task { @MainActor in
-                self.applyAudioOutputVolumeIfNeeded()
+        volumeObservationTask = Task { @MainActor [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
+                guard let self else { return }
+                applyAudioOutputVolumeIfNeeded()
             }
         }
     }
@@ -240,26 +240,5 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         guard currentAudioOutputVolume != volume else { return }
         currentAudioOutputVolume = volume
         engine.mainMixerNode.outputVolume = volume
-    }
-}
-
-private final class VolumeChangeObserver: @unchecked Sendable {
-    private var token: NSObjectProtocol?
-
-    func observeUserDefaultsDidChange(_ onChange: @escaping @Sendable () -> Void) {
-        guard token == nil else { return }
-        token = NotificationCenter.default.addObserver(
-            forName: UserDefaults.didChangeNotification,
-            object: nil,
-            queue: .main
-        ) { _ in
-            onChange()
-        }
-    }
-
-    deinit {
-        if let token {
-            NotificationCenter.default.removeObserver(token)
-        }
     }
 }

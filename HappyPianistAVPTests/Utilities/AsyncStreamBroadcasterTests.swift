@@ -2,7 +2,7 @@ import Foundation
 @testable import HappyPianistAVP
 import Testing
 
-private struct TestEvent: Equatable {
+private struct TestEvent: Equatable, Sendable {
     let id: Int
     let value: Int
 }
@@ -56,4 +56,28 @@ func cancellingOneConsumerDoesNotAffectOtherConsumers() async {
 
     let receivedB = await consumerB.value
     #expect(receivedB == TestEvent(id: 2, value: 99))
+}
+
+
+@Test
+func broadcasterDoesNotLoseImmediateYield() async {
+    let broadcaster = AsyncStreamBroadcaster<Int>()
+    let stream = broadcaster.makeStream(bufferingPolicy: .bufferingNewest(1))
+    broadcaster.yield(42)
+
+    var iterator = stream.makeAsyncIterator()
+    #expect(await iterator.next() == 42)
+}
+
+@Test
+func broadcasterFinishEndsCurrentAndFutureStreams() async {
+    let broadcaster = AsyncStreamBroadcaster<Int>()
+    let current = broadcaster.makeStream()
+    broadcaster.finish()
+    let future = broadcaster.makeStream()
+
+    var currentIterator = current.makeAsyncIterator()
+    var futureIterator = future.makeAsyncIterator()
+    #expect(await currentIterator.next() == nil)
+    #expect(await futureIterator.next() == nil)
 }

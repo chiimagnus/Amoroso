@@ -1,56 +1,59 @@
 import Foundation
+import os
 
-actor AsyncStreamBroadcaster<Element: Sendable> {
-    private var continuations: [UUID: AsyncStream<Element>.Continuation] = [:]
+final class AsyncStreamBroadcaster<Element: Sendable>: Sendable {
+    private struct State {
+        var continuations: [UUID: AsyncStream<Element>.Continuation] = [:]
+        var isFinished = false
+    }
 
-    nonisolated func makeStream(
+    private let stateLock = OSAllocatedUnfairLock(initialState: State())
+
+    func makeStream(
         bufferingPolicy: AsyncStream<Element>.Continuation.BufferingPolicy = .unbounded
     ) -> AsyncStream<Element> {
-        AsyncStream(Element.self, bufferingPolicy: bufferingPolicy) { continuation in
-            let id = UUID()
-            Task {
-                await self.register(continuation, id: id)
-            }
-
-            continuation.onTermination = { @Sendable _ in
-                Task {
-                    await self.unregister(id: id)
-                }
-            }
+        let pair = AsyncStream<Element>.makeStream(bufferingPolicy: bufferingPolicy)
+        let id = UUID()
+        pair.continuation.onTermination = { [weak self] _ in
+            self?.unregister(id: id)
         }
-    }
 
-    nonisolated func yield(_ element: Element) {
-        Task {
-            await self.yieldIsolated(element)
+        let shouldFinish = stateLock.withLock { state in
+            guard state.isFinished == false else { return true }
+            state.continuations[id] = pair.continuation
+            return false
         }
-    }
-
-    nonisolated func finish() {
-        Task {
-            await self.finishIsolated()
+        if shouldFinish {
+            pair.continuation.finish()
         }
+        return pair.stream
     }
 
-    private func register(_ continuation: AsyncStream<Element>.Continuation, id: UUID) {
-        continuations[id] = continuation
-    }
-
-    private func unregister(id: UUID) {
-        continuations[id] = nil
-    }
-
-    private func yieldIsolated(_ element: Element) {
-        for continuation in continuations.values {
+    func yield(_ element: Element) {
+        let continuations = stateLock.withLock { state in
+            state.isFinished ? [] : Array(state.continuations.values)
+        }
+        for continuation in continuations {
             continuation.yield(element)
         }
     }
 
-    private func finishIsolated() {
-        let snapshot = continuations.values
-        continuations.removeAll(keepingCapacity: true)
-        for continuation in snapshot {
+    func finish() {
+        let continuations = stateLock.withLock { state in
+            guard state.isFinished == false else { return [AsyncStream<Element>.Continuation]() }
+            state.isFinished = true
+            let snapshot = Array(state.continuations.values)
+            state.continuations.removeAll(keepingCapacity: false)
+            return snapshot
+        }
+        for continuation in continuations {
             continuation.finish()
+        }
+    }
+
+    private func unregister(id: UUID) {
+        stateLock.withLock { state in
+            state.continuations[id] = nil
         }
     }
 }
