@@ -15,7 +15,6 @@ func freshFullScorePresentationUsesCurrentPendingConfiguration() throws {
     )
 
     let presentation = try #require(LibraryPracticePanelPresentation(
-        entryID: identity.songID,
         identity: identity,
         measureSpans: spans,
         progress: nil,
@@ -23,12 +22,10 @@ func freshFullScorePresentationUsesCurrentPendingConfiguration() throws {
         currentMeasure: spans[0].sourceMeasureID
     ))
 
-    #expect(presentation.passageTitle == "整首")
     #expect(presentation.launchSummary == "整首 · 双手 · 100%")
     #expect(presentation.resumeText == "尚无练习记录")
     #expect(presentation.stableMeasureCount == 0)
     #expect(presentation.totalMeasureCount == 3)
-    #expect(presentation.hasSavedProgress == false)
 }
 
 @Test
@@ -72,7 +69,6 @@ func savedPresentationShowsResumeStableMeasuresAndHotspot() throws {
     )
 
     let presentation = try #require(LibraryPracticePanelPresentation(
-        entryID: identity.songID,
         identity: identity,
         measureSpans: spans,
         progress: progress,
@@ -83,7 +79,6 @@ func savedPresentationShowsResumeStableMeasuresAndHotspot() throws {
     #expect(presentation.resumeText == "将从第 2 小节继续")
     #expect(presentation.stableMeasureCount == 1)
     #expect(presentation.hotspotTitle == "第 2 小节")
-    #expect(presentation.hasSavedProgress)
     #expect(presentation.measureMap.items.first(where: { $0.id == spans[1].sourceMeasureID })?.isHotspot == true)
 }
 
@@ -100,7 +95,6 @@ func repeatedMeasurePresentationUsesOccurrenceOrderAndUniqueMeasureCount() throw
     )
 
     let presentation = try #require(LibraryPracticePanelPresentation(
-        entryID: identity.songID,
         identity: identity,
         measureSpans: spans,
         progress: nil,
@@ -108,7 +102,7 @@ func repeatedMeasurePresentationUsesOccurrenceOrderAndUniqueMeasureCount() throw
         currentMeasure: nil
     ))
 
-    #expect(presentation.passageTitle == "第 2 小节至重复后的第 1 小节")
+    #expect(presentation.launchSummary == "第 2 小节至重复后的第 1 小节 · 双手 · 90%")
     #expect(presentation.totalMeasureCount == 2)
     #expect(presentation.measureMap.items.count == 2)
 }
@@ -146,7 +140,6 @@ func mismatchedProgressIdentityIsIgnored() throws {
     )
 
     let presentation = try #require(LibraryPracticePanelPresentation(
-        entryID: currentIdentity.songID,
         identity: currentIdentity,
         measureSpans: spans,
         progress: staleProgress,
@@ -156,7 +149,6 @@ func mismatchedProgressIdentityIsIgnored() throws {
 
     #expect(presentation.resumeText == "尚无练习记录")
     #expect(presentation.stableMeasureCount == 0)
-    #expect(presentation.hasSavedProgress == false)
 }
 
 private func presentationSpans() -> [MusicXMLMeasureSpan] {
@@ -225,7 +217,6 @@ func measureMapDoesNotMarkHotspotOutsideCurrentPassage() throws {
     )
 
     let presentation = try #require(LibraryPracticePanelPresentation(
-        entryID: identity.songID,
         identity: identity,
         measureSpans: spans,
         progress: progress,

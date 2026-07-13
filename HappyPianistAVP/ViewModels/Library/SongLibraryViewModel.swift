@@ -136,7 +136,6 @@ final class SongLibraryViewModel {
             .sourceMeasureID
 
         return LibraryPracticePanelPresentation(
-            entryID: entryID,
             identity: identity,
             measureSpans: session.measureSpans,
             progress: sessionProgress ?? storedProgress,

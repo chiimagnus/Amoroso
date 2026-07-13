@@ -223,19 +223,14 @@ struct LibraryPracticeMeasureOption: Equatable, Identifiable, Sendable {
 }
 
 struct LibraryPracticePanelPresentation: Equatable {
-    let entryID: UUID
-    let identity: PracticeSongIdentity
     let measureMap: PracticeMeasureMapViewModel
     let stableMeasureCount: Int
     let totalMeasureCount: Int
     let hotspotTitle: String?
     let resumeText: String
     let launchSummary: String
-    let passageTitle: String
-    let hasSavedProgress: Bool
 
     init?(
-        entryID: UUID,
         identity: PracticeSongIdentity,
         measureSpans: [MusicXMLMeasureSpan],
         progress: SongPracticeProgress?,
@@ -278,8 +273,6 @@ struct LibraryPracticePanelPresentation: Equatable {
             return resumePoint
         }
 
-        self.entryID = entryID
-        self.identity = identity
         measureMap = PracticeMeasureMapViewModel(
             measureSpans: measureSpans,
             progress: exactProgress,
@@ -296,7 +289,5 @@ struct LibraryPracticePanelPresentation: Equatable {
             "将从第 \(PracticePassagePresentation.measureTitle($0.occurrenceID.sourceMeasureID)) 小节继续"
         } ?? (exactProgress == nil ? "尚无练习记录" : "将从所选片段开始")
         launchSummary = "\(resolvedPassageTitle) · \(configuration.handMode.title) · \(tempoTitle)"
-        passageTitle = resolvedPassageTitle
-        hasSavedProgress = exactProgress?.resumePoint != nil
     }
 }

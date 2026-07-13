@@ -4,18 +4,16 @@ enum DiagnosticsPathsError: Error {
     case documentsUnavailable
 }
 
-struct DiagnosticsPaths: @unchecked Sendable {
+struct DiagnosticsPaths: Sendable {
     static let directoryName = "Diagnostics"
 
-    private let fileManager: FileManager
     private let rootOverride: URL?
 
-    init(fileManager: FileManager = .default, rootDirectoryURL: URL? = nil) {
-        self.fileManager = fileManager
+    init(rootDirectoryURL: URL? = nil) {
         rootOverride = rootDirectoryURL
     }
 
-    func rootDirectoryURL() throws -> URL {
+    func rootDirectoryURL(using fileManager: FileManager) throws -> URL {
         if let rootOverride {
             return rootOverride
         }
@@ -23,9 +21,5 @@ struct DiagnosticsPaths: @unchecked Sendable {
             throw DiagnosticsPathsError.documentsUnavailable
         }
         return documentsURL.appending(path: Self.directoryName, directoryHint: .isDirectory)
-    }
-
-    func ensureDirectoryExists() throws {
-        try fileManager.createDirectory(at: rootDirectoryURL(), withIntermediateDirectories: true)
     }
 }

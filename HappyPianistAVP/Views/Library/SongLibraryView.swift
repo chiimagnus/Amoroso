@@ -317,6 +317,7 @@ struct SongLibraryView: View {
     calibrationRepository: calibrationRepository,
     keyGeometryService: keyGeometryService
   )
+  let diagnosticsStore = FileDiagnosticsStore()
   let viewModel = SongLibraryViewModel(
     appState: appState,
     practicePreparationService: practicePreparationService,
@@ -326,13 +327,13 @@ struct SongLibraryView: View {
     bundledProvider: bundledSongLibraryProvider,
     audioPlayer: songAudioPlayer,
     practiceProgressRepository: FilePracticeProgressRepository(),
-    diagnosticsReporter: InMemoryDiagnosticsReporter()
+    diagnosticsReporter: AppDiagnosticsReporter(exportStore: diagnosticsStore)
   )
   return SongLibraryView(
     viewModel: viewModel,
     diagnosticsViewModel: DiagnosticsViewModel(
-      store: FileDiagnosticsStore(),
-      exporter: DiagnosticsArchiveExporter(store: FileDiagnosticsStore())
+      store: diagnosticsStore,
+      exporter: DiagnosticsArchiveExporter(store: diagnosticsStore)
     ),
     onBackToPreparation: {},
     onStartPractice: {}

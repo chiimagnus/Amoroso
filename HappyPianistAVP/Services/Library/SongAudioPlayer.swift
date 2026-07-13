@@ -14,13 +14,6 @@ protocol SongAudioPlayerProtocol: AnyObject {
     func isPlaying(entryID: UUID) -> Bool
 }
 
-extension SongAudioPlayerProtocol {
-    var currentTime: TimeInterval { 0 }
-    var duration: TimeInterval { 0 }
-
-    func seek(to _: TimeInterval) {}
-}
-
 enum SongAudioPlayerStateError: Error {
     case cannotCreatePlayer
 }

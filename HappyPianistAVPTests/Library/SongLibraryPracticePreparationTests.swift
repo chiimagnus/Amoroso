@@ -190,9 +190,12 @@ private struct PreparationTestAudioImporter: AudioImportServiceProtocol {
 private final class PreparationTestAudioPlayer: SongAudioPlayerProtocol {
     var onPlaybackFinished: ((UUID?) -> Void)?
     var currentEntryID: UUID?
+    var currentTime: TimeInterval { 0 }
+    var duration: TimeInterval { 0 }
     func play(entryID _: UUID, url _: URL) throws {}
     func pause() {}
     func stop() {}
+    func seek(to _: TimeInterval) {}
     func isPlaying(entryID _: UUID) -> Bool { false }
 }
 

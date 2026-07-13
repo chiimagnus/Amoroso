@@ -40,7 +40,7 @@ actor FileDiagnosticsStore: DiagnosticsStoreProtocol {
     func append(_ event: DiagnosticEvent) throws {
         let referenceDate = now()
         try cleanupIfNeeded(referenceDate: referenceDate)
-        try paths.ensureDirectoryExists()
+        try ensureDirectoryExists()
         let fileURL = try dailyFileURL(for: event.timestamp)
         let encoded = try encoder.encode(event)
         var line = encoded
@@ -57,7 +57,7 @@ actor FileDiagnosticsStore: DiagnosticsStoreProtocol {
     }
 
     func cleanupExpiredLogs(referenceDate: Date) throws {
-        try paths.ensureDirectoryExists()
+        try ensureDirectoryExists()
         let cutoff = retentionCutoff(referenceDate: referenceDate)
         for url in try diagnosticFileURLs() {
             guard let date = dateFromFileName(url.lastPathComponent) else { continue }
@@ -90,7 +90,7 @@ actor FileDiagnosticsStore: DiagnosticsStoreProtocol {
     }
 
     func clear() throws {
-        let root = try paths.rootDirectoryURL()
+        let root = try paths.rootDirectoryURL(using: fileManager)
         guard fileManager.fileExists(atPath: root.path()) else { return }
         for url in try diagnosticFileURLs() {
             try fileManager.removeItem(at: url)
@@ -132,8 +132,15 @@ actor FileDiagnosticsStore: DiagnosticsStoreProtocol {
         }
     }
 
+    private func ensureDirectoryExists() throws {
+        try fileManager.createDirectory(
+            at: try paths.rootDirectoryURL(using: fileManager),
+            withIntermediateDirectories: true
+        )
+    }
+
     private func diagnosticFileURLs() throws -> [URL] {
-        let root = try paths.rootDirectoryURL()
+        let root = try paths.rootDirectoryURL(using: fileManager)
         guard fileManager.fileExists(atPath: root.path()) else { return [] }
         return try fileManager.contentsOfDirectory(
             at: root,
@@ -146,7 +153,7 @@ actor FileDiagnosticsStore: DiagnosticsStoreProtocol {
 
     private func dailyFileURL(for date: Date) throws -> URL {
         let token = DiagnosticsDateText.dayToken(date, calendar: calendar)
-        return try paths.rootDirectoryURL().appending(path: "diagnostics-\(token).jsonl")
+        return try paths.rootDirectoryURL(using: fileManager).appending(path: "diagnostics-\(token).jsonl")
     }
 
     private func dateFromFileName(_ fileName: String) -> Date? {

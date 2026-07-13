@@ -97,6 +97,8 @@ private struct NoopPracticePreparationService: PracticePreparationServiceProtoco
 private final class NoopSongAudioPlayer: SongAudioPlayerProtocol {
     var onPlaybackFinished: ((UUID?) -> Void)?
     private(set) var currentEntryID: UUID?
+    var currentTime: TimeInterval { 0 }
+    var duration: TimeInterval { 0 }
 
     init() {}
 
@@ -109,6 +111,8 @@ private final class NoopSongAudioPlayer: SongAudioPlayerProtocol {
     func stop() {
         currentEntryID = nil
     }
+
+    func seek(to _: TimeInterval) {}
 
     func isPlaying(entryID: UUID) -> Bool {
         currentEntryID == entryID
