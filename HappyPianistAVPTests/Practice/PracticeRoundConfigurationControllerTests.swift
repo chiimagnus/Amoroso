@@ -114,7 +114,7 @@ private struct FixedPracticeSettingsProvider: PracticeSessionSettingsProviderPro
     )
 }
 
-private final class CapturingRoundDefaultsStore: PracticeRoundDefaultsStoreProtocol, @unchecked Sendable {
+private final class CapturingRoundDefaultsStore: PracticeRoundDefaultsStoreProtocol {
     var tempoScale: Double = 1
     var loopEnabled = false
     var requiredSuccesses = 3

@@ -200,12 +200,12 @@ final class SongLibraryViewModel {
                 do {
                     try indexStore.save(nextIndex)
                     updatedIndex = nextIndex
+                    index = updatedIndex
                 } catch {
                     try? fileStore.deleteScoreFile(named: imported.storedFileName)
                     throw error
                 }
             }
-            index = updatedIndex
         } catch {
             errorMessage = "导入失败：\(error.localizedDescription)"
         }

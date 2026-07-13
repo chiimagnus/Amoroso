@@ -78,3 +78,35 @@ private final class TestDocumentsFileManager: FileManager {
         return super.urls(for: directory, in: domainMask)
     }
 }
+
+@Test
+func worldAnchorCalibrationStoreQuarantinesCorruptFileAndAllowsRecalibration() throws {
+    let tempDirectory = try makeTemporaryDocumentsDirectory()
+    defer { try? FileManager.default.removeItem(at: tempDirectory) }
+
+    let fileManager = TestDocumentsFileManager(documentsURL: tempDirectory)
+    let fileName = "world-anchor-calibration.json"
+    let store = WorldAnchorCalibrationStore(fileManager: fileManager, fileName: fileName)
+    let fileURL = tempDirectory.appending(path: fileName)
+    let corruptData = Data("{not-json".utf8)
+    try corruptData.write(to: fileURL)
+
+    #expect(try store.load() == nil)
+    #expect(fileManager.fileExists(atPath: fileURL.path()) == false)
+
+    let quarantinedURLs = try fileManager.contentsOfDirectory(
+        at: tempDirectory,
+        includingPropertiesForKeys: nil
+    ).filter { $0.lastPathComponent.hasPrefix("world-anchor-calibration.corrupt-") }
+    #expect(quarantinedURLs.count == 1)
+    #expect(try Data(contentsOf: #require(quarantinedURLs.first)) == corruptData)
+
+    let replacement = try StoredWorldAnchorCalibration(
+        a0AnchorID: #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")),
+        c8AnchorID: #require(UUID(uuidString: "FEDCBA98-7654-3210-FEDC-BA9876543210")),
+        whiteKeyWidth: 0.027,
+        generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+    try store.save(replacement)
+    #expect(try store.load() == replacement)
+}

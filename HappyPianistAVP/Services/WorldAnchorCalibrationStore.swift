@@ -24,7 +24,12 @@ struct WorldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol {
             return nil
         }
         let data = try Data(contentsOf: fileURL)
-        return try JSONDecoder().decode(StoredWorldAnchorCalibration.self, from: data)
+        do {
+            return try JSONDecoder().decode(StoredWorldAnchorCalibration.self, from: data)
+        } catch {
+            try CorruptedFileQuarantine.move(fileURL, fileManager: fileManager)
+            return nil
+        }
     }
 
     func save(_ calibration: StoredWorldAnchorCalibration) throws {

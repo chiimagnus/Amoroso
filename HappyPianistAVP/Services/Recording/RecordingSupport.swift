@@ -73,7 +73,12 @@ struct RecordingTakeStore: RecordingTakeStoreProtocol {
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return try decoder.decode([RecordingTake].self, from: data)
+        do {
+            return try decoder.decode([RecordingTake].self, from: data)
+        } catch {
+            try CorruptedFileQuarantine.move(takesFileURL, fileManager: fileManager)
+            return []
+        }
     }
 
     func save(_ takes: [RecordingTake]) throws {

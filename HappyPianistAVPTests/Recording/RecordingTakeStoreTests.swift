@@ -121,3 +121,31 @@ private final class TestDocumentsFileManager: FileManager {
         return super.urls(for: directory, in: domainMask)
     }
 }
+
+@Test
+func takeStoreQuarantinesCorruptFileAndRecoversPersistence() throws {
+    let documentsURL = try makeTemporaryDirectory(prefix: "RecordingTakeStoreTests")
+    defer { try? FileManager.default.removeItem(at: documentsURL) }
+
+    let fileManager = TestDocumentsFileManager(documentsURL: documentsURL)
+    let paths = RecordingTakeLibraryPaths(fileManager: fileManager)
+    let store = RecordingTakeStore(fileManager: fileManager, paths: paths)
+    try paths.ensureDirectoriesExist()
+    let takesFileURL = try paths.takesFileURL()
+    let corruptData = Data("{not-json".utf8)
+    try corruptData.write(to: takesFileURL)
+
+    #expect(try store.load().isEmpty)
+    #expect(fileManager.fileExists(atPath: takesFileURL.path()) == false)
+
+    let quarantinedURLs = try fileManager.contentsOfDirectory(
+        at: takesFileURL.deletingLastPathComponent(),
+        includingPropertiesForKeys: nil
+    ).filter { $0.lastPathComponent.hasPrefix("takes.corrupt-") }
+    #expect(quarantinedURLs.count == 1)
+    #expect(try Data(contentsOf: #require(quarantinedURLs.first)) == corruptData)
+
+    let replacement = RecordingTake(name: "Recovered", events: [])
+    try store.save([replacement])
+    #expect(try store.load().map(\.name) == ["Recovered"])
+}

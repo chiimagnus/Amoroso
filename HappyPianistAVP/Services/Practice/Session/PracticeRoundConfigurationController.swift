@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-protocol PracticeRoundDefaultsStoreProtocol: Sendable {
+protocol PracticeRoundDefaultsStoreProtocol {
     var tempoScale: Double { get }
     var loopEnabled: Bool { get }
     var requiredSuccesses: Int { get }
@@ -16,7 +16,7 @@ protocol PracticeRoundDefaultsStoreProtocol: Sendable {
     )
 }
 
-struct UserDefaultsPracticeRoundDefaultsStore: PracticeRoundDefaultsStoreProtocol, @unchecked Sendable {
+struct UserDefaultsPracticeRoundDefaultsStore: PracticeRoundDefaultsStoreProtocol {
     private let userDefaults: UserDefaults
 
     init(userDefaults: UserDefaults = .standard) {

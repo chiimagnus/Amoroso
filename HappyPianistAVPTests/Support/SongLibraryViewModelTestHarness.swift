@@ -6,6 +6,8 @@ enum SongLibraryViewModelTestHarness {
     static func make(
         appState: AppState? = nil,
         index: SongLibraryIndex? = nil,
+        indexStore: (any SongLibraryIndexStoreProtocol)? = nil,
+        fileStore: (any SongFileStoreProtocol)? = nil,
         bundledEntries: [SongLibraryEntry] = [],
         practicePreparationService: (any PracticePreparationServiceProtocol)? = nil,
         practiceProgressRepository: (any PracticeProgressRepositoryProtocol)? = nil,
@@ -20,8 +22,8 @@ enum SongLibraryViewModelTestHarness {
         return SongLibraryViewModel(
             arGuideViewModel: arGuideViewModel,
             practicePreparationService: practicePreparationService ?? NoopPracticePreparationService(),
-            indexStore: InMemorySongLibraryIndexStore(index: resolvedIndex),
-            fileStore: InMemorySongFileStore(),
+            indexStore: indexStore ?? InMemorySongLibraryIndexStore(index: resolvedIndex),
+            fileStore: fileStore ?? InMemorySongFileStore(),
             audioImportService: NoopAudioImportService(),
             bundledProvider: StubBundledSongLibraryProvider(entries: bundledEntries),
             audioPlayer: NoopSongAudioPlayer(),
