@@ -1,6 +1,5 @@
 import Foundation
 
-// ponytail: embedded in AVP; extract only when another Swift target needs it.
 
 public struct RuleImprovGenerator: Sendable {
     public init() {}

@@ -1,6 +1,5 @@
 import Foundation
 
-// ponytail: embedded in AVP; extract only when another Swift target needs it.
 
 public enum RuleConstants {
     public static let majorScale: [Int] = [0, 2, 4, 5, 7, 9, 11]

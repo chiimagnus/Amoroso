@@ -34,7 +34,7 @@ struct PracticeMeasureIndex: Equatable {
 
         let startTick = measureSpans[occurrenceRange.lowerBound].startTick
         let endTick = measureSpans[occurrenceRange.upperBound - 1].endTick
-        // ponytail: PracticeStep is an instantaneous tick; duration overlap is resolved by playback schedules.
+        // PracticeStep is an instantaneous tick; playback schedules resolve duration overlap.
         let matching = steps.indices.filter { index in
             let tick = steps[index].tick
             return tick >= startTick && tick < endTick
