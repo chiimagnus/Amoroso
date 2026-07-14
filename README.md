@@ -94,8 +94,7 @@ uv run --project aria_server \
 - [练习模块](docs/modules/happypianist-avp-practice.md)
 - [配置与资源](docs/configuration.md)
 - [存储](docs/storage.md)
-- [测试清单](docs/testing/practice-learning-loop-p1-checklist.md)
-- [曲库练习 Ornament 与诊断验收](docs/testing/library-practice-ornament-checklist.md)
+- [核心功能与人工验收清单](docs/testing/core-function-checklist.md)
 
 ## Acknowledgements
 
