@@ -5,6 +5,20 @@ final class MusicXMLParserDelegate: NSObject {
     typealias RawTempoEvent = MusicXMLParserDelegateState.RawTempoEvent
 
     var state = MusicXMLParserDelegateState()
+    private let isCancelled: @Sendable () -> Bool
+    private(set) var wasCancelled = false
+
+    init(isCancelled: @escaping @Sendable () -> Bool) {
+        self.isCancelled = isCancelled
+        super.init()
+    }
+
+    func abortIfCancelled(_ parser: XMLParser) -> Bool {
+        guard isCancelled() else { return false }
+        wasCancelled = true
+        parser.abortParsing()
+        return true
+    }
 
     var scoreVersion: String? {
         state.scoreVersion

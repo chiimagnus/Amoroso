@@ -1,6 +1,58 @@
 import Foundation
+import os
 @testable import HappyPianistAVP
 import Testing
+
+@Test
+func parserCancellationAbortsDuringElementProcessing() {
+    let probe = ParserCancellationProbe(cancelOnCheck: 8)
+    let parser = MusicXMLParser(isCancelled: probe.callAsFunction)
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1">
+        <measure number="1">
+          <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+          <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    #expect(throws: CancellationError.self) {
+        try parser.parse(data: Data(xml.utf8))
+    }
+    #expect(probe.checkCount == 8)
+}
+
+@Test
+func malformedXMLRemainsAParserFailure() {
+    let xml = "<score-partwise><part></score-partwise>"
+
+    #expect(throws: MusicXMLParserError.self) {
+        try MusicXMLParser().parse(data: Data(xml.utf8))
+    }
+}
+
+private final class ParserCancellationProbe: Sendable {
+    private let cancelOnCheck: Int
+    private let lock = OSAllocatedUnfairLock(initialState: 0)
+
+    init(cancelOnCheck: Int) {
+        self.cancelOnCheck = cancelOnCheck
+    }
+
+    var checkCount: Int {
+        lock.withLock { $0 }
+    }
+
+    func callAsFunction() -> Bool {
+        lock.withLock { count in
+            count += 1
+            return count >= cancelOnCheck
+        }
+    }
+}
 
 @Test
 func parserHandlesChordAndBackupTimeline() throws {

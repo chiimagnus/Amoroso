@@ -2,22 +2,25 @@ import Foundation
 
 extension MusicXMLParserDelegate: XMLParserDelegate {
     func parser(
-        _: XMLParser,
+        _ parser: XMLParser,
         didStartElement elementName: String,
         namespaceURI _: String?,
         qualifiedName _: String?,
         attributes attributeDict: [String: String] = [:]
     ) {
+        guard abortIfCancelled(parser) == false else { return }
         state.currentElement = elementName
         state.elementText = ""
         handleStartElement(elementName, attributes: attributeDict)
     }
 
-    func parser(_: XMLParser, foundCharacters string: String) {
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard abortIfCancelled(parser) == false else { return }
         state.elementText += string
     }
 
-    func parser(_: XMLParser, didEndElement elementName: String, namespaceURI _: String?, qualifiedName _: String?) {
+    func parser(_ parser: XMLParser, didEndElement elementName: String, namespaceURI _: String?, qualifiedName _: String?) {
+        guard abortIfCancelled(parser) == false else { return }
         let text = state.elementText.trimmingCharacters(in: .whitespacesAndNewlines)
         defer {
             state.currentElement = ""
@@ -26,7 +29,8 @@ extension MusicXMLParserDelegate: XMLParserDelegate {
         handleEndElement(elementName, text: text)
     }
 
-    func parserDidEndDocument(_: XMLParser) {
+    func parserDidEndDocument(_ parser: XMLParser) {
+        guard abortIfCancelled(parser) == false else { return }
         state.tempoEvents = finalizeTempoEvents()
     }
 }
