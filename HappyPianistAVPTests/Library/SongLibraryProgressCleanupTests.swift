@@ -8,7 +8,11 @@ private actor RecordingProgressRepository: PracticeProgressRepositoryProtocol {
 
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    }
     func upsert(_: SongPracticeProgress) {}
+    func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID: UUID) throws {
         if let removalError { throw removalError }
         removedSongIDs.append(songID)

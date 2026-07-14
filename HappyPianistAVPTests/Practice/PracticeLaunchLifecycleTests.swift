@@ -349,9 +349,19 @@ private actor LaunchLifecycleRepository: PracticeProgressRepositoryProtocol {
         progresses[identity]
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(
+            songID: songID,
+            progresses: progresses.values.filter { $0.identity.songID == songID },
+            scoreMetadata: []
+        ))
+    }
+
     func upsert(_ progress: SongPracticeProgress) {
         progresses[progress.identity] = progress
     }
+
+    func upsert(_: SongScorePracticeMetadata) {}
 
     func remove(songID: UUID) {
         progresses = progresses.filter { $0.key.songID != songID }
@@ -374,7 +384,12 @@ private actor LaunchRaceProgressRepository: PracticeProgressRepositoryProtocol {
         return nil
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    }
+
     func upsert(_: SongPracticeProgress) {}
+    func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID _: UUID) {}
 }
 

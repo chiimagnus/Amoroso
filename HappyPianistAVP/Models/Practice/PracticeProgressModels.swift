@@ -157,10 +157,105 @@ struct SongPracticeProgress: Codable, Equatable, Sendable {
     }
 }
 
+struct SongScorePracticeMetadata: Codable, Equatable, Sendable {
+    let songID: UUID
+    let scoreFileVersionID: UUID?
+    let scoreRevision: String
+    let totalSourceMeasureCount: Int
+    let preparedAt: Date
+
+    init(
+        songID: UUID,
+        scoreFileVersionID: UUID?,
+        scoreRevision: String,
+        totalSourceMeasureCount: Int,
+        preparedAt: Date
+    ) {
+        self.songID = songID
+        self.scoreFileVersionID = scoreFileVersionID
+        self.scoreRevision = scoreRevision
+        self.totalSourceMeasureCount = max(0, totalSourceMeasureCount)
+        self.preparedAt = preparedAt
+    }
+}
+
+struct PracticeSongHistory: Equatable, Sendable {
+    let songID: UUID
+    let progresses: [SongPracticeProgress]
+    let scoreMetadata: [SongScorePracticeMetadata]
+}
+
+enum PracticeSongHistoryLoadResult: Equatable, Sendable {
+    case loaded(PracticeSongHistory)
+    case corrupted(description: String)
+}
+
+enum PracticeProgressRecordOrder {
+    static func preferred(
+        _ lhs: SongPracticeProgress,
+        over rhs: SongPracticeProgress
+    ) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt {
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        let lhsData = canonicalData(lhs)
+        let rhsData = canonicalData(rhs)
+        return lhsData != rhsData && rhsData.lexicographicallyPrecedes(lhsData)
+    }
+
+    static func preferred(in progresses: [SongPracticeProgress]) -> SongPracticeProgress? {
+        progresses.reduce(nil) { current, candidate in
+            guard let current else { return candidate }
+            return preferred(candidate, over: current) ? candidate : current
+        }
+    }
+
+    static func sorted(_ progresses: [SongPracticeProgress]) -> [SongPracticeProgress] {
+        progresses.sorted { lhs, rhs in
+            if lhs.identity.songID != rhs.identity.songID {
+                return lhs.identity.songID.uuidString < rhs.identity.songID.uuidString
+            }
+            if lhs.identity.scoreRevision != rhs.identity.scoreRevision {
+                return lhs.identity.scoreRevision < rhs.identity.scoreRevision
+            }
+            return preferred(lhs, over: rhs)
+        }
+    }
+
+    private static func canonicalData(_ progress: SongPracticeProgress) -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return (try? encoder.encode(progress)) ?? Data()
+    }
+}
+
 struct PracticeProgressDocument: Codable, Equatable, Sendable {
     var songs: [SongPracticeProgress]
+    var scoreMetadata: [SongScorePracticeMetadata]
 
-    init(songs: [SongPracticeProgress] = []) {
+    init(
+        songs: [SongPracticeProgress] = [],
+        scoreMetadata: [SongScorePracticeMetadata] = []
+    ) {
         self.songs = songs
+        self.scoreMetadata = scoreMetadata
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case songs
+        case scoreMetadata
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        songs = try container.decodeIfPresent([SongPracticeProgress].self, forKey: .songs) ?? []
+        scoreMetadata = try container.decodeIfPresent([SongScorePracticeMetadata].self, forKey: .scoreMetadata) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(songs, forKey: .songs)
+        try container.encode(scoreMetadata, forKey: .scoreMetadata)
     }
 }

@@ -19,6 +19,52 @@ func songLibraryIndexStoreReturnsEmptyOnlyForMissingOrBlankFile() async throws {
 }
 
 @Test
+func songLibraryIndexStoreDecodesLegacyEntryWithoutVersionToken() async throws {
+    let fixture = try SongLibraryIndexStoreFixture()
+    defer { fixture.remove() }
+    try FileManager.default.createDirectory(
+        at: fixture.indexFileURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    let id = UUID()
+    let json = """
+    {
+      "entries": [{
+        "id": "\(id.uuidString)",
+        "displayName": "Legacy",
+        "musicXMLFileName": "legacy.musicxml",
+        "importedAt": "2024-01-01T00:00:00Z",
+        "audioFileName": null
+      }],
+      "lastSelectedEntryID": "\(id.uuidString)"
+    }
+    """
+    try Data(json.utf8).write(to: fixture.indexFileURL)
+
+    let index = try await fixture.store.load()
+
+    #expect(index.entries.first?.scoreFileVersionID == nil)
+    #expect(index.lastSelectedEntryID == id)
+}
+
+@Test
+func songLibraryEntryVersionTokenRoundTrips() throws {
+    let token = UUID()
+    let entry = SongLibraryEntry(
+        id: UUID(),
+        displayName: "Versioned",
+        musicXMLFileName: "versioned.musicxml",
+        scoreFileVersionID: token,
+        importedAt: Date(timeIntervalSince1970: 100),
+        audioFileName: nil
+    )
+    let encoder = JSONEncoder()
+    let decoder = JSONDecoder()
+
+    #expect(try decoder.decode(SongLibraryEntry.self, from: encoder.encode(entry)) == entry)
+}
+
+@Test
 func songLibraryIndexMutationsPreserveUnrelatedConcerns() async throws {
     let fixture = try SongLibraryIndexStoreFixture()
     defer { fixture.remove() }

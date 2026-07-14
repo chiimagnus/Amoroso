@@ -12,7 +12,9 @@ enum PracticeProgressRepositoryError: Error, Equatable {
 protocol PracticeProgressRepositoryProtocol: Sendable {
     func load() async -> PracticeProgressLoadResult
     func progress(for identity: PracticeSongIdentity) async -> SongPracticeProgress?
+    func history(for songID: UUID) async -> PracticeSongHistoryLoadResult
     func upsert(_ progress: SongPracticeProgress) async throws
+    func upsert(_ metadata: SongScorePracticeMetadata) async throws
     func remove(songID: UUID) async throws
 }
 
@@ -38,28 +40,54 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol {
 
     func progress(for identity: PracticeSongIdentity) -> SongPracticeProgress? {
         guard case let .loaded(document) = load() else { return nil }
-        return document.songs.first(where: { $0.identity == identity })
+        return PracticeProgressRecordOrder.preferred(
+            in: document.songs.filter { $0.identity == identity }
+        )
+    }
+
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        switch load() {
+        case let .loaded(document):
+            return .loaded(
+                PracticeSongHistory(
+                    songID: songID,
+                    progresses: PracticeProgressRecordOrder.sorted(
+                        document.songs.filter { $0.identity.songID == songID }
+                    ),
+                    scoreMetadata: Self.sortedMetadata(
+                        document.scoreMetadata.filter { $0.songID == songID }
+                    )
+                )
+            )
+        case let .corrupted(description):
+            return .corrupted(description: description)
+        }
     }
 
     func upsert(_ progress: SongPracticeProgress) throws {
-        var document = try loadDocumentForMutation()
-        if let index = document.songs.firstIndex(where: { $0.identity == progress.identity }) {
-            document.songs[index] = progress
-        } else {
-            document.songs.append(progress)
+        var document = try loadDocument()
+        document.songs.removeAll { $0.identity == progress.identity }
+        document.songs.append(progress)
+        document.songs = PracticeProgressRecordOrder.sorted(document.songs)
+        try saveDocument(document)
+    }
+
+    func upsert(_ metadata: SongScorePracticeMetadata) throws {
+        var document = try loadDocument()
+        document.scoreMetadata.removeAll {
+            $0.songID == metadata.songID
+                && $0.scoreFileVersionID == metadata.scoreFileVersionID
+                && $0.scoreRevision == metadata.scoreRevision
         }
-        document.songs.sort {
-            if $0.identity.songID != $1.identity.songID {
-                return $0.identity.songID.uuidString < $1.identity.songID.uuidString
-            }
-            return $0.identity.scoreRevision < $1.identity.scoreRevision
-        }
+        document.scoreMetadata.append(metadata)
+        document.scoreMetadata = Self.sortedMetadata(document.scoreMetadata)
         try saveDocument(document)
     }
 
     func remove(songID: UUID) throws {
-        var document = try loadDocumentForMutation()
+        var document = try loadDocument()
         document.songs.removeAll(where: { $0.identity.songID == songID })
+        document.scoreMetadata.removeAll(where: { $0.songID == songID })
         try saveDocument(document)
     }
 
@@ -85,20 +113,37 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol {
         }
     }
 
-    private func loadDocumentForMutation() throws -> PracticeProgressDocument {
-        do {
-            return try loadDocument()
-        } catch PracticeProgressRepositoryError.corrupted {
-            try CorruptedFileQuarantine.move(paths.fileURL, fileManager: fileManager)
-            return PracticeProgressDocument()
-        }
-    }
-
     private func saveDocument(_ document: PracticeProgressDocument) throws {
         try fileManager.createDirectory(at: paths.rootDirectoryURL, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(document).write(to: paths.fileURL, options: .atomic)
+    }
+
+    private static func sortedMetadata(
+        _ metadata: [SongScorePracticeMetadata]
+    ) -> [SongScorePracticeMetadata] {
+        metadata.sorted { lhs, rhs in
+            if lhs.songID != rhs.songID {
+                return lhs.songID.uuidString < rhs.songID.uuidString
+            }
+            if lhs.scoreFileVersionID != rhs.scoreFileVersionID {
+                switch (lhs.scoreFileVersionID, rhs.scoreFileVersionID) {
+                case (nil, .some): return true
+                case (.some, nil): return false
+                case let (.some(lhsToken), .some(rhsToken)):
+                    return lhsToken.uuidString < rhsToken.uuidString
+                case (nil, nil): break
+                }
+            }
+            if lhs.scoreRevision != rhs.scoreRevision {
+                return lhs.scoreRevision < rhs.scoreRevision
+            }
+            if lhs.preparedAt != rhs.preparedAt {
+                return lhs.preparedAt < rhs.preparedAt
+            }
+            return lhs.totalSourceMeasureCount < rhs.totalSourceMeasureCount
+        }
     }
 }

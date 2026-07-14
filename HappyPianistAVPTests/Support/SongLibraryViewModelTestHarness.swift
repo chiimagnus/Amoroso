@@ -160,13 +160,31 @@ private actor InMemoryPracticeProgressRepository: PracticeProgressRepositoryProt
 
     func load() -> PracticeProgressLoadResult { .loaded(document) }
     func progress(for identity: PracticeSongIdentity) -> SongPracticeProgress? {
-        document.songs.first(where: { $0.identity == identity })
+        PracticeProgressRecordOrder.preferred(
+            in: document.songs.filter { $0.identity == identity }
+        )
+    }
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(
+            songID: songID,
+            progresses: document.songs.filter { $0.identity.songID == songID },
+            scoreMetadata: document.scoreMetadata.filter { $0.songID == songID }
+        ))
     }
     func upsert(_ progress: SongPracticeProgress) {
         document.songs.removeAll(where: { $0.identity == progress.identity })
         document.songs.append(progress)
     }
+    func upsert(_ metadata: SongScorePracticeMetadata) {
+        document.scoreMetadata.removeAll {
+            $0.songID == metadata.songID
+                && $0.scoreFileVersionID == metadata.scoreFileVersionID
+                && $0.scoreRevision == metadata.scoreRevision
+        }
+        document.scoreMetadata.append(metadata)
+    }
     func remove(songID: UUID) {
         document.songs.removeAll(where: { $0.identity.songID == songID })
+        document.scoreMetadata.removeAll(where: { $0.songID == songID })
     }
 }

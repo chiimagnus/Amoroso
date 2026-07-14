@@ -18,7 +18,7 @@ bundled MusicXML 和 App 资源来自 bundle，不写入 Documents。
 
 ## 曲库
 
-`SongLibraryIndex` 只保存用户导入 entry 与最后选择项。bundled entries 由 `BundledSongLibraryProvider` 在启动时扫描后合并。
+`SongLibraryIndex` 只保存用户导入 entry 与最后选择项。entry 的可选 `scoreFileVersionID` 标识文件版本；旧 index 缺少该字段时按 `nil` 解码。bundled entries 由 `BundledSongLibraryProvider` 在启动时扫描后合并，并用 bundle identifier、short version、build version 与资源文件名生成确定性版本 token；缺失的 bundle 字段使用固定 sentinel，App 构建变化会保守地使旧 metadata 失配。
 
 导入流程：
 
@@ -33,12 +33,15 @@ index 缺失、零字节或只有空白时视为空库；JSON 无法解码时保
 
 ## 练习进度
 
-`progress-v1.json` 按 `song UUID + score revision digest` 区分曲谱版本，保存：
+`progress-v1.json` 仍是唯一练习事实文件，包含 `songs` 与 `scoreMetadata` 两个数组。前者按 `song UUID + score revision digest` 区分事实版本；后者按 `song UUID + entry version token + score revision` 记录成功准备时的曲谱结构 metadata。旧文件只有 `songs` 或缺少数组时无需 migration 即可读取。
+
+保存内容：
 
 - active round configuration
 - resume point
 - source-measure facts
 - 更新时间
+- 曲谱版本 token、revision、唯一 source measure 总数与准备时间
 
 不保存：
 
@@ -48,7 +51,7 @@ index 缺失、零字节或只有空白时视为空库；JSON 无法解码时保
 - AI 文案或生成内容
 - 原始逐帧麦克风、MIDI 或手部数据
 
-当前 v1 使用严格 Codable 结构。损坏、缺字段或不受支持的数据返回明确错误，不通过推测默认值悄悄迁移。
+repository 的 progress 与 metadata mutation 在 actor 内读取磁盘最新文档，只更新对应 concern 并保留另一数组；删除曲目同时删除两类记录。损坏或不受支持的数据返回明确错误、保留原文件并拒绝所有 mutation，不再隔离后按空文档覆盖。exact progress 重复记录使用共享的确定性 order 选择，避免数组顺序改变恢复结果。
 
 `PracticeProgressCoordinator` 串行化 checkpoint，并用 song identity、round generation 与 progress generation 防止旧任务覆盖新状态。back、background、session replacement 和 completion 必须等待 flush。
 

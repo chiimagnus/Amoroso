@@ -4,9 +4,28 @@ struct SongLibraryEntry: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var displayName: String
     var musicXMLFileName: String
+    var scoreFileVersionID: UUID?
     var importedAt: Date
     var audioFileName: String?
-    var isBundled: Bool? = nil
+    var isBundled: Bool?
+
+    init(
+        id: UUID,
+        displayName: String,
+        musicXMLFileName: String,
+        scoreFileVersionID: UUID? = nil,
+        importedAt: Date,
+        audioFileName: String?,
+        isBundled: Bool? = nil
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.musicXMLFileName = musicXMLFileName
+        self.scoreFileVersionID = scoreFileVersionID
+        self.importedAt = importedAt
+        self.audioFileName = audioFileName
+        self.isBundled = isBundled
+    }
 }
 
 struct SongLibraryIndex: Codable, Equatable, Sendable {

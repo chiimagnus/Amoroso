@@ -180,6 +180,10 @@ private actor SuspendedLifecycleProgressRepository: PracticeProgressRepositoryPr
         }
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    }
+
     func waitForRequest(identity: PracticeSongIdentity) async {
         while continuations[identity] == nil {
             await Task.yield()
@@ -191,6 +195,7 @@ private actor SuspendedLifecycleProgressRepository: PracticeProgressRepositoryPr
     }
 
     func upsert(_: SongPracticeProgress) {}
+    func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID _: UUID) {}
 }
 
@@ -208,6 +213,10 @@ private actor FirstSuspendedLifecycleProgressRepository: PracticeProgressReposit
         }
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    }
+
     func waitForFirstRequest() async {
         while firstContinuation == nil { await Task.yield() }
     }
@@ -218,5 +227,6 @@ private actor FirstSuspendedLifecycleProgressRepository: PracticeProgressReposit
     }
 
     func upsert(_: SongPracticeProgress) {}
+    func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID _: UUID) {}
 }

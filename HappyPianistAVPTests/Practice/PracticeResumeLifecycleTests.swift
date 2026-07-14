@@ -411,9 +411,19 @@ private actor ResumeRepository: PracticeProgressRepositoryProtocol {
         stored?.identity == identity ? stored : nil
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(
+            songID: songID,
+            progresses: stored.map { $0.identity.songID == songID ? [$0] : [] } ?? [],
+            scoreMetadata: []
+        ))
+    }
+
     func upsert(_ progress: SongPracticeProgress) {
         stored = progress
     }
+
+    func upsert(_: SongScorePracticeMetadata) {}
 
     func remove(songID: UUID) {
         if stored?.identity.songID == songID { stored = nil }
@@ -435,7 +445,19 @@ private actor FailingRepairRepository: PracticeProgressRepositoryProtocol {
         stored.identity == identity ? stored : nil
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(
+            songID: songID,
+            progresses: stored.identity.songID == songID ? [stored] : [],
+            scoreMetadata: []
+        ))
+    }
+
     func upsert(_: SongPracticeProgress) throws {
+        throw CocoaError(.fileWriteOutOfSpace)
+    }
+
+    func upsert(_: SongScorePracticeMetadata) throws {
         throw CocoaError(.fileWriteOutOfSpace)
     }
 

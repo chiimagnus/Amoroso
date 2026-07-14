@@ -53,13 +53,13 @@ func practiceProgressDocumentRoundTrips() throws {
 }
 
 @Test
-func practiceProgressDocumentRejectsMissingRequiredFields() {
-    #expect(throws: DecodingError.self) {
-        try JSONDecoder().decode(
-            PracticeProgressDocument.self,
-            from: Data("{}".utf8)
-        )
-    }
+func practiceProgressDocumentDefaultsMissingLegacyArrays() throws {
+    let document = try JSONDecoder().decode(
+        PracticeProgressDocument.self,
+        from: Data("{}".utf8)
+    )
+
+    #expect(document == PracticeProgressDocument())
 }
 
 @Test
