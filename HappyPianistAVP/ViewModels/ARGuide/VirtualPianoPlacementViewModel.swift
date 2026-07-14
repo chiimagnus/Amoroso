@@ -112,7 +112,7 @@ final class VirtualPianoPlacementViewModel {
     }
 
     func setPracticeVirtualPianoEnabled(_ isEnabled: Bool) {
-        guard isVirtualPianoEnabled != isEnabled else { return }
+        guard isVirtualPianoEnabled != isEnabled || isEnabled == false else { return }
         isVirtualPianoEnabled = isEnabled
 
         if isEnabled {
