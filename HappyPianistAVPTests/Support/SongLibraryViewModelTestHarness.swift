@@ -9,6 +9,10 @@ enum SongLibraryViewModelTestHarness {
         fileStore: (any SongFileStoreProtocol)? = nil,
         bundledEntries: [SongLibraryEntry] = [],
         practiceProgressRepository: (any PracticeProgressRepositoryProtocol)? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
+        snapshotBuilder: (any SongPracticeLibrarySnapshotBuilding)? = nil,
+        snapshotSleeper: (any SleeperProtocol)? = nil,
+        snapshotSettleDelay: Duration = .zero,
         audioPlayer: (any SongAudioPlayerProtocol)? = nil,
         bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
         deferInitialLoad: Bool = false
@@ -24,12 +28,22 @@ enum SongLibraryViewModelTestHarness {
             bundledProvider: resolvedBundledProvider,
             audioPlayer: audioPlayer ?? NoopSongAudioPlayer(),
             practiceProgressRepository: practiceProgressRepository ?? InMemoryPracticeProgressRepository(),
+            diagnosticsReporter: diagnosticsReporter ?? NoopLibraryDiagnosticsReporter(),
+            snapshotBuilder: snapshotBuilder ?? SongPracticeLibrarySnapshotBuilder(),
             bootstrapLoader: bootstrapLoader,
             initialSnapshot: deferInitialLoad
                 ? nil
                 : .loaded(index: resolvedIndex, bundledEntries: bundledEntries),
+            snapshotSleeper: snapshotSleeper ?? TaskSleeper(),
+            snapshotSettleDelay: snapshotSettleDelay,
             selectionPersistenceDelay: .zero
         )
+    }
+}
+
+private actor NoopLibraryDiagnosticsReporter: DiagnosticsReporting {
+    func record(_: DiagnosticEvent) -> DiagnosticRecordResult {
+        DiagnosticRecordResult(persistedForExport: false)
     }
 }
 

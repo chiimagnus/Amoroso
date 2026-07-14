@@ -94,6 +94,18 @@ LibraryWindowView / SongLibraryView
 
 SwiftUI View 与 `LibraryCrateView` 不保存第二份 selection；点击、拖动、上一首/下一首和 VoiceOver adjustable action 都只发送 `selectEntry` intent。持久化 worker 同时最多执行一个 mutation，旧写返回后会继续 drain 最新 desired selection；窗口消失时显式 flush。selection 保存尚未完成或失败都不阻塞启动，因为按钮传递当前内存 song ID。P2 前曲库不展示进度 Ornament，也不保留隐藏配置分支。
 
+当前曲目练习事实读取与 selection 持久化使用彼此独立的 generation：
+
+```text
+selected song UUID + entry version token
+-> 短 settle delay
+-> FilePracticeProgressRepository.history（actor 内 JSON decode/filter）
+-> nonisolated SongPracticeLibrarySnapshotBuilder（纯 facts 派生）
+-> UUID + token + generation 仍一致时发布 snapshot state
+```
+
+Library 返回前台时会刷新同一 selection；同一 run-loop 的 `onAppear` / active refresh 会取消并合并到最新 generation。损坏 history 只产生 `unavailable` 与 typed diagnostic，不设置全局错误，也不禁用试听或唯一开始按钮。该路径不解析曲谱、不访问 score URL、`PreparedPractice` 或 session。P2-T4 挂载 Ornament 前，状态已接入 production 但暂不渲染。
+
 ## 本轮配置与 active range
 
 ```text
@@ -135,6 +147,9 @@ flowchart LR
   D --> E[PracticeProgressCoordinator]
   E --> F[FilePracticeProgressRepository]
   F --> G[Documents/PracticeProgress/progress-v1.json]
+  F --> H[PracticeSongHistory]
+  H --> I[SongPracticeLibrarySnapshotBuilder]
+  I --> J[Library snapshot state]
 ```
 
 规则：

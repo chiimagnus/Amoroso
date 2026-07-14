@@ -32,7 +32,8 @@
 
 | 代码 | 作用 |
 | --- | --- |
-| `HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift` | 接收异步 bootstrap snapshot，合并 bundled/imported entries，并作为唯一 selection owner 管理试听、导入和删除；selection 由独立单写者异步持久化。 |
+| `HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift` | 接收异步 bootstrap snapshot，合并 bundled/imported entries，并作为唯一 selection owner 管理试听、导入和删除；selection 持久化与练习事实 snapshot 各有独立 generation。 |
+| `HappyPianistAVP/Services/Library/SongPracticeLibrarySnapshotBuilder.swift` | 从单曲 history 纯派生当前版本/真实 attempt facts，不读取文件或 UI 类型。 |
 | `HappyPianistAVP/Services/Library/SongLibraryBootstrapLoader.swift` | actor 隔离的首次 bundle 扫描与索引解码，避免阻塞 MainActor 启动。 |
 | `HappyPianistAVP/Services/Library/SongFileStore.swift` | 导入 MusicXML 到 Documents。 |
 | `HappyPianistAVP/Services/Library/SongLibraryIndexStore.swift` | actor 内按 concern 原子更新用户曲库索引。 |
@@ -40,7 +41,7 @@
 | `HappyPianistAVP/Services/Library/AudioImportService.swift` | 绑定 `.mp3` / `.m4a` 试听音频。 |
 | `HappyPianistAVP/Services/Practice/Session/PracticePreparationService.swift` | 把所选曲谱转换成 `PreparedPractice`。 |
 
-支持 `.musicxml`、`.xml`、`.mxl`。切换唱片只更新 selection；点击“开始练习”才登记 request 并打开练习窗口，曲谱解析、进度恢复和失败展示都由练习窗口拥有。P2 前曲库不显示进度 Ornament，也没有隐藏的旧配置路径。
+支持 `.musicxml`、`.xml`、`.mxl`。切换唱片只更新 selection 并异步读取同曲 history JSON；点击“开始练习”才登记 request 并打开练习窗口，曲谱解析、进度恢复和失败展示都由练习窗口拥有。snapshot generation 同时绑定 song UUID 与 entry token，旧结果不能覆盖新选择，且 Library 不访问 score/preparation/session。P2-T4 前只读 facts state 已接入但尚未挂载 Ornament；没有隐藏的旧配置路径。
 
 正式生产导入链只有：
 

@@ -12,6 +12,10 @@ final class SongLibraryViewModel {
     private var bundledEntries: [SongLibraryEntry]
     private let audioPlaybackController: SongAudioPlaybackStateController
     private let practiceProgressRepository: any PracticeProgressRepositoryProtocol
+    private let diagnosticsReporter: any DiagnosticsReporting
+    private let snapshotBuilder: any SongPracticeLibrarySnapshotBuilding
+    private let snapshotSleeper: any SleeperProtocol
+    private let snapshotSettleDelay: Duration
     private let selectionPersistenceSleeper: any SleeperProtocol
     private let selectionPersistenceDelay: Duration
     @ObservationIgnored private var playbackProgressTask: Task<Void, Never>?
@@ -22,6 +26,8 @@ final class SongLibraryViewModel {
     @ObservationIgnored private var selectionPersistenceReadyRevision = 0
     @ObservationIgnored private var selectionPersistenceFailedRevision: Int?
     @ObservationIgnored private var selectionPersistenceNeedsDrain = false
+    @ObservationIgnored private var snapshotLoadTask: Task<Void, Never>?
+    @ObservationIgnored private var snapshotGeneration = 0
     private var desiredPersistedSelection: UUID?
     private var persistedSelection: UUID?
 
@@ -39,6 +45,7 @@ final class SongLibraryViewModel {
     var listeningDuration: TimeInterval = 0
     var isMusicXMLImporterPresented = false
     private(set) var selectedEntryID: UUID?
+    private(set) var practiceSnapshotState: SongPracticeLibraryPresentationState = .noSelection
 
     init(
         indexStore: SongLibraryIndexStoreProtocol,
@@ -47,8 +54,12 @@ final class SongLibraryViewModel {
         bundledProvider: BundledSongLibraryProviderProtocol,
         audioPlayer: SongAudioPlayerProtocol,
         practiceProgressRepository: any PracticeProgressRepositoryProtocol,
+        diagnosticsReporter: any DiagnosticsReporting,
+        snapshotBuilder: any SongPracticeLibrarySnapshotBuilding = SongPracticeLibrarySnapshotBuilder(),
         bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
         initialSnapshot: SongLibraryBootstrapSnapshot? = nil,
+        snapshotSleeper: any SleeperProtocol = TaskSleeper(),
+        snapshotSettleDelay: Duration = .milliseconds(150),
         selectionPersistenceSleeper: any SleeperProtocol = TaskSleeper(),
         selectionPersistenceDelay: Duration = .milliseconds(200)
     ) {
@@ -58,6 +69,10 @@ final class SongLibraryViewModel {
         self.bundledProvider = bundledProvider
         self.bootstrapLoader = bootstrapLoader
         self.practiceProgressRepository = practiceProgressRepository
+        self.diagnosticsReporter = diagnosticsReporter
+        self.snapshotBuilder = snapshotBuilder
+        self.snapshotSleeper = snapshotSleeper
+        self.snapshotSettleDelay = snapshotSettleDelay
         self.selectionPersistenceSleeper = selectionPersistenceSleeper
         self.selectionPersistenceDelay = selectionPersistenceDelay
         switch initialSnapshot {
@@ -122,6 +137,10 @@ final class SongLibraryViewModel {
         }
     }
 
+    func refreshSelectedPracticeSnapshot() {
+        scheduleSnapshotLoad()
+    }
+
     func flushPendingSelectionPersistence() async {
         selectionPersistenceDebounceTask?.cancel()
         selectionPersistenceDebounceTask = nil
@@ -156,6 +175,7 @@ final class SongLibraryViewModel {
         if selectionPersistenceNeedsDrain {
             requestSelectionPersistence(resolvedSelection)
         }
+        scheduleSnapshotLoad()
     }
 
     private func adoptPersistedSelection(_ entryID: UUID?) {
@@ -168,6 +188,7 @@ final class SongLibraryViewModel {
         persistedSelection = entryID
         desiredPersistedSelection = entryID
         selectionPersistenceNeedsDrain = false
+        scheduleSnapshotLoad()
     }
 
     private func requestSelectionPersistence(_ entryID: UUID?) {
@@ -266,6 +287,7 @@ final class SongLibraryViewModel {
                     if selectedEntryID == nil {
                         selectedEntryID = entry.id
                         requestSelectionPersistence(entry.id)
+                        scheduleSnapshotLoad()
                     }
                 } catch {
                     try? await fileStore.deleteScoreFile(named: imported.storedFileName)
@@ -285,6 +307,7 @@ final class SongLibraryViewModel {
         }
         selectedEntryID = entryID
         requestSelectionPersistence(entryID)
+        scheduleSnapshotLoad()
     }
 
     func deleteEntry(entryID: UUID) async {
@@ -457,6 +480,76 @@ final class SongLibraryViewModel {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard let self, self.isCurrentListeningPlaying else { return }
                 self.syncListeningState()
+            }
+        }
+    }
+
+    private func scheduleSnapshotLoad() {
+        snapshotLoadTask?.cancel()
+        snapshotGeneration += 1
+        let generation = snapshotGeneration
+
+        guard let entry = selectedEntryID.flatMap({ selectedID in
+            entries.first(where: { $0.id == selectedID })
+        }) else {
+            snapshotLoadTask = nil
+            practiceSnapshotState = .noSelection
+            return
+        }
+
+        let identity = SongPracticeLibrarySelectionIdentity(
+            songID: entry.id,
+            scoreFileVersionID: entry.scoreFileVersionID
+        )
+        practiceSnapshotState = .loading(identity)
+        snapshotLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await snapshotSleeper.sleep(for: snapshotSettleDelay)
+                try Task.checkCancellation()
+            } catch {
+                return
+            }
+
+            // ponytail: one JSON decode plus same-song linear filtering is intentional;
+            // add an index/cache only after measured selection latency warrants invalidation complexity.
+            let historyResult = await practiceProgressRepository.history(for: entry.id)
+            guard Task.isCancelled == false else { return }
+            let state: SongPracticeLibraryPresentationState
+            var diagnosticEvent: DiagnosticEvent?
+            switch historyResult {
+            case let .loaded(history):
+                switch await snapshotBuilder.build(entry: entry, history: history) {
+                case .neverPracticed:
+                    state = .neverPracticed(identity)
+                case let .current(snapshot):
+                    state = .current(snapshot)
+                case let .needsRebuild(historyDate):
+                    state = .needsRebuild(identity, historyDate: historyDate)
+                }
+            case .corrupted:
+                state = .unavailable(identity)
+                diagnosticEvent = DiagnosticEvent(
+                    severity: .warning,
+                    code: .libraryPracticeHistoryLoadFailed,
+                    category: .library,
+                    stage: "practiceHistoryLoad",
+                    summary: "无法读取曲目练习历史",
+                    reason: "token=\(identity.scoreFileVersionID?.uuidString ?? "legacy-nil"); repository=corrupted",
+                    songID: identity.songID,
+                    persistence: .exportable
+                )
+            }
+
+            guard generation == snapshotGeneration,
+                  selectedEntryID == identity.songID,
+                  entries.first(where: { $0.id == identity.songID })?.scoreFileVersionID
+                    == identity.scoreFileVersionID
+            else { return }
+            practiceSnapshotState = state
+            snapshotLoadTask = nil
+            if let diagnosticEvent {
+                _ = await diagnosticsReporter.record(diagnosticEvent)
             }
         }
     }

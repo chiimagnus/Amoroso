@@ -41,9 +41,11 @@ struct LibraryWindowRootView: View {
     )
     .onChange(of: scenePhase) {
       guard scenePhase == .active else { return }
+      songLibraryViewModel.refreshSelectedPracticeSnapshot()
       dismissPendingSourceIfNeeded()
     }
     .onAppear {
+      songLibraryViewModel.refreshSelectedPracticeSnapshot()
       dismissPendingSourceIfNeeded()
     }
   }
