@@ -129,6 +129,37 @@ func progressRepositorySelectsDuplicateIdentityDeterministically() async throws 
     #expect(history.progresses == [newer, older])
 }
 
+@Test
+func progressRepositoryDoesNotLetLateOlderMetadataRegressSameIdentity() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let songID = UUID()
+    let token = UUID()
+    let newer = SongScorePracticeMetadata(
+        songID: songID,
+        scoreFileVersionID: token,
+        scoreRevision: "r1",
+        totalSourceMeasureCount: 8,
+        preparedAt: Date(timeIntervalSince1970: 200)
+    )
+    let older = SongScorePracticeMetadata(
+        songID: songID,
+        scoreFileVersionID: token,
+        scoreRevision: "r1",
+        totalSourceMeasureCount: 8,
+        preparedAt: Date(timeIntervalSince1970: 100)
+    )
+
+    try await repository.upsert(newer)
+    try await repository.upsert(older)
+
+    guard case let .loaded(history) = await repository.history(for: songID) else {
+        Issue.record("Expected loaded history")
+        return
+    }
+    #expect(history.scoreMetadata == [newer])
+}
+
 private func makeMetadata(
     songID: UUID,
     token: UUID? = nil,

@@ -179,6 +179,33 @@ struct SongScorePracticeMetadata: Codable, Equatable, Sendable {
     }
 }
 
+enum SongScorePracticeMetadataOrder {
+    static func preferred(
+        _ lhs: SongScorePracticeMetadata,
+        over rhs: SongScorePracticeMetadata
+    ) -> Bool {
+        if lhs.preparedAt != rhs.preparedAt { return lhs.preparedAt > rhs.preparedAt }
+        if lhs.scoreRevision != rhs.scoreRevision { return lhs.scoreRevision > rhs.scoreRevision }
+        if lhs.totalSourceMeasureCount != rhs.totalSourceMeasureCount {
+            return lhs.totalSourceMeasureCount > rhs.totalSourceMeasureCount
+        }
+        return canonicalKey(lhs) > canonicalKey(rhs)
+    }
+
+    static func preferred(
+        in metadata: [SongScorePracticeMetadata]
+    ) -> SongScorePracticeMetadata? {
+        metadata.reduce(nil) { current, candidate in
+            guard let current else { return candidate }
+            return preferred(candidate, over: current) ? candidate : current
+        }
+    }
+
+    private static func canonicalKey(_ metadata: SongScorePracticeMetadata) -> String {
+        "\(metadata.songID.uuidString)|\(metadata.scoreFileVersionID?.uuidString ?? "<nil>")|\(metadata.scoreRevision)"
+    }
+}
+
 struct PracticeSongHistory: Equatable, Sendable {
     let songID: UUID
     let progresses: [SongPracticeProgress]

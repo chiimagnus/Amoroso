@@ -19,8 +19,11 @@ final class PracticeLaunchViewModel {
     private let preparationService: any PracticePreparationServiceProtocol
     private let applicator: any PracticeLaunchApplying
     private let diagnosticsReporter: any DiagnosticsReporting
+    private let progressRepository: any PracticeProgressRepositoryProtocol
+    private let now: @Sendable () -> Date
 
     @ObservationIgnored private var activationTask: Task<Void, Never>?
+    @ObservationIgnored private var metadataWriteTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var returnOperationID: UUID?
 
@@ -32,12 +35,16 @@ final class PracticeLaunchViewModel {
         resolver: any SongLibraryEntryResolving,
         preparationService: any PracticePreparationServiceProtocol,
         applicator: any PracticeLaunchApplying,
-        diagnosticsReporter: any DiagnosticsReporting
+        diagnosticsReporter: any DiagnosticsReporting,
+        progressRepository: any PracticeProgressRepositoryProtocol,
+        now: @escaping @Sendable () -> Date = { .now }
     ) {
         self.resolver = resolver
         self.preparationService = preparationService
         self.applicator = applicator
         self.diagnosticsReporter = diagnosticsReporter
+        self.progressRepository = progressRepository
+        self.now = now
     }
 
     func request(songID: UUID) {
@@ -169,13 +176,26 @@ final class PracticeLaunchViewModel {
                     self?.isCurrent(songID: songID, generation: generation) == true
                 }
             )
-            guard isCurrent(songID: songID, generation: generation) else { return }
             guard let applyOutcome else {
+                guard isCurrent(songID: songID, generation: generation) else { return }
                 registerRequest(songID: songID)
                 return
             }
 
+            let metadata = SongScorePracticeMetadata(
+                songID: songID,
+                scoreFileVersionID: resolved.entry.scoreFileVersionID,
+                scoreRevision: prepared.identity.scoreRevision,
+                totalSourceMeasureCount: Set(prepared.measureSpans.map(\.sourceMeasureID)).count,
+                preparedAt: now()
+            )
+            guard isCurrent(songID: songID, generation: generation) else {
+                scheduleMetadataWrite(metadata)
+                return
+            }
+
             state = .ready(prepared.identity)
+            scheduleMetadataWrite(metadata)
             _ = await diagnosticsReporter.record(
                 DiagnosticEvent(
                     severity: .info,
@@ -250,5 +270,31 @@ final class PracticeLaunchViewModel {
         self.generation == generation &&
             requestedSongID == songID &&
             Task.isCancelled == false
+    }
+
+    private func scheduleMetadataWrite(_ metadata: SongScorePracticeMetadata) {
+        let operationID = UUID()
+        let repository = progressRepository
+        let reporter = diagnosticsReporter
+        metadataWriteTasks[operationID] = Task { @MainActor [weak self] in
+            do {
+                try await repository.upsert(metadata)
+            } catch {
+                _ = await reporter.record(
+                    DiagnosticEvent(
+                        severity: .warning,
+                        code: .practiceScoreMetadataWriteFailed,
+                        category: .persistence,
+                        stage: "practiceScoreMetadataWrite",
+                        summary: "无法保存曲谱练习元数据",
+                        reason: "token=\(metadata.scoreFileVersionID?.uuidString ?? "legacy-nil"); measureCount=\(metadata.totalSourceMeasureCount); \(PracticePreparationErrorDetails.safeErrorSummary(error))",
+                        songID: metadata.songID,
+                        scoreRevision: metadata.scoreRevision,
+                        persistence: .exportable
+                    )
+                )
+            }
+            self?.metadataWriteTasks[operationID] = nil
+        }
     }
 }

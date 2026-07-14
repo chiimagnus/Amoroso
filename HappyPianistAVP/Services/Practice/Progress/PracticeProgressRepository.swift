@@ -74,12 +74,19 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol {
 
     func upsert(_ metadata: SongScorePracticeMetadata) throws {
         var document = try loadDocument()
+        let sameIdentity = document.scoreMetadata.filter {
+            $0.songID == metadata.songID
+                && $0.scoreFileVersionID == metadata.scoreFileVersionID
+                && $0.scoreRevision == metadata.scoreRevision
+        }
         document.scoreMetadata.removeAll {
             $0.songID == metadata.songID
                 && $0.scoreFileVersionID == metadata.scoreFileVersionID
                 && $0.scoreRevision == metadata.scoreRevision
         }
-        document.scoreMetadata.append(metadata)
+        document.scoreMetadata.append(
+            SongScorePracticeMetadataOrder.preferred(in: sameIdentity + [metadata]) ?? metadata
+        )
         document.scoreMetadata = Self.sortedMetadata(document.scoreMetadata)
         try saveDocument(document)
     }

@@ -171,7 +171,8 @@ struct LiveAppGraph {
       resolver: songLibraryEntryResolver,
       preparationService: practicePreparationService,
       applicator: arGuideViewModel,
-      diagnosticsReporter: diagnosticsReporter
+      diagnosticsReporter: diagnosticsReporter,
+      progressRepository: progressRepository
     )
     let windowState = WindowTransitionState(
       practiceSetupState: appState.practiceSetupState,

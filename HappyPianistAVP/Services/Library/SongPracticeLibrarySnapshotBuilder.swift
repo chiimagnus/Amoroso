@@ -20,8 +20,8 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             return .neverPracticed
         }
 
-        let metadata = preferredMetadata(
-            history.scoreMetadata.filter {
+        let metadata = SongScorePracticeMetadataOrder.preferred(
+            in: history.scoreMetadata.filter {
                 $0.songID == entry.id && $0.scoreFileVersionID == entry.scoreFileVersionID
             }
         )
@@ -46,23 +46,6 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             currentFacts: currentFacts,
             hasHistory: true
         ))
-    }
-
-    private nonisolated func preferredMetadata(
-        _ metadata: [SongScorePracticeMetadata]
-    ) -> SongScorePracticeMetadata? {
-        metadata.sorted { lhs, rhs in
-            if lhs.preparedAt != rhs.preparedAt { return lhs.preparedAt > rhs.preparedAt }
-            if lhs.scoreRevision != rhs.scoreRevision { return lhs.scoreRevision > rhs.scoreRevision }
-            if lhs.totalSourceMeasureCount != rhs.totalSourceMeasureCount {
-                return lhs.totalSourceMeasureCount > rhs.totalSourceMeasureCount
-            }
-            return metadataKey(lhs) > metadataKey(rhs)
-        }.first
-    }
-
-    private nonisolated func metadataKey(_ metadata: SongScorePracticeMetadata) -> String {
-        "\(metadata.songID.uuidString)|\(metadata.scoreFileVersionID?.uuidString ?? "<nil>")|\(metadata.scoreRevision)"
     }
 
     private nonisolated func deduplicatedProgresses(

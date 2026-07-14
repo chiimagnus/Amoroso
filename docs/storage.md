@@ -53,6 +53,8 @@ index 缺失、零字节或只有空白时视为空库；JSON 无法解码时保
 
 repository 的 progress 与 metadata mutation 在 actor 内读取磁盘最新文档，只更新对应 concern 并保留另一数组；删除曲目同时删除两类记录。损坏或不受支持的数据返回明确错误、保留原文件并拒绝所有 mutation，不再隔离后按空文档覆盖。exact progress 重复记录使用共享的确定性 order 选择，避免数组顺序改变恢复结果。
 
+`PracticeLaunchViewModel` 仅在 `PreparedPractice` 通过 steps/spans 校验且 applicator 确认安装成功后，写入 entry token、score revision、唯一 source measure 数量与准备时间。repeat occurrence 使用同一个 source identity，只计一次。ready publication 不等待 metadata 文件 IO；写入失败保留已安装 session 并记录不含路径/measure 列表的 typed warning。已经成功 apply 形成的 immutable metadata commit 不因随后切歌或 scene inactive 而取消。
+
 `PracticeProgressCoordinator` 串行化 checkpoint，并用 song identity、round generation 与 progress generation 防止旧任务覆盖新状态。back、background、session replacement 和 completion 必须等待 flush。
 
 

@@ -87,8 +87,9 @@ LibraryWindowView / SongLibraryView
 -> 用户点击唯一的“开始练习”按钮
 -> LibraryWindowRootView 同步登记 PracticeLaunch request 后打开 practice window
 -> PracticeWindowRootView 激活 request
--> resolver -> PracticePreparationService -> steps/spans 校验 -> ARGuide apply
--> 恢复精确 song UUID + revision 的配置与位置
+-> resolver -> PracticePreparationService -> steps/spans 校验
+-> ARGuide apply 并恢复精确 song UUID + revision 的配置与位置
+-> apply 成功后立即 ready，并异步 best-effort upsert score metadata
 -> ready 后才挂载 PracticeStepView
 ```
 
