@@ -161,6 +161,8 @@ flowchart LR
   F --> H[PracticeSongHistory]
   H --> I[SongPracticeLibrarySnapshotBuilder]
   I --> J[Library snapshot state]
+  H --> K[PracticeHistoricalPreferencesResolver]
+  K --> L[Launch restore policy]
 ```
 
 规则：
@@ -168,6 +170,8 @@ flowchart LR
 - `PracticeStep` 是即时判定单位。
 - source measure 是持久化学习单位。
 - occurrence identity 只负责重复结构中的播放位置。
+- launch 先按 song UUID + score revision 查 exact progress；exact 不存在时，历史 resolver 只可继承 hand mode、tempo scale、loop enabled、required successes。passage、resume、measure facts 与任何 source/occurrence identity 不跨 revision。
+- 历史记录损坏时 launch 记录 warning 并使用 `historyUnavailable` policy；无可用配置则使用 `freshDefaults`，两者都不阻止 score preparation。
 - streak 按手别、速度与本轮条件隔离。
 - resume point 保存片段、配置与当前 step。
 - 恢复完成后停在 ready/paused，不自动发声。

@@ -187,6 +187,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
 
     func applyPreparedPracticeForLaunch(
         _ prepared: PreparedPractice,
+        restorePolicy _: PracticeLaunchRestorePolicy,
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome? {
         guard await applyPreparedPractice(prepared, isCurrent: isCurrent) else { return nil }

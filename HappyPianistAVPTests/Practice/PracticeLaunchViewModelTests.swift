@@ -19,11 +19,74 @@ func practiceLaunchRegistersWithoutPreparingThenActivatesExactlyOnce() async {
     #expect(await fixture.preparation.requestedSongIDs() == [fixture.songA])
     #expect(fixture.applicator.clearCount == 1)
     #expect(fixture.applicator.appliedSongIDs == [fixture.songA])
+    #expect(fixture.applicator.restorePolicies == [.freshDefaults])
     #expect(fixture.owner.state == .ready(PracticeSongIdentity(songID: fixture.songA, scoreRevision: fixture.songA.uuidString)))
     await fixture.metadataRepository.waitForMetadataCount(1)
     let metadata = await fixture.metadataRepository.metadata
     #expect(metadata.first?.scoreFileVersionID == fixture.songA)
     #expect(metadata.first?.totalSourceMeasureCount == 1)
+}
+
+@MainActor
+@Test
+func practiceLaunchPassesExactRestorePolicyBeforeSessionApply() async {
+    let songID = fixtureSongA
+    let fixture = makePracticeLaunchFixture(
+        progresses: [makeLaunchProgress(songID: songID, revision: songID.uuidString)]
+    )
+    fixture.owner.request(songID: songID)
+
+    await fixture.owner.activateCurrentRequest()
+
+    #expect(fixture.applicator.restorePolicies == [.exactAvailable])
+}
+
+@MainActor
+@Test
+func practiceLaunchPassesHistoricalPreferencesWithoutStructuralState() async {
+    let songID = fixtureSongA
+    let fixture = makePracticeLaunchFixture(
+        progresses: [makeLaunchProgress(
+            songID: songID,
+            revision: "previous",
+            handMode: .left,
+            tempoScale: 0.6,
+            loopEnabled: true,
+            requiredSuccesses: 4
+        )]
+    )
+    fixture.owner.request(songID: songID)
+
+    await fixture.owner.activateCurrentRequest()
+
+    #expect(fixture.applicator.restorePolicies == [
+        .historicalPreferences(PracticeHistoricalPreferences(
+            handMode: .left,
+            tempoScale: 0.6,
+            loopEnabled: true,
+            requiredSuccesses: 4
+        )),
+    ])
+}
+
+@MainActor
+@Test
+func corruptedPracticeHistoryWarnsAndLaunchesWithUnavailablePolicy() async {
+    let fixture = makePracticeLaunchFixture(
+        historyResultOverride: .corrupted(description: "invalid progress document")
+    )
+    fixture.owner.request(songID: fixture.songA)
+
+    await fixture.owner.activateCurrentRequest()
+
+    #expect(fixture.owner.state == .ready(PracticeSongIdentity(
+        songID: fixture.songA,
+        scoreRevision: fixture.songA.uuidString
+    )))
+    #expect(fixture.applicator.restorePolicies == [.historyUnavailable])
+    let warning = await fixture.reporter.events.first { $0.code == .practiceHistoryLoadFailed }
+    #expect(warning?.reason == "The practice progress document could not be decoded.")
+    #expect(warning?.reason.contains("/Users/private") == false)
 }
 
 @MainActor
@@ -542,7 +605,9 @@ private func makePracticeLaunchFixture(
     error: PracticePreparationError? = nil,
     errors: [UUID: PracticePreparationError] = [:],
     includeMeasureSpans: Bool = true,
-    applyOutcome: PracticeLaunchApplyOutcome = .applied
+    applyOutcome: PracticeLaunchApplyOutcome = .applied,
+    progresses: [SongPracticeProgress] = [],
+    historyResultOverride: PracticeSongHistoryLoadResult? = nil
 ) -> PracticeLaunchFixture {
     let resolver = PracticeLaunchResolver(songIDs: [songA, songB])
     let preparation = PracticeLaunchPreparationService(
@@ -552,7 +617,10 @@ private func makePracticeLaunchFixture(
     )
     let applicator = PracticeLaunchRecordingApplicator(applyOutcome: applyOutcome)
     let reporter = InMemoryDiagnosticsReporter()
-    let metadataRepository = RecordingPracticeLaunchProgressRepository()
+    let metadataRepository = RecordingPracticeLaunchProgressRepository(
+        progresses: progresses,
+        historyResultOverride: historyResultOverride
+    )
     return PracticeLaunchFixture(
         owner: PracticeLaunchViewModel(
             resolver: resolver,
@@ -585,19 +653,23 @@ private actor RecordingPracticeLaunchProgressRepository: PracticeProgressReposit
     private(set) var metadata: [SongScorePracticeMetadata] = []
     private var progresses: [SongPracticeProgress]
     let metadataError: Error?
+    let historyResultOverride: PracticeSongHistoryLoadResult?
 
     init(
         metadataError: Error? = nil,
-        progresses: [SongPracticeProgress] = []
+        progresses: [SongPracticeProgress] = [],
+        historyResultOverride: PracticeSongHistoryLoadResult? = nil
     ) {
         self.metadataError = metadataError
         self.progresses = progresses
+        self.historyResultOverride = historyResultOverride
     }
 
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(
+        if let historyResultOverride { return historyResultOverride }
+        return .loaded(PracticeSongHistory(
             songID: songID,
             progresses: progresses.filter { $0.identity.songID == songID },
             scoreMetadata: metadata.filter { $0.songID == songID }
@@ -621,6 +693,40 @@ private actor RecordingPracticeLaunchProgressRepository: PracticeProgressReposit
         guard case let .loaded(history) = history(for: songID) else { return nil }
         return history
     }
+}
+
+private func makeLaunchProgress(
+    songID: UUID,
+    revision: String,
+    handMode: PracticeHandMode = .both,
+    tempoScale: Double = 1,
+    loopEnabled: Bool = false,
+    requiredSuccesses: Int = 1
+) -> SongPracticeProgress {
+    let source = PracticeSourceMeasureID(partID: "P1", sourceMeasureIndex: 99)
+    let occurrence = PracticeMeasureOccurrenceID(sourceMeasureID: source, occurrenceIndex: 99)
+    return SongPracticeProgress(
+        identity: PracticeSongIdentity(songID: songID, scoreRevision: revision),
+        activeConfiguration: PracticeRoundConfiguration(
+            passage: PracticePassage(start: occurrence, end: occurrence)!,
+            handMode: handMode,
+            tempoScale: tempoScale,
+            loopEnabled: loopEnabled,
+            requiredSuccesses: requiredSuccesses
+        ),
+        resumePoint: PracticeResumePoint(
+            occurrenceID: occurrence,
+            stepIndex: 99,
+            updatedAt: Date(timeIntervalSince1970: 99)
+        ),
+        measureFacts: [MeasurePracticeFacts(
+            sourceMeasureID: source,
+            handMode: handMode,
+            state: .stable,
+            successfulAttempts: 9
+        )],
+        updatedAt: Date(timeIntervalSince1970: 99)
+    )
 }
 
 private func makePracticeLaunchEntry(songID: UUID) -> SongLibraryEntry {
@@ -809,6 +915,7 @@ private actor SequencedPracticeLaunchPreparationService: PracticePreparationServ
 @MainActor
 private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     private(set) var appliedSongIDs: [UUID] = []
+    private(set) var restorePolicies: [PracticeLaunchRestorePolicy] = []
     private(set) var clearCount = 0
     private(set) var suspendCount = 0
     private(set) var leaveCount = 0
@@ -820,10 +927,12 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
 
     func applyPreparedPracticeForLaunch(
         _ prepared: PreparedPractice,
+        restorePolicy: PracticeLaunchRestorePolicy,
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome? {
         guard isCurrent() else { return nil }
         appliedSongIDs.append(prepared.identity.songID)
+        restorePolicies.append(restorePolicy)
         return applyOutcome
     }
 
@@ -841,6 +950,7 @@ private final class ControlledPracticeLaunchApplicator: PracticeLaunchApplying {
 
     func applyPreparedPracticeForLaunch(
         _ prepared: PreparedPractice,
+        restorePolicy _: PracticeLaunchRestorePolicy,
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome? {
         pendingSongID = prepared.identity.songID
@@ -872,6 +982,7 @@ private final class AppliedThenSuspendedPracticeLaunchApplicator: PracticeLaunch
 
     func applyPreparedPracticeForLaunch(
         _: PreparedPractice,
+        restorePolicy _: PracticeLaunchRestorePolicy,
         isCurrent _: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome? {
         await withCheckedContinuation { continuation = $0 }
@@ -898,6 +1009,7 @@ private final class RejectOncePracticeLaunchApplicator: PracticeLaunchApplying {
 
     func applyPreparedPracticeForLaunch(
         _: PreparedPractice,
+        restorePolicy _: PracticeLaunchRestorePolicy,
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome? {
         applyCount += 1

@@ -5,6 +5,7 @@ import Observation
 protocol PracticeLaunchApplying: AnyObject, Sendable {
     func applyPreparedPracticeForLaunch(
         _ prepared: PreparedPractice,
+        restorePolicy: PracticeLaunchRestorePolicy,
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome?
     func clearPreparedPracticeForLaunch() async
@@ -20,6 +21,7 @@ final class PracticeLaunchViewModel {
     private let applicator: any PracticeLaunchApplying
     private let diagnosticsReporter: any DiagnosticsReporting
     private let progressRepository: any PracticeProgressRepositoryProtocol
+    private let historicalPreferencesResolver: PracticeHistoricalPreferencesResolver
     private let now: @Sendable () -> Date
 
     @ObservationIgnored private var activationTask: Task<Void, Never>?
@@ -37,6 +39,7 @@ final class PracticeLaunchViewModel {
         applicator: any PracticeLaunchApplying,
         diagnosticsReporter: any DiagnosticsReporting,
         progressRepository: any PracticeProgressRepositoryProtocol,
+        historicalPreferencesResolver: PracticeHistoricalPreferencesResolver = PracticeHistoricalPreferencesResolver(),
         now: @escaping @Sendable () -> Date = { .now }
     ) {
         self.resolver = resolver
@@ -44,6 +47,7 @@ final class PracticeLaunchViewModel {
         self.applicator = applicator
         self.diagnosticsReporter = diagnosticsReporter
         self.progressRepository = progressRepository
+        self.historicalPreferencesResolver = historicalPreferencesResolver
         self.now = now
     }
 
@@ -138,6 +142,22 @@ final class PracticeLaunchViewModel {
         do {
             let resolved = try await resolver.resolve(songID: songID)
             fileReference = resolved.diagnosticFileReference
+            let history = await progressRepository.history(for: songID)
+            if case .corrupted = history {
+                _ = await diagnosticsReporter.record(
+                    DiagnosticEvent(
+                        severity: .warning,
+                        code: .practiceHistoryLoadFailed,
+                        category: .persistence,
+                        stage: "practiceHistoryLoad",
+                        summary: "无法读取练习历史",
+                        reason: "The practice progress document could not be decoded.",
+                        songID: songID,
+                        file: fileReference,
+                        persistence: .exportable
+                    )
+                )
+            }
             guard isCurrent(songID: songID, generation: generation) else { return }
             _ = await diagnosticsReporter.record(
                 DiagnosticEvent(
@@ -169,9 +189,14 @@ final class PracticeLaunchViewModel {
             guard prepared.measureSpans.isEmpty == false else {
                 throw PracticePreparationError.missingMeasureStructure
             }
+            let restorePolicy = await historicalPreferencesResolver.resolve(
+                identity: prepared.identity,
+                history: history
+            )
             guard isCurrent(songID: songID, generation: generation) else { return }
             let applyOutcome = await applicator.applyPreparedPracticeForLaunch(
                 prepared,
+                restorePolicy: restorePolicy,
                 isCurrent: { [weak self] in
                     self?.isCurrent(songID: songID, generation: generation) == true
                 }

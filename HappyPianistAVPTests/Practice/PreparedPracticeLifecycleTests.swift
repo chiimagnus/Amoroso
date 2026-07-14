@@ -65,7 +65,11 @@ func clearingShutdownPracticeSessionInstallsFreshEmptyReplacement() async {
     let appState = AppState()
     let guide = makeLifecycleGuide(appState: appState)
     let prepared = makeLifecyclePreparedPractice()
-    #expect(await guide.applyPreparedPracticeForLaunch(prepared, isCurrent: { true }) == .applied)
+    #expect(await guide.applyPreparedPracticeForLaunch(
+        prepared,
+        restorePolicy: .freshDefaults,
+        isCurrent: { true }
+    ) == .applied)
     let shutdownSession = guide.practiceSessionViewModel
     await shutdownSession.flushAndShutdown()
     #expect(shutdownSession.hasShutdown)
@@ -90,7 +94,11 @@ func replacementDuringProgressRestoreInvalidatesOldPreparedApply() async {
     let prepared = makeLifecyclePreparedPractice()
     let oldSession = guide.practiceSessionViewModel
     let applyTask = Task { @MainActor in
-        await guide.applyPreparedPracticeForLaunch(prepared, isCurrent: { true })
+        await guide.applyPreparedPracticeForLaunch(
+            prepared,
+            restorePolicy: .freshDefaults,
+            isCurrent: { true }
+        )
     }
     await repository.waitForFirstRequest()
 
@@ -107,6 +115,7 @@ func replacementDuringProgressRestoreInvalidatesOldPreparedApply() async {
 
     let replacementOutcome = await guide.applyPreparedPracticeForLaunch(
         prepared,
+        restorePolicy: .freshDefaults,
         isCurrent: { true }
     )
     #expect(replacementOutcome == .applied)

@@ -135,12 +135,20 @@ func stalePreparedPracticeApplyCannotOverwriteNewerLaunch() async throws {
     let second = makeLaunchRacePreparedPractice(songID: secondID)
 
     let firstTask = Task { @MainActor in
-        await guide.applyPreparedPracticeForLaunch(first, isCurrent: { currentID == firstID })
+        await guide.applyPreparedPracticeForLaunch(
+            first,
+            restorePolicy: .freshDefaults,
+            isCurrent: { currentID == firstID }
+        )
     }
     try await Task.sleep(for: .milliseconds(10))
     currentID = secondID
     let secondTask = Task { @MainActor in
-        await guide.applyPreparedPracticeForLaunch(second, isCurrent: { currentID == secondID })
+        await guide.applyPreparedPracticeForLaunch(
+            second,
+            restorePolicy: .freshDefaults,
+            isCurrent: { currentID == secondID }
+        )
     }
 
     let firstOutcome = await firstTask.value
