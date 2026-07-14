@@ -1,4 +1,4 @@
-# 项目开发规范与指南
+# visionOS 开发补充规范
 
 本目录是 visionOS（Apple Vision Pro）端原型工程。
 
@@ -6,8 +6,6 @@
 - 测试：`HappyPianistAVPTests/`（Swift Testing）
 - 资源包/内容包：`Packages/RealityKitContent/`
 - 当前工程目标随项目设置为 visionOS 26.0。
-
-# visionOS 开发补充规范
 
 本文件专注 visionOS 平台本身（空间 UI / RealityKit / ARKit 世界感知等）的差异与增量规则：
 

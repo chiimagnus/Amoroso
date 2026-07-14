@@ -2,8 +2,6 @@
 
 ## 仓库范围
 
-本仓库当前只包含 Apple Vision Pro 应用及其可选的 Mac 侧 Python 即兴服务工作区；不要假设存在 macOS App target。
-
 - Xcode 工程：`HappyPianist.xcodeproj`
 - visionOS App：`HappyPianistAVP/`
 - visionOS 测试：`HappyPianistAVPTests/`（Swift Testing）
@@ -120,5 +118,6 @@ xcodebuild test \
 - `docs/overview.md`：知识库导航。
 - `docs/architecture.md`、`docs/data-flow.md`、`docs/modules/`：当前实现边界。
 - `.github/features/`：执行计划与审计证据，不作为长期架构说明的替代品。
+- [visionOS 开发补充规范](HappyPianistAVP/AGENTS.md)
 
 代码、资源或 target 发生变化时，同一 task 更新对应文档；不要在文档中追加开发流水账。
