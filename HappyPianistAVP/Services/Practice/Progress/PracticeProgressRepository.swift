@@ -105,12 +105,6 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol {
         }
 
         let data = try Data(contentsOf: fileURL)
-        guard data.isEmpty == false,
-              String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        else {
-            return PracticeProgressDocument()
-        }
-
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         do {

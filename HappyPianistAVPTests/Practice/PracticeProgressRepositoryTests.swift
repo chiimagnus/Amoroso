@@ -29,18 +29,20 @@ func progressRepositoryReturnsEmptyOnFirstRunAndRoundTrips() async throws {
     #expect(await repository.progress(for: progress.identity) == progress)
 }
 
-@Test
-func progressRepositoryPreservesCorruptedFileAndRejectsEveryMutation() async throws {
+@Test(arguments: [Data("not-json".utf8), Data(), Data(" \n\t".utf8)])
+func progressRepositoryPreservesCorruptedFileAndRejectsEveryMutation(
+    corruptedData: Data
+) async throws {
     let (repository, directory) = try makeRepositoryFixture()
     defer { try? FileManager.default.removeItem(at: directory) }
     let paths = PracticeProgressPaths(rootDirectoryURL: directory)
-    try Data("not-json".utf8).write(to: paths.fileURL)
+    try corruptedData.write(to: paths.fileURL)
 
     guard case .corrupted = await repository.load() else {
         Issue.record("Expected explicit corruption result before recovery")
         return
     }
-    #expect(try String(contentsOf: paths.fileURL, encoding: .utf8) == "not-json")
+    #expect(try Data(contentsOf: paths.fileURL) == corruptedData)
 
     let progress = makeProgress()
     let metadata = makeMetadata(songID: progress.identity.songID)
@@ -57,7 +59,7 @@ func progressRepositoryPreservesCorruptedFileAndRejectsEveryMutation() async thr
         Issue.record("Expected corrupted history")
         return
     }
-    #expect(try String(contentsOf: paths.fileURL, encoding: .utf8) == "not-json")
+    #expect(try Data(contentsOf: paths.fileURL) == corruptedData)
 }
 
 @Test
