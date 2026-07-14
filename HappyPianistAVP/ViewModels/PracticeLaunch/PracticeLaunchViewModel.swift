@@ -190,7 +190,10 @@ final class PracticeLaunchViewModel {
                     persistence: .exportable
                 )
             )
-            if applyOutcome == .appliedWithRepairedSavedState {
+            switch applyOutcome {
+            case .applied:
+                break
+            case .appliedWithRepairedSavedState:
                 _ = await diagnosticsReporter.record(
                     DiagnosticEvent(
                         severity: .warning,
@@ -199,6 +202,20 @@ final class PracticeLaunchViewModel {
                         stage: "practiceProgressRestore",
                         summary: "已修复无效的练习恢复位置",
                         reason: "Saved passage or resume data did not match the current score revision and was replaced with a valid full-score state.",
+                        songID: songID,
+                        scoreRevision: prepared.identity.scoreRevision,
+                        persistence: .exportable
+                    )
+                )
+            case .appliedWithUnpersistedRepair:
+                _ = await diagnosticsReporter.record(
+                    DiagnosticEvent(
+                        severity: .warning,
+                        code: .practiceSavedConfigurationRepairFailed,
+                        category: .practiceSession,
+                        stage: "practiceProgressRestore",
+                        summary: "无法保存练习恢复位置修复",
+                        reason: "The in-memory fallback is safe, but its repaired configuration could not be persisted and may need repair again on the next launch.",
                         songID: songID,
                         scoreRevision: prepared.identity.scoreRevision,
                         persistence: .exportable

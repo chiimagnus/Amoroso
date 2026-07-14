@@ -148,6 +148,19 @@ func practiceLaunchReportsRepairedSavedConfigurationButStillBecomesReady() async
 
 @MainActor
 @Test
+func practiceLaunchReportsRepairPersistenceFailureWithoutClaimingSuccess() async {
+    let fixture = makePracticeLaunchFixture(applyOutcome: .appliedWithUnpersistedRepair)
+    fixture.owner.request(songID: fixture.songA)
+
+    await fixture.owner.activateCurrentRequest()
+
+    #expect(fixture.owner.state == .ready(PracticeSongIdentity(songID: fixture.songA, scoreRevision: fixture.songA.uuidString)))
+    #expect(await fixture.reporter.events.contains { $0.code == .practiceSavedConfigurationRepairFailed })
+    #expect(await fixture.reporter.events.contains { $0.code == .practiceSavedConfigurationRepaired } == false)
+}
+
+@MainActor
+@Test
 func newRequestWhileResolveIsSuspendedCannotPublishOldGeneration() async {
     let songA = UUID()
     let songB = UUID()

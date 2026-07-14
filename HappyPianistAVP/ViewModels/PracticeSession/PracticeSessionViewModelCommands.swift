@@ -155,8 +155,12 @@ extension PracticeSessionViewModel {
         self.sessionProgress = restoredProgress
         if repairedSavedState {
             await progressCoordinator.checkpoint(restoredProgress, generation: session.generation)
-            _ = await progressCoordinator.flush(generation: session.generation)
-            self.lastProgressRestoreOutcome = .repairedInvalidSavedState
+            let saveStatus = await progressCoordinator.flush(generation: session.generation)
+            self.lastProgressRestoreOutcome = if case .saved = saveStatus {
+                .repairedInvalidSavedState
+            } else {
+                .repairPersistenceFailed
+            }
         } else {
             self.lastProgressRestoreOutcome = .restored
         }

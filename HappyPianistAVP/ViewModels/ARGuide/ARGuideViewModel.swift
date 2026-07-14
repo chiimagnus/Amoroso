@@ -190,9 +190,14 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> PracticeLaunchApplyOutcome? {
         guard await applyPreparedPractice(prepared, isCurrent: isCurrent) else { return nil }
-        return practiceSessionViewModel.lastProgressRestoreOutcome == .repairedInvalidSavedState
-            ? .appliedWithRepairedSavedState
-            : .applied
+        return switch practiceSessionViewModel.lastProgressRestoreOutcome {
+        case .repairedInvalidSavedState:
+            .appliedWithRepairedSavedState
+        case .repairPersistenceFailed:
+            .appliedWithUnpersistedRepair
+        case .none, .restored:
+            .applied
+        }
     }
 
     private func applyPreparedPractice(

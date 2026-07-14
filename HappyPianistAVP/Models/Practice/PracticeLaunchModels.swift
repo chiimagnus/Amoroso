@@ -17,11 +17,13 @@ enum PracticeProgressRestoreOutcome: Equatable, Sendable {
     case none
     case restored
     case repairedInvalidSavedState
+    case repairPersistenceFailed
 }
 
 enum PracticeLaunchApplyOutcome: Equatable, Sendable {
     case applied
     case appliedWithRepairedSavedState
+    case appliedWithUnpersistedRepair
 }
 
 struct PracticeLaunchFailure: Equatable, Identifiable, Sendable {

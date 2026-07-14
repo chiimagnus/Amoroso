@@ -109,6 +109,52 @@ func invalidRestoredPassageIsRepairedAndPersistedWithoutLosingFacts() async thro
     #expect(session.lastProgressRestoreOutcome == .repairedInvalidSavedState)
 }
 
+@MainActor
+@Test
+func invalidRestoredPassageUsesSafeFallbackWhenRepairCannotPersist() async throws {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
+    let spans = makeResumeSpans()
+    let missingOccurrence = PracticeMeasureOccurrenceID(
+        sourceMeasureID: PracticeSourceMeasureID(partID: "P1", sourceMeasureIndex: 99),
+        occurrenceIndex: 99
+    )
+    let invalidPassage = try #require(
+        PracticePassage(start: missingOccurrence, end: missingOccurrence)
+    )
+    let storedProgress = SongPracticeProgress(
+        identity: identity,
+        activeConfiguration: PracticeRoundConfiguration(
+            passage: invalidPassage,
+            handMode: .left,
+            tempoScale: 0.7,
+            loopEnabled: true,
+            requiredSuccesses: 4
+        ),
+        updatedAt: .now
+    )
+    let repository = FailingRepairRepository(progress: storedProgress)
+    let session = PracticeSessionViewModel(
+        pressDetectionService: ResumeNoopPressDetectionService(),
+        chordAttemptAccumulator: ResumeNoopChordAccumulator(),
+        sleeper: TaskSleeper(),
+        progressCoordinator: PracticeProgressCoordinator(repository: repository)
+    )
+    session.songIdentity = identity
+    session.setSteps(
+        makeResumeSteps(),
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        measureSpans: spans
+    )
+
+    await session.restoreProgressIfAvailable()
+
+    #expect(session.activeRangeDiagnostic == nil)
+    #expect(session.activeRoundConfiguration?.passage.start == spans.first?.occurrenceID)
+    #expect(session.activeRoundConfiguration?.passage.end == spans.last?.occurrenceID)
+    #expect(session.lastProgressRestoreOutcome == .repairPersistenceFailed)
+    #expect(await repository.progress(for: identity)?.activeConfiguration == storedProgress.activeConfiguration)
+}
+
 
 @MainActor
 @Test
@@ -372,6 +418,28 @@ private actor ResumeRepository: PracticeProgressRepositoryProtocol {
     func remove(songID: UUID) {
         if stored?.identity.songID == songID { stored = nil }
     }
+}
+
+private actor FailingRepairRepository: PracticeProgressRepositoryProtocol {
+    let stored: SongPracticeProgress
+
+    init(progress: SongPracticeProgress) {
+        stored = progress
+    }
+
+    func load() -> PracticeProgressLoadResult {
+        .loaded(PracticeProgressDocument(songs: [stored]))
+    }
+
+    func progress(for identity: PracticeSongIdentity) -> SongPracticeProgress? {
+        stored.identity == identity ? stored : nil
+    }
+
+    func upsert(_: SongPracticeProgress) throws {
+        throw CocoaError(.fileWriteOutOfSpace)
+    }
+
+    func remove(songID _: UUID) {}
 }
 
 private final class CapturingResumePlaybackService: PracticeSequencerPlaybackServiceProtocol {
