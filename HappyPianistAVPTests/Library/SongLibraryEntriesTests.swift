@@ -77,7 +77,7 @@ func batchImportKeepsSuccessfulEntriesVisibleWhenLaterPersistenceFails() async {
     let storedIndex = await indexStore.index
     #expect(storedIndex.entries.map(\.displayName) == ["first"])
     #expect(storedIndex.lastSelectedEntryID == storedIndex.entries.first?.id)
-    #expect(fileStore.deletedScoreNames == ["second.musicxml"])
+    #expect(await fileStore.deletedScoreNames == ["second.musicxml"])
     #expect(viewModel.errorMessage != nil)
 }
 
@@ -129,10 +129,10 @@ private actor FailingSecondSaveSongLibraryIndexStore: SongLibraryIndexStoreProto
     }
 }
 
-private final class RecordingSongFileStore: SongFileStoreProtocol {
+private actor RecordingSongFileStore: SongFileStoreProtocol {
     private(set) var deletedScoreNames: [String] = []
 
-    func importMusicXML(from sourceURL: URL) throws -> ImportedSongScoreFile {
+    func importMusicXML(from sourceURL: URL) async throws -> ImportedSongScoreFile {
         ImportedSongScoreFile(
             sourceFileName: sourceURL.lastPathComponent,
             storedFileName: sourceURL.lastPathComponent,
@@ -141,8 +141,8 @@ private final class RecordingSongFileStore: SongFileStoreProtocol {
         )
     }
 
-    func scoreFileURL(fileName: String) throws -> URL { URL(fileURLWithPath: "/tmp/\(fileName)") }
-    func audioFileURL(fileName: String) throws -> URL { URL(fileURLWithPath: "/tmp/\(fileName)") }
-    func deleteScoreFile(named fileName: String) throws { deletedScoreNames.append(fileName) }
-    func deleteAudioFile(named _: String) throws {}
+    func scoreFileURL(fileName: String) async throws -> URL { URL(fileURLWithPath: "/tmp/\(fileName)") }
+    func audioFileURL(fileName: String) async throws -> URL { URL(fileURLWithPath: "/tmp/\(fileName)") }
+    func deleteScoreFile(named fileName: String) async throws { deletedScoreNames.append(fileName) }
+    func deleteAudioFile(named _: String) async throws {}
 }

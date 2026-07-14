@@ -104,6 +104,7 @@ flowchart TD
 - CoreMIDI 输入流必须有固定容量；发生溢出时以 channel-wide All Notes Off 作为状态恢复边界。
 - 曲库首次 bundle 扫描与索引解码必须在 `SongLibraryBootstrapLoader` actor 中完成，不得放回 ViewModel 初始化或 SwiftUI `body`。
 - bootstrap loader、Library ViewModel 与后续 resolver 必须复用 composition root 注入的同一个 `SongLibraryIndexStore` 和 bundled provider；索引写入只能通过 actor 内 concern mutation，损坏 JSON 必须 fail closed 并保留原文件。
+- `SongLibraryViewModel` 只在 MainActor 编排；Documents 查询、security scope、copy、delete 与用户文件 URL 解析全部由 `SongFileStore` / `AudioImportService` actor 执行。
 - feedback 表现不进入 progress JSON。
 - AI 失败不改变练习进度，也不自动切换后端。
 - 曲谱准备失败的界面说明、技术详情、系统日志和导出日志必须来自同一个 typed failure。

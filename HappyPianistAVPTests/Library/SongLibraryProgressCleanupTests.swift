@@ -68,8 +68,8 @@ func deletingSongUsesEntryReturnedByIndexActor() async {
 
     await viewModel.deleteEntry(entryID: songID)
 
-    #expect(fileStore.deletedScoreNames == ["persisted.musicxml"])
-    #expect(fileStore.deletedAudioNames == ["persisted.mp3"])
+    #expect(await fileStore.deletedScoreNames == ["persisted.musicxml"])
+    #expect(await fileStore.deletedAudioNames == ["persisted.mp3"])
 }
 
 private actor DeletionIndexStore: SongLibraryIndexStoreProtocol {
@@ -121,27 +121,27 @@ private actor DeletionIndexStore: SongLibraryIndexStoreProtocol {
     }
 }
 
-private final class DeletionRecordingFileStore: SongFileStoreProtocol {
+private actor DeletionRecordingFileStore: SongFileStoreProtocol {
     private(set) var deletedScoreNames: [String] = []
     private(set) var deletedAudioNames: [String] = []
 
-    func importMusicXML(from _: URL) throws -> ImportedSongScoreFile {
+    func importMusicXML(from _: URL) async throws -> ImportedSongScoreFile {
         throw CocoaError(.fileReadUnsupportedScheme)
     }
 
-    func scoreFileURL(fileName: String) throws -> URL {
+    func scoreFileURL(fileName: String) async throws -> URL {
         URL(fileURLWithPath: fileName)
     }
 
-    func audioFileURL(fileName: String) throws -> URL {
+    func audioFileURL(fileName: String) async throws -> URL {
         URL(fileURLWithPath: fileName)
     }
 
-    func deleteScoreFile(named fileName: String) throws {
+    func deleteScoreFile(named fileName: String) async throws {
         deletedScoreNames.append(fileName)
     }
 
-    func deleteAudioFile(named fileName: String) throws {
+    func deleteAudioFile(named fileName: String) async throws {
         deletedAudioNames.append(fileName)
     }
 }

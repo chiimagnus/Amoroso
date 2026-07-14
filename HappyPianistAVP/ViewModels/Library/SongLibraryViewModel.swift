@@ -20,6 +20,7 @@ final class SongLibraryViewModel {
     private let selectionPersistenceSleeper: any SleeperProtocol
     private let selectionPersistenceDelay: Duration
     @ObservationIgnored private var playbackProgressTask: Task<Void, Never>?
+    @ObservationIgnored private var listenIntentGeneration = 0
     @ObservationIgnored private var practicePreparationTask: Task<Void, Never>?
     @ObservationIgnored private var practicePreparationGeneration = 0
     @ObservationIgnored private var selectionPersistenceDebounceTask: Task<Void, Never>?
@@ -355,7 +356,7 @@ final class SongLibraryViewModel {
 
         do {
             for url in selectedURLs {
-                let imported = try fileStore.importMusicXML(from: url)
+                let imported = try await fileStore.importMusicXML(from: url)
                 let entry = SongLibraryEntry(
                     id: UUID(),
                     displayName: URL(fileURLWithPath: imported.sourceFileName)
@@ -373,7 +374,7 @@ final class SongLibraryViewModel {
                         requestSelectionPersistence(entry.id)
                     }
                 } catch {
-                    try? fileStore.deleteScoreFile(named: imported.storedFileName)
+                    try? await fileStore.deleteScoreFile(named: imported.storedFileName)
                     throw error
                 }
             }
@@ -388,6 +389,7 @@ final class SongLibraryViewModel {
             return
         }
         if selectedEntryID != entryID {
+            listenIntentGeneration += 1
             if currentListeningEntryID != nil {
                 stopListening()
             }
@@ -451,7 +453,7 @@ final class SongLibraryViewModel {
                 scoreURL = bundledURL
             } else {
                 do {
-                    scoreURL = try fileStore.scoreFileURL(fileName: entry.musicXMLFileName)
+                    scoreURL = try await fileStore.scoreFileURL(fileName: entry.musicXMLFileName)
                 } catch {
                     let cocoaError = error as? CocoaError
                     if cocoaError?.code == .fileNoSuchFile || cocoaError?.code == .fileReadNoSuchFile {
@@ -581,9 +583,9 @@ final class SongLibraryViewModel {
             }
 
             do {
-                try fileStore.deleteScoreFile(named: entry.musicXMLFileName)
+                try await fileStore.deleteScoreFile(named: entry.musicXMLFileName)
                 if let audioFileName = entry.audioFileName {
-                    try fileStore.deleteAudioFile(named: audioFileName)
+                    try await fileStore.deleteAudioFile(named: audioFileName)
                 }
             } catch {
                 errorMessage = "曲目已从索引移除，但文件删除失败：\(error.localizedDescription)"
@@ -609,7 +611,7 @@ final class SongLibraryViewModel {
         }
 
         do {
-            let importedAudioFileName = try audioImportService.importAudio(from: sourceURL)
+            let importedAudioFileName = try await audioImportService.importAudio(from: sourceURL)
 
             let previousAudioFileName = entry.audioFileName
 
@@ -621,7 +623,7 @@ final class SongLibraryViewModel {
                 )
                 guard case let .applied(updatedIndex, _) = mutation else {
                     index = mutation.index
-                    try? fileStore.deleteAudioFile(named: importedAudioFileName)
+                    try? await fileStore.deleteAudioFile(named: importedAudioFileName)
                     errorMessage = "曲目已发生变化，请重试导入音频。"
                     return
                 }
@@ -630,10 +632,10 @@ final class SongLibraryViewModel {
                 }
                 index = updatedIndex
                 if let previousAudioFileName {
-                    try? fileStore.deleteAudioFile(named: previousAudioFileName)
+                    try? await fileStore.deleteAudioFile(named: previousAudioFileName)
                 }
             } catch {
-                try? fileStore.deleteAudioFile(named: importedAudioFileName)
+                try? await fileStore.deleteAudioFile(named: importedAudioFileName)
                 throw error
             }
         } catch {
@@ -641,7 +643,7 @@ final class SongLibraryViewModel {
         }
     }
 
-    func didTapListen(entryID: UUID) {
+    func didTapListen(entryID: UUID) async {
         guard let entry = entries.first(where: { $0.id == entryID }) else {
             return
         }
@@ -650,6 +652,8 @@ final class SongLibraryViewModel {
             return
         }
 
+        listenIntentGeneration += 1
+        let generation = listenIntentGeneration
         do {
             let audioURL: URL
             if entry.isBundled == true {
@@ -659,8 +663,11 @@ final class SongLibraryViewModel {
                 }
                 audioURL = bundledURL
             } else {
-                audioURL = try fileStore.audioFileURL(fileName: audioFileName)
+                audioURL = try await fileStore.audioFileURL(fileName: audioFileName)
             }
+            guard generation == listenIntentGeneration,
+                  entries.first(where: { $0.id == entryID })?.audioFileName == audioFileName
+            else { return }
             try audioPlaybackController.toggle(entryID: entryID, url: audioURL)
             syncListeningState()
             updatePlaybackProgressTask()
@@ -670,6 +677,7 @@ final class SongLibraryViewModel {
     }
 
     func stopListening() {
+        listenIntentGeneration += 1
         playbackProgressTask?.cancel()
         playbackProgressTask = nil
         audioPlaybackController.stop()

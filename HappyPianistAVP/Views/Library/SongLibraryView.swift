@@ -236,7 +236,9 @@ struct SongLibraryView: View {
       }
       return
     }
-    viewModel.didTapListen(entryID: entryID)
+    Task { @MainActor in
+      await viewModel.didTapListen(entryID: entryID)
+    }
   }
 
   private func startSelectedPractice() {

@@ -57,6 +57,8 @@ LibraryWindowView / SongLibraryView
 -> actor 内对磁盘最新 index 执行 append mutation 后原子写回
 ```
 
+`SongFileStore` 与 `AudioImportService` 是 actor；Library MainActor 不执行 Documents IO、security-scope access、copy 或 delete。试听 URL await 返回后还必须匹配最新 intent、entry 和 audio filename，旧结果静默丢弃。
+
 当前没有第二套 MusicXML import service。`.mxl` 在 preparation 阶段通过 `MXLReader` 解包。
 
 ### 准备管线

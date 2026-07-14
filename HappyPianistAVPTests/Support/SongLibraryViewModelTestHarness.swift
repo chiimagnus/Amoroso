@@ -12,6 +12,7 @@ enum SongLibraryViewModelTestHarness {
         practicePreparationService: (any PracticePreparationServiceProtocol)? = nil,
         practiceProgressRepository: (any PracticeProgressRepositoryProtocol)? = nil,
         diagnosticsReporter: (any DiagnosticsReporting)? = nil,
+        audioPlayer: (any SongAudioPlayerProtocol)? = nil,
         bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
         deferInitialLoad: Bool = false
     ) -> SongLibraryViewModel {
@@ -28,7 +29,7 @@ enum SongLibraryViewModelTestHarness {
             fileStore: fileStore ?? InMemorySongFileStore(),
             audioImportService: NoopAudioImportService(),
             bundledProvider: StubBundledSongLibraryProvider(entries: bundledEntries),
-            audioPlayer: NoopSongAudioPlayer(),
+            audioPlayer: audioPlayer ?? NoopSongAudioPlayer(),
             practiceProgressRepository: practiceProgressRepository ?? InMemoryPracticeProgressRepository(),
             diagnosticsReporter: diagnosticsReporter ?? InMemoryDiagnosticsReporter(),
             bootstrapLoader: bootstrapLoader,
@@ -92,8 +93,8 @@ private actor InMemorySongLibraryIndexStore: SongLibraryIndexStoreProtocol {
     }
 }
 
-private struct InMemorySongFileStore: SongFileStoreProtocol {
-    func importMusicXML(from sourceURL: URL) throws -> ImportedSongScoreFile {
+private actor InMemorySongFileStore: SongFileStoreProtocol {
+    func importMusicXML(from sourceURL: URL) async throws -> ImportedSongScoreFile {
         let storedURL = FileManager.default.temporaryDirectory.appendingPathComponent(sourceURL.lastPathComponent)
         return ImportedSongScoreFile(
             sourceFileName: sourceURL.lastPathComponent,
@@ -103,20 +104,20 @@ private struct InMemorySongFileStore: SongFileStoreProtocol {
         )
     }
 
-    func scoreFileURL(fileName: String) throws -> URL {
+    func scoreFileURL(fileName: String) async throws -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
     }
 
-    func audioFileURL(fileName: String) throws -> URL {
+    func audioFileURL(fileName: String) async throws -> URL {
         FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
     }
 
-    func deleteScoreFile(named _: String) throws {}
-    func deleteAudioFile(named _: String) throws {}
+    func deleteScoreFile(named _: String) async throws {}
+    func deleteAudioFile(named _: String) async throws {}
 }
 
-private struct NoopAudioImportService: AudioImportServiceProtocol {
-    func importAudio(from sourceURL: URL) throws -> String {
+private actor NoopAudioImportService: AudioImportServiceProtocol {
+    func importAudio(from sourceURL: URL) async throws -> String {
         sourceURL.lastPathComponent
     }
 }

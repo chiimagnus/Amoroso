@@ -387,16 +387,16 @@ private func makeSelectionViewModel(
     )
 }
 
-private struct PreparationTestFileStore: SongFileStoreProtocol {
-    func importMusicXML(from _: URL) throws -> ImportedSongScoreFile { throw CocoaError(.fileNoSuchFile) }
-    func scoreFileURL(fileName _: String) throws -> URL { throw CocoaError(.fileNoSuchFile) }
-    func audioFileURL(fileName _: String) throws -> URL { throw CocoaError(.fileNoSuchFile) }
-    func deleteScoreFile(named _: String) throws {}
-    func deleteAudioFile(named _: String) throws {}
+private actor PreparationTestFileStore: SongFileStoreProtocol {
+    func importMusicXML(from _: URL) async throws -> ImportedSongScoreFile { throw CocoaError(.fileNoSuchFile) }
+    func scoreFileURL(fileName _: String) async throws -> URL { throw CocoaError(.fileNoSuchFile) }
+    func audioFileURL(fileName _: String) async throws -> URL { throw CocoaError(.fileNoSuchFile) }
+    func deleteScoreFile(named _: String) async throws {}
+    func deleteAudioFile(named _: String) async throws {}
 }
 
-private struct PreparationTestAudioImporter: AudioImportServiceProtocol {
-    func importAudio(from _: URL) throws -> String { throw CocoaError(.fileNoSuchFile) }
+private actor PreparationTestAudioImporter: AudioImportServiceProtocol {
+    func importAudio(from _: URL) async throws -> String { throw CocoaError(.fileNoSuchFile) }
 }
 
 private final class PreparationTestAudioPlayer: SongAudioPlayerProtocol {
