@@ -164,6 +164,8 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
             }
         case let .noteOff(note, _):
             matcher.registerNoteOff(note: note, at: event.receivedAt)
+        case let .controlChange(controller, _) where controller == 120 || controller == 123:
+            resetMatcherAfterInputDiscontinuity(at: event.receivedAt)
         default:
             break
         }
@@ -190,8 +192,22 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
             }
         case let .noteOff(note, _):
             matcher.registerNoteOff(note: note, at: event.receivedAt)
+        case let .controlChange(controller, _) where controller == 120 || controller == 123:
+            resetMatcherAfterInputDiscontinuity(at: event.receivedAt)
         default:
             break
         }
+    }
+
+    private func resetMatcherAfterInputDiscontinuity(at timestamp: Date) {
+        guard let snapshot = latestSnapshot else { return }
+        matcher.reset(
+            stepIndex: snapshot.currentStepIndex,
+            expectedNotes: snapshot.expectedNotes,
+            configuredAt: timestamp
+        )
+        stateStore.practiceInputGeneration += 1
+        stateStore.practiceInputActiveSinceUptimeSeconds = ProcessInfo.processInfo.systemUptime
+        logger.warning("MIDI input discontinuity recovered with matcher reset")
     }
 }

@@ -58,7 +58,6 @@ func cancellingOneConsumerDoesNotAffectOtherConsumers() async {
     #expect(receivedB == TestEvent(id: 2, value: 99))
 }
 
-
 @Test
 func broadcasterDoesNotLoseImmediateYield() async {
     let broadcaster = AsyncStreamBroadcaster<Int>()
@@ -80,4 +79,16 @@ func broadcasterFinishEndsCurrentAndFutureStreams() async {
     var futureIterator = future.makeAsyncIterator()
     #expect(await currentIterator.next() == nil)
     #expect(await futureIterator.next() == nil)
+}
+
+@Test
+func broadcasterReportsOverflowAndKeepsNewestElement() async {
+    let broadcaster = AsyncStreamBroadcaster<Int>()
+    let stream = broadcaster.makeStream(bufferingPolicy: .bufferingNewest(1))
+
+    #expect(broadcaster.yield(1) == 0)
+    #expect(broadcaster.yield(2) == 1)
+
+    var iterator = stream.makeAsyncIterator()
+    #expect(await iterator.next() == 2)
 }

@@ -21,12 +21,15 @@ enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
 }
 
 final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol, Sendable {
+    private static let streamBufferCapacity = 2048
+    private static let allNotesOffController = 123
+
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
-        midi1EventsBroadcaster.makeStream()
+        midi1EventsBroadcaster.makeStream(bufferingPolicy: .bufferingNewest(Self.streamBufferCapacity))
     }
 
     func midi2EventsStream() -> AsyncStream<MIDI2InputEvent> {
-        midi2EventsBroadcaster.makeStream()
+        midi2EventsBroadcaster.makeStream(bufferingPolicy: .bufferingNewest(Self.streamBufferCapacity))
     }
 
     private let lifecycleLogger = Logger(
@@ -50,6 +53,8 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             if state.isRunning { return false }
             state.isRunning = true
             state.lastProtocolMismatchLoggedAtUptimeSeconds = 0
+            state.lastOverflowRecoveryUptimeSecondsByProtocol.removeAll(keepingCapacity: true)
+            state.droppedEventCount = 0
             return true
         }
         guard shouldStart else { return }
@@ -272,14 +277,23 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let voice = message.channelVoice1
             let channel = Int(voice.channel) + 1
             guard let kind = midi1Decoder.decode(message) else { return }
-            midi1EventsBroadcaster.yield(MIDI1InputEvent(
+            let event = MIDI1InputEvent(
                 kind: kind,
                 channel: channel,
                 group: group,
                 source: source,
                 receivedAt: receivedAt,
                 receivedAtUptimeSeconds: receivedAtUptimeSeconds
-            ))
+            )
+            if midi1EventsBroadcaster.yield(event) > 0 {
+                recoverMIDI1StreamAfterOverflow(
+                    channel: channel,
+                    group: group,
+                    source: source,
+                    receivedAt: receivedAt,
+                    uptimeSeconds: receivedAtUptimeSeconds
+                )
+            }
 
         case .channelVoice2:
             if protocolID != ._2_0 {
@@ -295,18 +309,84 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let channel = Int(voice.channel) + 1
             guard let kind = midi2Decoder.decode(message) else { return }
 
-            midi2EventsBroadcaster.yield(MIDI2InputEvent(
+            let midi2Source = midi2Source(from: source)
+            let event = MIDI2InputEvent(
                 kind: kind,
                 channel: channel,
                 group: group,
-                source: midi2Source(from: source),
+                source: midi2Source,
                 receivedAt: receivedAt,
                 receivedAtUptimeSeconds: receivedAtUptimeSeconds
-            ))
+            )
+            if midi2EventsBroadcaster.yield(event) > 0 {
+                recoverMIDI2StreamAfterOverflow(
+                    channel: channel,
+                    group: group,
+                    source: midi2Source,
+                    receivedAt: receivedAt,
+                    uptimeSeconds: receivedAtUptimeSeconds
+                )
+            }
 
         default:
             return
         }
+    }
+
+    private func recoverMIDI1StreamAfterOverflow(
+        channel: Int,
+        group: Int,
+        source: MIDI1InputEvent.Source,
+        receivedAt: Date,
+        uptimeSeconds: TimeInterval
+    ) {
+        guard shouldPublishOverflowRecovery(for: .midi1, uptimeSeconds: uptimeSeconds) else { return }
+        // ponytail: the app intentionally collapses MIDI channels into one practice state, so one
+        // protocol-native marker resets every downstream note cache without causing 16 duplicate resets.
+        midi1EventsBroadcaster.yield(MIDI1InputEvent(
+            kind: .controlChange(controller: Self.allNotesOffController, value: 0),
+            channel: channel,
+            group: group,
+            source: source,
+            receivedAt: receivedAt,
+            receivedAtUptimeSeconds: uptimeSeconds
+        ))
+    }
+
+    private func recoverMIDI2StreamAfterOverflow(
+        channel: Int,
+        group: Int,
+        source: MIDI2InputEvent.Source,
+        receivedAt: Date,
+        uptimeSeconds: TimeInterval
+    ) {
+        guard shouldPublishOverflowRecovery(for: .midi2, uptimeSeconds: uptimeSeconds) else { return }
+        midi2EventsBroadcaster.yield(MIDI2InputEvent(
+            kind: .controlChange(controller: Self.allNotesOffController, value32: 0),
+            channel: channel,
+            group: group,
+            source: source,
+            receivedAt: receivedAt,
+            receivedAtUptimeSeconds: uptimeSeconds
+        ))
+    }
+
+    private func shouldPublishOverflowRecovery(
+        for inputProtocol: BluetoothMIDIInputProtocol,
+        uptimeSeconds: TimeInterval
+    ) -> Bool {
+        let shouldRecover = stateLock.withLock { state in
+            state.droppedEventCount += 1
+            let lastRecovery = state.lastOverflowRecoveryUptimeSecondsByProtocol[inputProtocol] ?? -.infinity
+            guard uptimeSeconds - lastRecovery >= 0.25 else { return false }
+            state.lastOverflowRecoveryUptimeSecondsByProtocol[inputProtocol] = uptimeSeconds
+            return true
+        }
+        guard shouldRecover else { return false }
+        lifecycleLogger.error(
+            "\(inputProtocol.logName, privacy: .public) input stream overflowed; published channel-wide all-notes-off recovery"
+        )
+        return true
     }
 
     private func describeEndpoint(_ endpoint: MIDIEndpointRef) -> String? {
@@ -355,11 +435,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     }
 
 
-
-
-
-
-
     private func logProtocolMismatchIfNeeded(
         uptimeSeconds: TimeInterval,
         expected: MIDIProtocolID,
@@ -380,9 +455,18 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         )
     }
 
+}
 
+private enum BluetoothMIDIInputProtocol: Hashable {
+    case midi1
+    case midi2
 
-
+    var logName: String {
+        switch self {
+        case .midi1: "MIDI 1"
+        case .midi2: "MIDI 2"
+        }
+    }
 }
 
 private struct BluetoothMIDILifecycleState {
@@ -395,6 +479,8 @@ private struct BluetoothMIDILifecycleState {
 private struct BluetoothMIDIInputEventSourceState {
     var isRunning = false
     var lastProtocolMismatchLoggedAtUptimeSeconds: TimeInterval = 0
+    var lastOverflowRecoveryUptimeSecondsByProtocol: [BluetoothMIDIInputProtocol: TimeInterval] = [:]
+    var droppedEventCount = 0
 }
 
 private final class EndpointConnectionContext: Sendable {

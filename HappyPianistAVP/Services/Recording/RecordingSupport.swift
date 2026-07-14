@@ -138,6 +138,9 @@ struct MIDIRecordingAdapter {
         case let .noteOff(note, _):
             recorder.recordNoteOff(note: note, now: now)
         case let .controlChange(controller, value):
+            if controller == 120 || controller == 123 {
+                recorder.closeAllOpenNotes(now: now)
+            }
             recorder.recordControlChange(controller: controller, value: value, now: now)
         case let .pitchBend(value):
             recorder.recordPitchBend(value: value, now: now)
@@ -158,6 +161,9 @@ struct MIDIRecordingAdapter {
         case let .noteOff(note, _):
             recorder.recordNoteOff(note: note, now: now)
         case let .controlChange(controller, value32):
+            if controller == 120 || controller == 123 {
+                recorder.closeAllOpenNotes(now: now)
+            }
             recorder.recordControlChange(controller: controller, value: MIDI2ValueMapping.value32To7Bit(value32), now: now)
         case let .pitchBend(value32):
             recorder.recordPitchBend(value: MIDI2ValueMapping.pitchBend32To14Bit(value32), now: now)

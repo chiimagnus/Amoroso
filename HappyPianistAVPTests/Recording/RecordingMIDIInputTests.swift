@@ -137,3 +137,40 @@ func repeatedNoteOnForSamePitchGeneratesClosingNoteOff() {
     let has0_3NoteOn = eventsAt0_3.contains { $0.kind == .noteOn(midi: 60, velocity: 100) }
     #expect(has0_3NoteOn)
 }
+
+@Test
+func midiRecordingAdapterAllNotesOffClosesOpenNotesAtDiscontinuity() {
+    var recorder = RecordingTakeRecorder()
+    let adapter = MIDIRecordingAdapter()
+    let source = MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake")
+
+    recorder.start(now: 4000)
+    adapter.record(
+        event: MIDI1InputEvent(
+            kind: .noteOn(note: 60, velocity: 100),
+            channel: 1,
+            group: 0,
+            source: source,
+            receivedAt: .now,
+            receivedAtUptimeSeconds: 4000.1
+        ),
+        into: &recorder
+    )
+    adapter.record(
+        event: MIDI1InputEvent(
+            kind: .controlChange(controller: 123, value: 0),
+            channel: 1,
+            group: 0,
+            source: source,
+            receivedAt: .now,
+            receivedAtUptimeSeconds: 4000.4
+        ),
+        into: &recorder
+    )
+
+    let take = recorder.stop(now: 4001, createdAt: Date(timeIntervalSince1970: 0))
+
+    #expect(take.events.contains { abs($0.time - 0.4) < 0.0001 && $0.kind == .noteOff(midi: 60) })
+    #expect(take.events.contains { $0.kind == .controlChange(controller: 123, value: 0) })
+    #expect(take.events.filter { $0.kind == .noteOff(midi: 60) }.count == 1)
+}

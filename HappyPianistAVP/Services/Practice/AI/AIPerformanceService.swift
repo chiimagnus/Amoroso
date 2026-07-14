@@ -194,7 +194,10 @@ final class AIPerformanceService {
         case let .controlChange(controller, value):
             let wasSustainDown = ccContext.sustainValue >= 64
             ccContext.recordControlChange(controller: controller, value: value, timestampSeconds: event.receivedAtUptimeSeconds)
-            if controller == 64, wasSustainDown, value < 64 {
+            if controller == 120 || controller == 123 {
+                noteContext.reset()
+                ccContext.reset()
+            } else if controller == 64, wasSustainDown, value < 64 {
                 noteContext.releaseSustainedNotes(timestampSeconds: event.receivedAtUptimeSeconds)
             }
         default:
@@ -227,7 +230,10 @@ final class AIPerformanceService {
                 value: value,
                 timestampSeconds: event.receivedAtUptimeSeconds
             )
-            if controller == 64, wasSustainDown, value < 64 {
+            if controller == 120 || controller == 123 {
+                noteContext.reset()
+                ccContext.reset()
+            } else if controller == 64, wasSustainDown, value < 64 {
                 noteContext.releaseSustainedNotes(timestampSeconds: event.receivedAtUptimeSeconds)
             }
         default:

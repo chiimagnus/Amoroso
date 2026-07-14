@@ -67,6 +67,20 @@ struct RecordingTakeRecorder {
         )
     }
 
+    mutating func closeAllOpenNotes(now: TimeInterval) {
+        guard isRecording else { return }
+        let relativeTime = max(0, now - takeStart)
+        for (midi, open) in openNotes {
+            events.append(
+                RecordingTakeEvent(
+                    time: max(relativeTime, open.startTime),
+                    kind: .noteOff(midi: midi)
+                )
+            )
+        }
+        openNotes.removeAll(keepingCapacity: true)
+    }
+
     mutating func recordControlChange(controller: Int, value: Int, now: TimeInterval) {
         guard isRecording else { return }
         let relativeTime = max(0, now - takeStart)

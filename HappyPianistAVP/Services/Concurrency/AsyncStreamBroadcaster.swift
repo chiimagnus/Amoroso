@@ -10,7 +10,7 @@ final class AsyncStreamBroadcaster<Element: Sendable>: Sendable {
     private let stateLock = OSAllocatedUnfairLock(initialState: State())
 
     func makeStream(
-        bufferingPolicy: AsyncStream<Element>.Continuation.BufferingPolicy = .unbounded
+        bufferingPolicy: AsyncStream<Element>.Continuation.BufferingPolicy = .bufferingNewest(2048)
     ) -> AsyncStream<Element> {
         let pair = AsyncStream<Element>.makeStream(bufferingPolicy: bufferingPolicy)
         let id = UUID()
@@ -29,13 +29,18 @@ final class AsyncStreamBroadcaster<Element: Sendable>: Sendable {
         return pair.stream
     }
 
-    func yield(_ element: Element) {
+    @discardableResult
+    func yield(_ element: Element) -> Int {
         let continuations = stateLock.withLock { state in
             state.isFinished ? [] : Array(state.continuations.values)
         }
+        var droppedCount = 0
         for continuation in continuations {
-            continuation.yield(element)
+            if case .dropped = continuation.yield(element) {
+                droppedCount += 1
+            }
         }
+        return droppedCount
     }
 
     func finish() {
