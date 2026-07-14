@@ -125,6 +125,57 @@ Library 当前 selectedEntryID
 - 原生动画尊重 Reduce Motion；关闭动画时信息层级和操作入口保持完整。
 - 旧实现、旧测试和对应 canonical docs 必须在替代它们的同一个 task 删除/更新，不得留到最终清理 task。
 
+## 架构决策（ADR 摘要）
+
+### ADR-1：Practice 窗口拥有 preparation 生命周期
+
+- **Decision**：Library 只登记 `songID` 启动意图；Practice root 激活后由共享 `PracticeLaunchViewModel` 读取文件、prepare、安装 session 和恢复配置。
+- **Alternatives**：Library 预先 prepare 后把 `PreparedPractice` 传给 Practice；或继续由 `SongLibraryViewModel` 安装共享 session。
+- **Why**：Library 的浏览与试听不应承担 score IO、解析和 session 生命周期；窗口激活是开始重工作的明确边界。
+- **Risk**：窗口切换与异步结果可能竞态，因此必须使用 request generation、stale-result guard 和统一 teardown。
+
+### ADR-2：只持久化最小 score metadata
+
+- **Decision**：新增 `SongScorePracticeMetadata`，Library 展示快照每次由 metadata 与真实 progress facts 派生。
+- **Alternatives**：持久化完整 `SongPracticeSummary` 或 UI presentation。
+- **Why**：避免派生数据失真、schema 膨胀和双真源。
+- **Risk**：每次读取需要派生计算；当前数据规模允许线性扫描，若未来曲目事实规模显著增长再引入索引。
+
+### ADR-3：文件版本 token 与内容 revision 分工
+
+- **Decision**：`scoreFileVersionID` 负责 Library 无文件读取的版本匹配，`scoreRevision` 继续负责 Practice progress 的内容隔离。
+- **Alternatives**：Library hash 文件；复用文件名或 `importedAt` 判断版本。
+- **Why**：Library 不读取 score 文件，文件名和时间都不是可靠内容身份。
+- **Risk**：metadata 写入失败会暂时缺少当前结构数字；必须降级为待建立或数据不可用，不能回退显示旧结构。
+
+### ADR-4：导入与替换使用单 actor 事务和持久化 journal
+
+- **Decision**：同一 actor 串行化 security-scoped lease、stage、backup、文件替换、index 条件提交和 recovery。
+- **Alternatives**：ViewModel 逐步调用 `SongFileStore` 与 `SongLibraryIndexStore`；先删旧文件再复制。
+- **Why**：跨文件提交必须可恢复，且不能让 index 指向缺失文件。
+- **Risk**：journal cleanup 可能失败；index 已提交后不得回滚新版本，下一次 bootstrap 负责收尾。
+
+## 降级矩阵
+
+| 失败点 | 保留能力 | 关闭/隐藏能力 | 用户状态 |
+|---|---|---|---|
+| Library progress snapshot 读取失败 | 浏览、选择、试听、开始练习 | 当前进度数字 | Ornament 显示数据不可用 |
+| Practice score 读取/解析失败 | 返回 Library、重试、诊断详情 | session 安装与练习 | Practice 显示 typed failure |
+| exact revision progress 缺失或损坏 | 练习与默认配置 | 旧 resume、旧结构 facts | 使用全曲与有效默认/通用偏好 |
+| score metadata 写入失败 | 当前 Practice session | Library 当前结构数字 | 记录诊断，Library 不显示旧结构 |
+| security-scoped access 失败 | 已有曲库与后续队列项 | 当前导入项 | 当前项失败并释放 lease |
+| replacement 提交前失败 | 旧文件、旧 index、旧 progress | 新版本 | 恢复旧状态并提示失败 |
+| replacement 提交后 cleanup 失败 | 新文件、新 token、新 index | 暂无 | 保留 journal，下次 bootstrap 清理 |
+| transaction recovery 失败 | 无 | 发布可能损坏的曲库 snapshot | Library load failure，可重试 |
+
+## 验收边界
+
+- 不规定 preparation 的绝对耗时，但必须在 Practice 窗口激活后开始，且不得阻塞 MainActor。
+- Library 进度统计只覆盖持久化真实 attempt facts；无 attempt 时不得显示伪造的 0/总数。
+- 文件冲突结果以目标卷实际可共存语义为准；测试至少覆盖 exact、大小写和 Unicode 规范化差异。
+- 自动化测试使用 fake provider、临时目录、确定性 clock 和故障注入；不得依赖真实用户文件、真实时间或外部网络。
+- UI 布局、VoiceOver、Reduce Motion、真实 security-scoped URL 与进程中断恢复需要 Simulator/实机人工证据；未执行时标记 Not Run。
+
 ## 数据模型与数据流
 
 ### 文件版本 token
