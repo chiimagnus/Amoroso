@@ -193,6 +193,13 @@ extension PracticeSessionViewModel {
         shutdown()
     }
 
+    func finishProgressSession() async {
+        guard let progressCoordinator, let generation = self.progressGeneration else { return }
+        _ = await progressCoordinator.finish(generation: generation)
+        guard self.progressGeneration == generation else { return }
+        self.progressGeneration = nil
+    }
+
     func recordAttemptOutcome(_ outcome: StepAttemptMatchResult, at timestamp: Date = .now) {
         guard self.stateStore.isActiveRangeInvalid == false else { return }
         guard let identity = self.songIdentity,
@@ -407,11 +414,12 @@ extension PracticeSessionViewModel {
         )
     }
 
-    func resetSession() {
+    func clearPreparedSong() {
         stopManualReplayTask()
         stopAutoplayTask()
         stopAutoplayAudio()
         stopAudioRecognition()
+        stopPracticeInput()
         chordAttemptAccumulator.reset()
 
         self.songIdentity = nil
@@ -420,10 +428,14 @@ extension PracticeSessionViewModel {
         self.isRestoredSessionPaused = false
         self.acceptsPracticeAttempts = true
         self.sessionProgress = nil
+        self.attemptReductionState = PracticeAttemptReductionState()
         self.latestFeedbackEvent = nil
         self.steps = []
         self.tempoMap = MusicXMLTempoMap(tempoEvents: [])
         self.measureSpans = []
+        self.measureIndex = nil
+        self.activeRange = nil
+        self.activeRangeDiagnostic = nil
         self.pedalTimeline = nil
         self.fermataTimeline = nil
         self.attributeTimeline = nil
@@ -431,14 +443,13 @@ extension PracticeSessionViewModel {
         self.currentHighlightGuideIndex = nil
         highlightGuideController?.stopTransition()
 
-        self.calibration = nil
-        self.keyboardGeometry = nil
         self.pressedNotes.removeAll()
         self.latestNoteOnMIDINotes.removeAll()
         self.latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
         virtualPianoInputController?.stop()
         realPianoContactDetectionService.reset()
         self.isSustainPedalDown = false
+        self.audioRecognitionSuppressUntil = nil
 
         self.audioRecognitionErrorMessage = nil
         self.audioPlaybackErrorMessage = nil
@@ -447,6 +458,11 @@ extension PracticeSessionViewModel {
         self.currentStepIndex = 0
         self.state = .idle
         self.autoplayTimeline = .empty
+        self.autoplayTimingBaseTick = nil
+        self.notationGuideScrollSchedule = []
+        self.notationGuideScrollScheduleBaseTick = 0
+        self.notationGuideScrollScheduleTaskGeneration = -1
+        self.notationGuideScrollScheduleTimelineEventCount = 0
 
         handPianoActivityGate.reset()
         self.handGateState = HandGateState(
@@ -455,6 +471,12 @@ extension PracticeSessionViewModel {
             exactPressedNotes: [],
             confidenceBoost: 0
         )
+    }
+
+    func resetSession() {
+        clearPreparedSong()
+        self.calibration = nil
+        self.keyboardGeometry = nil
     }
 
     func clearAudioError() {

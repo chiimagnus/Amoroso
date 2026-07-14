@@ -908,6 +908,62 @@ func resetSessionClearsCurrentHighlightGuide() async {
 
 @Test
 @MainActor
+func clearPreparedSongRemovesSongStateAndPreservesCalibration() throws {
+    let viewModel = makePracticeSessionViewModel(
+        pressDetectionService: NoopPressDetectionService(),
+        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
+        sleeper: TaskSleeper()
+    )
+    let calibration = PianoCalibration(
+        a0: .zero,
+        c8: SIMD3<Float>(1, 0, 0),
+        planeHeight: 0
+    )
+    let geometry = makeDummyKeyboardGeometry()
+    viewModel.applyKeyboardGeometry(geometry, calibration: calibration)
+    viewModel.setSteps(
+        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        highlightGuides: [
+            makeHighlightGuide(
+                id: 1,
+                kind: .trigger,
+                tick: 0,
+                practiceStepIndex: 0,
+                midiNotes: [60]
+            ),
+        ]
+    )
+    let identity = try #require(viewModel.songIdentity)
+    viewModel.progressGeneration = 7
+    viewModel.sessionProgress = SongPracticeProgress(identity: identity, updatedAt: .now)
+
+    viewModel.clearPreparedSong()
+
+    #expect(viewModel.songIdentity == nil)
+    #expect(viewModel.steps.isEmpty)
+    #expect(viewModel.measureSpans.isEmpty)
+    #expect(viewModel.measureIndex == nil)
+    #expect(viewModel.activeRange == nil)
+    #expect(viewModel.activeRoundConfiguration == nil)
+    #expect(viewModel.roundConfigurationController.pendingPassage == nil)
+    #expect(viewModel.sessionProgress == nil)
+    #expect(viewModel.progressGeneration == nil)
+    #expect(viewModel.highlightGuides.isEmpty)
+    #expect(viewModel.pedalTimeline == nil)
+    #expect(viewModel.fermataTimeline == nil)
+    #expect(viewModel.attributeTimeline == nil)
+    #expect(viewModel.latestFeedbackEvent == nil)
+    #expect(viewModel.autoplayTimeline == .empty)
+    #expect(viewModel.currentPianoHighlightGuide == nil)
+    #expect(viewModel.currentStepIndex == 0)
+    #expect(viewModel.state == .idle)
+    #expect(viewModel.calibration == calibration)
+    #expect(viewModel.keyboardGeometry == geometry)
+}
+
+@Test
+@MainActor
 func manualAdvanceShowsReleaseOrGapGuideBeforeNextTrigger() async {
     let sleeper = ControllableSleeper()
     let viewModel = makePracticeSessionViewModel(

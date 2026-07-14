@@ -211,8 +211,24 @@ final class ARGuideViewModel {
         session: PracticeSessionViewModel
     ) {
         guard preparedPracticeApplicationID == applicationID else { return }
-        session.resetSession()
+        session.clearPreparedSong()
         preparedPracticeApplicationID = nil
+    }
+
+    func clearPreparedPracticeForLaunch() async {
+        preparedPracticeApplicationID = nil
+        latestPreparedPractice = nil
+        practiceSetupState.clearSongAndSteps()
+        invalidatePracticeFeedbackPresentation()
+
+        var session = practiceSessionViewModel
+        while true {
+            await session.suspendAndFlushProgress()
+            await session.finishProgressSession()
+            session.clearPreparedSong()
+            guard practiceSessionViewModel !== session else { break }
+            session = practiceSessionViewModel
+        }
     }
 
     func replacePracticeSessionViewModel() async {
