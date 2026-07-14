@@ -36,7 +36,7 @@ func progressDocumentRoundTripsMetadataIncludingNilAndNonNilTokens() throws {
             songID: songID,
             scoreFileVersionID: nil,
             scoreRevision: "legacy",
-            totalSourceMeasureCount: -1,
+            totalSourceMeasureCount: 0,
             preparedAt: Date(timeIntervalSince1970: 10)
         ),
         SongScorePracticeMetadata(
@@ -59,6 +59,29 @@ func progressDocumentRoundTripsMetadataIncludingNilAndNonNilTokens() throws {
 
     #expect(decoded == document)
     #expect(decoded.scoreMetadata.first?.totalSourceMeasureCount == 0)
+}
+
+@Test
+func progressDocumentClampsNegativeMetadataTotalFromRawJSON() throws {
+    let songID = UUID()
+    let json = """
+    {
+      "songs": [],
+      "scoreMetadata": [{
+        "songID": "\(songID.uuidString)",
+        "scoreRevision": "r1",
+        "totalSourceMeasureCount": -3,
+        "preparedAt": "1970-01-01T00:00:10Z"
+      }]
+    }
+    """
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    let document = try decoder.decode(PracticeProgressDocument.self, from: Data(json.utf8))
+
+    #expect(document.scoreMetadata.first?.scoreFileVersionID == nil)
+    #expect(document.scoreMetadata.first?.totalSourceMeasureCount == 0)
 }
 
 @Test

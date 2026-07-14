@@ -177,6 +177,31 @@ struct SongScorePracticeMetadata: Codable, Equatable, Sendable {
         self.totalSourceMeasureCount = max(0, totalSourceMeasureCount)
         self.preparedAt = preparedAt
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case songID
+        case scoreFileVersionID
+        case scoreRevision
+        case totalSourceMeasureCount
+        case preparedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            songID: try container.decode(UUID.self, forKey: .songID),
+            scoreFileVersionID: try container.decodeIfPresent(
+                UUID.self,
+                forKey: .scoreFileVersionID
+            ),
+            scoreRevision: try container.decode(String.self, forKey: .scoreRevision),
+            totalSourceMeasureCount: try container.decode(
+                Int.self,
+                forKey: .totalSourceMeasureCount
+            ),
+            preparedAt: try container.decode(Date.self, forKey: .preparedAt)
+        )
+    }
 }
 
 enum SongScorePracticeMetadataOrder {
