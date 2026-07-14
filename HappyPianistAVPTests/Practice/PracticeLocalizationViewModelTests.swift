@@ -141,7 +141,7 @@ private final class FakeARTrackingService: ARTrackingServiceProtocol {
     var planeAnchorsByID: [UUID: PlaneAnchor] = [:]
     var detectedPlanes: [DetectedPlane] = []
     var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] = [:]
-    var providerStateByName: [String: HappyPianistAVP.DataProviderState] = [
+    var providerStateByName: [String: HappyPianistAVP.ARTrackingProviderState] = [
         "hand": .idle,
         "world": .idle,
         "plane": .idle,

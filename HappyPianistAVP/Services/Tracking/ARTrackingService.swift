@@ -20,7 +20,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
     private(set) var planeAnchorsByID: [UUID: PlaneAnchor] = [:]
     private(set) var detectedPlanes: [DetectedPlane] = []
     private(set) var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] = [:]
-    private(set) var providerStateByName: [String: DataProviderState] = [
+    private(set) var providerStateByName: [String: ARTrackingProviderState] = [
         "hand": .idle,
         "world": .idle,
         "plane": .idle,
@@ -230,7 +230,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         )
     }
 
-    private func initialState(isRequired: Bool, isSupported: Bool) -> DataProviderState {
+    private func initialState(isRequired: Bool, isSupported: Bool) -> ARTrackingProviderState {
         guard isRequired else { return .disabled }
         return isSupported ? .idle : .unsupported
     }

@@ -228,9 +228,9 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
 
     let c4Key = try #require(geometry.key(for: 60))
     _ = viewModel.handleFingerTipPositions(
-        [
-            "right-indexFingerTip": SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z),
-        ],
+        FingerTipsSnapshot(
+            right: HandTips(index: SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z))
+        ),
         isVirtualPiano: true
     )
 
@@ -263,9 +263,7 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() throws {
     let keyLocalPoint = SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z)
     let keyWorldPoint = transformPoint(geometry.frame.worldFromKeyboard, keyLocalPoint)
     _ = session.handleFingerTipPositions(
-        [
-            "right-indexFingerTip": keyWorldPoint,
-        ],
+        FingerTipsSnapshot(right: HandTips(index: keyWorldPoint)),
         isVirtualPiano: true
     )
     #expect(playbackService.startedLiveNotes.contains(60))

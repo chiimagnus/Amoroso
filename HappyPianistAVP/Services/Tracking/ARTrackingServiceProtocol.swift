@@ -9,7 +9,7 @@ protocol ARTrackingServiceProtocol: AnyObject {
     var planeAnchorsByID: [UUID: PlaneAnchor] { get }
     var detectedPlanes: [DetectedPlane] { get }
     var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] { get }
-    var providerStateByName: [String: DataProviderState] { get }
+    var providerStateByName: [String: ARTrackingProviderState] { get }
     var activeRequirements: ARTrackingRequirements { get }
     var isWorldTrackingSupported: Bool { get }
 

@@ -36,7 +36,7 @@ private final class LifecycleTrackingService: ARTrackingServiceProtocol {
     var planeAnchorsByID: [UUID: PlaneAnchor] = [:]
     var detectedPlanes: [DetectedPlane] = []
     var authorizationStatusByType: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] = [:]
-    var providerStateByName: [String: DataProviderState] = [:]
+    var providerStateByName: [String: ARTrackingProviderState] = [:]
     var activeRequirements: ARTrackingRequirements = []
     var isWorldTrackingSupported = true
 

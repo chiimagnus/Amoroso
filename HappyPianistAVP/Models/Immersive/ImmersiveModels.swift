@@ -21,7 +21,7 @@ struct ARTrackingRequirements: OptionSet, Sendable {
     }
 }
 
-enum DataProviderState: Equatable {
+enum ARTrackingProviderState: Equatable {
     case idle
     case running
     case unsupported
