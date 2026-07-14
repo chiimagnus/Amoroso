@@ -9,7 +9,8 @@ final class SongLibraryViewModel {
     private let fileStore: SongFileStoreProtocol
     private let audioImportService: AudioImportServiceProtocol
     private let bundledProvider: BundledSongLibraryProviderProtocol
-    private let bundledEntries: [SongLibraryEntry]
+    private let bootstrapLoader: (any SongLibraryBootstrapLoading)?
+    private var bundledEntries: [SongLibraryEntry]
     private let practicePreparationService: PracticePreparationServiceProtocol
     private let audioPlaybackController: SongAudioPlaybackStateController
     private let practiceProgressRepository: any PracticeProgressRepositoryProtocol
@@ -24,6 +25,8 @@ final class SongLibraryViewModel {
 
     var index: SongLibraryIndex = .empty
     var errorMessage: String?
+    private(set) var isLibraryLoading = false
+    private(set) var hasLoadedLibrary = false
     var currentListeningEntryID: UUID?
     var isCurrentListeningPlaying = false
     var listeningCurrentTime: TimeInterval = 0
@@ -59,7 +62,9 @@ final class SongLibraryViewModel {
         bundledProvider: BundledSongLibraryProviderProtocol,
         audioPlayer: SongAudioPlayerProtocol,
         practiceProgressRepository: any PracticeProgressRepositoryProtocol,
-        diagnosticsReporter: any DiagnosticsReporting
+        diagnosticsReporter: any DiagnosticsReporting,
+        bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
+        initialSnapshot: SongLibraryBootstrapSnapshot? = nil
     ) {
         self.arGuideViewModel = arGuideViewModel
         self.practicePreparationService = practicePreparationService
@@ -67,9 +72,13 @@ final class SongLibraryViewModel {
         self.fileStore = fileStore
         self.audioImportService = audioImportService
         self.bundledProvider = bundledProvider
+        self.bootstrapLoader = bootstrapLoader
         self.practiceProgressRepository = practiceProgressRepository
         self.diagnosticsReporter = diagnosticsReporter
-        bundledEntries = bundledProvider.bundledEntries()
+        index = initialSnapshot?.index ?? .empty
+        bundledEntries = initialSnapshot?.bundledEntries ?? []
+        errorMessage = initialSnapshot?.errorMessage
+        hasLoadedLibrary = initialSnapshot != nil
         audioPlaybackController = SongAudioPlaybackStateController(player: audioPlayer)
 
         audioPlaybackController.onStateChanged = { [weak self] _ in
@@ -78,8 +87,6 @@ final class SongLibraryViewModel {
                 self.syncListeningState()
             }
         }
-
-        reload()
     }
 
     var entries: [SongLibraryEntry] {
@@ -87,6 +94,22 @@ final class SongLibraryViewModel {
         return (bundledEntries + index.entries).filter { entry in
             seenEntryIDs.insert(entry.id).inserted
         }
+    }
+
+    func loadLibraryIfNeeded() async {
+        guard hasLoadedLibrary == false, isLibraryLoading == false else { return }
+        guard let bootstrapLoader else {
+            hasLoadedLibrary = true
+            return
+        }
+
+        isLibraryLoading = true
+        let snapshot = await bootstrapLoader.load()
+        index = snapshot.index
+        bundledEntries = snapshot.bundledEntries
+        errorMessage = snapshot.errorMessage
+        hasLoadedLibrary = true
+        isLibraryLoading = false
     }
 
     func reload() {

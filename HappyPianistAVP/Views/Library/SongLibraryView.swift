@@ -46,7 +46,10 @@ struct SongLibraryView: View {
         onDiagnostics: { isDiagnosticsPresented = true }
       )
 
-      if entries.isEmpty {
+      if viewModel.hasLoadedLibrary == false || viewModel.isLibraryLoading {
+        ProgressView("正在加载乐曲库…")
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if entries.isEmpty {
         SongLibraryEmptyView(onImport: viewModel.didTapImportMusicXML)
       } else if let selectedEntry, let selectedPresentation {
         LibraryCrateView(
@@ -121,17 +124,16 @@ struct SongLibraryView: View {
       allowsMultipleSelection: false,
       onCompletion: handleAudioImport
     )
-    .onAppear {
-      viewModel.reload()
+    .task {
+      await viewModel.loadLibraryIfNeeded()
       synchronizeSelection()
-      Task { await viewModel.reloadPracticeProgress() }
+      await viewModel.reloadPracticeProgress()
       if let selectedEntryID {
         viewModel.selectEntryForPractice(selectedEntryID)
       }
     }
     .onChange(of: viewModel.entries) {
       synchronizeSelection()
-      Task { await viewModel.reloadPracticeProgress() }
       if let selectedEntryID {
         viewModel.selectEntryForPractice(selectedEntryID)
       }

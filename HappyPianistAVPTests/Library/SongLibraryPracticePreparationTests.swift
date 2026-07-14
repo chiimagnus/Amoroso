@@ -89,7 +89,8 @@ func latestPreparationGenerationWins() async throws {
         bundledProvider: PreparationTestBundledProvider(entries: entries, scoreURL: url),
         audioPlayer: PreparationTestAudioPlayer(),
         practiceProgressRepository: PreparationTestProgressRepository(),
-        diagnosticsReporter: InMemoryDiagnosticsReporter()
+        diagnosticsReporter: InMemoryDiagnosticsReporter(),
+        initialSnapshot: .loaded(index: .empty, bundledEntries: entries)
     )
 
     viewModel.selectEntryForPractice(firstID)
@@ -135,7 +136,8 @@ func preparationWithoutMeasureSpansIsRejectedAtTheLibraryBoundary() async throws
         bundledProvider: PreparationTestBundledProvider(entries: [entry], scoreURL: url),
         audioPlayer: PreparationTestAudioPlayer(),
         practiceProgressRepository: PreparationTestProgressRepository(),
-        diagnosticsReporter: InMemoryDiagnosticsReporter()
+        diagnosticsReporter: InMemoryDiagnosticsReporter(),
+        initialSnapshot: .loaded(index: .empty, bundledEntries: [entry])
     )
 
     viewModel.selectEntryForPractice(entryID)
@@ -459,7 +461,8 @@ private func makeFailurePreparationFixture(
         bundledProvider: PreparationTestBundledProvider(entries: [entry], scoreURL: scoreURL),
         audioPlayer: PreparationTestAudioPlayer(),
         practiceProgressRepository: PreparationTestProgressRepository(),
-        diagnosticsReporter: reporter
+        diagnosticsReporter: reporter,
+        initialSnapshot: .loaded(index: .empty, bundledEntries: [entry])
     )
     return (viewModel, reporter, entryID)
 }
@@ -594,7 +597,8 @@ private func makeDirectLaunchFixture(
         bundledProvider: PreparationTestBundledProvider(entries: [entry], scoreURL: scoreURL),
         audioPlayer: PreparationTestAudioPlayer(),
         practiceProgressRepository: repository,
-        diagnosticsReporter: InMemoryDiagnosticsReporter()
+        diagnosticsReporter: InMemoryDiagnosticsReporter(),
+        initialSnapshot: .loaded(index: .empty, bundledEntries: [entry])
     )
     return (viewModel, session)
 }

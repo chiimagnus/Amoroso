@@ -1,6 +1,6 @@
 import Foundation
 
-struct SongLibraryEntry: Codable, Equatable, Identifiable {
+struct SongLibraryEntry: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var displayName: String
     var musicXMLFileName: String
@@ -9,7 +9,7 @@ struct SongLibraryEntry: Codable, Equatable, Identifiable {
     var isBundled: Bool? = nil
 }
 
-struct SongLibraryIndex: Codable, Equatable {
+struct SongLibraryIndex: Codable, Equatable, Sendable {
     var entries: [SongLibraryEntry]
     var lastSelectedEntryID: UUID?
 

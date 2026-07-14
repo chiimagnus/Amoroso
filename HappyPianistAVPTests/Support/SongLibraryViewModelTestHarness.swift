@@ -11,7 +11,9 @@ enum SongLibraryViewModelTestHarness {
         bundledEntries: [SongLibraryEntry] = [],
         practicePreparationService: (any PracticePreparationServiceProtocol)? = nil,
         practiceProgressRepository: (any PracticeProgressRepositoryProtocol)? = nil,
-        diagnosticsReporter: (any DiagnosticsReporting)? = nil
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
+        bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
+        deferInitialLoad: Bool = false
     ) -> SongLibraryViewModel {
         let resolvedAppState = appState ?? AppState()
         let resolvedIndex = index ?? .empty
@@ -28,7 +30,11 @@ enum SongLibraryViewModelTestHarness {
             bundledProvider: StubBundledSongLibraryProvider(entries: bundledEntries),
             audioPlayer: NoopSongAudioPlayer(),
             practiceProgressRepository: practiceProgressRepository ?? InMemoryPracticeProgressRepository(),
-            diagnosticsReporter: diagnosticsReporter ?? InMemoryDiagnosticsReporter()
+            diagnosticsReporter: diagnosticsReporter ?? InMemoryDiagnosticsReporter(),
+            bootstrapLoader: bootstrapLoader,
+            initialSnapshot: deferInitialLoad
+                ? nil
+                : .loaded(index: resolvedIndex, bundledEntries: bundledEntries)
         )
     }
 }
