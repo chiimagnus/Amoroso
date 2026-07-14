@@ -253,7 +253,6 @@ final class ARGuidePracticeViewModel {
     }
 
     func closeImmersiveForStep(dismissImmersiveSpace: PracticeImmersiveDismissHandler) async {
-        guard appState.immersiveSpaceState != .closed else { return }
         if appState.immersiveSpaceState == .open {
             appState.immersiveSpaceState = .inTransition
         }

@@ -55,3 +55,16 @@ func closeImmersiveForStepCallsDismissWhenNotClosed() async {
     await viewModel.closeImmersiveForStep(dismissImmersiveSpace: { dismissCount += 1 })
     #expect(dismissCount == 1)
 }
+
+@Test
+@MainActor
+func closeImmersiveForStepCallsDismissWhenStateClaimsClosed() async {
+    let appState = AppState()
+    let practiceSetupState = PracticeSetupState()
+    let viewModel = ARGuideViewModel(appState: appState, practiceSetupState: practiceSetupState)
+    appState.immersiveSpaceState = .closed
+
+    var dismissCount = 0
+    await viewModel.closeImmersiveForStep(dismissImmersiveSpace: { dismissCount += 1 })
+    #expect(dismissCount == 1)
+}

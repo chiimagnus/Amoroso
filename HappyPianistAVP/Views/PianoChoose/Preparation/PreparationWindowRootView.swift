@@ -5,6 +5,7 @@ struct PreparationWindowRootView: View {
     @Environment(WindowTransitionState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.scenePhase) private var scenePhase
 
     init(
@@ -19,8 +20,16 @@ struct PreparationWindowRootView: View {
                 windowState.resetToPreparation(reason: "user tapped back from preparation")
             },
             nextToLibrary: {
+                guard windowState.pendingTransition == nil else { return }
                 windowState.beginTransition(from: .preparation, to: .library)
-                openWindow(id: WindowID.library)
+                Task { @MainActor in
+                    let dismissHandler = makePracticeImmersiveDismissHandler(dismissImmersiveSpace)
+                    await arGuideViewModel.closeImmersiveForStep(
+                        dismissImmersiveSpace: dismissHandler
+                    )
+                    await arGuideViewModel.recoverImmersiveStateIfStuck()
+                    openWindow(id: WindowID.library)
+                }
             }
         )
 
