@@ -20,6 +20,7 @@ final class PracticeHighlightGuideController: PracticeSessionLifecycleProtocol {
         guard hasShutdown == false else { return }
         hasShutdown = true
         stopTransition()
+        stateStore.currentHighlightGuideIndex = nil
     }
 
     func stopTransition() {

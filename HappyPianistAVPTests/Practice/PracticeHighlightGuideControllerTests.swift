@@ -89,7 +89,7 @@ func transitionGuideSchedulesDelayedSwitchToTrigger() async {
 
 @Test
 @MainActor
-func shutdownCancelsPendingTransitionTask() async {
+func shutdownCancelsPendingTransitionTaskAndClearsGuide() async {
     let sleeper = ControllableSleeper()
     let store = PracticeSessionStateStore()
     store.autoplayState = .off
@@ -139,5 +139,5 @@ func shutdownCancelsPendingTransitionTask() async {
     await sleeper.resumeOldest()
     await Task.yield()
 
-    #expect(store.currentHighlightGuideIndex == 1)
+    #expect(store.currentHighlightGuideIndex == nil)
 }
