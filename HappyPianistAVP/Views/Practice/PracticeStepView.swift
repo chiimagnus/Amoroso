@@ -10,6 +10,7 @@ struct PracticeStepView: View {
     @State private var isStepVisible = false
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
+    @State private var isSessionReplacementErrorAlertPresented = false
     @State private var isTakeLibraryPresented = false
     @State private var isSettingsPresented = false
     @State private var practiceViewHeight: CGFloat = 640
@@ -226,6 +227,16 @@ struct PracticeStepView: View {
             }
         } message: {
             Text(session.autoplayErrorMessage ?? "")
+        }
+        .onChange(of: viewModel.practiceSessionReplacementErrorMessage) {
+            isSessionReplacementErrorAlertPresented = viewModel.practiceSessionReplacementErrorMessage != nil
+        }
+        .alert("无法应用设置", isPresented: $isSessionReplacementErrorAlertPresented) {
+            Button("知道了") {
+                viewModel.clearPracticeSessionReplacementError()
+            }
+        } message: {
+            Text(viewModel.practiceSessionReplacementErrorMessage ?? "")
         }
         .onDisappear {
             viewModel.practiceFeedbackViewModel.cancel()

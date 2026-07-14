@@ -128,18 +128,19 @@ extension PracticeSessionViewModel {
         self.sessionProgress = nil
         self.isRestoredSessionPaused = false
 
-        switch policy {
-        case .exactAvailable:
-            guard let progress, let progressSession, let progressCoordinator else {
-                finishFreshLaunchRestore()
-                return
-            }
+        if let progress, let progressSession, let progressCoordinator {
             await restoreExactProgress(
                 progress,
                 freshConfiguration: freshConfiguration,
                 session: progressSession,
                 progressCoordinator: progressCoordinator
             )
+            return
+        }
+
+        switch policy {
+        case .exactAvailable:
+            finishFreshLaunchRestore()
         case let .historicalPreferences(preferences):
             if let passage = freshConfiguration?.passage {
                 roundConfigurationController.installHistoricalPreferences(
@@ -162,6 +163,11 @@ extension PracticeSessionViewModel {
     ) async {
         var restoredProgress = progress
         var repairedSavedState = false
+        if progress.activeConfiguration == nil, progress.resumePoint != nil {
+            restoredProgress.activeConfiguration = freshConfiguration
+            restoredProgress.resumePoint = nil
+            repairedSavedState = true
+        }
         if let configuration = progress.activeConfiguration {
             roundConfigurationController.restoreActiveConfiguration(configuration)
             rebuildActiveRange()
@@ -231,15 +237,17 @@ extension PracticeSessionViewModel {
         }
     }
 
-    func flushProgress() async {
-        guard let progressCoordinator, let generation = self.progressGeneration else { return }
+    @discardableResult
+    func flushProgress() async -> PracticeProgressSaveStatus {
+        guard let progressCoordinator, let generation = self.progressGeneration else { return .idle }
         if let progress = self.sessionProgress {
             await progressCoordinator.checkpoint(progress, generation: generation)
         }
-        _ = await progressCoordinator.flush(generation: generation)
+        return await progressCoordinator.flush(generation: generation)
     }
 
-    func suspendAndFlushProgress() async {
+    @discardableResult
+    func suspendAndFlushProgress() async -> PracticeProgressSaveStatus {
         self.acceptsPracticeAttempts = false
         invalidateFeedbackPresentation()
         stopManualReplayTask()
@@ -247,7 +255,7 @@ extension PracticeSessionViewModel {
         stopAutoplayAudio()
         stopAudioRecognition()
         stopPracticeInput()
-        await flushProgress()
+        return await flushProgress()
     }
 
     func invalidateFeedbackPresentation() {
@@ -263,12 +271,25 @@ extension PracticeSessionViewModel {
         refreshAudioRecognitionForCurrentState()
     }
 
-    func flushAndShutdown() async {
-        await suspendAndFlushProgress()
+    @discardableResult
+    func flushAndShutdown() async -> PracticeProgressSaveStatus {
+        let flushStatus = await suspendAndFlushProgress()
+        if case .failed = flushStatus {
+            resumeAfterSuspension()
+            return flushStatus
+        }
+        let finalStatus: PracticeProgressSaveStatus
         if let progressCoordinator, let generation = self.progressGeneration {
-            _ = await progressCoordinator.finish(generation: generation)
+            finalStatus = await progressCoordinator.finish(generation: generation)
+        } else {
+            finalStatus = flushStatus
+        }
+        if case .failed = finalStatus {
+            resumeAfterSuspension()
+            return finalStatus
         }
         shutdown()
+        return finalStatus
     }
 
     func finishProgressSession() async {

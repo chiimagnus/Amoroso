@@ -25,6 +25,8 @@ func practiceLaunchRegistersWithoutPreparingThenActivatesExactlyOnce() async {
     let metadata = await fixture.metadataRepository.metadata
     #expect(metadata.first?.scoreFileVersionID == fixture.songA)
     #expect(metadata.first?.totalSourceMeasureCount == 1)
+    let resolution = await fixture.reporter.events.first { $0.code == .practiceHistoryResolution }
+    #expect(resolution?.reason == "exactMissing:noValidCandidate")
 }
 
 @MainActor
@@ -87,6 +89,8 @@ func corruptedPracticeHistoryWarnsAndLaunchesWithUnavailablePolicy() async {
     let warning = await fixture.reporter.events.first { $0.code == .practiceHistoryLoadFailed }
     #expect(warning?.reason == "The practice progress document could not be decoded.")
     #expect(warning?.reason.contains("/Users/private") == false)
+    let resolution = await fixture.reporter.events.first { $0.code == .practiceHistoryResolution }
+    #expect(resolution?.reason == "historyCorrupted")
 }
 
 @MainActor

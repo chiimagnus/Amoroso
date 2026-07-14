@@ -111,6 +111,35 @@ func replacingAfterCurrentRevisionStartsRestoresItsExactProgress() async {
 
 @Test
 @MainActor
+func replacementStopsAndKeepsOldSessionWhenProgressCannotBeSaved() async {
+    let repository = FailingLifecycleProgressRepository()
+    let coordinator = PracticeProgressCoordinator(
+        repository: repository,
+        checkpointDelay: .seconds(60)
+    )
+    let appState = AppState()
+    let guide = makeLifecycleGuide(appState: appState, progressCoordinator: coordinator)
+    let prepared = makeLifecyclePreparedPractice()
+    #expect(await guide.applyPreparedPracticeForLaunch(
+        prepared,
+        restorePolicy: .freshDefaults,
+        isCurrent: { true }
+    ) == .applied)
+    guide.practiceSessionViewModel.startGuidingIfReady()
+    let oldSession = guide.practiceSessionViewModel
+    let oldProgress = oldSession.sessionProgress
+
+    let result = await guide.replacePracticeSessionViewModel()
+
+    #expect(result == .progressSaveFailed)
+    #expect(guide.practiceSessionViewModel === oldSession)
+    #expect(oldSession.hasShutdown == false)
+    #expect(oldSession.sessionProgress == oldProgress)
+    #expect(guide.practiceSessionReplacementErrorMessage != nil)
+}
+
+@Test
+@MainActor
 func clearWinsWhilePreparedPracticeAwaitsProgressRestore() async {
     let repository = SuspendedLifecycleProgressRepository()
     let coordinator = PracticeProgressCoordinator(repository: repository)
@@ -314,6 +343,17 @@ private actor LifecycleProgressRepository: PracticeProgressRepositoryProtocol {
     func remove(songID: UUID) {
         if storedProgress?.identity.songID == songID { storedProgress = nil }
     }
+}
+
+private actor FailingLifecycleProgressRepository: PracticeProgressRepositoryProtocol {
+    func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
+    func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    }
+    func upsert(_: SongPracticeProgress) throws { throw CocoaError(.fileWriteOutOfSpace) }
+    func upsert(_: SongScorePracticeMetadata) {}
+    func remove(songID _: UUID) {}
 }
 
 private actor FirstSuspendedLifecycleProgressRepository: PracticeProgressRepositoryProtocol {

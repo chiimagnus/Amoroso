@@ -68,8 +68,10 @@ struct PracticeRoundConfigurationControllerTests {
 
         #expect(stateStore.activeSoundRoutingSettings.outputRoute == .localSampler)
         #expect(controller.applyPending())
-        #expect(stateStore.activeSoundRoutingSettings.outputRoute == .externalMIDIDestination)
-        #expect(stateStore.activeSoundRoutingSettings.midiDestinationUniqueID == 42)
+        #expect(stateStore.activeSoundRoutingSettings.outputRoute == .localSampler)
+        #expect(controller.pendingSoundRoutingSettings.outputRoute == .externalMIDIDestination)
+        #expect(controller.pendingSoundRoutingSettings.midiDestinationUniqueID == 42)
+        #expect(controller.applyPending())
     }
 
     @Test func freshConfigurationAlwaysReplacesPendingAndActivePassage() throws {

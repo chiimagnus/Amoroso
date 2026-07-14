@@ -3,6 +3,11 @@ import Foundation
 import Observation
 import simd
 
+enum PracticeSessionReplacementResult: Equatable, Sendable {
+    case replaced
+    case progressSaveFailed
+}
+
 @MainActor
 @Observable
 final class ARGuideViewModel: PracticeLaunchApplying {
@@ -31,6 +36,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
 
     var practiceSessionViewModel: PracticeSessionViewModel
     var latestPreparedPractice: PreparedPractice?
+    var practiceSessionReplacementErrorMessage: String?
     @ObservationIgnored private var latestPracticeRestorePolicy: PracticeLaunchRestorePolicy?
 
     @ObservationIgnored private var handTrackingConsumerTask: Task<Void, Never>?
@@ -263,10 +269,16 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         }
     }
 
-    func replacePracticeSessionViewModel() async {
+    @discardableResult
+    func replacePracticeSessionViewModel() async -> PracticeSessionReplacementResult {
         let hadCurrentProgress = practiceSessionViewModel.progressCoordinator != nil &&
             practiceSessionViewModel.sessionProgress != nil
-        await practiceSessionViewModel.flushAndShutdown()
+        let saveStatus = await practiceSessionViewModel.flushAndShutdown()
+        if case .failed = saveStatus {
+            practiceSessionReplacementErrorMessage = "练习进度尚未保存，设置没有应用。请检查存储空间后重试。"
+            return .progressSaveFailed
+        }
+        practiceSessionReplacementErrorMessage = nil
         let next = makePracticeSessionViewModel(practiceSetupState.selectedPianoModeID)
         practiceSessionViewModel = next
         placementViewModel.updatePracticeSession(next)
@@ -303,6 +315,11 @@ final class ARGuideViewModel: PracticeLaunchApplying {
             usesBluetoothMIDIInput: selectedPianoMode?.usesBluetoothMIDIInput == true,
             eventSource: next.practiceInputEventSource
         )
+        return .replaced
+    }
+
+    func clearPracticeSessionReplacementError() {
+        practiceSessionReplacementErrorMessage = nil
     }
 
     var calibration: PianoCalibration? {

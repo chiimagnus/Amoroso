@@ -87,6 +87,31 @@ func roundConfigurationClampsSupportedValues() throws {
 }
 
 @Test
+func roundConfigurationDecodeCannotBypassSupportedRanges() throws {
+    let passage = try #require(PracticePassage(start: makeOccurrence(0), end: makeOccurrence(0)))
+    let valid = PracticeRoundConfiguration(
+        passage: passage,
+        handMode: .both,
+        tempoScale: 1,
+        loopEnabled: false,
+        requiredSuccesses: 1
+    )
+    var object = try #require(
+        JSONSerialization.jsonObject(with: JSONEncoder().encode(valid)) as? [String: Any]
+    )
+    object["tempoScale"] = -1
+    object["requiredSuccesses"] = 999
+
+    let decoded = try JSONDecoder().decode(
+        PracticeRoundConfiguration.self,
+        from: JSONSerialization.data(withJSONObject: object)
+    )
+
+    #expect(decoded.tempoScale == PracticeRoundConfiguration.supportedTempoRange.lowerBound)
+    #expect(decoded.requiredSuccesses == PracticeRoundConfiguration.supportedSuccessRange.upperBound)
+}
+
+@Test
 func passageRejectsInvalidOrderOrMixedParts() {
     #expect(PracticePassage(start: makeOccurrence(4), end: makeOccurrence(2)) == nil)
     #expect(PracticePassage(start: makeOccurrence(1, partID: "P1"), end: makeOccurrence(2, partID: "P2")) == nil)

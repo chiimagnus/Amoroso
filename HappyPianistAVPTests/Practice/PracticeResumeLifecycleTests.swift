@@ -54,6 +54,54 @@ func restoredPracticeStaysReadyAndSilentUntilExplicitStart() async throws {
 
 @MainActor
 @Test
+func exactProgressAppearingAfterHistoricalPolicySnapshotStillWins() async throws {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
+    let spans = makeResumeSpans()
+    let passage = try #require(PracticePassage(start: spans[1].occurrenceID, end: spans[1].occurrenceID))
+    let exactConfiguration = PracticeRoundConfiguration(
+        passage: passage,
+        handMode: .left,
+        tempoScale: 0.8,
+        loopEnabled: true,
+        requiredSuccesses: 4
+    )
+    let progress = SongPracticeProgress(
+        identity: identity,
+        activeConfiguration: exactConfiguration,
+        resumePoint: PracticeResumePoint(
+            occurrenceID: spans[1].occurrenceID,
+            stepIndex: 1,
+            updatedAt: .now
+        ),
+        updatedAt: .now
+    )
+    let repository = ResumeRepository(progress: progress)
+    let session = PracticeSessionViewModel(
+        pressDetectionService: ResumeNoopPressDetectionService(),
+        chordAttemptAccumulator: ResumeNoopChordAccumulator(),
+        sleeper: TaskSleeper(),
+        progressCoordinator: PracticeProgressCoordinator(repository: repository)
+    )
+    session.songIdentity = identity
+    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: spans)
+
+    await session.applyLaunchRestorePolicy(.historicalPreferences(
+        PracticeHistoricalPreferences(
+            handMode: .right,
+            tempoScale: 0.5,
+            loopEnabled: false,
+            requiredSuccesses: 1
+        )
+    ))
+
+    #expect(session.activeRoundConfiguration == exactConfiguration)
+    #expect(session.currentStepIndex == 1)
+    #expect(session.sessionProgress == progress)
+    #expect(session.lastProgressRestoreOutcome == .restored)
+}
+
+@MainActor
+@Test
 func invalidRestoredPassageIsRepairedAndPersistedWithoutLosingFacts() async throws {
     let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
     let spans = makeResumeSpans()
@@ -205,6 +253,52 @@ func resumeOutsideValidActivePassageIsClearedAndPersistedWithoutLosingFacts() as
 
     let repaired = try #require(await repository.progress(for: identity))
     #expect(repaired.activeConfiguration == storedProgress.activeConfiguration)
+    #expect(repaired.resumePoint == nil)
+    #expect(repaired.measureFacts == [retainedFact])
+    #expect(session.currentStepIndex == 0)
+    #expect(session.lastProgressRestoreOutcome == .repairedInvalidSavedState)
+}
+
+@MainActor
+@Test
+func resumeWithoutSavedConfigurationIsClearedAndRepairedToFullPassage() async throws {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
+    let spans = makeResumeSpans()
+    let retainedFact = MeasurePracticeFacts(
+        sourceMeasureID: spans[0].occurrenceID.sourceMeasureID,
+        handMode: .both,
+        state: .learning,
+        successfulAttempts: 1
+    )
+    let storedProgress = SongPracticeProgress(
+        identity: identity,
+        resumePoint: PracticeResumePoint(
+            occurrenceID: spans[1].occurrenceID,
+            stepIndex: 1,
+            updatedAt: .now
+        ),
+        measureFacts: [retainedFact],
+        updatedAt: .now
+    )
+    let repository = ResumeRepository(progress: storedProgress)
+    let session = PracticeSessionViewModel(
+        pressDetectionService: ResumeNoopPressDetectionService(),
+        chordAttemptAccumulator: ResumeNoopChordAccumulator(),
+        sleeper: TaskSleeper(),
+        progressCoordinator: PracticeProgressCoordinator(repository: repository)
+    )
+    session.songIdentity = identity
+    session.setSteps(
+        makeResumeSteps(),
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        measureSpans: spans
+    )
+
+    await session.applyLaunchRestorePolicy(.exactAvailable)
+
+    let repaired = try #require(await repository.progress(for: identity))
+    #expect(repaired.activeConfiguration?.passage.start == spans.first?.occurrenceID)
+    #expect(repaired.activeConfiguration?.passage.end == spans.last?.occurrenceID)
     #expect(repaired.resumePoint == nil)
     #expect(repaired.measureFacts == [retainedFact])
     #expect(session.currentStepIndex == 0)

@@ -193,6 +193,29 @@ final class PracticeLaunchViewModel {
                 identity: prepared.identity,
                 history: history
             )
+            let historyResolutionReason = switch restorePolicy {
+            case .exactAvailable:
+                "exactAvailable"
+            case .historicalPreferences:
+                "exactMissing:historicalCandidate"
+            case .freshDefaults:
+                "exactMissing:noValidCandidate"
+            case .historyUnavailable:
+                "historyCorrupted"
+            }
+            _ = await diagnosticsReporter.record(
+                DiagnosticEvent(
+                    severity: restorePolicy == .historyUnavailable ? .warning : .info,
+                    code: .practiceHistoryResolution,
+                    category: .persistence,
+                    stage: "practiceHistoryResolution",
+                    summary: "练习历史恢复策略已确定",
+                    reason: historyResolutionReason,
+                    songID: songID,
+                    scoreRevision: prepared.identity.scoreRevision,
+                    persistence: .systemOnly
+                )
+            )
             guard isCurrent(songID: songID, generation: generation) else { return }
             let applyOutcome = await applicator.applyPreparedPracticeForLaunch(
                 prepared,
@@ -246,7 +269,7 @@ final class PracticeLaunchViewModel {
                         category: .practiceSession,
                         stage: "practiceProgressRestore",
                         summary: "已修复无效的练习恢复位置",
-                        reason: "Saved passage or resume data did not match the current score revision and was replaced with a valid full-score state.",
+                        reason: "invalidExactConfiguration: saved passage or resume data was replaced with a valid full-score state.",
                         songID: songID,
                         scoreRevision: prepared.identity.scoreRevision,
                         persistence: .exportable
@@ -260,7 +283,7 @@ final class PracticeLaunchViewModel {
                         category: .practiceSession,
                         stage: "practiceProgressRestore",
                         summary: "无法保存练习恢复位置修复",
-                        reason: "The in-memory fallback is safe, but its repaired configuration could not be persisted and may need repair again on the next launch.",
+                        reason: "invalidExactConfiguration: the safe in-memory repair could not be persisted and may need repair again on the next launch.",
                         songID: songID,
                         scoreRevision: prepared.identity.scoreRevision,
                         persistence: .exportable

@@ -167,7 +167,9 @@ final class PracticeRoundConfigurationController {
 
         stateStore.activeRoundConfiguration = pendingConfiguration
         stateStore.activeManualAdvanceMode = pendingManualAdvanceMode
-        stateStore.activeSoundRoutingSettings = pendingSoundRoutingSettings
+        if routingChanged == false {
+            stateStore.activeSoundRoutingSettings = pendingSoundRoutingSettings
+        }
         stateStore.roundGeneration += 1
 
         defaultsStore.save(

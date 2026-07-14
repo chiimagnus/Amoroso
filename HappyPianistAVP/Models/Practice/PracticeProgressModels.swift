@@ -73,6 +73,25 @@ struct PracticeRoundConfiguration: Codable, Equatable, Sendable {
             Self.supportedSuccessRange.upperBound
         )
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case passage
+        case handMode
+        case tempoScale
+        case loopEnabled
+        case requiredSuccesses
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            passage: try container.decode(PracticePassage.self, forKey: .passage),
+            handMode: try container.decode(PracticeHandMode.self, forKey: .handMode),
+            tempoScale: try container.decode(Double.self, forKey: .tempoScale),
+            loopEnabled: try container.decode(Bool.self, forKey: .loopEnabled),
+            requiredSuccesses: try container.decode(Int.self, forKey: .requiredSuccesses)
+        )
+    }
 }
 
 struct PracticeResumePoint: Codable, Equatable, Sendable {
