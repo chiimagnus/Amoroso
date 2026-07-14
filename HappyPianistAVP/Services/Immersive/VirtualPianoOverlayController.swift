@@ -4,13 +4,19 @@ import SwiftUI
 
 @MainActor
 final class VirtualPianoOverlayController {
+    private let keyEntityFactory: PianoKeyEntityFactory
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
     private var keyboardRootEntity: Entity?
 
+    init(keyEntityFactory: PianoKeyEntityFactory = PianoKeyEntityFactory()) {
+        self.keyEntityFactory = keyEntityFactory
+    }
+
     func update(
         isEnabled: Bool,
         keyboardGeometry: PianoKeyboardGeometry?,
+        reduceMotion: Bool,
         content: RealityViewContent?
     ) {
         if hasAttachedRoot == false, let content {
@@ -23,10 +29,16 @@ final class VirtualPianoOverlayController {
             return
         }
 
-        showKeyboard(geometry: keyboardGeometry)
+        showKeyboard(geometry: keyboardGeometry, reduceMotion: reduceMotion)
     }
 
-    private func showKeyboard(geometry: PianoKeyboardGeometry) {
+    func reset() {
+        clearKeyboard()
+        rootEntity.removeFromParent()
+        hasAttachedRoot = false
+    }
+
+    private func showKeyboard(geometry: PianoKeyboardGeometry, reduceMotion: Bool) {
         guard keyboardRootEntity == nil else { return }
 
         let totalLength = VirtualPianoKeyGeometryService.totalKeyboardLengthMeters
@@ -69,7 +81,7 @@ final class VirtualPianoOverlayController {
         kbContent.position = -keyboardCenterLocal
 
         for key in geometry.keys {
-            let keyEntity = makeKeyEntity(for: key)
+            let keyEntity = keyEntityFactory.makeEntity(for: key)
             kbContent.addChild(keyEntity)
         }
 
@@ -78,7 +90,7 @@ final class VirtualPianoOverlayController {
         rootEntity.addChild(kbRoot)
         keyboardRootEntity = kbRoot
 
-        animateKeyboardIn(kbRoot)
+        animateKeyboardIn(kbRoot, reduceMotion: reduceMotion)
     }
 
     private func clearKeyboard() {
@@ -86,18 +98,12 @@ final class VirtualPianoOverlayController {
         keyboardRootEntity = nil
     }
 
-    private func makeKeyEntity(for key: PianoKeyGeometry) -> ModelEntity {
-        let mesh = MeshResource.generateBox(size: key.localSize)
-        let color: UIColor = key.kind == .white ? .white : .black
-        var material = SimpleMaterial(color: color, isMetallic: false)
-        material.roughness = 0.5
+    private func animateKeyboardIn(_ keyboardRoot: Entity, reduceMotion: Bool) {
+        if reduceMotion {
+            keyboardRoot.transform.scale = .one
+            return
+        }
 
-        let entity = ModelEntity(mesh: mesh, materials: [material])
-        entity.position = key.localCenter
-        return entity
-    }
-
-    private func animateKeyboardIn(_ keyboardRoot: Entity) {
         #if targetEnvironment(simulator)
             // RealityKit's `move(to:)` animation does not reliably interpolate scale in the simulator.
             // If we keep a near-zero X scale here, all 88 keys collapse into a single white+black stack.

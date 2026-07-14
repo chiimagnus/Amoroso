@@ -8,6 +8,7 @@ import UIKit
 
 @MainActor
 final class VirtualPerformerOverlayController {
+    private let keyEntityFactory: PianoKeyEntityFactory
     private let logger = Logger(subsystem: "HappyPianistAVP", category: "VirtualPerformer")
     private let debugLogger = Logger(subsystem: "HappyPianistAVP", category: "VirtualPerformerDebug")
     private var rootEntity = Entity()
@@ -42,45 +43,100 @@ final class VirtualPerformerOverlayController {
     private var gaitPhaseRadians: Float = 0
     private var lastDebugLogUptime: TimeInterval?
     private var didLogMissingLegJoints = false
+    private var cachedKeyboardLayoutID: UUID?
+    private var cachedKeyboardLayout: VirtualPerformerKeyboardLayout?
 
     private let lateralMotionResolver: any VirtualPerformerLateralMotionResolving = DefaultVirtualPerformerLateralMotionResolver()
     private let gaitResolver: any VirtualPerformerGaitResolving = DefaultVirtualPerformerGaitResolver()
+    private var reduceMotionEnabled = false
+
+    init(keyEntityFactory: PianoKeyEntityFactory = PianoKeyEntityFactory()) {
+        self.keyEntityFactory = keyEntityFactory
+    }
+
+    var hasActiveRuntimeResources: Bool {
+        performerRootEntity != nil
+            || performerLateralRootEntity != nil
+            || performerVisualRootEntity != nil
+            || performerPianoEntity != nil
+            || performerEntity != nil
+            || xiaochengRig != nil
+            || handAnimationTask != nil
+            || armMixerTask != nil
+            || headNodTask != nil
+            || performerLoadTask != nil
+    }
 
     private struct ArmPulse {
         let startUptimeNanos: UInt64
         let amplitudeRadians: Float
     }
 
+    struct VirtualPerformerKeyboardLayout: Equatable {
+        let centerXByMIDINote: [Int: Float]
+        let minX: Float
+        let maxX: Float
+
+        init?(keyboardGeometry: PianoKeyboardGeometry) {
+            guard let firstKey = keyboardGeometry.keys.first else { return nil }
+
+            var centers: [Int: Float] = [:]
+            centers.reserveCapacity(keyboardGeometry.keys.count)
+            var minX = firstKey.localCenter.x
+            var maxX = firstKey.localCenter.x
+            for key in keyboardGeometry.keys {
+                let x = key.localCenter.x
+                centers[key.midiNote] = x
+                minX = min(minX, x)
+                maxX = max(maxX, x)
+            }
+            guard maxX > minX else { return nil }
+
+            centerXByMIDINote = centers
+            self.minX = minX
+            self.maxX = maxX
+        }
+    }
+
     protocol VirtualPerformerLateralMotionResolving {
         func desiredLateralOffsetMeters(
-            keyboardGeometry: PianoKeyboardGeometry,
+            keyboardLayout: VirtualPerformerKeyboardLayout,
             activeMIDINote: Int?
         ) -> Float
     }
 
     struct DefaultVirtualPerformerLateralMotionResolver: VirtualPerformerLateralMotionResolving {
         func desiredLateralOffsetMeters(
-            keyboardGeometry: PianoKeyboardGeometry,
+            keyboardLayout: VirtualPerformerKeyboardLayout,
             activeMIDINote: Int?
         ) -> Float {
-            guard let activeMIDINote, let key = keyboardGeometry.key(for: activeMIDINote) else { return 0 }
+            guard let activeMIDINote,
+                  let keyCenterX = keyboardLayout.centerXByMIDINote[activeMIDINote]
+            else { return 0 }
 
-            // Map the active key center's X into a centered offset (A0..C8 => roughly -L/2..+L/2).
-            let xs = keyboardGeometry.keys.map(\.localCenter.x)
-            guard let minX = xs.min(), let maxX = xs.max(), maxX > minX else { return 0 }
-            let centerX = (minX + maxX) / 2
-            let raw = key.localCenter.x - centerX
-
-            // Don't let the performer travel the full keyboard range; keep it subtle but visible.
-            let maxTravel = (maxX - minX) * 0.32
+            let centerX = (keyboardLayout.minX + keyboardLayout.maxX) / 2
+            let raw = keyCenterX - centerX
+            let maxTravel = (keyboardLayout.maxX - keyboardLayout.minX) * 0.32
             let clamped = min(maxTravel, max(-maxTravel, raw))
 
-            // Ensure small note ranges still produce a perceptible slide.
             let minVisibleTravelMeters: Float = 0.06
             if abs(clamped) < minVisibleTravelMeters {
                 return clamped == 0 ? 0 : minVisibleTravelMeters * (clamped > 0 ? 1 : -1)
             }
             return clamped
+        }
+
+        func desiredLateralOffsetMeters(
+            keyboardGeometry: PianoKeyboardGeometry,
+            activeMIDINote: Int?
+        ) -> Float {
+            guard let keyboardLayout = VirtualPerformerKeyboardLayout(keyboardGeometry: keyboardGeometry) else {
+                return 0
+            }
+            return desiredLateralOffsetMeters(
+                keyboardLayout: keyboardLayout,
+                activeMIDINote: activeMIDINote
+            )
         }
     }
 
@@ -120,10 +176,12 @@ final class VirtualPerformerOverlayController {
         isEnabled: Bool,
         isPerforming: Bool,
         keyboardGeometry: PianoKeyboardGeometry?,
-        cameraWorldPosition: SIMD3<Float>? = nil,
+        reduceMotion: Bool,
         performanceSchedule: [PracticeSequencerMIDIEvent] = [],
         content: RealityViewContent?
     ) {
+        let didEnableReduceMotion = reduceMotion && reduceMotionEnabled == false
+        reduceMotionEnabled = reduceMotion
         if hasAttachedRoot == false, let content {
             content.add(rootEntity)
             hasAttachedRoot = true
@@ -134,7 +192,7 @@ final class VirtualPerformerOverlayController {
             return
         }
 
-        showPerformer(geometry: keyboardGeometry, cameraWorldPosition: cameraWorldPosition)
+        showPerformer(geometry: keyboardGeometry)
 
         // Log after `showPerformer` so x/vx reflect the latest lateral update in this frame.
         logDebugStatusIfNeeded(
@@ -144,20 +202,38 @@ final class VirtualPerformerOverlayController {
             performanceSchedule: performanceSchedule
         )
 
+        if didEnableReduceMotion {
+            headNodTask?.cancel()
+            headNodTask = nil
+            xiaochengNodAngleRadians = 0
+            stopHandAnimation()
+            latestSchedule = []
+            resetArmsToRest(animated: false)
+        }
+
         if wasPerforming != isPerforming {
-            animateHead(isPerforming: isPerforming)
+            if reduceMotion {
+                headNodTask?.cancel()
+                headNodTask = nil
+                xiaochengNodAngleRadians = 0
+                resetArmsToRest(animated: false)
+            } else {
+                animateHead(isPerforming: isPerforming)
+            }
             wasPerforming = isPerforming
         }
 
         // Drive hand/pose animation from the schedule itself, not from `isPerforming`.
-        //
-        // On visionOS Simulator, audio playback timing can be flaky (or even no-op), which can make
-        // `isAIPerformanceActive` / `isAIPlaybackActive` transiently false while a schedule is still present.
-        // If we stop the animation in that case, the performer "freezes" and never appears to move.
-        updateHandAnimationIfNeeded(schedule: performanceSchedule)
+        // Reduce Motion keeps the performer static instead of merely shortening the animation.
+        if reduceMotion {
+            stopHandAnimation()
+            latestSchedule = []
+        } else {
+            updateHandAnimationIfNeeded(schedule: performanceSchedule)
+        }
     }
 
-    private func showPerformer(geometry: PianoKeyboardGeometry, cameraWorldPosition _: SIMD3<Float>?) {
+    private func showPerformer(geometry: PianoKeyboardGeometry) {
         if performerRootEntity == nil {
             let performerRoot = makePerformerRootEntity(geometry: geometry)
             rootEntity.addChild(performerRoot)
@@ -228,7 +304,7 @@ final class VirtualPerformerOverlayController {
             )
         }
 
-        if let xiaochengRig, shouldAnimateGait() {
+        if let xiaochengRig, reduceMotionEnabled == false, shouldAnimateGait() {
             startArmMixerIfNeeded(rig: xiaochengRig)
         }
 
@@ -246,8 +322,16 @@ final class VirtualPerformerOverlayController {
         )
     }
 
+    func reset() {
+        clearPerformer()
+        rootEntity.removeFromParent()
+        hasAttachedRoot = false
+    }
+
     private func clearPerformer() {
         stopHandAnimation()
+        headNodTask?.cancel()
+        headNodTask = nil
         performerLoadTask?.cancel()
         performerLoadTask = nil
         performerRootEntity?.removeFromParent()
@@ -270,6 +354,8 @@ final class VirtualPerformerOverlayController {
         gaitPhaseRadians = 0
         lastDebugLogUptime = nil
         didLogMissingLegJoints = false
+        cachedKeyboardLayoutID = nil
+        cachedKeyboardLayout = nil
     }
 
     private func makePerformerRootEntity(geometry: PianoKeyboardGeometry) -> Entity {
@@ -299,10 +385,16 @@ final class VirtualPerformerOverlayController {
         let nowUptime = ProcessInfo.processInfo.systemUptime
         latestLateralTargetMIDINote = resolveLateralTargetMIDINote(nowUptimeSeconds: nowUptime)
 
-        let desired = lateralMotionResolver.desiredLateralOffsetMeters(
-            keyboardGeometry: keyboardGeometry,
-            activeMIDINote: latestLateralTargetMIDINote
-        )
+        let desired: Float = if reduceMotionEnabled {
+            0
+        } else if let keyboardLayout = keyboardLayout(for: keyboardGeometry) {
+            lateralMotionResolver.desiredLateralOffsetMeters(
+                keyboardLayout: keyboardLayout,
+                activeMIDINote: latestLateralTargetMIDINote
+            )
+        } else {
+            0
+        }
 
         let dt = lastLateralUpdateUptime.map { max(0, nowUptime - $0) } ?? 0
         lastLateralUpdateUptime = nowUptime
@@ -322,6 +414,14 @@ final class VirtualPerformerOverlayController {
         } else {
             currentLateralSpeedMetersPerSecond = 0
         }
+    }
+
+    private func keyboardLayout(for geometry: PianoKeyboardGeometry) -> VirtualPerformerKeyboardLayout? {
+        if geometry.cacheID != cachedKeyboardLayoutID {
+            cachedKeyboardLayoutID = geometry.cacheID
+            cachedKeyboardLayout = VirtualPerformerKeyboardLayout(keyboardGeometry: geometry)
+        }
+        return cachedKeyboardLayout
     }
 
     private func rebuildLateralTargetTimeline(schedule: [PracticeSequencerMIDIEvent]) {
@@ -454,7 +554,9 @@ final class VirtualPerformerOverlayController {
                     "xiaocheng loaded arms(L=\(rig.leftArmJointIndices.count, privacy: .public) R=\(rig.rightArmJointIndices.count, privacy: .public)) legs(L=\(rig.leftLegJointIndices.count, privacy: .public) R=\(rig.rightLegJointIndices.count, privacy: .public)) neck=\(rig.neckJointIndex != nil, privacy: .public) head=\(rig.headJointIndex != nil, privacy: .public)"
                 )
             } catch {
-                // No fallback.
+                logger.error(
+                    "Failed to load xiaocheng performer asset: \(String(describing: error), privacy: .private(mask: .hash))"
+                )
             }
         }
     }
@@ -677,29 +779,48 @@ final class VirtualPerformerOverlayController {
             defer { self.armMixerTask = nil }
 
             let pulseDurationSeconds: Float = 0.14
-            let tickMilliseconds = 16
+            let tickMilliseconds = 33
+            let animatedJointIndices = Set(
+                rig.leftArmJointIndices
+                    + rig.rightArmJointIndices
+                    + rig.leftLegJointIndices
+                    + rig.rightLegJointIndices
+            )
+            var cachedHeadNodAngle = xiaochengNodAngleRadians
+            var baseTransforms = XiaochengPoseService.baseTransforms(
+                rig: rig,
+                headNodAngleRadians: cachedHeadNodAngle
+            )
+            var transforms = baseTransforms
 
             while Task.isCancelled == false {
-                let nowNanos = DispatchTime.now().uptimeNanoseconds
-
+                let nowNanos = UInt64(ProcessInfo.processInfo.systemUptime * 1_000_000_000)
                 drainPendingVelocitiesIntoPulses(nowNanos: nowNanos)
 
                 let gaitPose = gaitResolver.gaitPose(
                     phaseRadians: gaitPhaseRadians,
                     lateralSpeedMetersPerSecond: currentLateralSpeedMetersPerSecond
                 )
-
-                let hasPendingWork = leftArmPendingVelocities.isEmpty == false
-                    || rightArmPendingVelocities.isEmpty == false
-                    || leftArmPulses.isEmpty == false
+                let hasPendingWork = leftArmPulses.isEmpty == false
                     || rightArmPulses.isEmpty == false
                     || gaitPose.leftAngleRadians != 0
                     || gaitPose.rightAngleRadians != 0
-                if hasPendingWork == false {
-                    rig.modelEntity.jointTransforms = XiaochengPoseService.baseTransforms(
+
+                if cachedHeadNodAngle != xiaochengNodAngleRadians {
+                    cachedHeadNodAngle = xiaochengNodAngleRadians
+                    baseTransforms = XiaochengPoseService.baseTransforms(
                         rig: rig,
-                        headNodAngleRadians: xiaochengNodAngleRadians
+                        headNodAngleRadians: cachedHeadNodAngle
                     )
+                    transforms = baseTransforms
+                } else {
+                    for index in animatedJointIndices where index < transforms.count && index < baseTransforms.count {
+                        transforms[index] = baseTransforms[index]
+                    }
+                }
+
+                guard hasPendingWork else {
+                    rig.modelEntity.jointTransforms = baseTransforms
                     return
                 }
 
@@ -714,32 +835,36 @@ final class VirtualPerformerOverlayController {
                     pulseDurationSeconds: pulseDurationSeconds
                 )
 
-                var transforms = XiaochengPoseService.baseTransforms(
-                    rig: rig,
-                    headNodAngleRadians: xiaochengNodAngleRadians
+                applyArmSwing(
+                    angleRadians: leftAngle,
+                    axis: [1, 0, 0],
+                    jointIndices: rig.leftArmJointIndices,
+                    transforms: &transforms
                 )
-                if leftAngle != 0, rig.leftArmJointIndices.isEmpty == false {
-                    let delta = simd_quatf(angle: leftAngle, axis: [1, 0, 0])
-                    for index in rig.leftArmJointIndices where index < transforms.count {
-                        transforms[index].rotation = transforms[index].rotation * delta
-                    }
-                }
-                if rightAngle != 0, rig.rightArmJointIndices.isEmpty == false {
-                    let delta = simd_quatf(angle: -rightAngle, axis: [-1, 0, 0])
-                    for index in rig.rightArmJointIndices where index < transforms.count {
-                        transforms[index].rotation = transforms[index].rotation * delta
-                    }
-                }
-
-                applyGaitPose(
-                    gaitPose,
-                    transforms: &transforms,
-                    rig: rig
+                applyArmSwing(
+                    angleRadians: rightAngle,
+                    axis: [-1, 0, 0],
+                    jointIndices: rig.rightArmJointIndices,
+                    transforms: &transforms
                 )
+                applyGaitPose(gaitPose, transforms: &transforms, rig: rig)
                 rig.modelEntity.jointTransforms = transforms
 
                 try? await Task.sleep(for: .milliseconds(tickMilliseconds))
             }
+        }
+    }
+
+    private func applyArmSwing(
+        angleRadians: Float,
+        axis: SIMD3<Float>,
+        jointIndices: [Int],
+        transforms: inout [Transform]
+    ) {
+        guard angleRadians != 0, jointIndices.isEmpty == false else { return }
+        let delta = simd_quatf(angle: angleRadians, axis: axis)
+        for index in jointIndices where index < transforms.count {
+            transforms[index].rotation = transforms[index].rotation * delta
         }
     }
 
@@ -789,14 +914,14 @@ final class VirtualPerformerOverlayController {
     }
 
     private func drainPendingVelocitiesIntoPulses(nowNanos: UInt64) {
-        while leftArmPendingVelocities.isEmpty == false {
-            let velocity = leftArmPendingVelocities.removeFirst()
+        for velocity in leftArmPendingVelocities {
             leftArmPulses.append(makePulse(startUptimeNanos: nowNanos, velocity: velocity))
         }
-        while rightArmPendingVelocities.isEmpty == false {
-            let velocity = rightArmPendingVelocities.removeFirst()
+        for velocity in rightArmPendingVelocities {
             rightArmPulses.append(makePulse(startUptimeNanos: nowNanos, velocity: velocity))
         }
+        leftArmPendingVelocities.removeAll(keepingCapacity: true)
+        rightArmPendingVelocities.removeAll(keepingCapacity: true)
     }
 
     private func makePulse(startUptimeNanos: UInt64, velocity: UInt8) -> ArmPulse {
@@ -813,26 +938,21 @@ final class VirtualPerformerOverlayController {
         guard pulseDurationSeconds > 0 else { return 0 }
 
         var total: Float = 0
-        var next: [ArmPulse] = []
-        next.reserveCapacity(pulses.count)
+        var writeIndex = 0
 
         for pulse in pulses {
-            let dtSeconds = Float(Double(nowUptimeNanos &- pulse.startUptimeNanos) / 1_000_000_000.0)
-            if dtSeconds < 0 {
-                next.append(pulse)
-                continue
-            }
-            if dtSeconds >= pulseDurationSeconds {
-                continue
-            }
+            let dtSeconds = Float(Double(nowUptimeNanos - pulse.startUptimeNanos) / 1_000_000_000.0)
+            guard dtSeconds < pulseDurationSeconds else { continue }
 
             let t = dtSeconds / pulseDurationSeconds
-            let env = triangularEaseInOut(t)
-            total += pulse.amplitudeRadians * env
-            next.append(pulse)
+            total += pulse.amplitudeRadians * triangularEaseInOut(t)
+            pulses[writeIndex] = pulse
+            writeIndex += 1
         }
 
-        pulses = next
+        if writeIndex < pulses.count {
+            pulses.removeLast(pulses.count - writeIndex)
+        }
         return total
     }
 
@@ -886,21 +1006,11 @@ final class VirtualPerformerOverlayController {
         keyboardRoot.position = -keyboardCenterLocal
 
         for key in geometry.keys {
-            keyboardRoot.addChild(makeVirtualKeyEntity(for: key))
+            keyboardRoot.addChild(keyEntityFactory.makeEntity(for: key))
         }
 
         root.addChild(keyboardRoot)
         return root
     }
 
-    private func makeVirtualKeyEntity(for key: PianoKeyGeometry) -> ModelEntity {
-        let mesh = MeshResource.generateBox(size: key.localSize)
-        let color: UIColor = key.kind == .white ? .white : .black
-        var material = SimpleMaterial(color: color, isMetallic: false)
-        material.roughness = 0.5
-
-        let entity = ModelEntity(mesh: mesh, materials: [material])
-        entity.position = key.localCenter
-        return entity
-    }
 }

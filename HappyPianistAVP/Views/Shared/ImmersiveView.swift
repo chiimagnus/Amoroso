@@ -6,12 +6,24 @@ struct ImmersiveView: View {
     @State private var overlayController = PianoGuideOverlayController()
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
-    @State private var virtualPianoOverlayController = VirtualPianoOverlayController()
+    @State private var virtualPianoOverlayController: VirtualPianoOverlayController
     @State private var gazePlaneDiskOverlayController = GazePlaneDiskOverlayController()
-    @State private var virtualPerformerOverlayController = VirtualPerformerOverlayController()
+    @State private var virtualPerformerOverlayController: VirtualPerformerOverlayController
     @AppStorage("debugKeyboardAxesOverlayEnabled") private var debugKeyboardAxesOverlayEnabled = false
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+
+    init(viewModel: ARGuideViewModel) {
+        self.viewModel = viewModel
+        let keyEntityFactory = PianoKeyEntityFactory()
+        _virtualPianoOverlayController = State(
+            initialValue: VirtualPianoOverlayController(keyEntityFactory: keyEntityFactory)
+        )
+        _virtualPerformerOverlayController = State(
+            initialValue: VirtualPerformerOverlayController(keyEntityFactory: keyEntityFactory)
+        )
+    }
 
     private var shouldShowCalibrationReticle: Bool {
         guard viewModel.immersiveMode == .calibration else { return false }
@@ -46,6 +58,7 @@ struct ImmersiveView: View {
             overlayController.updateHighlights(
                 highlightGuide: highlightGuide,
                 keyboardGeometry: keyboardGeometry,
+                differentiateWithoutColor: differentiateWithoutColor,
                 content: content
             )
             overlayController.updateRestorationEffect(event: session.latestFeedbackEvent, reduceMotion: reduceMotion)
@@ -59,13 +72,14 @@ struct ImmersiveView: View {
             virtualPianoOverlayController.update(
                 isEnabled: viewModel.shouldShowVirtualPiano,
                 keyboardGeometry: keyboardGeometry,
+                reduceMotion: reduceMotion,
                 content: content
             )
             virtualPerformerOverlayController.update(
                 isEnabled: viewModel.isVirtualPerformerEnabled,
                 isPerforming: viewModel.isAIPerformanceActive,
                 keyboardGeometry: keyboardGeometry,
-                cameraWorldPosition: viewModel.latestDeviceWorldPosition,
+                reduceMotion: reduceMotion,
                 performanceSchedule: viewModel.latestAIPerformanceSchedule,
                 content: content
             )
@@ -86,6 +100,7 @@ struct ImmersiveView: View {
             overlayController.updateHighlights(
                 highlightGuide: highlightGuide,
                 keyboardGeometry: keyboardGeometry,
+                differentiateWithoutColor: differentiateWithoutColor,
                 content: content
             )
             overlayController.updateRestorationEffect(event: session.latestFeedbackEvent, reduceMotion: reduceMotion)
@@ -99,13 +114,14 @@ struct ImmersiveView: View {
             virtualPianoOverlayController.update(
                 isEnabled: viewModel.shouldShowVirtualPiano,
                 keyboardGeometry: keyboardGeometry,
+                reduceMotion: reduceMotion,
                 content: content
             )
             virtualPerformerOverlayController.update(
                 isEnabled: viewModel.isVirtualPerformerEnabled,
                 isPerforming: viewModel.isAIPerformanceActive,
                 keyboardGeometry: keyboardGeometry,
-                cameraWorldPosition: viewModel.latestDeviceWorldPosition,
+                reduceMotion: reduceMotion,
                 performanceSchedule: viewModel.latestAIPerformanceSchedule,
                 content: content
             )
@@ -114,14 +130,30 @@ struct ImmersiveView: View {
             viewModel.onImmersiveAppear()
         }
         .onDisappear {
-            overlayController.reset()
+            resetOverlayControllers()
             viewModel.onImmersiveDisappear()
         }
-        .onChange(of: scenePhase) {
-            if scenePhase != .active {
-                overlayController.reset()
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                viewModel.resumeImmersiveRuntimeIfNeeded()
+            case .inactive, .background:
+                resetOverlayControllers()
+                viewModel.suspendImmersiveRuntime()
+            @unknown default:
+                resetOverlayControllers()
+                viewModel.suspendImmersiveRuntime()
             }
         }
+    }
+
+    private func resetOverlayControllers() {
+        overlayController.reset()
+        calibrationOverlayController.reset()
+        keyboardAxesDebugOverlayController.reset()
+        virtualPianoOverlayController.reset()
+        gazePlaneDiskOverlayController.reset()
+        virtualPerformerOverlayController.reset()
     }
 }
 

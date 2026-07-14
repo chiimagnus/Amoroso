@@ -38,6 +38,12 @@ final class KeyboardAxesDebugOverlayController {
         axesRootEntity.transform = Transform(matrix: keyboardFrame.worldFromKeyboard)
     }
 
+    func reset() {
+        rootEntity.isEnabled = false
+        rootEntity.removeFromParent()
+        hasAttachedRoot = false
+    }
+
     private func buildAxes() {
         let thickness: Float = 0.004
         let xLen: Float = 0.30

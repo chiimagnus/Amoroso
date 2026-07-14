@@ -56,6 +56,13 @@ final class GazePlaneDiskOverlayController {
         )
     }
 
+    func reset() {
+        clearDisk()
+        clearText()
+        rootEntity.removeFromParent()
+        hasAttachedRoot = false
+    }
+
     private func ensureDiskIfNeeded() {
         guard diskEntity == nil else { return }
 

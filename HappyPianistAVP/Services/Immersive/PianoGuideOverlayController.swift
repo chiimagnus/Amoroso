@@ -1,29 +1,31 @@
 import Foundation
+import os
 import RealityKit
 import SwiftUI
 import UIKit
 
 @MainActor
 final class PianoGuideOverlayController {
+    private let logger = Logger(subsystem: "HappyPianistAVP", category: "PianoGuideOverlay")
     private var rootEntity = Entity()
     private var keyboardRootEntity = Entity()
     private var hasAttachedRoot = false
     private var activeBeamEntitiesByMIDINote: [Int: ModelEntity] = [:]
+    private var activeDescriptorsByMIDINote: [Int: PianoGuideBeamDescriptor] = [:]
     private var lastGuideIDByMIDINote: [Int: Int] = [:]
     private var didAttemptDecalTextureLoad = false
+    private var decalTextureLoadTask: Task<Void, Never>?
     private var decalTexture: TextureResource?
     private let restorationRenderer = PracticeRestorationEffectRenderer()
 
     func updateHighlights(
         highlightGuide: PianoHighlightGuide?,
         keyboardGeometry: PianoKeyboardGeometry?,
+        differentiateWithoutColor: Bool,
         content: RealityViewContent
     ) {
-        if hasAttachedRoot == false {
-            content.add(rootEntity)
-            rootEntity.addChild(keyboardRootEntity)
-            hasAttachedRoot = true
-        }
+        attachRootIfNeeded(to: content)
+        startDecalTextureLoadIfNeeded()
 
         guard let keyboardGeometry else {
             clearBeams()
@@ -42,32 +44,16 @@ final class PianoGuideOverlayController {
         }
 
         let desiredMIDINotes = Set(descriptors.map(\.midiNote))
-
-        for (midiNote, beam) in activeBeamEntitiesByMIDINote {
-            if desiredMIDINotes.contains(midiNote) == false {
-                beam.removeFromParent()
-                activeBeamEntitiesByMIDINote[midiNote] = nil
-                lastGuideIDByMIDINote[midiNote] = nil
-            }
-        }
+        removeObsoleteBeams(desiredMIDINotes: desiredMIDINotes)
 
         for descriptor in descriptors {
-            let beam: ModelEntity
-            if let existing = activeBeamEntitiesByMIDINote[descriptor.midiNote],
-               lastGuideIDByMIDINote[descriptor.midiNote] == descriptor.guideID
-            {
-                beam = existing
-            } else {
-                activeBeamEntitiesByMIDINote[descriptor.midiNote]?.removeFromParent()
-                beam = ModelEntity(mesh: PianoGuideDecalMeshProvider.unitTopDecalMesh, materials: [])
-                activeBeamEntitiesByMIDINote[descriptor.midiNote] = beam
-                lastGuideIDByMIDINote[descriptor.midiNote] = descriptor.guideID
-                keyboardRootEntity.addChild(beam)
-            }
-
-            beam.model?.materials = [beamMaterial(for: descriptor)]
-            beam.scale = descriptor.sizeLocal
-            beam.position = descriptor.positionLocal
+            let beam = beamEntity(for: descriptor)
+            activeDescriptorsByMIDINote[descriptor.midiNote] = descriptor
+            configure(
+                beam,
+                descriptor: descriptor,
+                differentiateWithoutColor: differentiateWithoutColor
+            )
         }
     }
 
@@ -76,10 +62,68 @@ final class PianoGuideOverlayController {
     }
 
     func reset() {
+        decalTextureLoadTask?.cancel()
+        decalTextureLoadTask = nil
+        if decalTexture == nil {
+            didAttemptDecalTextureLoad = false
+        }
         clearBeams()
         restorationRenderer.reset()
         rootEntity.removeFromParent()
         hasAttachedRoot = false
+    }
+
+    private func attachRootIfNeeded(to content: RealityViewContent) {
+        guard hasAttachedRoot == false else { return }
+        content.add(rootEntity)
+        rootEntity.addChild(keyboardRootEntity)
+        hasAttachedRoot = true
+    }
+
+    private func removeObsoleteBeams(desiredMIDINotes: Set<Int>) {
+        for (midiNote, beam) in activeBeamEntitiesByMIDINote where desiredMIDINotes.contains(midiNote) == false {
+            beam.removeFromParent()
+            activeBeamEntitiesByMIDINote[midiNote] = nil
+            activeDescriptorsByMIDINote[midiNote] = nil
+            lastGuideIDByMIDINote[midiNote] = nil
+        }
+    }
+
+    private func beamEntity(for descriptor: PianoGuideBeamDescriptor) -> ModelEntity {
+        if let existing = activeBeamEntitiesByMIDINote[descriptor.midiNote],
+           lastGuideIDByMIDINote[descriptor.midiNote] == descriptor.guideID
+        {
+            return existing
+        }
+
+        activeBeamEntitiesByMIDINote[descriptor.midiNote]?.removeFromParent()
+        let beam = ModelEntity(mesh: PianoGuideDecalMeshProvider.unitTopDecalMesh, materials: [])
+        activeBeamEntitiesByMIDINote[descriptor.midiNote] = beam
+        lastGuideIDByMIDINote[descriptor.midiNote] = descriptor.guideID
+        keyboardRootEntity.addChild(beam)
+        return beam
+    }
+
+    private func configure(
+        _ beam: ModelEntity,
+        descriptor: PianoGuideBeamDescriptor,
+        differentiateWithoutColor: Bool
+    ) {
+        beam.model?.materials = [beamMaterial(for: descriptor)]
+
+        var scale = descriptor.sizeLocal
+        var position = descriptor.positionLocal
+        if differentiateWithoutColor {
+            scale.x *= 0.5
+            position.x += descriptor.sizeLocal.x * (descriptor.hand == .left ? -0.25 : 0.25)
+            if descriptor.phase == .triggered {
+                scale.z *= 0.65
+                position.z += descriptor.sizeLocal.z * 0.175
+            }
+        }
+
+        beam.scale = scale
+        beam.position = position
     }
 
     private func beamMaterial(for descriptor: PianoGuideBeamDescriptor) -> UnlitMaterial {
@@ -90,18 +134,51 @@ final class PianoGuideOverlayController {
         )
         let intensity = max(0, min(1, style.opacity))
         let tinted = style.tintToken.uiColor.scaledRGB(intensity: intensity)
-        let texture = loadDecalTextureIfNeeded()
 
         var material = UnlitMaterial()
-        if let texture {
-            material.color = .init(tint: tinted, texture: .init(texture))
+        if let decalTexture {
+            material.color = .init(tint: tinted, texture: .init(decalTexture))
         } else {
             material.color = .init(tint: tinted)
         }
-        // Keep a solid-looking decal like 2D (difference is driven by tint intensity),
-        // while still honoring the decal texture's soft edges.
         material.blending = .transparent(opacity: .init(floatLiteral: 1))
         return material
+    }
+
+    private func startDecalTextureLoadIfNeeded() {
+        guard decalTexture == nil,
+              decalTextureLoadTask == nil,
+              didAttemptDecalTextureLoad == false
+        else { return }
+
+        didAttemptDecalTextureLoad = true
+        decalTextureLoadTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { decalTextureLoadTask = nil }
+
+            do {
+                let texture = try await TextureResource(named: "KeyDecalSoftRect")
+                guard Task.isCancelled == false else {
+                    didAttemptDecalTextureLoad = false
+                    return
+                }
+                decalTexture = texture
+                refreshActiveBeamMaterials()
+            } catch is CancellationError {
+                didAttemptDecalTextureLoad = false
+            } catch {
+                decalTexture = nil
+                logger.error(
+                    "Failed to load KeyDecalSoftRect texture: \(String(describing: error), privacy: .private(mask: .hash))"
+                )
+            }
+        }
+    }
+
+    private func refreshActiveBeamMaterials() {
+        for (midiNote, descriptor) in activeDescriptorsByMIDINote {
+            activeBeamEntitiesByMIDINote[midiNote]?.model?.materials = [beamMaterial(for: descriptor)]
+        }
     }
 
     private func clearBeams() {
@@ -109,16 +186,7 @@ final class PianoGuideOverlayController {
             beam.removeFromParent()
         }
         activeBeamEntitiesByMIDINote.removeAll()
+        activeDescriptorsByMIDINote.removeAll()
         lastGuideIDByMIDINote.removeAll()
-    }
-
-    private func loadDecalTextureIfNeeded() -> TextureResource? {
-        if didAttemptDecalTextureLoad {
-            return decalTexture
-        }
-
-        didAttemptDecalTextureLoad = true
-        decalTexture = try? TextureResource.load(named: "KeyDecalSoftRect")
-        return decalTexture
     }
 }

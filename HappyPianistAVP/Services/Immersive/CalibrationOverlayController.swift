@@ -50,6 +50,17 @@ final class CalibrationOverlayController {
         }
     }
 
+    func reset() {
+        reticleEntity?.removeFromParent()
+        a0Entity?.removeFromParent()
+        c8Entity?.removeFromParent()
+        reticleEntity = nil
+        a0Entity = nil
+        c8Entity = nil
+        rootEntity.removeFromParent()
+        hasAttachedRoot = false
+    }
+
     private func ensureSphere(
         _ entity: inout ModelEntity?,
         color: UIColor,
