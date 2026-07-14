@@ -2,320 +2,249 @@
 
 - feature-slug: `library-practice-entry-redesign`
 
+## 仓库事实基线
+
+本需求以 2026-07-14 上传的完整仓库为基线。审查确认：
+
+- Xcode 工程只有 `HappyPianistAVP` 与 `HappyPianistAVPTests` 两个 target；没有 macOS App target。工程使用 `PBXFileSystemSynchronizedRootGroup`，新增源码/测试文件由同步目录接入，不应手工编辑 `project.pbxproj`。
+- `SongLibraryViewModel` 当前同时负责曲库 bootstrap、selection debounce、MusicXML preparation、`ARGuideViewModel` session 安装、配置面板、导入、删除、试听与进度读取。
+- `SongLibraryView` 另持有一份本地 `@State selectedEntryID`，而 ViewModel 又持有 `selectedPracticeEntryID`，当前选择存在双真源。
+- `LiveSongLibraryBootstrapLoader` 当前私自创建另一份 `SongLibraryIndexStore` 与 `BundledSongLibraryProvider`，没有使用 `LiveAppGraph` 中共享实例。
+- `SongLibraryIndexStoreProtocol.save(_:)` 允许调用方用旧 snapshot 整份覆盖 index；selection、import、delete、audio binding 可互相丢字段。
+- `LibraryPracticeOrnamentView` 当前直接编辑 `PracticeRoundConfigurationController`，并包含第二个“去练习！”入口。
+- `ARGuideViewModel.latestPreparedPractice` 会在重建 `PracticeSessionViewModel` 时重新安装；只 reset 当前 session 不足以清除旧曲谱。
+- `PracticeProgressDocument` 当前只保存 `songs`，没有可让 Library 在不读取 score 文件时判断结构版本的 metadata。
+- `SongLibraryViewModel` 为 `@MainActor`，但 `SongFileStore`/`AudioImportService` 当前是同步 struct；MusicXML 导入、曲谱/音频 URL 解析、文件复制与删除会在 MainActor 调用链执行。P1 必须先把这些现有 IO 迁到 actor async API并删除同步接口，P3 再用事务 actor 替换 score import。
+- `SongFileStore.importMusicXML` 当前自行持有 security scope、创建目录并复制文件，并给文件名添加时间戳/UUID。
+- bundled 曲谱 ID 已按文件名确定性生成；源码归档没有 production `SeedScores` 资源。
+- `README.md`、`docs/architecture.md`、`docs/data-flow.md`、`docs/storage.md`、`docs/modules/*` 与人工检查表仍描述旧的自动 preparation 与配置 Ornament。
+
+本 feature 只修改与以上调用链直接相关的 visionOS 代码、测试和 canonical docs。完整归档（排除 `.git`/`.codegraph`）共 549 个文件、4,756,241 bytes，已逐文件读取并校验摘要；其中 440 个 Swift、41 个 Python、14 个 JSON、6 个 MIDI、6 个 MusicXML，以及 plist/XML/ZIP/JPEG/Xcode 资源均完成结构校验。Python 工作区、RealityKit 内容包、MIDI/MusicXML 测试夹具与 `docs/assets/scene1.jpg` 不属于本次改动范围。当前审查环境没有 `xcodebuild`，所以计划中的 visionOS build/test gate 必须在 Apple 开发环境执行，不能把本次静态审查写成已通过。
+
 ## 背景 / 触发
 
-当前 Library 将唱片选择直接连接到完整 MusicXML preparation、`PracticeSessionViewModel` 安装和右侧配置 Ornament。右侧 Ornament 同时承担进度、片段、手别、速度、循环、连续成功目标以及进入练习等职责，导致 Library 的产品定位、数据流和运行时资源职责过重。
+Library 当前把唱片选择直接连接到完整 MusicXML preparation、练习 session 安装和右侧配置 Ornament。用户浏览或快速切歌时会触发 score 文件读取、hash、解析、结构展开和 session mutation；右侧 Ornament 还承担片段、手别、速度、循环、连续成功目标与进入练习，导致 Library 产品职责和运行时资源职责过重。
 
-本 feature 将 Library 收敛为：浏览和试听当前曲目、回顾该曲目的持久化练习事实、鼓励用户再次练习。完整曲谱解析、练习 session 安装、配置恢复、失败与重试只在 Practice 窗口发生。
+本 feature 将 Library 收敛为：浏览、选择、试听、查看当前曲目的持久化练习事实，以及通过唯一主操作进入 Practice。完整曲谱解析、session 安装、配置恢复、失败和重试只在 Practice 窗口激活后发生。
 
-同时，新导入的用户曲谱保留用户提供的完整文件名。同名导入必须经过显式确认，并以可恢复事务替换原曲谱，而不是追加时间戳或 UUID 后缀创建重复条目。
+同时，新导入的用户曲谱保留用户提供的安全完整文件名。同名导入必须显式确认，并通过可恢复事务替换或修复现有目标，而不是添加时间戳/UUID 后缀制造重复条目。
 
-## Goal
+## 核心需求
 
-- Library 浏览、选择、恢复选择、试听和 Ornament 渲染不读取或解析 MusicXML，不创建或安装 Practice session。
-- 右侧 Ornament 只展示当前选中曲目的持久化事实和由这些事实实时派生的展示数据。
-- 从未练习过的曲目展示邀请练习空状态和轻量 SwiftUI 原生动画。
-- Library 左侧主内容容器右下角提供唯一的“开始练习”主操作。
-- 点击“开始练习”后立即打开 Practice；Practice 窗口出现后才开始 preparation，并自动恢复可用配置。
-- 新导入曲谱保留 `sourceURL.lastPathComponent`，不添加时间戳或 UUID 后缀。
-- 与现有用户曲谱发生文件名冲突时，显式确认替换或取消当前冲突项。
-- 替换后保留 `songID`、顺序、displayName、last-selected、试听音频、历史练习事实和通用练习偏好；旧结构进度不得应用到新 revision。
+### 1. Library 必须轻量
 
-## Non-goals
+1. Library 浏览、恢复选择、切歌、试听、进度 Ornament 渲染不得读取、hash 或解析 MusicXML。
+2. Library 不得持有 `PreparedPractice`、measure spans、`PracticeSessionViewModel`、pending round configuration 或 preparation failure 生命周期。
+3. Library 中唯一的权威选择是 `SongLibraryViewModel.selectedEntryID`；View 不再维护第二份选择状态。
+4. 所有唱片点击、上一首/下一首、水平拖拽、VoiceOver adjustable action、恢复 last-selected 都进入同一 selection 方法。
+5. last-selected 保存与 Practice preparation 完全解耦；选择立即更新 UI，debounce 后通过 index actor 原子保存。
+6. 点击“开始练习”使用当前内存 `selectedEntryID`，不等待 selection persistence 或进度 snapshot。
+7. Library `@MainActor` 只编排状态；Documents 路径查询、security-scope、copy、delete 与用户文件 URL resolve 必须通过 actor async service，await 返回后重新验证相关 entry/token，禁止用陈旧状态继续播放或提交。
 
-- 不实现用户整体练习概览、跨曲目趋势、周报、连续练习总览或独立统计入口。
-- Library Ornament 不编辑片段、手别、速度、循环或连续成功目标。
-- Library 不预解析、预加载或缓存全部曲谱。
-- Library 不显示 preparation loading、解析失败详情或重试；这些属于 Practice。
-- 不引入 Lottie 或其他动画依赖；使用 SwiftUI 原生动画并支持 Reduce Motion。
-- 不允许用户导入目录中同时保留两个按目标文件系统语义发生冲突的文件名。
-- bundled 曲谱不参与用户替换。
-- 不新增第二套数据库，不持久化 UI presentation、进度条比例、颜色、文案或派生统计摘要。
-- 不自动迁移或重命名已经存在的时间戳文件。
-- 不在本 feature 修复与曲谱导入无关的既有音频导入架构债务。
+### 2. 唯一练习入口与 Practice 所有权
 
-## 正式支持范围
+1. “开始练习”位于 Library 主内容容器右下角，是内容级主操作，不属于窗口 chrome；不得放在 Ornament、播放条内部或 scene 根的任意浮层。
+2. Library -> Practice 的正式请求只携带稳定 `songID`；内部 request/generation 不作为跨层业务数据。
+3. 点击顺序固定为：登记 request -> `WindowTransitionState.beginTransition` -> 打开 Practice window。
+4. `request(songID:)` 不执行 index IO、score URL 解析、文件读取、preparation 或 session mutation。
+5. Practice window 出现且 scene active 后才激活当前 request，并显示 loading。
+6. Practice 拥有 no-request、requested/loading、failure、ready、retry、suspend、return/clear 全生命周期。
+7. 同一 revision 有有效 progress 时恢复完整配置与合法 resume；没有 exact progress 时使用当前曲谱全曲范围和默认值，P3 再加入通用偏好恢复。
+8. 保存配置损坏、passage 不属于当前曲谱、resume 不合法时不得进入无效 active range；应回退当前曲谱的 fresh full-score 配置并记录 typed diagnostic。
 
-### 曲库来源
+### 3. 旧 prepared/session 不得泄漏
 
-- 用户导入支持 `.musicxml`、`.xml`、`.mxl`。
-- 当前 bundled discovery 继续只扫描 `.musicxml`；本 feature 不扩展 bundled 格式范围。
-- 当前源码归档不包含 production `SeedScores`，因此 bundled 人工验收只有在本地 App target 实际加入曲谱资源时才能执行。
+1. request registration 先隐藏旧 session，但不触碰 ARGuide。
+2. Practice activation 在重工作前 flush 旧 progress，并清除 song-specific presentation。
+3. 清除动作必须同时失效 `preparedPracticeApplicationID`、清空 `latestPreparedPractice`、调用 `PracticeSetupState.clearSongAndSteps()`，并清除 session 中的 song/progress/steps/configuration。
+4. 清除 song-specific state 时保留钢琴模式、校准、keyboard geometry、输入/播放 service wiring 与其他非曲谱状态；不得直接复用会清空校准的全量 `resetSession()`。
+5. 新 request、retry、显式返回、意外 window disappear 均使旧 generation 失效。
+6. scene 变为非 active 时取消正在进行的 preparation 并 suspend/flush；保留 request 为 requested，scene 恢复 active 后可重新激活。它不是显式返回，不得丢失用户启动意图。
+7. 只有当前 generation 能发布 failure/ready 或安装 session；stale/cancel 不记录为用户可见失败。
 
-### 曲库交互
+### 4. 只读练习进度 Ornament
 
-- 顶部/侧边按钮、侧边唱片点击、水平拖拽和 VoiceOver adjustable action 触发的选择。
-- 试听中换曲、删除曲目、绑定试听音频、恢复 last-selected。
-- 选择变化立即更新主内容和当前 Ornament 请求；last-selected 独立 debounce 保存，不再依赖 preparation generation。
-- 点击“开始练习”使用当前 `selectedEntryID`，不等待 last-selected 保存或 preparation。
+Ornament 只绑定当前 `selectedEntryID`，包含以下状态：
 
-### Ornament 状态
+1. **未选择**：提示选择曲目。
+2. **加载事实**：只表示 JSON repository 读取，不表示 score preparation。
+3. **从未练习**：没有任何真实 attempt fact；显示邀请文案和轻量原生动画，不显示伪造的 0/总数。
+4. **当前版本进度**：entry version token 与 score metadata exact 匹配，显示当前 revision 的事实派生数据；若只有旧 revision 历史而当前 revision 尚无 attempt，仍属于当前版本已建立，只隐藏当前计数/resume并提示“当前版本尚未练习”，不得误报待重建。
+5. **已替换、待建立新版本数据**：存在历史 attempt，但当前 token 没有 matching metadata；隐藏旧结构数字，说明下次练习会重建。
+6. **数据不可用**：repository corrupted/读取失败；保留浏览、试听和开始练习。
 
-Ornament 只绑定当前选中曲目，支持：
+Ornament 不编辑 passage、hand、tempo、loop、required successes，不包含“开始练习”“继续练习”或第二个练习按钮。
 
-1. **未选择曲目**：提示选择曲目。
-2. **从未练习**：没有可证实的练习尝试事实；显示邀请文案和原生动画，不显示伪造的零进度图表。
-3. **已有当前版本进度**：展示可从持久化 facts 与 score metadata 派生的最近练习时间、稳定/学习小节、最近停留位置、最高稳定速度和近期问题。
-4. **曲谱已替换、待建立新版本进度**：历史事实和通用偏好仍可用，但当前版本结构数字隐藏；说明下次练习会建立新版本数据。
-5. **进度数据不可用**：降级为鼓励练习状态，不触发 score file access。
+### 5. Ornament 的事实规则
 
-Ornament 不包含“去练习”或第二个练习按钮。
+1. `hasPracticeHistory` 只由真实 attempt 证据派生：成功/失败次数非零或 `lastAttemptAt != nil`；仅 preparation、配置保存或 `updatedAt` 变化不算练习。
+2. 最近练习时间取真实 facts 中最大的 `lastAttemptAt`，不使用 progress `updatedAt`。
+3. 当前 hand mode 取当前 revision 最近真实 attempt 的 hand；同时间按稳定 source-measure identity tie-break。没有真实 attempt 时为 nil。
+4. stable/learning 只统计当前 revision、当前 hand、唯一 `PracticeSourceMeasureID`；重复 occurrence 不重复计数。
+5. 若损坏数据中同 source measure/hand 出现多条 fact，先按 `lastAttemptAt` 取最新，再以稳定 identity/state tie-break，避免重复展示。
+6. 最高稳定速度只来自当前 hand 的 stable facts。
+7. 近期问题只来自带 `lastAttemptAt` 的真实 facts，按时间倒序并按 source measure 去重。
+8. resume 只在 exact current revision 且 resume source measure 也存在真实 current fact 时展示；Library 不尝试读取 score 验证 occurrence。
+9. total measure count 只来自 matching metadata，按唯一 `PracticeSourceMeasureID` 数量计算，不按 repeat occurrence 数量。
 
-### Practice 启动
+### 6. 最小持久化 metadata 与版本 token
 
-```text
-Library 当前 selectedEntryID
--> register PracticeLaunchRequest(songID)
--> WindowTransitionState.beginTransition
--> open Practice window
--> Practice root 激活 request 并显示 loading
--> 解析 MusicXML / 建立 PreparedPractice
--> 安装 session
--> exact revision progress 存在：恢复完整配置和 resume
--> exact revision progress 不存在：全曲 + 可用通用偏好，无旧 resume/facts
--> ready
-```
+1. `SongLibraryEntry` 增加可选 `scoreFileVersionID: UUID?`。
+2. legacy 用户 entry 缺失字段时解码为 nil，现有时间戳文件不迁移、不改名。
+3. 新导入和 replacement 必须写入 non-nil token。
+4. bundled entry 不继续永久使用 nil：provider 使用 bundle identifier、short version、build version 与文件名生成保守的确定性 token。App 构建变化会使旧 bundled metadata 失配，宁可暂时隐藏结构数字，也不展示可能过期的数据。
+5. `PracticeSongIdentity(songID, scoreRevision)` 继续作为实际内容与 progress 的隔离边界；version token 只供 Library 无文件读取地匹配当前文件版本。
+6. `PracticeProgressDocument` 增加 `scoreMetadata`，旧 JSON 缺 key 时解码为空数组。
+7. metadata 只保存 `songID`、`scoreFileVersionID`、`scoreRevision`、唯一 source measure 总数和 `preparedAt`；不持久化 UI summary、比例、颜色、文案、stable/learning count 或 recent issue。
+8. Practice preparation/session 安装成功后 upsert metadata；写入失败记录 typed diagnostic，但不得把成功 session 变成 failure。
+9. 对已经成功、且携带 immutable `songID + token + revision` 的 preparation，request 随后变 stale 也允许 metadata 幂等落盘；token mismatch 会隔离 replacement，不把该写入视为 UI publication。
 
-- 新曲目默认值沿用当前 `installFreshFullScoreConfiguration` 契约：全曲、双手、100%、不循环、现有默认连续成功目标。
-- 同一 revision 恢复完整有效配置与恢复点。
-- 替换后从同一 `songID` 的最新历史 progress 派生手别、速度、循环和连续成功目标；范围重置为全曲，恢复点清空。
-- 保存数据损坏、配置无效或旧偏好不可用时，在 Practice 内使用有效默认值并记录 typed diagnostics；Library 仍可启动。
+### 7. Index 原子 mutation 与共享实例
 
-### 文件名冲突与替换
+1. `SongLibraryIndexStoreProtocol` 不再公开整份 `save(_:)` 给业务调用方。
+2. last-selected、append、remove、audio binding 与 replacement 均由 actor 内 load-latest -> mutate one concern -> atomic write 完成，并返回最新结果。
+3. selection、import、delete、audio binding 迁移到原子 API 的同一个 task 中删除旧 whole-snapshot save 调用。
+4. replacement 使用 expected `songID + scoreFileVersionID + musicXMLFileName` 条件更新，同时保留顺序、displayName、audio 和 last-selected。
+5. `LiveSongLibraryBootstrapLoader` 必须注入 `LiveAppGraph` 创建的同一个 index store 与 bundled provider；不得再私自构造第二实例访问同一 JSON。
 
-- 保存名使用经过路径分量安全化的 `sourceURL.lastPathComponent`；不得改变用户可见文件名。
-- 冲突判断同时检查用户索引和目标目录，采用目标卷实际的文件名冲突语义；大小写或 Unicode 规范化差异若在目标卷不可共存，也属于冲突。
-- 无冲突时创建新 `SongLibraryEntry`、新 `songID` 和新 `scoreFileVersionID`。
-- 有冲突时先发布确认状态；确认前不得修改目标文件、索引或 progress。文件选择返回后立即在 import actor 内取得 security-scoped access lease，并在确认、取消、失败、窗口离开或队列结束的所有终止路径释放；pending source URL 只保存在当前 Library 会话内，不建立长期 bookmark。
-- 取消只跳过当前冲突项并继续多选队列。
-- 确认替换更新原 entry：
-  - 保留 `songID`、顺序、`displayName`、last-selected 和 `audioFileName`。
-  - 文件名保持原始完整文件名。
-  - 更新 `importedAt`。
-  - 生成新的 `scoreFileVersionID`，作为 Library 无需读取文件即可识别文件版本的 metadata token。
-  - 保留旧 `PracticeSongIdentity` records；不删除历史 JSON。
+### 8. 原名导入、冲突与替换
 
-## 默认行为与兼容策略
+1. 支持 `.musicxml`、`.xml`、`.mxl`；服务层必须再次校验扩展名，不能只信任 `fileImporter`。
+2. 保存名使用 `sourceURL.lastPathComponent` 的安全路径分量，保留用户可见字符和扩展名；拒绝空名、目录分量和不支持扩展，不追加时间戳、UUID 或 songID。
+3. 冲突判断同时检查当前用户 index 与 `scores` 目录，并用目标卷实际解析结果/resource identifier 判断 case/Unicode 是否可共存；禁止用固定 `.lowercased()` 猜测文件系统语义。
+4. bundled-only 同名不构成用户目录 replacement 冲突，因为 bundle 与 Documents 是不同存储域；bundled entry 永远不可被替换。
+5. 冲突分类：
+   - exactly one user entry + target exists：确认后替换该 entry；
+   - exactly one user entry + target missing：确认后修复该 entry；
+   - filesystem-only orphan：明确提示“未索引文件”，确认后覆盖并创建新 entry；
+   - 多个 user entries 指向同一实际目标：typed blocking failure，不猜测 songID；
+   - 无冲突：创建新 entry。
+6. 多选的target/index mutation按用户返回顺序串行处理；取消只跳过当前冲突项并继续下一项。为避免等待确认时保存外部URL，transaction actor先在一次batch staging调用中按原顺序逐项复制所有source到独立operation目录并释放权限；后续队列只包含operation ID。
+7. fileImporter 返回后，transaction actor对每项尝试取得session-scoped security access，把受支持扩展的普通非符号链接文件复制到`Documents/SongLibrary/transactions/<operationID>/stage/<safeOriginalName>`，随后立即释放access；`startAccessingSecurityScopedResource()` 返回false时仍允许对本就可访问的URL尝试读取，以实际权限错误判定access failure。不得跨用户确认长期持有外部URL/lease，也不建立bookmark。单项stage失败记录item failure并继续后续项；根目录/journal不可用才中止batch。
+8. conflict confirmation期间只保留App内同卷stage、journal与UI-safe operation ID。journal不记录原始source URL；ViewModel只持ordered operation IDs与安全展示状态，不保存source URL、lease、stage绝对路径或score内容。
+9. access failure、validation failure、copy failure、batch cancellation每条stage终止路径必须start/stop平衡；confirm/cancel/Library disappear/queue cancel只处理App内operation，不再依赖外部security scope。
 
-- `SongLibraryEntry.scoreFileVersionID` 为可选字段；旧 index 缺失时兼容解码为 `nil`。
-- 已有时间戳文件继续按现有路径读取，不自动重命名。
-- legacy user entry (`scoreFileVersionID == nil`) 在受支持流程中仍视为应用内部不可变文件：当最新 metadata 的 token 同样为 nil 时，可以展示该次 Practice 已确认的结构数据；metadata 尚不存在或总小节数未知时不显示完成率。replacement 总会写入非空 token，因此不会把旧 metadata 误认成替换后的当前版本。
-- bundled entry 的 token 仍为 nil；当前归档没有 production bundled score。本 feature 不为未来的 bundled resource 升级建立额外版本 manifest，bundled 的结构状态只在实际 Practice preparation 后刷新。
-- 新导入或替换后的 entry 使用非空 `scoreFileVersionID`。替换后该 token 与旧 score metadata 不一致，因此即使 progress metadata 写入失败，也不会把旧结构显示为当前版本。
-- `PracticeSongIdentity(songID, scoreRevision)` 继续作为实际 score 内容 revision 的正式隔离边界。
-- 通用偏好优先从同 `songID` 最新有效 `SongPracticeProgress.activeConfiguration` 派生；不要求用户先拥有新 metadata schema。
-- 旧“选曲后自动 preparation/配置 Ornament”行为被完整替换，不保留自动 preparation 分支。
+### 9. 跨文件事务与恢复
 
-## 约束与不变量
+1. transaction actor 是 score import/replace、短生命周期 security access、stage、backup、journal、index mutation 与 recovery 的唯一 owner。
+2. operation directory/stage/backup 必须位于 `Documents/SongLibrary/transactions`，与 `scores` 同一 volume；外部 source URL 在 stage 完成后立即释放且不再参与后续流程。所有将要删除/覆盖的target必须先用journal中的文件指纹确认身份；无法确认时blocking，禁止依据phase或文件名猜测。
+3. journal 每个 operation 单独保存，只记录 App 相对路径、operation ID、kind、songID/expected token/new token、phase、时间，以及仅用于恢复判定的 staged/backup 文件指纹（byte count + SHA-256）；不记录原始 source URL 或 score 内容，指纹不得写入 diagnostics。
+4. batch staging中每项顺序为：创建operation directory与preparing journal -> 开启security access -> 校验并复制到stage -> 关闭security access -> fsync/atomic更新staged journal。轮到该operation提交时才依据最新index与目标卷事实分类；stage/journal不是用户曲库target/index mutation。
+5. conflict confirm 前 `scores` target、index 与 progress 零 mutation；cancel只删除该 operation directory并继续队列。
+6. new import：staged journal -> stage move exact source-name target -> atomic index append -> committed journal -> cleanup。
+7. indexed replacement：staged journal -> target move backup（若存在）-> stage move exact source-name target -> conditional index replacement -> committed journal -> cleanup。
+8. file-only orphan replacement 同样先 backup，再创建新 entry。
+9. index commit 前失败必须恢复旧 target/backup；index 已提交新 token 后 cleanup 失败不得回滚新版本，只保留 journal 供下次 bootstrap 清理。
+10. bootstrap 必须先 recovery，再发布 index snapshot。事实优先于 journal phase；无法无损判断时返回 blocking load failure。
+11. recovery 重复运行必须幂等，任何结果都不得发布 index 指向缺失文件的 snapshot。
+12. progress 不参与文件/index transaction；旧 revision records 与 metadata 保留，由 token/revision mismatch 隔离。
 
-- Library 的浏览路径（选择、恢复选择、试听、Ornament）不得解析、读取或 hash score 文件。导入事务可以复制用户明确选择的源文件，但不得解析其 MusicXML 内容。
-- Library 不持有 `PreparedPractice`、`PracticeSessionViewModel`、pending round configuration 或 measure spans。
-- Library -> Practice 只传稳定 `songID`；不得传预解析对象。
-- MainActor 不执行曲库索引 IO、score 文件复制/替换、JSON 编解码或 MusicXML 解析。
-- 新 import/replace 文件 IO 与跨文件事务由 actor service 拥有；ViewModel 只编排 UI 状态。
-- 不持久化 `SongPracticeSummary` 之类的 UI 派生摘要。持久层只新增最小 `SongScorePracticeMetadata`（文件版本 token、score revision、唯一 source measure 总数、preparedAt）。稳定数、学习数、近期问题等每次从 progress facts 派生。
-- `totalSourceMeasureCount` 使用当前 score 中唯一 `PracticeSourceMeasureID` 数量，不按 repeat occurrence 重复计数。
-- 稳定/学习统计按最后使用的 hand mode 和唯一 source measure 计算；近期问题按 `lastAttemptAt` 排序且只使用真实 facts。
-- `hasPracticeHistory` 由真实 attempt facts 派生；仅 preparation 成功不算已经练习。
-- progress repository 的所有 mutation 必须由同一 actor 实例串行化并保留 document 中其他字段；删除曲目时同时删除 progress records 与 score metadata。
-- index store 不允许调用方以旧 snapshot 做整份覆盖式保存。所有 last-selected、entry append/remove/audio binding/replacement mutation 必须通过 actor 内原子 read-modify-write API；replacement 还必须使用 expected songID/fileVersion 条件更新，避免与选择保存互相覆盖。
-- replacement 文件与 index 的跨文件提交必须有 staged temp、backup 和持久化 transaction journal。进程崩溃后 bootstrap 必须在发布曲库 snapshot 前恢复或完成未决事务。
-- 任何失败都不得留下 index 指向缺失文件，也不得先删除旧文件。
-- 通用偏好仅包括 hand、tempo、loop、requiredSuccesses；passage、resume、measure/note identity 均属于 revision 结构。
-- 原生动画尊重 Reduce Motion；关闭动画时信息层级和操作入口保持完整。
-- 旧实现、旧测试和对应 canonical docs 必须在替代它们的同一个 task 删除/更新，不得留到最终清理 task。
+### 10. replacement 后的配置恢复
 
-## 架构决策（ADR 摘要）
+1. exact revision progress 存在且结构有效：恢复完整 active configuration 与合法 resume。
+2. exact progress 缺失时，从同 `songID` 最新具有有效 active configuration 的历史 progress 提取通用偏好：hand、tempo、loop、requiredSuccesses。
+3. latest 规则按 `updatedAt` 降序，时间相同按 `scoreRevision` 稳定排序。
+4. 通用偏好应用到当前 prepared score 的 full passage；current step 从首步开始。
+5. passage、resume、measure facts、source/occurrence IDs 不得跨 revision。
+6. repository corrupted、历史配置无效或没有候选时使用 fresh full-score 默认值并记录 typed diagnostic；Library 仍可启动。
 
-### ADR-1：Practice 窗口拥有 preparation 生命周期
+## 默认值与兼容策略
 
-- **Decision**：Library 只登记 `songID` 启动意图；Practice root 激活后由共享 `PracticeLaunchViewModel` 读取文件、prepare、安装 session 和恢复配置。
-- **Alternatives**：Library 预先 prepare 后把 `PreparedPractice` 传给 Practice；或继续由 `SongLibraryViewModel` 安装共享 session。
-- **Why**：Library 的浏览与试听不应承担 score IO、解析和 session 生命周期；窗口激活是开始重工作的明确边界。
-- **Risk**：窗口切换与异步结果可能竞态，因此必须使用 request generation、stale-result guard 和统一 teardown。
+- 新曲目默认：全曲、双手、100%、不循环、现有 defaults store 的连续成功目标。
+- legacy user entry token 为 nil；只有 matching metadata token 也为 nil 时才能认为文件版本匹配。
+- legacy 文件按现有文件名继续读取、试听、删除和练习；不自动迁移。
+- existing progress JSON 不做破坏式 migration；新增数组使用兼容解码。
+- replacement 保留旧 progress/metadata 作为历史，但当前 token/revision 不匹配时不显示、不恢复结构事实。
+- 当前 repository 规模使用 actor 内整份 JSON decode + 线性扫描；不增加缓存或第二数据库。若数据量实测成为瓶颈，再独立设计索引。
+- Library snapshot 可做短 debounce 与 generation gate，避免快速拖拽排队读取；开始练习不等待 snapshot。
 
-### ADR-2：只持久化最小 score metadata
+## 非目标
 
-- **Decision**：新增 `SongScorePracticeMetadata`，Library 展示快照每次由 metadata 与真实 progress facts 派生。
+- 不实现跨曲目总览、趋势、周报、连续练习统计或独立统计窗口。
+- 不扩展 bundled discovery 到 `.xml/.mxl`。
+- 不迁移或重命名已有时间戳 score/audio 文件。
+- 不重构与本 feature 无关的 audio import 命名策略。
+- 不修改 MusicXML parser、repeat expander、练习判定、录制、AI、MIDI、ARKit 或 RealityKit 管线。
+- 不引入 SwiftData、SQLite、Lottie 或第三方 transaction 库。
+- 不为未来多设备同步、长期 bookmark 或云端曲库预留抽象。
+
+## 架构决策（ADR）
+
+### ADR-1：Practice window 拥有 preparation 生命周期
+
+- **Decision**：Library 只登记 `songID`；Practice root 激活后由唯一 `PracticeLaunchViewModel` 解析 entry、prepare、安装 session、恢复配置和处理 failure/retry。
+- **Alternatives**：Library 预 prepare 后传 `PreparedPractice`；继续让 `SongLibraryViewModel` 直接安装共享 session。
+- **Why**：浏览路径不应承担 score IO 和 session 生命周期。
+- **Risk**：窗口/scene 与异步结果竞态；以 request generation、显式 suspend/clear 和 ready gate 控制。
+
+### ADR-2：ViewModel 是选择真源
+
+- **Decision**：`SongLibraryViewModel.selectedEntryID` 是唯一选择状态，View 只渲染并发出 intent。
+- **Alternatives**：保留 View `@State` 并与 ViewModel 双向同步。
+- **Why**：开始按钮、snapshot、delete fallback 与 persistence 必须引用同一个即时值。
+- **Risk**：ViewModel 生命周期跨窗口；离开时需显式 flush 当前选择。
+
+### ADR-3：只持久化最小 score metadata
+
+- **Decision**：Library snapshot 每次从 metadata +真实 progress facts 派生。
 - **Alternatives**：持久化完整 `SongPracticeSummary` 或 UI presentation。
-- **Why**：避免派生数据失真、schema 膨胀和双真源。
-- **Risk**：每次读取需要派生计算；当前数据规模允许线性扫描，若未来曲目事实规模显著增长再引入索引。
+- **Why**：避免双真源和派生摘要失真。
+- **Risk**：读取为线性扫描；当前规模接受，保留性能测试与升级阈值。
 
-### ADR-3：文件版本 token 与内容 revision 分工
+### ADR-4：version token 与 content revision 分工
 
-- **Decision**：`scoreFileVersionID` 负责 Library 无文件读取的版本匹配，`scoreRevision` 继续负责 Practice progress 的内容隔离。
-- **Alternatives**：Library hash 文件；复用文件名或 `importedAt` 判断版本。
-- **Why**：Library 不读取 score 文件，文件名和时间都不是可靠内容身份。
-- **Risk**：metadata 写入失败会暂时缺少当前结构数字；必须降级为待建立或数据不可用，不能回退显示旧结构。
+- **Decision**：entry token 判断 Library 当前文件版本；score revision 隔离实际练习事实。
+- **Alternatives**：Library hash 文件；用文件名/日期猜版本。
+- **Why**：Library 禁止读取 score，文件名/日期不是内容身份。
+- **Risk**：metadata write failure 暂时隐藏当前结构数据，而不是回退旧数据。
 
-### ADR-4：导入与替换使用单 actor 事务和持久化 journal
+### ADR-5：单 actor + journal 管理 import/replace
 
-- **Decision**：同一 actor 串行化 security-scoped lease、stage、backup、文件替换、index 条件提交和 recovery。
-- **Alternatives**：ViewModel 逐步调用 `SongFileStore` 与 `SongLibraryIndexStore`；先删旧文件再复制。
-- **Why**：跨文件提交必须可恢复，且不能让 index 指向缺失文件。
-- **Risk**：journal cleanup 可能失败；index 已提交后不得回滚新版本，下一次 bootstrap 负责收尾。
+- **Decision**：一个 actor 在 `begin` 内短暂取得 security access并先复制到 App 内同卷 stage，随后只用 stage、journal、backup、index 条件 mutation 与 recovery完成事务。
+- **Alternatives**：跨确认长期持有外部 security-scoped URL；ViewModel 逐步协调多个 struct/actor；先删旧文件再 copy。
+- **Why**：用户确认时间不可控，长期 lease更脆且难证明恰好释放；同卷 stage让后续提交可恢复且不发布 dangling index。
+- **Risk**：stage会暂时占用一份额外空间；begin copy失败必须完整清理 operation，使用故障注入和每阶段 journal约束。
+
+## 硬性规则
+
+- Library 浏览链路不得出现 score URL、Data(contentsOf score)、parser、preparation 或 session mutation。
+- MainActor 不执行 index/progress JSON IO、security-scope 文件复制/替换、journal IO 或 MusicXML parsing。
+- 不新增 singleton、旧式 Observation/Combine 状态对象、GCD、`Task.detached`、强制解包或第二持久化体系。
+- 修改过的业务代码统一使用 `DiagnosticsReporting`；不得新增直接 `os.Logger` + 文件双写。
+- 诊断不得包含绝对路径、原始 MusicXML、逐小节 facts 或 source URL。
+- 新文件在创建 task 中接入真实 consumer/composition root。
+- 新实现替换旧实现时，同一 task 删除旧 API、旧 state、旧 tests、旧 docs 和双轨分支。
+- 每个 task 对应原子中文 Conventional Commit；计划文件本身不 git add/commit。
 
 ## 降级矩阵
 
-| 失败点 | 保留能力 | 关闭/隐藏能力 | 用户状态 |
+| 失败点 | 保留能力 | 隐藏/关闭 | 用户状态 |
 |---|---|---|---|
-| Library progress snapshot 读取失败 | 浏览、选择、试听、开始练习 | 当前进度数字 | Ornament 显示数据不可用 |
-| Practice score 读取/解析失败 | 返回 Library、重试、诊断详情 | session 安装与练习 | Practice 显示 typed failure |
-| exact revision progress 缺失或损坏 | 练习与默认配置 | 旧 resume、旧结构 facts | 使用全曲与有效默认/通用偏好 |
-| score metadata 写入失败 | 当前 Practice session | Library 当前结构数字 | 记录诊断，Library 不显示旧结构 |
-| security-scoped access 失败 | 已有曲库与后续队列项 | 当前导入项 | 当前项失败并释放 lease |
-| replacement 提交前失败 | 旧文件、旧 index、旧 progress | 新版本 | 恢复旧状态并提示失败 |
-| replacement 提交后 cleanup 失败 | 新文件、新 token、新 index | 暂无 | 保留 journal，下次 bootstrap 清理 |
-| transaction recovery 失败 | 无 | 发布可能损坏的曲库 snapshot | Library load failure，可重试 |
-
-## 验收边界
-
-- 不规定 preparation 的绝对耗时，但必须在 Practice 窗口激活后开始，且不得阻塞 MainActor。
-- Library 进度统计只覆盖持久化真实 attempt facts；无 attempt 时不得显示伪造的 0/总数。
-- 文件冲突结果以目标卷实际可共存语义为准；测试至少覆盖 exact、大小写和 Unicode 规范化差异。
-- 自动化测试使用 fake provider、临时目录、确定性 clock 和故障注入；不得依赖真实用户文件、真实时间或外部网络。
-- UI 布局、VoiceOver、Reduce Motion、真实 security-scoped URL 与进程中断恢复需要 Simulator/实机人工证据；未执行时标记 Not Run。
-
-## 数据模型与数据流
-
-### 文件版本 token
-
-```text
-SongLibraryEntry
-- id: song identity，replacement 保留
-- musicXMLFileName: 用户完整文件名
-- importedAt: 导入/替换时间，仅用于展示与审计
-- scoreFileVersionID: UUID?，文件版本 metadata；replacement 必须更新
-```
-
-`scoreFileVersionID` 不是文件名后缀，也不替代 `scoreRevision`。前者允许 Library 判断 index 所指文件是否与已知 metadata 同版本；后者由 Practice 读取内容后计算并隔离实际 progress。
-
-### 最小持久化 metadata
-
-```text
-SongScorePracticeMetadata
-- songID
-- scoreFileVersionID: UUID?
-- scoreRevision
-- totalSourceMeasureCount
-- preparedAt
-```
-
-`PracticeProgressDocument` 保存 `songs` 和 `scoreMetadata`。Repository 对 Library 暴露只读 `SongPracticeLibrarySnapshot`，在 actor 内由 metadata + progress facts 派生，不把 snapshot 本身写入 JSON。
-
-### 选择与 last-selected
-
-```text
-selection event
--> selectedEntryID 立即更新
--> 停止上一首试听（如适用）
--> ViewModel 更新内存 index.lastSelectedEntryID
--> 独立 debounce task 保存最新 index
--> 异步请求当前 songID 的 Library snapshot（songID + generation gate）
-```
-
-View 消失不应因为 preparation cancellation 丢失最新选择；删除/替换 index 时必须让旧 selection save generation 失效。
-
-### Practice launch owner
-
-`PracticeLaunchViewModel`（或等价单一 owner）由 `LiveAppGraph` 创建并同时注入 Library/Practice。正式 request 只含 `songID`；内部 request ID 用于 generation，不属于跨层业务数据。
-
-- Library `request(songID:)` 只登记意图。
-- Practice root 激活后才解析。
-- 新 request、retry、返回 Library、scene 非 active 与 window disappear 均有明确取消语义。
-- ready/failure 只能由当前 request generation 发布。
-- 新请求激活前必须清除已 flush 的旧 prepared/session presentation，不能在 loading/no-request 时显示旧曲目。
-
-### import/replace actor transaction
-
-```text
-inspect source name (no target mutation)
--> no conflict: user import commit
--> conflict: await confirmation
--> acquire and retain session-scoped source access lease
--> await confirmation when conflict exists
--> copy to same-volume temp
--> write transaction journal + backup metadata
--> replace/create target
--> atomically save index with new scoreFileVersionID
--> delete backup/journal
--> return updated index
-```
-
-Bootstrap 在读取并发布 index 前调用 transaction recovery。Recovery 以 index 中实际 token、target/temp/backup 是否存在为事实，journal phase 只作提示：replacement 未提交 index 时恢复 backup，new import 未提交 index 时删除新 target；index 已提交新 token 时保留新 target并完成 cleanup。提交 index 之后的 cleanup 失败不得回滚已提交的新版本，只保留 journal 供下次 bootstrap 收尾。Progress 不参与文件/index transaction；替换状态由 version token mismatch 自然派生。
-
-## 错误与降级
-
-- Library snapshot 读取失败：保留浏览、试听和“开始练习”，Ornament 显示数据不可用。
-- Practice preparation 失败：在 Practice 显示 typed failure、技术详情、重试和返回 Library。
-- no request/stale request：Practice 不显示旧 session，提供返回 Library。
-- 同名取消：目标文件、index、progress 完全不变，继续队列。
-- security-scoped access、stage、replace 或 index commit 失败：提交前恢复旧文件/旧 index，记录 typed diagnostic；若 index 已提交而 cleanup 失败，则保留新版本与 journal，下一次 bootstrap 完成清理。
-- crash recovery 失败：不发布可能损坏的曲库 snapshot；显示可重试的 Library load failure，并记录 transaction diagnostic。
-- replacement 已提交但 score metadata 仍旧：Ornament 通过 version token mismatch 显示待重建；不需要修改/删除旧 progress。
-- progress 文件损坏：沿用 quarantine；Practice 使用默认配置，Library 显示数据不可用。
+| Library history 读取失败 | 浏览、选择、试听、开始练习 | 当前进度数字 | Ornament 数据不可用 |
+| Practice entry/score resolve 失败 | 返回、重试、诊断 | session 安装 | Practice typed failure |
+| preparation/structure 失败 | 返回、重试 | ready/session | Practice typed failure |
+| exact progress corrupted/invalid | 练习 | 旧 passage/resume/facts | fresh defaults + diagnostic |
+| metadata 写入失败 | 当前 ready session | Library 当前结构数字 | warning，不回滚 session |
+| security access/stage copy 失败 | 已有曲库、后续队列 | 当前项 | 立即平衡access、清理operation并继续队列 |
+| ambiguous index conflict | 已有数据、后续队列 | 当前项 confirm | blocking item failure |
+| transaction commit 前失败 | 旧 target/index/progress | 新版本 | rollback 后提示失败 |
+| commit 后 cleanup 失败 | 新 target/token/index | 无 | warning + journal 留待 recovery |
+| bootstrap recovery blocking | 无 | 曲库 snapshot | load failure，可重试 |
 
 ## 验收标准
 
-1. Library 连续切歌、恢复 last-selected、试听和 Ornament 加载均不调用 parser、`PracticePreparationService.prepare` 或 session 安装。
-2. 选择后主唱片、曲名、试听和 Ornament 请求立即更新，不等待 preparation。
-3. latest-wins last-selected 保存与 preparation 完全解耦；它只原子更新 last-selected 字段，不会用旧 snapshot 覆盖并发的 import/delete/audio/replacement；快速选择后立即进入 Practice 也不会丢失最终选择。
-4. “开始练习”只位于左侧主 Library 内容容器右下角，窗口缩放后不遮挡播放条、不进入 Ornament、不漂到 scene 右下角。
-5. Ornament 只展示当前曲目；没有全局统计、配置控件或第二个练习按钮。
-6. 从未练习状态有 Reduce Motion 等价表现，不伪造 0/总数。
-7. 点击按钮先打开 Practice；Practice root 激活后才开始 score IO/preparation。
-8. no request/loading/failure/ready/return/retry/A->B request 的生命周期不会显示或安装旧 session。
-9. 同 revision 恢复完整配置和 resume；新曲目使用全曲、双手、100%、不循环和默认 requiredSuccesses。
-10. replacement 后使用旧通用偏好，但 passage 为全曲、resume/facts 不跨 revision。
-11. `PracticeProgressDocument` 旧 JSON 兼容解码；不持久化 presentation summary。
-12. current-version 总小节数来自唯一 source measures；稳定/学习/问题来自真实 facts，repeat occurrence 不重复计数。
-13. 删除曲目同时删除所有 revision progress 和 score metadata。
-14. 新导入文件名与安全化后的 `lastPathComponent` 完全一致，不含自动时间戳/UUID 后缀。
-15. exact/case/Unicode 冲突按目标文件系统语义触发一个顺序 confirmation。
-16. 取消冲突项无副作用并继续多文件队列。
-17. 确认替换保留 `songID`、顺序、displayName、last-selected、audio、旧 progress，并更新 `scoreFileVersionID`。
-18. source access lease 在 confirm/cancel/failure/disappear 全部释放；stage/replace/index-commit/cleanup 失败和进程中断恢复均不让 index 指向缺失文件；new import 未提交时删除 orphan target，replacement 未提交时旧文件可恢复，已提交后的 cleanup failure 不回滚新版本。
-19. 旧带时间戳文件继续可用；没有自动迁移。
-20. canonical docs 在对应 task 同步更新，不再描述选曲自动 preparation、配置 Ornament 或时间戳新导入。
-21. 实际 macOS/visionOS 环境中完整 `xcodebuild test` 和 `xcodebuild build` 通过；未运行项必须标记 Not Run。
-
-## 测试策略
-
-- Selection：latest-wins debounce、view disappear、立即开始、删除/替换 generation、保存失败。
-- Launch：request registration 不 prepare；Practice activation 才 prepare；loading/failure/retry/return/scenePhase/A-B stale result；旧 prepared state 清理。
-- Configuration：exact revision full restore；new score fresh defaults；replacement fallback preferences；无旧 resume/facts。
-- Repository：旧 JSON兼容；metadata upsert 保留 progress；progress upsert 保留 metadata；derived snapshot unique-source/hand/issue rules；remove 清理两类数据；corruption quarantine。
-- Ornament presentation：未选择、从未练习、current、needs-rebuild、unavailable；generation gate；Reduce Motion。
-- Import：原名、`.musicxml/.xml/.mxl`、多选顺序、exact/case/Unicode conflict、取消、确认、source access failure。
-- Transaction：stage/backup/replace/index commit/journal cleanup 每个失败点；模拟进程中断后的 bootstrap recovery。
-- Regression：试听切歌、删除、音频绑定、legacy timestamp files、MXL parser route、diagnostics privacy。
-- UI/人工：真实 Library 布局中的按钮位置、Ornament 高度/宽度、VoiceOver、Reduce Motion、Practice loading/failure 和 confirmation 文案。
-
-## Recommended approach
-
-- P1 原子迁移完整 launch 生命周期并同步删除旧 Library preparation/configuration 代码、测试与文档。
-- P2 只增加最小 score metadata；Library snapshot 由 repository 从 metadata + facts 派生，再构建进度 Ornament。
-- P3 用单一 actor transaction service 接管新导入与 replacement，使用 `scoreFileVersionID` 和 journal 提供无 score read 的版本识别与 crash recovery。
-- 不保留兼容双轨，不增加 Lottie，不持久化 UI summary。
-
-## Phase split
-
-- **P1：Practice 启动所有权与旧路径原子替换**  
-  一次完成 request owner、窗口时序、取消/重试/no-request、旧 session 清理、独立 selection persistence、主按钮、旧 Library preparation 代码/测试/文档删除。
-- **P2：最小 score metadata 与当前曲目 Ornament**  
-  先扩展 progress document/repository 并派生 Library snapshot，再接入当前曲目 Ornament 和原生空状态动画；每个 task 同步更新相关 docs。
-- **P3：原名导入与可恢复同名替换**  
-  删除时间戳/UUID import path，接入 actor transaction、version token、顺序确认、journal recovery、跨 revision 偏好恢复、failure diagnostics 与 docs。
-
-## Task granularity notes
-
-- P1 的迁移、生命周期与旧代码删除不能拆成先不安全后补取消的两个 task。
-- P2 metadata task 不持久化派生 summary，并在同 task 迁移所有 repository fakes 和 delete semantics。
-- P3 新 actor/service 创建时必须在同 task 接入 bootstrap、ViewModel 和 composition root，同时删除旧 import API。
-- canonical docs 与已知测试清理在对应生产 task 完成；不存在最终“清理旧代码”task。
-
-## Audit focus by phase
-
-- **P1**：Library 是否仍间接 prepare；Practice 是否窗口出现后才 prepare；no-request/scenePhase/A-B 是否泄漏旧 session；按钮是否属于左主内容。
-- **P2**：是否误持久化 UI summary；数字是否从真实 facts 派生；version token/legacy 规则是否正确；delete 是否清理 metadata。
-- **P3**：是否保留原名；冲突语义是否确定；MainActor 是否仍做 score copy/replace；journal 能否恢复中断；ID/audio/history/preferences 是否保留。
+1. CodeGraph/静态调用检查证明 Library selection/restore/playback/Ornament 不可达 `PracticePreparationService.prepare`、score read/hash 或 `ARGuideViewModel.applyPreparedPractice`。
+2. 选择快速 A->B->A 时 UI 立即跟随；只保存最终选择；开始按钮可在保存未完成/失败时按当前内存 A 启动。
+3. Practice request registration 的 preparation call count 为 0；scene active activation 后才为 1。
+4. no-request/loading/failure/suspended 状态不渲染旧 `PracticeStepView`；session rebuild 不会复活旧 `latestPreparedPractice`。
+5. exact revision 有效配置/resume 恢复；无 exact 或损坏配置使用 full passage，且旧 facts/resume 不跨 revision。
+6. Ornament 的 never/current/needs-rebuild/unavailable 状态及事实规则有确定性纯逻辑测试；快速切歌不显示上一首 snapshot。
+7. Ornament 只读、无第二练习按钮；原生动画支持 Reduce Motion、VoiceOver 与 Differentiate Without Color。
+8. index actor 并发 mutation tests 证明 selection、append、remove、audio、replacement 不互相丢字段；production 无整份 `save` 调用。
+9. 新导入文件名与安全化 source last path component 完全相同，无时间戳/UUID suffix。
+10. exact/case/Unicode 冲突结果按临时目标卷实际行为测试；bundled-only 同名允许，ambiguous user index 被阻止。
+11. conflict confirm前`scores` target/index/progress零mutation；cancel继续operation-ID队列；batch staging每项的security access在返回前start/stop平衡，确认期间无外部lease/URL。
+12. stage/backup/target/index/cleanup 每一故障点与 crash fact matrix 均可 recovery，且 bootstrap 不发布 dangling index。
+13. replacement 保留 songID、顺序、displayName、last-selected、audio、旧 progress；更新 importedAt、文件名与 non-nil token。
+14. README 与 canonical docs 在相应实现 task 同步更新，不把文档修正拖到最后 gate。
+15. 完整 `xcodebuild test` 与 visionOS Simulator build 是执行阶段必需 gate；本计划审查环境无 `xcodebuild`，不得把当前静态检查表述为 Apple target 已通过。

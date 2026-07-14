@@ -3,7 +3,7 @@ current_task_id = ""
 
 [[tasks]]
 id = "P1-T1"
-title = "建立 Practice launch 请求、状态与 typed failure 模型"
+title = "用 actor concern mutation 替换整份 index save 并共享 bootstrap 实例"
 status = "pending"
 plan = "plan-p1.md#p1-t1"
 commit = ""
@@ -11,7 +11,7 @@ note = ""
 
 [[tasks]]
 id = "P1-T2"
-title = "实现单一 PracticeLaunchViewModel 与 entry 解析边界"
+title = "建立唯一 Library selection 与独立 persistence generation"
 status = "pending"
 plan = "plan-p1.md#p1-t2"
 commit = ""
@@ -19,7 +19,7 @@ note = ""
 
 [[tasks]]
 id = "P1-T3"
-title = "让 Practice root 承担 loading、failure、ready 与 teardown"
+title = "将现有曲库文件 IO 移出 MainActor 并删除同步接口"
 status = "pending"
 plan = "plan-p1.md#p1-t3"
 commit = ""
@@ -27,7 +27,7 @@ note = ""
 
 [[tasks]]
 id = "P1-T4"
-title = "原子切断 Library preparation/configuration 并加入唯一开始入口"
+title = "原子迁移 typed preparation failure 到 Practice 命名空间"
 status = "pending"
 plan = "plan-p1.md#p1-t4"
 commit = ""
@@ -35,15 +35,39 @@ note = ""
 
 [[tasks]]
 id = "P1-T5"
-title = "补齐启动竞态回归、窗口验证与 phase gate"
+title = "抽取并立即接入共享 entry/score resolver"
 status = "pending"
 plan = "plan-p1.md#p1-t5"
 commit = ""
 note = ""
 
 [[tasks]]
+id = "P1-T6"
+title = "增加保留校准的 prepared-song teardown"
+status = "pending"
+plan = "plan-p1.md#p1-t6"
+commit = ""
+note = ""
+
+[[tasks]]
+id = "P1-T7"
+title = "原子切换 Practice launch owner 并删除 Library preparation/configuration"
+status = "pending"
+plan = "plan-p1.md#p1-t7"
+commit = ""
+note = ""
+
+[[tasks]]
+id = "P1-T8"
+title = "完成启动竞态、布局证据与 phase gate"
+status = "pending"
+plan = "plan-p1.md#p1-t8"
+commit = ""
+note = ""
+
+[[tasks]]
 id = "P2-T1"
-title = "扩展 entry version 与 progress metadata 兼容模型"
+title = "兼容扩展 entry token、progress metadata 与 repository history API"
 status = "pending"
 plan = "plan-p2.md#p2-t1"
 commit = ""
@@ -51,7 +75,7 @@ note = ""
 
 [[tasks]]
 id = "P2-T2"
-title = "扩展 progress repository 的 metadata 与原子保留语义"
+title = "创建事实快照策略并立即接入 Library selection"
 status = "pending"
 plan = "plan-p2.md#p2-t2"
 commit = ""
@@ -59,7 +83,7 @@ note = ""
 
 [[tasks]]
 id = "P2-T3"
-title = "实现当前曲目 Library snapshot 纯派生策略"
+title = "在成功 Practice preparation 后写入 metadata"
 status = "pending"
 plan = "plan-p2.md#p2-t3"
 commit = ""
@@ -67,7 +91,7 @@ note = ""
 
 [[tasks]]
 id = "P2-T4"
-title = "在 Practice preparation 成功后写入当前 score metadata"
+title = "创建并挂载只读 trailing Ornament"
 status = "pending"
 plan = "plan-p2.md#p2-t4"
 commit = ""
@@ -75,23 +99,15 @@ note = ""
 
 [[tasks]]
 id = "P2-T5"
-title = "让 SongLibraryViewModel 按选择异步加载当前快照"
+title = "完成事实边界、性能与 UI phase gate"
 status = "pending"
 plan = "plan-p2.md#p2-t5"
 commit = ""
 note = ""
 
 [[tasks]]
-id = "P2-T6"
-title = "重建只读进度 Ornament 与 Reduce Motion 空状态"
-status = "pending"
-plan = "plan-p2.md#p2-t6"
-commit = ""
-note = ""
-
-[[tasks]]
 id = "P3-T1"
-title = "定义原名、冲突与导入队列纯模型"
+title = "建立 transaction facts、journal、条件 replacement 与 bootstrap recovery 入口"
 status = "pending"
 plan = "plan-p3.md#p3-t1"
 commit = ""
@@ -99,7 +115,7 @@ note = ""
 
 [[tasks]]
 id = "P3-T2"
-title = "收口 SongLibraryIndexStore 为 actor 内原子 mutation"
+title = "用 batch-staged 原名导入替换 timestamp/UUID 旧路径"
 status = "pending"
 plan = "plan-p3.md#p3-t2"
 commit = ""
@@ -107,7 +123,7 @@ note = ""
 
 [[tasks]]
 id = "P3-T3"
-title = "定义 transaction journal 与确定性 recovery planner"
+title = "完成冲突确认、replacement 与 missing/orphan 修复"
 status = "pending"
 plan = "plan-p3.md#p3-t3"
 commit = ""
@@ -115,7 +131,7 @@ note = ""
 
 [[tasks]]
 id = "P3-T4"
-title = "原子接入 import/replace actor、确认队列与 bootstrap recovery"
+title = "收口 operation-ID 队列、取消语义与 crash recovery fault matrix"
 status = "pending"
 plan = "plan-p3.md#p3-t4"
 commit = ""
@@ -123,7 +139,7 @@ note = ""
 
 [[tasks]]
 id = "P3-T5"
-title = "replacement 后只恢复跨 revision 通用偏好"
+title = "建立历史通用偏好 resolver 与 repository 选择规则"
 status = "pending"
 plan = "plan-p3.md#p3-t5"
 commit = ""
@@ -131,8 +147,16 @@ note = ""
 
 [[tasks]]
 id = "P3-T6"
-title = "完成端到端回归、人工事务验证与 phase gate"
+title = "将历史偏好安全应用到当前 full passage"
 status = "pending"
 plan = "plan-p3.md#p3-t6"
+commit = ""
+note = ""
+
+[[tasks]]
+id = "P3-T7"
+title = "执行端到端调用图、数据安全与 visionOS gate"
+status = "pending"
+plan = "plan-p3.md#p3-t7"
 commit = ""
 note = ""

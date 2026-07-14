@@ -1,184 +1,222 @@
-# Plan P2 - library-practice-entry-redesign
+# Plan P2 - 当前曲目练习事实与只读 Ornament
 
-**Goal:** 用最小 score metadata 与真实练习 facts 构建当前曲目进度快照，并把 Library 右侧 Ornament 重建为只读进度与邀请练习界面。
+**Goal:** 在 Library 不读取 score 文件的前提下，用最小版本 metadata 与真实 attempt facts派生当前曲目快照，并重建只读进度 Ornament。
 
-**Non-goals:** 本 phase 不实现原名导入、冲突确认、文件替换或 transaction journal；不持久化任何 UI summary、比例、颜色或文案；不重新引入 Library score 读取。
+**Non-goals:** 本 phase 不实现原名导入/replacement transaction；不跨revision恢复通用偏好；不持久化UI summary；不建立跨曲目统计或repository cache。
 
-**Approach:** 先扩展持久化模型和 repository，使 metadata 与 progress 在同一 actor document 中兼容读写且互不覆盖。然后用纯函数/纯模型从 entry version、metadata 和 facts 派生 Library snapshot，Practice preparation 成功后写入 metadata，Library selection 仅异步读取 snapshot。最后接入五类产品状态与 Reduce Motion 等价的 SwiftUI Ornament。
+**Repository evidence:** `PracticeProgressDocument` 当前只有`songs`；repository每次读取整份JSON并由一个actor mutation。facts持久化单位是`PracticeSourceMeasureID + handMode`，repeat occurrence不应重复。`SongLibraryViewModel.reloadPracticeProgress()` 当前加载整份document并按song取latest，且依赖会在P1删除。bundled provider已有确定性UUID helper，但entry没有文件版本token。
+
+**Approach:** 先兼容扩展entry/progress schema与repository原子能力，同时给bundled资源生成保守版本token。然后在同一task创建纯snapshot builder并接入Library ViewModel，避免孤立新文件。Practice成功安装后写metadata。最后创建并挂载只读Ornament，立即更新相关docs/人工清单。Phase gate验证事实规则、快速切歌、无score访问与无第二按钮。
 
 **Acceptance:**
-- `PracticeProgressDocument` 旧 JSON 可兼容解码，metadata upsert 不丢 progress，progress upsert 不丢 metadata。
-- Library snapshot 不读取、解析或 hash score 文件；总小节数只来自当前 version metadata。
-- 稳定/学习/近期问题/最高稳定速度只来自真实 attempt facts，按最后 hand mode 和唯一 source measure 计算。
-- 无真实 attempt 时显示邀请练习，不显示 `0 / total` 伪进度。
-- replacement/version mismatch 时隐藏旧结构数字但可识别已有历史与通用偏好。
-- 删除曲目同时删除全部 revision progress 与 score metadata。
-- 右侧 Ornament 没有片段、手别、速度、循环、连续成功设置，也没有第二个练习按钮。
+- 旧index/progress JSON无需migration即可解码。
+- current/needs-rebuild判断由entry token + metadata token/revision exact匹配完成。
+- never-practiced不显示0/total伪进度。
+- stable/learning/recent issue/tempo/resume遵守idea中的真实fact与去重规则。
+- snapshot load generation绑定selected songID+token，A->B不闪A。
+- Practice metadata failure不影响ready。
+- trailing Ornament只读、无配置与练习按钮，支持Reduce Motion/VoiceOver。
 
 **Rules:**
-- `scoreFileVersionID` 只做 Library metadata matching；`scoreRevision` 仍是 progress 内容隔离边界。
-- `SongScorePracticeMetadata` 只包含 songID、version token、score revision、唯一 source measure 总数、preparedAt。
-- `hasPracticeHistory` 必须由真实 attempt facts 派生；单纯 preparation 或空 progress record 不算练习过。
-- repeat occurrence 不得重复计入总数、stable/learning 数或问题小节。
-- legacy user/bundled token 为 nil 时，只能与 nil metadata token 匹配；replacement 产生非 nil token 后不得误用旧 metadata。
-- metadata 写入失败不得阻止当前 Practice ready，但 Library 不得回退显示旧结构。
+- metadata与progress仍在同一JSON、同一repository actor；不加第二数据库。
+- repository mutation必须保留另一数组，不允许调用方整份覆盖。
+- builder为纯Sendable逻辑，不读文件、不用MainActor/SwiftUI。
+- Library只接收history input/snapshot，不接触score URL或PreparedPractice。
+- bundled token在App构建变化时保守失配，不允许nil永久匹配旧结构。
+- 新文件在创建task中接入production consumer。
 
 **State / lifecycle:**
-- Snapshot owner：`FilePracticeProgressRepository` 提供原始读取，纯 builder 派生。
-- Library owner：`SongLibraryViewModel` 持有当前 selected song 的 Ornament state 和 request generation。
-- Selection：立即更新 selected ID → 取消旧 snapshot task → 异步读取当前 songID/version → 仅当前 generation 发布。
-- Practice：prepare 成功并获得 measure spans 后 upsert metadata；session 继续 ready，即使 metadata 写入失败。
+- Repository owner：`FilePracticeProgressRepository` actor。
+- Snapshot owner：`SongLibraryViewModel`，selection debounce/generation与selection persistence独立。
+- Metadata writer：`PracticeLaunchViewModel`，prepared session成功后best-effort upsert。
+- Ornament presentation：未选择、loading、never、current、needsRebuild、unavailable。
 
 **Threading / actor:**
-- JSON decode/encode、metadata/progress mutation、snapshot input读取都在 repository actor。
-- 派生 builder 为 `Sendable` 纯逻辑，不依赖 MainActor。
-- Library ViewModel 只在 MainActor 发布 presentation state。
+- JSON decode/encode/history filtering/upsert在repository actor。
+- snapshot builder使用非actor隔离的async纯函数在generic executor执行；MainActor只做generation校验和发布状态。
+- metadata upsert await actor，不阻塞MainActor文件IO。
 
 **Debug / observability:**
-- metadata write/load failure 使用 typed diagnostics，包含 songID/version/revision，不包含原始曲谱或绝对路径。
-- snapshot builder 本身不写日志；错误由 repository/owner 边界记录。
-- 记录 total unique source measures 与事实条数时只用计数，不记录逐小节数据。
+- history load/metadata write失败使用typed diagnostic；包含songID/token/revision/count，不含facts详情与绝对路径。
+- builder不写日志。
+- corrupted repository映射unavailable；Practice启动仍可继续并在P3恢复策略中记录defaults降级。
 
 **Testing strategy:**
-- 使用旧版 JSON fixture、临时目录、确定性日期和 synthetic progress facts。
-- snapshot tests 覆盖重复小节、不同 hand mode、空 facts、旧 revision、version mismatch、nil token legacy。
-- ViewModel tests 用 recording repository 验证 selection generation 与零 score-file access。
-- UI 人工测试覆盖 Ornament 宽高、VoiceOver、Reduce Motion 和长文案布局。
+- 旧JSON fixture、temporary directory、deterministic date/token。
+- synthetic facts覆盖repeat、hand、duplicate corruption、tie-break、empty attempts、old revision。
+- recording repository与score-store spy证明Library零score access。
+- UI人工证据覆盖window resize、Dynamic Type、Reduce Motion、VoiceOver与Differentiate Without Color。
 
 ---
 
-## P2-T1 扩展 entry version 与 progress metadata 兼容模型
+## P2-T1 兼容扩展 entry token、progress metadata 与 repository history API
 
 **Files:**
 - Modify: `HappyPianistAVP/Models/Library/SongLibraryModels.swift`
 - Modify: `HappyPianistAVP/Models/Practice/PracticeProgressModels.swift`
-- Create: `HappyPianistAVPTests/Practice/PracticeProgressDocumentCompatibilityTests.swift`
-- Modify: `HappyPianistAVPTests/Library/SongLibraryIndexStoreTests.swift`
-
-**Step 1: 增加文件版本 token**
-
-为 `SongLibraryEntry` 增加可选 `scoreFileVersionID: UUID?`，旧 index 缺失 key 时解码为 nil。不要改文件名或用 token 生成路径。
-
-**Step 2: 增加最小 metadata**
-
-定义 `SongScorePracticeMetadata`：`songID`、`scoreFileVersionID`、`scoreRevision`、`totalSourceMeasureCount`、`preparedAt`。构造时保证 total 非负，不存 measure list 或 UI summary。
-
-**Step 3: 兼容扩展 document**
-
-`PracticeProgressDocument` 增加 `scoreMetadata`，使用显式 Codable 或 `decodeIfPresent ?? []` 保证旧 JSON 只含 `songs` 时仍可读。编码继续 pretty/sorted 由 repository 控制。
-
-**Step 4: 测试**
-
-覆盖旧 index、旧 progress JSON、新 document round trip、metadata nil/non-nil token、未知额外 key，以及不存在 metadata key 时默认空数组。
-
-**Step 5: 验证**
-
-Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
-
-Expected: 旧 fixture 无迁移即可解码；新字段 round trip 保持值。
-
-**Step 6: 原子提交**
-
-Run: `git add HappyPianistAVP/Models/Library/SongLibraryModels.swift HappyPianistAVP/Models/Practice/PracticeProgressModels.swift HappyPianistAVPTests/Practice/PracticeProgressDocumentCompatibilityTests.swift HappyPianistAVPTests/Library/SongLibraryIndexStoreTests.swift`
-
-Run: `git commit -m "feat: P2-T1 - 增加曲谱版本与最小练习元数据"`
-
----
-
-## P2-T2 扩展 progress repository 的 metadata 与原子保留语义
-
-**Files:**
+- Modify: `HappyPianistAVP/Services/Library/BundledSongLibraryProvider.swift`
 - Modify: `HappyPianistAVP/Services/Practice/Progress/PracticeProgressRepository.swift`
+- Modify: `HappyPianistAVPTests/Library/SongLibraryIndexStoreTests.swift`
+- Modify: `HappyPianistAVPTests/Library/SongLibraryProgressCleanupTests.swift`
+- Create: `HappyPianistAVPTests/Library/BundledSongLibraryVersionTests.swift`
+- Create: `HappyPianistAVPTests/Practice/PracticeProgressDocumentCompatibilityTests.swift`
 - Modify: `HappyPianistAVPTests/Practice/PracticeProgressRepositoryTests.swift`
-- Modify: all protocol fakes under `HappyPianistAVPTests/` that conform to `PracticeProgressRepositoryProtocol`
+- Modify: `HappyPianistAVPTests/Practice/PracticeProgressCoordinatorTests.swift`
+- Modify: `HappyPianistAVPTests/Practice/PracticeResumeLifecycleTests.swift`
+- Modify: `HappyPianistAVPTests/Practice/PracticeLearningLoopIntegrationTests.swift`
+- Modify: `HappyPianistAVPTests/Support/SongLibraryViewModelTestHarness.swift`
+- Modify: `HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift`
+- Modify: `docs/storage.md`
+- Modify: `docs/architecture.md`
 
-**Step 1: 扩展 protocol**
+**Step 1: entry version token兼容模型**
 
-增加最小能力：
-- upsert score metadata；
-- 读取指定 songID 的全部 progress 与 metadata（或等价 snapshot input）；
-- 读取同 songID 最新有效 progress，供后续通用偏好恢复；
-- remove song 同时删除两类数据。
+为`SongLibraryEntry`增加`scoreFileVersionID: UUID?`，initializer默认nil。旧JSON缺key须解码nil；round trip保值。token不参与文件路径或displayName。
 
-不要让调用方拿旧 `PracticeProgressDocument` 做整份覆盖。
+**Step 2: bundled保守token**
 
-**Step 2: 保证 mutation 互不覆盖**
+`BundledSongLibraryProvider`使用已有`DeterministicUUID.make`，输入至少包含bundle identifier、`CFBundleShortVersionString`、`CFBundleVersion`和resource filename。提供可注入version strings或内部纯helper；bundle identifier/short version/build缺失时使用固定显式sentinel，不得回退随机值或nil。测试同构建稳定、build变化token变化、不同文件不同。不要读取/hash score内容。
 
-`upsert(progress)` 只替换同 identity progress 并保留 metadata；`upsert(metadata)` 只替换同 songID + version/revision 的 metadata 并保留 songs；所有 mutation 继续由同一 actor 串行化。
+**Step 3: metadata/history纯模型**
 
-**Step 3: 定义排序与 latest 规则**
+增加：
 
-latest progress 按 `updatedAt`，相同时间使用稳定 revision tie-break；无 active configuration 或无 facts 仍可作为候选输入，但 snapshot builder 决定是否算 history。
+- `SongScorePracticeMetadata(songID, scoreFileVersionID, scoreRevision, totalSourceMeasureCount, preparedAt)`；total clamp非负。
+- `PracticeSongHistory(songID, progresses, scoreMetadata)`，仅作为repository读取结果，不是UI summary。
+- `PracticeSongHistoryLoadResult.loaded/corrupted`。
 
-**Step 4: corruption 与删除**
+`PracticeProgressDocument`增加`scoreMetadata`，实现显式`init(from:)`使用`decodeIfPresent(...) ?? []`，并实现对应`encode(to:)`；nonoptional数组不能依赖合成解码自动使用默认值。
 
-保留现有 quarantine 行为。`remove(songID:)` 删除该 song 全 revision progress 和全部 metadata；删除其他 song 时不得受影响。
+**Step 4: repository API与原子保留语义**
 
-**Step 5: 测试**
+protocol增加：
 
-覆盖 metadata/progress 交错并发 upsert、旧 JSON mutation 后保留、remove 两类数据、latest deterministic、corruption quarantine 后新 document 两数组均有效。
+- `history(for songID:) -> PracticeSongHistoryLoadResult`
+- `upsert(_ metadata: SongScorePracticeMetadata) throws`
 
-**Step 6: 验证**
+现有`upsert(progress)`只替换same identity并保留metadata；metadata upsert键为`songID + scoreFileVersionID + scoreRevision`并保留songs；`remove(songID:)`删除两类记录。保持一个actor、一个JSON。
 
-Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+不要增加“调用方传document保存”API。所有protocol fakes在同task更新；列出的测试文件是当前完整conformance集合，执行前再用`rg "PracticeProgressRepositoryProtocol"`确认新P1文件无遗漏。
 
-Expected: repository tests 证明任一 mutation 不会清空另一类字段。
+**Step 5: corruption与排序**
 
-**Step 7: 原子提交**
+保留现有read-only corrupted结果与mutation quarantine。数组编码稳定排序：songs按songID/revision，metadata按songID/token字符串/revision；nil token定义固定排序位置。history返回该song全部records，不在repository里做UI选择。
 
-Run: `git add HappyPianistAVP/Services/Practice/Progress/PracticeProgressRepository.swift HappyPianistAVPTests/Practice/PracticeProgressRepositoryTests.swift HappyPianistAVPTests`
+**Step 6: 测试**
 
-Run: `git commit -m "feat: P2-T2 - 扩展练习仓库的元数据原子读写"`
+覆盖：旧index、旧progress仅songs、unknown extra keys、新round trip、metadata/progress交错upsert、remove两数组、corruption quarantine、nil/non-nil token、bundled build token。
+
+**Step 7: 文档**
+
+storage/architecture立即说明同一progress JSON的两数组、entry token与bundled token策略；不等P2-T4。
+
+**Step 8: 验证**
+
+Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+
+Run: `rg -n "PracticeProgressRepositoryProtocol" HappyPianistAVP HappyPianistAVPTests`
+
+Expected: 每个conformance实现新API；旧fixtures兼容；mutation不清空另一数组。
+
+**Step 9: 原子提交**
+
+Run: `git add HappyPianistAVP/Models/Library/SongLibraryModels.swift HappyPianistAVP/Models/Practice/PracticeProgressModels.swift HappyPianistAVP/Services/Library/BundledSongLibraryProvider.swift HappyPianistAVP/Services/Practice/Progress/PracticeProgressRepository.swift HappyPianistAVPTests/Library/SongLibraryIndexStoreTests.swift HappyPianistAVPTests/Library/SongLibraryProgressCleanupTests.swift HappyPianistAVPTests/Library/BundledSongLibraryVersionTests.swift HappyPianistAVPTests/Practice/PracticeProgressDocumentCompatibilityTests.swift HappyPianistAVPTests/Practice/PracticeProgressRepositoryTests.swift HappyPianistAVPTests/Practice/PracticeProgressCoordinatorTests.swift HappyPianistAVPTests/Practice/PracticeResumeLifecycleTests.swift HappyPianistAVPTests/Practice/PracticeLearningLoopIntegrationTests.swift HappyPianistAVPTests/Support/SongLibraryViewModelTestHarness.swift HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift docs/storage.md docs/architecture.md`
+
+Run: `git commit -m "feat: P2-T1 - 增加曲谱版本与练习元数据"`
 
 ---
 
-## P2-T3 实现当前曲目 Library snapshot 纯派生策略
+## P2-T2 创建事实快照策略并立即接入 Library selection
 
 **Files:**
 - Create: `HappyPianistAVP/Models/Library/SongPracticeLibrarySnapshot.swift`
-- Create: `HappyPianistAVP/Services/Practice/Progress/SongPracticeLibrarySnapshotBuilder.swift`
+- Create: `HappyPianistAVP/Services/Library/SongPracticeLibrarySnapshotBuilder.swift`
+- Modify: `HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift`
+- Modify: `HappyPianistAVP/Views/Library/LibraryWindowView.swift`
+- Modify: `HappyPianistAVP/ViewModels/LiveAppGraph.swift`
+- Modify: `HappyPianistAVPTests/Support/SongLibraryViewModelTestHarness.swift`
 - Create: `HappyPianistAVPTests/Library/SongPracticeLibrarySnapshotBuilderTests.swift`
+- Create: `HappyPianistAVPTests/Library/SongLibrarySnapshotLoadingTests.swift`
+- Modify: `docs/data-flow.md`
+- Modify: `docs/modules/happypianist-avp.md`
 
-**Step 1: 定义只读 snapshot**
+**Step 1: 定义无UI类型snapshot/presentation state**
 
-snapshot 只包含展示所需事实，例如：状态、最近练习时间、stable/learning unique measure counts、total、resume measure title input、最高稳定速度、近期问题、历史存在标记。不要包含 SwiftUI 类型、颜色、文案或完整 progress document。
+`SongPracticeLibrarySnapshot`只包含展示事实：status、latest real practice date、current hand、stable/learning unique counts、total、resume source identity、highest stable tempo、recent issues、hasHistory。不得包含Color、Text、文案、比例或full document。
 
-**Step 2: 实现 version/revision 匹配**
+Library state携带selected songID与entry token：noSelection、loading、neverPracticed、current(snapshot)、needsRebuild(historyDate)、unavailable。任何旧结果都必须能被identity检查拒绝。
 
-- entry token 与 metadata token exact 匹配才视为 current structure。
-- nil entry token 只匹配 nil metadata token。
-- current metadata 的 `scoreRevision` 只读取同 identity progress facts。
-- 有历史但无 current metadata 或 token mismatch → needs-rebuild。
-- repository 输入不可用由上层映射 unavailable，不在 builder 猜测。
+**Step 2: 实现token/revision选择**
 
-**Step 3: 实现真实 facts 规则**
+纯builder的 `build(entry:history:) async` 为非actor隔离async入口，在generic executor处理current entry + `PracticeSongHistory`：
 
-- `hasPracticeHistory`：至少一个 fact 有真实 attempt 证据（成功/失败次数或 `lastAttemptAt`）。
-- hand mode：优先最新有效 active configuration 的 hand；否则从最近 attempt fact 的 hand 决定；无 facts 使用 nil。
-- stable/learning：同 hand、当前 revision、唯一 `PracticeSourceMeasureID`。
-- recent issue：有 issue 且有 `lastAttemptAt`，按时间倒序稳定排序。
-- highest stable tempo：只看 stable facts 的非 nil 值。
-- resume：只有 exact revision 且 occurrence/结构由 Practice 已验证的 progress；Library 只输出可显示的 source measure identity，不尝试读取 score。
+1. 找token exact metadata；多条时按preparedAt降序、revision稳定tie-break选current metadata。
+2. nil只匹配nil；non-nil不匹配nil。
+3. current facts只来自metadata scoreRevision exact progress。
+4. 所有revision真实facts用于判断historical existence/latest date。
+5. 有真实history且无matching metadata -> needsRebuild；隐藏counts/total/resume。current progress是否存在不能替代token/metadata匹配。
+6. matching metadata存在时即为current版本；当前revision无真实attempt时保留historical latest date/hasHistory，但隐藏current counts/hand/resume并呈现“当前版本尚未练习”，不得返回needsRebuild。
+7. 状态优先级固定：全部revision均无真实attempt -> neverPracticed；否则有matching metadata -> current（即使current revision无attempt）；否则 -> needsRebuild。这样metadata本身永远不伪造练习历史。
 
-**Step 4: 测试**
+**Step 3: 实现真实facts与确定性去重**
 
-覆盖 never-practiced、current、needs-rebuild、legacy nil token、metadata missing、空 progress record、repeat occurrence 不重复、不同 hand facts、旧 revision facts 隔离、issue 排序、unknown total。
+严格落实idea规则：
 
-**Step 5: 验证**
+- latest practice=max `lastAttemptAt`；
+- hand=当前revision最近真实attempt hand；
+- same source+hand duplicate先按lastAttemptAt，再state稳定优先级/identity tie-break；
+- stable/learning唯一source measure；
+- recent issues要求issue+timestamp，source去重后排序；
+- highest tempo仅stable/current hand；
+- resume仅exact progress且其source measure有真实current fact；
+- total只取metadata unique count。
 
-Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+测试必须明确`updatedAt`晚但无attempt不改变latest/hasHistory；async builder从MainActor调用时不在MainActor执行排序（用可注入executor probe或Swift并发隔离断言，不依赖线程ID）。
 
-Expected: 纯 builder tests 全部通过且不需要文件系统、MainActor 或真实时间。
+**Step 4: 同 task接入 SongLibraryViewModel**
 
-**Step 6: 原子提交**
+重新注入progress repository + builder，但不恢复任何score/preparation依赖。selection变化、initial load、import/delete及未来token变化调用`scheduleSnapshotLoad`。另外`LibraryWindowRootView`在窗口重新出现或scene恢复active时调用`refreshSelectedPracticeSnapshot()`，以读取Practice刚写入的metadata/facts；该调用只调度JSON history读取，不访问score：
 
-Run: `git add HappyPianistAVP/Models/Library/SongPracticeLibrarySnapshot.swift HappyPianistAVP/Services/Practice/Progress/SongPracticeLibrarySnapshotBuilder.swift HappyPianistAVPTests/Library/SongPracticeLibrarySnapshotBuilderTests.swift`
+- 立即发布loading(selectedID/token)；
+- 取消旧task并递增独立snapshot generation；
+- 使用短settle delay避免drag时排队JSON读取；
+- await `history(songID)`，再await非MainActor builder派生；
+- 只有selectedID + token + generation仍一致才发布；
+- 同一run-loop/onAppear+active重复refresh必须取消/合并到最新generation，不能并发发布两份相同snapshot。
 
-Run: `git commit -m "feat: P2-T3 - 从真实练习事实派生曲库快照"`
+unavailable不设置全局error、不禁用试听/开始按钮。开始按钮完全不等待snapshot。
+
+**Step 5: 明确轻量性能边界**
+
+添加`ponytail:`注释说明当前progress JSON整份decode + 同song线性过滤/排序是有意简化；这些工作均不在MainActor。只有实测document规模或selection latency超阈值才引入索引/cache，不得在本task加缓存失效系统。
+
+**Step 6: 测试**
+
+Builder覆盖：never、current、needs rebuild、legacy nil、bundled token mismatch、repeat、duplicate corrupt facts、hands、old revision、tie-break、issues、resume guard、unknown total、updatedAt非attempt。
+
+VM覆盖：A->B stale、token变化reload、delete fallback、repository corrupted、rapid drag debounce、Library返回时同selection refresh、onAppear+active coalesce、立即start不等待、score file/preparation spy零调用。
+
+**Step 7: 文档**
+
+data-flow与AVP module立即描述history read与generation gate；说明Library仍无Ornament UI直到P2-T4，但状态已可用。
+
+**Step 8: 验证**
+
+Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+
+Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+
+Expected: 纯builder无需filesystem/MainActor；VM spy证明零score access。
+
+**Step 9: 原子提交**
+
+Run: `git add HappyPianistAVP/Models/Library/SongPracticeLibrarySnapshot.swift HappyPianistAVP/Services/Library/SongPracticeLibrarySnapshotBuilder.swift HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift HappyPianistAVP/Views/Library/LibraryWindowView.swift HappyPianistAVP/ViewModels/LiveAppGraph.swift HappyPianistAVPTests/Support/SongLibraryViewModelTestHarness.swift HappyPianistAVPTests/Library/SongPracticeLibrarySnapshotBuilderTests.swift HappyPianistAVPTests/Library/SongLibrarySnapshotLoadingTests.swift docs/data-flow.md docs/modules/happypianist-avp.md`
+
+Run: `git commit -m "feat: P2-T2 - 派生并加载当前曲目练习快照"`
 
 ---
 
-## P2-T4 在 Practice preparation 成功后写入当前 score metadata
+## P2-T3 在成功 Practice preparation 后写入 metadata
 
 **Files:**
 - Modify: `HappyPianistAVP/ViewModels/PracticeLaunch/PracticeLaunchViewModel.swift`
@@ -187,148 +225,161 @@ Run: `git commit -m "feat: P2-T3 - 从真实练习事实派生曲库快照"`
 - Modify: `HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift`
 - Modify: `docs/storage.md`
 - Modify: `docs/data-flow.md`
+- Modify: `docs/modules/happypianist-avp-practice.md`
 
-**Step 1: 计算唯一 source measure 总数**
+**Step 1: resolver结果携带entry token**
 
-在 prepared result 已通过 steps/measure spans 验证后，用 `Set(prepared.measureSpans.map(\.sourceMeasureID)).count` 生成 total；不要按 occurrence 数量计数。
+使用P1 resolver的entry snapshot；launch owner在当前generation完成prepared验证与session apply后拥有songID、entry token、prepared revision和measure spans。不要重新读Library state。
 
-**Step 2: upsert metadata**
+**Step 2: 计算唯一source measure count**
 
-使用当前 entry 的 `scoreFileVersionID`、prepared identity revision 与 deterministic/system clock 写入 metadata。写入时机必须在成功 preparation 后，且与 Library 无关。
+`Set(prepared.measureSpans.map(\.sourceMeasureID)).count`；不按occurrence count。若spans已通过nonempty验证，total至少1；模型仍防御性clamp。
 
-**Step 3: 定义失败降级**
+**Step 3: ready publication与best-effort upsert解耦**
 
-metadata write 失败：记录 typed warning/error diagnostic，但不撤销已准备成功的 session，不让 Practice 进入 failure。后续 Library 因缺失/mismatch metadata 不显示旧结构数字。
+当前generation完成apply与配置验证后立即发布ready；不要让metadata JSON IO延长loading。随后从immutable `(songID, entryToken, revision, uniqueCount, preparedAt)` 创建独立受管task await repository upsert。graph持有launch owner，task不能依赖View生命周期。
 
-**Step 4: 测试**
+request随后切换或scene inactive不取消已经成功apply对应的metadata task；它允许幂等落盘，但绝不能再次发布ready/UI。replacement的新token不会匹配旧写入。metadata failure只记录warning，不能reset已安装session或进入launch failure。launch owner teardown/deinit要取消尚未取得immutable成功事实的任务，但不能取消已经开始的合法metadata commit。
 
-覆盖 unique source count、nil/non-nil token、metadata upsert 参数、repository failure 仍 ready、旧 generation 不写 metadata、cancel 不写 metadata。
+**Step 4: typed diagnostics**
 
-**Step 5: 文档**
+增加metadata write failed code/stage，reason仅safe error summary；字段包含songID/token/revision/unique count，不包含measure list或路径。
 
-storage/data-flow 说明 `PracticeProgressDocument` 同时保存 songs 与 scoreMetadata，metadata 由 Practice preparation 刷新，Library 只读派生。
+**Step 5: 测试**
 
-**Step 6: 验证**
+覆盖unique count、repeat去重、nil legacy/non-nil/bundled token、repository failure仍ready、apply失败不写、prepare failure不写、stale after apply可写metadata但不可ready、diagnostic privacy。
 
-Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+**Step 6: 文档**
 
-Expected: metadata failure test 中 launch state 为 ready 且产生安全 diagnostic。
+storage/data-flow/practice module同task说明writer时机、失败降级与stale幂等规则。
 
-**Step 7: 原子提交**
+**Step 7: 验证**
 
-Run: `git add HappyPianistAVP/ViewModels/PracticeLaunch/PracticeLaunchViewModel.swift HappyPianistAVP/ViewModels/LiveAppGraph.swift HappyPianistAVP/Models/Diagnostics/DiagnosticModels.swift HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift docs/storage.md docs/data-flow.md`
+Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
 
-Run: `git commit -m "feat: P2-T4 - 在练习准备后更新曲谱元数据"`
+Expected: metadata failure case为ready + warning；无session success时无metadata。
+
+**Step 8: 原子提交**
+
+Run: `git add HappyPianistAVP/ViewModels/PracticeLaunch/PracticeLaunchViewModel.swift HappyPianistAVP/ViewModels/LiveAppGraph.swift HappyPianistAVP/Models/Diagnostics/DiagnosticModels.swift HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift docs/storage.md docs/data-flow.md docs/modules/happypianist-avp-practice.md`
+
+Run: `git commit -m "feat: P2-T3 - 在练习准备成功后更新曲谱元数据"`
 
 ---
 
-## P2-T5 让 SongLibraryViewModel 按选择异步加载当前快照
+## P2-T4 创建并挂载只读 trailing Ornament
 
 **Files:**
-- Modify: `HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift`
-- Modify: `HappyPianistAVP/ViewModels/LiveAppGraph.swift`
-- Modify: `HappyPianistAVPTests/Support/SongLibraryViewModelTestHarness.swift`
-- Create: `HappyPianistAVPTests/Library/SongLibrarySnapshotLoadingTests.swift`
+- Create: `HappyPianistAVP/Views/Library/LibraryPracticeProgressOrnamentView.swift`
+- Create: `HappyPianistAVP/Views/Library/LibraryPracticeEmptyAnimationView.swift`
+- Modify: `HappyPianistAVP/Views/Library/SongLibraryView.swift`
+- Modify: `README.md`
+- Modify: `docs/overview.md`
+- Modify: `docs/modules/happypianist-avp.md`
+- Modify: `docs/testing/core-function-checklist.md`
 
-**Step 1: 定义 Ornament presentation state**
+**Step 1: 按snapshot state渲染只读内容**
 
-在 Library 模型层定义 no selection、loading（仅 repository 读取的瞬态）、never practiced、current、needs rebuild、unavailable。状态携带 selected songID，避免旧曲目数据短暂显示在新选择上。
+- no selection：选择提示；
+- loading：小型`ProgressView`/redaction，只代表历史JSON；
+- never：邀请文案+原生动画；
+- current：最近练习、stable/learning/total、resume、tempo、issues中有值才显示；
+- needs rebuild：显示历史存在/最近日期，不显示旧结构counts/resume；
+- unavailable：鼓励练习与数据不可用说明。
 
-**Step 2: 接入 generation-gated load**
+所有文案/颜色映射在View/presentation extension，不写回snapshot或JSON。
 
-选择、恢复选择、import/delete/replace 导致当前 entry/version 变化时：取消旧 task、递增 generation、请求 repository 输入并调用纯 builder。只有当前 selected songID + generation + version token 一致时发布。
+**Step 2: 原生动画与accessibility**
 
-**Step 3: 保持 Library 轻量**
+动画使用SwiftUI shape/symbol effect/phase animator等平台API，不加依赖。Reduce Motion时使用静态图形；Differentiate Without Color不能只用颜色表达stable/learning；VoiceOver提供组合label/value；Dynamic Type不强制固定字体。面板宽度/spacing复用现有Library design token或内容自适应，不新增400等magic number。
 
-删除任何 score URL、parser、preparation service 或 session dependency。snapshot load failure 只设置 unavailable，不影响试听、选择、导入、删除和开始练习。
+**Step 3: 正确使用 Ornament**
 
-**Step 4: 测试**
+在`SongLibraryView`恢复`.ornament(attachmentAnchor: .scene(.trailing))`，因为它是持续附着的辅助面板，符合AVP AGENTS。只注入当前snapshot state；不注入launch owner、ARGuide、configuration controller或score service。
 
-覆盖 A→B stale snapshot、恢复 last-selected、无选择、repository corrupted/unavailable、version token 变化重新加载、立即开始不等待 snapshot、spy file store/preparation 零调用。
+Ornament内禁止任何“开始/继续/去练习”按钮、Picker、Slider、Toggle、Stepper。P1主内容右下角按钮保持唯一入口。
 
-**Step 5: 验证**
+**Step 4: 同 task更新docs/checklist**
 
-Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -only-testing:HappyPianistAVPTests`
+README/overview/module改为“右侧只读事实 + 左侧唯一按钮”。人工清单删除旧配置操作，增加never/current/rebuild/unavailable、Reduce Motion、VoiceOver、窗口resize检查。
 
-Expected: snapshot state 始终绑定当前 songID；数据失败不禁用开始按钮。
+**Step 5: 静态验证**
+
+Run: `rg -n "Picker|Slider|Toggle|Stepper|去练习|继续练习|开始练习" HappyPianistAVP/Views/Library/LibraryPracticeProgressOrnamentView.swift`
+
+Expected: 零交互配置与练习按钮命中。
+
+Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO`
+
+Expected: 全套测试通过。
 
 **Step 6: 原子提交**
 
-Run: `git add HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift HappyPianistAVP/ViewModels/LiveAppGraph.swift HappyPianistAVPTests/Support/SongLibraryViewModelTestHarness.swift HappyPianistAVPTests/Library/SongLibrarySnapshotLoadingTests.swift`
+Run: `git add HappyPianistAVP/Views/Library/LibraryPracticeProgressOrnamentView.swift HappyPianistAVP/Views/Library/LibraryPracticeEmptyAnimationView.swift HappyPianistAVP/Views/Library/SongLibraryView.swift README.md docs/overview.md docs/modules/happypianist-avp.md docs/testing/core-function-checklist.md`
 
-Run: `git commit -m "feat: P2-T5 - 按当前曲目加载只读练习快照"`
+Run: `git commit -m "feat: P2-T4 - 重建只读曲库进度 Ornament"`
 
 ---
 
-## P2-T6 重建只读进度 Ornament 与 Reduce Motion 空状态
+## P2-T5 完成事实边界、性能与 UI phase gate
 
 **Files:**
-- Create: `HappyPianistAVP/Views/Library/LibraryPracticeOrnamentView.swift`
-- Create: `HappyPianistAVP/Views/Library/LibraryPracticeInvitationView.swift`
-- Create: `HappyPianistAVP/Models/Library/LibraryPracticeOrnamentPresentation.swift`
-- Modify: `HappyPianistAVP/Views/Library/SongLibraryView.swift`
-- Create/Modify: `HappyPianistAVPTests/Library/LibraryPracticeOrnamentPresentationTests.swift`
-- Modify: `README.md`
-- Modify: `docs/architecture.md`
-- Modify: `docs/overview.md`
-- Modify: `docs/modules/happypianist-avp.md`
-- Modify: `docs/modules/happypianist-avp-practice.md`
+- Modify: `HappyPianistAVPTests/Library/SongPracticeLibrarySnapshotBuilderTests.swift`
+- Modify: `HappyPianistAVPTests/Library/SongLibrarySnapshotLoadingTests.swift`
+- Modify: `HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift`
 - Modify: `docs/testing/core-function-checklist.md`
 
-**Step 1: 构建五类产品状态**
+本task只记录证据/状态，不延迟前序task应完成的行为文档。
 
-- 未选择：提示选择曲目。
-- 从未练习：邀请文案 + SwiftUI 原生轻量动画；无 0/总数图表。
-- current：最近练习、stable/learning、最近停留、最高稳定速度、近期问题。
-- needs rebuild：说明曲谱已更新，下次练习建立新版本；隐藏旧结构数字。
-- unavailable：鼓励练习，不触发 score access。
+**Step 1: 边界回归矩阵**
 
-loading 瞬态可使用系统 `ProgressView`，但文案不得暗示正在解析曲谱。
+覆盖：
 
-**Step 2: 保证只读与单一入口**
+- progress仅有active config/updatedAt但无attempt -> never；
+- old revision有attempt、current metadata存在但current facts空 -> current版本已建立/无当前计数，不得needsRebuild；
+- duplicate facts与same-time tie-break deterministic；
+- resume source无真实fact ->隐藏；
+- bundled build token变化 ->旧metadata不匹配；
+- rapid A->B->A actor读取乱序 ->只显示最终A；
+- metadata write failure后返回Library -> 有真实旧history时needsRebuild、全无attempt时never，绝不复用旧current结构。
 
-Ornament 不接受 `PracticeRoundConfigurationController`，不包含 Picker/Slider/Toggle/Stepper，也不包含“去练习”或任何第二个启动按钮。开始按钮仍只在左侧主内容。
+**Step 2: 调用图与资源gate**
 
-**Step 3: 实现可访问动画**
+Run: `codegraph explore "LibraryPracticeProgressOrnament SongLibraryViewModel snapshot scoreFileURL PracticePreparationService PreparedPractice"`
 
-使用 SwiftUI 原生 symbol/shape/opacity/scale 动画；`accessibilityReduceMotion == true` 时使用静态等价层级。动画不影响信息和按钮可达性，不引入依赖。
+Expected: Ornament/snapshot路径只到repository/builder；无score/preparation/session。
 
-**Step 4: presentation tests**
+Run: `rg -n "LibraryPracticeProgressOrnamentView|onStartPractice|PracticeRoundConfigurationController" HappyPianistAVP/Views/Library`
 
-用纯 presentation model 测试五态文案/数字可见性、never-practiced 不输出零进度、needs-rebuild 不输出旧 total、日期/百分比 FormatStyle、recent issue 顺序。
+Expected: Ornament无start/config controller；start只在主Library内容。
 
-**Step 5: 同步 docs 与人工清单**
+**Step 3: Apple target与人工证据**
 
-canonical docs 描述“当前曲目持久化事实 Ornament”，删除旧配置控件与 preparation failure 位于 Library 的说明。人工检查加入 VoiceOver、Reduce Motion、窗口高度/宽度和滚动。
+Run: `xcodebuild -showdestinations -project HappyPianist.xcodeproj -scheme HappyPianistAVP`
 
-**Step 6: Phase 验证**
+Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO`
 
-Run: `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO`
+Run: `xcodebuild build -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,name=Apple Vision Pro,OS=latest' CODE_SIGNING_ALLOWED=NO`
 
-Run: `xcodebuild build -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=<device-id>' CODE_SIGNING_ALLOWED=NO`
+人工检查各状态、window min/ideal/max、Dynamic Type、VoiceOver、Reduce Motion、Differentiate Without Color。未执行标`Not Run`。
 
-Expected: test/build 通过；代码搜索与调用图确认 Ornament 无 score IO、parser、session/config controller 依赖。
+**Step 4: 原子提交**
 
-**Step 7: 原子提交**
+Run: `git add HappyPianistAVPTests/Library/SongPracticeLibrarySnapshotBuilderTests.swift HappyPianistAVPTests/Library/SongLibrarySnapshotLoadingTests.swift HappyPianistAVPTests/Practice/PracticeLaunchViewModelTests.swift docs/testing/core-function-checklist.md`
 
-Run: `git add HappyPianistAVP/Views/Library HappyPianistAVP/Models/Library/LibraryPracticeOrnamentPresentation.swift HappyPianistAVPTests/Library/LibraryPracticeOrnamentPresentationTests.swift README.md docs/architecture.md docs/overview.md docs/modules/happypianist-avp.md docs/modules/happypianist-avp-practice.md docs/testing/core-function-checklist.md`
-
-Run: `git commit -m "feat: P2-T6 - 重建当前曲目只读进度装饰栏"`
+Run: `git commit -m "test: P2-T5 - 验证曲库事实快照与 Ornament 边界"`
 
 ---
 
 ## Phase Audit
 
 - Audit file: `audit-p2.md`
-- Rule: 完成本 phase 全部 tasks 后，`executing-plans` 必须自动进入该文件的审计闭环
+- Rule: 全部task完成后自动进入审计闭环。
 - Audit focus:
-  1. 检查 document Codable 是否真实兼容旧 JSON，任一 mutation 是否保留另一类字段。
-  2. 检查 total/stable/learning/issues 是否按唯一 source measure、当前 revision 和最后 hand mode 派生。
-  3. 检查 nil token legacy 与 non-nil replacement mismatch 是否不会误认旧结构。
-  4. 检查 hasPracticeHistory 是否只来自真实 attempt facts。
-  5. 检查 Ornament 是否持久化/持有 UI summary、配置 controller、score URL 或第二启动按钮。
-  6. 检查 metadata failure 降级、diagnostic privacy 和 MainActor IO。
-- Flow:
-  1. 先记录发现
-  2. 再修复问题
-  3. 再运行本 phase 完整 `xcodebuild test` 与 `xcodebuild build`
+  1. 旧JSON兼容与metadata/progress mutation保留语义。
+  2. bundled token是否避免App更新后nil误匹配。
+  3. facts规则是否只使用真实attempt、唯一source measure与current hand/revision。
+  4. snapshot generation是否绑定songID+token且无score access。
+  5. metadata failure是否不影响ready且diagnostic无敏感数据。
+  6. Ornament是否只读、唯一入口仍在主内容、accessibility完整。
+  7. docs是否在对应task更新而非gate补账。
