@@ -281,7 +281,9 @@ struct SongLibraryView: View {
     do {
       let urls = try result.get()
       guard let entryID = pendingAudioBindingEntryID, let audioURL = urls.first else { return }
-      viewModel.bindAudio(entryID: entryID, from: audioURL)
+      Task { @MainActor in
+        await viewModel.bindAudio(entryID: entryID, from: audioURL)
+      }
     } catch {
       viewModel.errorMessage = "导入音频失败：\(error.localizedDescription)"
     }

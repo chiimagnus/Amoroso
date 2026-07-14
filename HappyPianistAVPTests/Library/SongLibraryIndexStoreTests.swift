@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @Test
-func songLibraryIndexStoreLoadReturnsEmptyWhenFileMissing() throws {
+func songLibraryIndexStoreLoadReturnsEmptyWhenFileMissing() async throws {
     let documentsURL = try makeTemporaryDirectory(prefix: "SongLibraryIndexStoreTests")
     defer { try? FileManager.default.removeItem(at: documentsURL) }
 
@@ -11,12 +11,12 @@ func songLibraryIndexStoreLoadReturnsEmptyWhenFileMissing() throws {
     let paths = SongLibraryPaths(fileManager: fileManager)
     let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
 
-    let index = try store.load()
+    let index = try await store.load()
     #expect(index == .empty)
 }
 
 @Test
-func songLibraryIndexStoreSaveAndLoadRoundTrip() throws {
+func songLibraryIndexStoreSaveAndLoadRoundTrip() async throws {
     let documentsURL = try makeTemporaryDirectory(prefix: "SongLibraryIndexStoreTests")
     defer { try? FileManager.default.removeItem(at: documentsURL) }
 
@@ -40,26 +40,25 @@ func songLibraryIndexStoreSaveAndLoadRoundTrip() throws {
         lastSelectedEntryID: entryID
     )
 
-    try store.save(index)
-    let loaded = try store.load()
+    try await store.save(index)
+    let loaded = try await store.load()
 
     #expect(loaded == index)
 }
 
 @Test
-func songLibraryIndexStoreLoadReturnsEmptyWhenFileIsEmpty() throws {
+func songLibraryIndexStoreLoadReturnsEmptyWhenFileIsEmpty() async throws {
     let documentsURL = try makeTemporaryDirectory(prefix: "SongLibraryIndexStoreTests")
     defer { try? FileManager.default.removeItem(at: documentsURL) }
 
     let fileManager = TestDocumentsFileManager(documentsURL: documentsURL)
     let paths = SongLibraryPaths(fileManager: fileManager)
-    let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
-
     try paths.ensureDirectoriesExist()
     let indexFileURL = try paths.indexFileURL()
     try Data().write(to: indexFileURL)
+    let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
 
-    let index = try store.load()
+    let index = try await store.load()
     #expect(index == .empty)
 }
 
@@ -88,20 +87,20 @@ private final class TestDocumentsFileManager: FileManager {
 
 
 @Test
-func songLibraryIndexStoreQuarantinesCorruptedFileAndRecovers() throws {
+func songLibraryIndexStoreQuarantinesCorruptedFileAndRecovers() async throws {
     let documentsURL = try makeTemporaryDirectory(prefix: "SongLibraryIndexStoreTests")
     defer { try? FileManager.default.removeItem(at: documentsURL) }
 
     let fileManager = TestDocumentsFileManager(documentsURL: documentsURL)
     let paths = SongLibraryPaths(fileManager: fileManager)
-    let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
     try paths.ensureDirectoriesExist()
     let indexFileURL = try paths.indexFileURL()
     try Data("not-json".utf8).write(to: indexFileURL)
+    let store = SongLibraryIndexStore(fileManager: fileManager, paths: paths)
 
-    #expect(try store.load() == .empty)
-    #expect(fileManager.fileExists(atPath: indexFileURL.path()) == false)
-    let quarantinedFiles = try fileManager.contentsOfDirectory(
+    #expect(try await store.load() == .empty)
+    #expect(FileManager.default.fileExists(atPath: indexFileURL.path()) == false)
+    let quarantinedFiles = try FileManager.default.contentsOfDirectory(
         at: indexFileURL.deletingLastPathComponent(),
         includingPropertiesForKeys: nil
     ).filter { $0.lastPathComponent.hasPrefix("index.corrupt-") }
@@ -109,6 +108,6 @@ func songLibraryIndexStoreQuarantinesCorruptedFileAndRecovers() throws {
     #expect(try String(contentsOf: quarantinedFiles[0], encoding: .utf8) == "not-json")
 
     let replacement = SongLibraryIndex(entries: [], lastSelectedEntryID: UUID())
-    try store.save(replacement)
-    #expect(try store.load() == replacement)
+    try await store.save(replacement)
+    #expect(try await store.load() == replacement)
 }

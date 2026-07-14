@@ -39,7 +39,7 @@ enum SongLibraryViewModelTestHarness {
     }
 }
 
-private final class InMemorySongLibraryIndexStore: SongLibraryIndexStoreProtocol {
+private actor InMemorySongLibraryIndexStore: SongLibraryIndexStoreProtocol {
     private var index: SongLibraryIndex
 
     init(index: SongLibraryIndex) {

@@ -1,11 +1,11 @@
 import Foundation
 
-protocol SongLibraryIndexStoreProtocol {
+protocol SongLibraryIndexStoreProtocol: Actor {
     func load() throws -> SongLibraryIndex
     func save(_ index: SongLibraryIndex) throws
 }
 
-struct SongLibraryIndexStore: SongLibraryIndexStoreProtocol {
+actor SongLibraryIndexStore: SongLibraryIndexStoreProtocol {
     private let fileManager: FileManager
     private let paths: SongLibraryPaths
 

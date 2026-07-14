@@ -112,9 +112,9 @@ final class SongLibraryViewModel {
         isLibraryLoading = false
     }
 
-    func reload() {
+    func reload() async {
         do {
-            index = try indexStore.load()
+            index = try await indexStore.load()
         } catch {
             errorMessage = "加载乐曲库失败：\(error.localizedDescription)"
         }
@@ -199,11 +199,11 @@ final class SongLibraryViewModel {
         isMusicXMLImporterPresented = true
     }
 
-    func importMusicXML(from selectedURLs: [URL]) {
+    func importMusicXML(from selectedURLs: [URL]) async {
         guard selectedURLs.isEmpty == false else { return }
 
         do {
-            var updatedIndex = try indexStore.load()
+            var updatedIndex = try await indexStore.load()
 
             for url in selectedURLs {
                 let imported = try fileStore.importMusicXML(from: url)
@@ -221,7 +221,7 @@ final class SongLibraryViewModel {
                 nextIndex.entries.append(entry)
 
                 do {
-                    try indexStore.save(nextIndex)
+                    try await indexStore.save(nextIndex)
                     updatedIndex = nextIndex
                     index = updatedIndex
                 } catch {
@@ -271,9 +271,8 @@ final class SongLibraryViewModel {
         selectedPracticeEntryID = entryID
         recordedPreparationFailureID = nil
         practicePreparationState = .loading(entryID: entryID)
-        persistSelectedEntry(entryID)
-
         practicePreparationTask = Task { @MainActor [weak self] in
+            await self?.persistSelectedEntry(entryID)
             await self?.prepareSelectedEntry(entryID: entryID, generation: generation)
         }
     }
@@ -386,11 +385,11 @@ final class SongLibraryViewModel {
         return DiagnosticFileReference(fileName: fileName, relativePath: relativePath)
     }
 
-    private func persistSelectedEntry(_ entryID: UUID) {
+    private func persistSelectedEntry(_ entryID: UUID) async {
         var updatedIndex = index
         updatedIndex.lastSelectedEntryID = entryID
         do {
-            try indexStore.save(updatedIndex)
+            try await indexStore.save(updatedIndex)
             index = updatedIndex
         } catch {
             errorMessage = "保存曲库选择失败：\(error.localizedDescription)"
@@ -419,7 +418,7 @@ final class SongLibraryViewModel {
                 updatedIndex.lastSelectedEntryID = updatedIndex.entries.last?.id
             }
 
-            try indexStore.save(updatedIndex)
+            try await indexStore.save(updatedIndex)
             index = updatedIndex
 
             do {
@@ -441,7 +440,7 @@ final class SongLibraryViewModel {
         }
     }
 
-    func bindAudio(entryID: UUID, from sourceURL: URL) {
+    func bindAudio(entryID: UUID, from sourceURL: URL) async {
         if bundledEntries.contains(where: { $0.id == entryID }) {
             errorMessage = "内置曲目不支持绑定外部音频文件。"
             return
@@ -464,7 +463,7 @@ final class SongLibraryViewModel {
             updatedIndex.entries[entryIndex].audioFileName = importedAudioFileName
 
             do {
-                try indexStore.save(updatedIndex)
+                try await indexStore.save(updatedIndex)
                 if currentListeningEntryID == entryID {
                     stopListening()
                 }

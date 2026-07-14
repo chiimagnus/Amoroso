@@ -71,7 +71,10 @@ struct LibraryContentView: View {
       allowsMultipleSelection: true
     ) { result in
       do {
-        songLibraryViewModel.importMusicXML(from: try result.get())
+        let selectedURLs = try result.get()
+        Task { @MainActor in
+          await songLibraryViewModel.importMusicXML(from: selectedURLs)
+        }
       } catch {
         songLibraryViewModel.errorMessage = "导入失败：\(error.localizedDescription)"
       }

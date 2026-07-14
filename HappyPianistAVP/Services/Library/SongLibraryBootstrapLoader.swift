@@ -18,18 +18,18 @@ struct SongLibraryBootstrapSnapshot: Sendable {
 }
 
 protocol SongLibraryBootstrapLoading: Actor {
-    func load() -> SongLibraryBootstrapSnapshot
+    func load() async -> SongLibraryBootstrapSnapshot
 }
 
 actor LiveSongLibraryBootstrapLoader: SongLibraryBootstrapLoading {
     private let indexStore = SongLibraryIndexStore()
     private let bundledProvider = BundledSongLibraryProvider()
 
-    func load() -> SongLibraryBootstrapSnapshot {
+    func load() async -> SongLibraryBootstrapSnapshot {
         let bundledEntries = bundledProvider.bundledEntries()
         do {
             return .loaded(
-                index: try indexStore.load(),
+                index: try await indexStore.load(),
                 bundledEntries: bundledEntries
             )
         } catch {

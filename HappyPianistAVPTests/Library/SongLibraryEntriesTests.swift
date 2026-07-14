@@ -58,7 +58,7 @@ func libraryDeduplicatesOnlyIdenticalEntryIDs() {
 
 @Test
 @MainActor
-func batchImportKeepsSuccessfulEntriesVisibleWhenLaterPersistenceFails() {
+func batchImportKeepsSuccessfulEntriesVisibleWhenLaterPersistenceFails() async {
     let indexStore = FailingSecondSaveSongLibraryIndexStore()
     let fileStore = RecordingSongFileStore()
     let viewModel = SongLibraryViewModelTestHarness.make(
@@ -66,18 +66,19 @@ func batchImportKeepsSuccessfulEntriesVisibleWhenLaterPersistenceFails() {
         fileStore: fileStore
     )
 
-    viewModel.importMusicXML(from: [
+    await viewModel.importMusicXML(from: [
         URL(fileURLWithPath: "/tmp/first.musicxml"),
         URL(fileURLWithPath: "/tmp/second.musicxml"),
     ])
 
     #expect(viewModel.index.entries.map(\.displayName) == ["first"])
-    #expect(indexStore.index.entries.map(\.displayName) == ["first"])
+    let storedIndex = await indexStore.index
+    #expect(storedIndex.entries.map(\.displayName) == ["first"])
     #expect(fileStore.deletedScoreNames == ["second.musicxml"])
     #expect(viewModel.errorMessage != nil)
 }
 
-private final class FailingSecondSaveSongLibraryIndexStore: SongLibraryIndexStoreProtocol {
+private actor FailingSecondSaveSongLibraryIndexStore: SongLibraryIndexStoreProtocol {
     private(set) var index = SongLibraryIndex.empty
     private var saveCount = 0
 

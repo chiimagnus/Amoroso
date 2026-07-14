@@ -181,7 +181,7 @@ private func waitForPreparationFailure(
     Issue.record("Timed out waiting for preparation failure")
 }
 
-private final class PreparationTestIndexStore: SongLibraryIndexStoreProtocol {
+private actor PreparationTestIndexStore: SongLibraryIndexStoreProtocol {
     var value = SongLibraryIndex.empty
     func load() throws -> SongLibraryIndex { value }
     func save(_ index: SongLibraryIndex) throws { value = index }
