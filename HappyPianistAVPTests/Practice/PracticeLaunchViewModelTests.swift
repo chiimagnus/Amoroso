@@ -146,6 +146,163 @@ func practiceLaunchReportsRepairedSavedConfigurationButStillBecomesReady() async
     #expect(await fixture.reporter.events.contains { $0.code == .practiceSavedConfigurationRepaired })
 }
 
+@MainActor
+@Test
+func newRequestWhileResolveIsSuspendedCannotPublishOldGeneration() async {
+    let songA = UUID()
+    let songB = UUID()
+    let resolver = ControlledPracticeLaunchResolver(songIDs: [songA, songB])
+    let preparation = PracticeLaunchPreparationService(delays: [:], errors: [:], includeMeasureSpans: true)
+    let applicator = PracticeLaunchRecordingApplicator(applyOutcome: .applied)
+    let reporter = InMemoryDiagnosticsReporter()
+    let owner = PracticeLaunchViewModel(
+        resolver: resolver,
+        preparationService: preparation,
+        applicator: applicator,
+        diagnosticsReporter: reporter
+    )
+
+    owner.request(songID: songA)
+    let first = Task { @MainActor in await owner.activateCurrentRequest() }
+    await resolver.waitUntilRequested(songID: songA)
+    owner.request(songID: songB)
+    let second = Task { @MainActor in await owner.activateCurrentRequest() }
+    await resolver.waitUntilRequested(songID: songB)
+
+    await resolver.resume(songID: songB)
+    await second.value
+    await resolver.resume(songID: songA)
+    await first.value
+
+    #expect(owner.state == .ready(PracticeSongIdentity(songID: songB, scoreRevision: songB.uuidString)))
+    #expect(await preparation.requestedSongIDs() == [songB])
+    #expect(applicator.appliedSongIDs == [songB])
+    #expect(await reporter.events.filter { $0.severity == .error }.isEmpty)
+}
+
+@MainActor
+@Test
+func returnWhilePrepareIsSuspendedCannotApplyOrPublishFailure() async {
+    let songID = UUID()
+    let preparation = ControlledPracticeLaunchPreparationService()
+    let applicator = PracticeLaunchRecordingApplicator(applyOutcome: .applied)
+    let reporter = InMemoryDiagnosticsReporter()
+    let owner = PracticeLaunchViewModel(
+        resolver: PracticeLaunchResolver(songIDs: [songID]),
+        preparationService: preparation,
+        applicator: applicator,
+        diagnosticsReporter: reporter
+    )
+    owner.request(songID: songID)
+    let activation = Task { @MainActor in await owner.activateCurrentRequest() }
+    await preparation.waitUntilRequested(songID: songID)
+
+    let operationID = owner.beginReturn()
+    await preparation.resume(songID: songID)
+    await activation.value
+    await owner.finishReturn(operationID: operationID)
+
+    #expect(owner.state == .noRequest)
+    #expect(applicator.appliedSongIDs.isEmpty)
+    #expect(await reporter.events.filter { $0.severity == .error }.isEmpty)
+}
+
+@MainActor
+@Test
+func sceneInactiveWhileApplyIsSuspendedCannotLeakOldReadyState() async {
+    let songID = UUID()
+    let applicator = ControlledPracticeLaunchApplicator()
+    let owner = PracticeLaunchViewModel(
+        resolver: PracticeLaunchResolver(songIDs: [songID]),
+        preparationService: PracticeLaunchPreparationService(
+            delays: [:],
+            errors: [:],
+            includeMeasureSpans: true
+        ),
+        applicator: applicator,
+        diagnosticsReporter: InMemoryDiagnosticsReporter()
+    )
+    owner.request(songID: songID)
+    let activation = Task { @MainActor in await owner.activateCurrentRequest() }
+    await applicator.waitUntilApplyStarted()
+
+    await owner.suspendForInactiveScene()
+    applicator.resumeApply()
+    await activation.value
+
+    #expect(owner.state == .requested(songID: songID))
+    #expect(applicator.appliedSongIDs.isEmpty)
+    #expect(applicator.suspendCount == 1)
+}
+
+@MainActor
+@Test
+func missingLibraryMetadataProducesTypedFailureWithoutApply() async {
+    let missingID = UUID()
+    let applicator = PracticeLaunchRecordingApplicator(applyOutcome: .applied)
+    let owner = PracticeLaunchViewModel(
+        resolver: PracticeLaunchResolver(songIDs: []),
+        preparationService: PracticeLaunchPreparationService(
+            delays: [:],
+            errors: [:],
+            includeMeasureSpans: true
+        ),
+        applicator: applicator,
+        diagnosticsReporter: InMemoryDiagnosticsReporter()
+    )
+    owner.request(songID: missingID)
+
+    await owner.activateCurrentRequest()
+
+    guard case let .failure(failure) = owner.state else {
+        Issue.record("Expected missing metadata failure")
+        return
+    }
+    #expect(failure.code == .practiceScoreFileNotFound)
+    #expect(failure.file == nil)
+    #expect(applicator.appliedSongIDs.isEmpty)
+}
+
+@MainActor
+@Test
+func consecutivePracticeLaunchRetriesUseFreshGenerationsAndEventuallyReady() async {
+    let songID = UUID()
+    let preparation = SequencedPracticeLaunchPreparationService(
+        results: [
+            .failure(.noPlayableNotes),
+            .failure(.noPlayableNotes),
+            .success,
+        ]
+    )
+    let applicator = PracticeLaunchRecordingApplicator(applyOutcome: .applied)
+    let reporter = InMemoryDiagnosticsReporter()
+    let owner = PracticeLaunchViewModel(
+        resolver: PracticeLaunchResolver(songIDs: [songID]),
+        preparationService: preparation,
+        applicator: applicator,
+        diagnosticsReporter: reporter
+    )
+    owner.request(songID: songID)
+    await owner.activateCurrentRequest()
+    guard case let .failure(firstFailure) = owner.state else {
+        Issue.record("Expected first failure")
+        return
+    }
+    await owner.retry()
+    guard case let .failure(secondFailure) = owner.state else {
+        Issue.record("Expected second failure")
+        return
+    }
+
+    await owner.retry()
+
+    #expect(firstFailure.id != secondFailure.id)
+    #expect(owner.state == .ready(PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString)))
+    #expect(await preparation.requestCount == 3)
+    #expect(applicator.appliedSongIDs == [songID])
+    #expect(await reporter.events.filter { $0.severity == .error }.count == 2)
+}
+
 private let fixtureSongA = UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")!
 
 @MainActor
@@ -222,6 +379,47 @@ private actor PracticeLaunchResolver: SongLibraryEntryResolving {
     }
 }
 
+private actor ControlledPracticeLaunchResolver: SongLibraryEntryResolving {
+    let entries: [UUID: SongLibraryEntry]
+    private var continuations: [UUID: CheckedContinuation<ResolvedSongLibraryEntry, Error>] = [:]
+    private var requestedSongIDs: Set<UUID> = []
+
+    init(songIDs: [UUID]) {
+        entries = Dictionary(uniqueKeysWithValues: songIDs.map { songID in
+            (songID, SongLibraryEntry(
+                id: songID,
+                displayName: songID.uuidString,
+                musicXMLFileName: "\(songID).musicxml",
+                importedAt: .now,
+                audioFileName: nil,
+                isBundled: true
+            ))
+        })
+    }
+
+    func resolve(songID: UUID) async throws -> ResolvedSongLibraryEntry {
+        requestedSongIDs.insert(songID)
+        return try await withCheckedThrowingContinuation { continuation in
+            continuations[songID] = continuation
+        }
+    }
+
+    func waitUntilRequested(songID: UUID) async {
+        while requestedSongIDs.contains(songID) == false { await Task.yield() }
+    }
+
+    func resume(songID: UUID) {
+        guard let entry = entries[songID] else { return }
+        continuations.removeValue(forKey: songID)?.resume(
+            returning: ResolvedSongLibraryEntry(
+                entry: entry,
+                scoreURL: URL(fileURLWithPath: "/tmp/\(entry.musicXMLFileName)"),
+                diagnosticFileReference: nil
+            )
+        )
+    }
+}
+
 private actor PracticeLaunchPreparationService: PracticePreparationServiceProtocol {
     let delays: [UUID: Duration]
     let errors: [UUID: PracticePreparationError]
@@ -252,6 +450,60 @@ private actor PracticeLaunchPreparationService: PracticePreparationServiceProtoc
     func requestedSongIDs() -> [UUID] { requests }
 }
 
+private actor ControlledPracticeLaunchPreparationService: PracticePreparationServiceProtocol {
+    private var continuations: [UUID: CheckedContinuation<PreparedPractice, Never>] = [:]
+    private var files: [UUID: ImportedMusicXMLFile] = [:]
+
+    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile) async -> PreparedPractice {
+        files[songID] = file
+        return await withCheckedContinuation { continuation in
+            continuations[songID] = continuation
+        }
+    }
+
+    func waitUntilRequested(songID: UUID) async {
+        while continuations[songID] == nil { await Task.yield() }
+    }
+
+    func resume(songID: UUID) {
+        guard let file = files[songID] else { return }
+        continuations.removeValue(forKey: songID)?.resume(
+            returning: makePracticeLaunchPreparedPractice(
+                songID: songID,
+                file: file,
+                includeMeasureSpans: true
+            )
+        )
+    }
+}
+
+private actor SequencedPracticeLaunchPreparationService: PracticePreparationServiceProtocol {
+    enum Result {
+        case failure(PracticePreparationError)
+        case success
+    }
+
+    private var results: [Result]
+    private(set) var requestCount = 0
+
+    init(results: [Result]) {
+        self.results = results
+    }
+
+    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile) throws -> PreparedPractice {
+        requestCount += 1
+        switch results.removeFirst() {
+        case let .failure(error): throw error
+        case .success:
+            return makePracticeLaunchPreparedPractice(
+                songID: songID,
+                file: file,
+                includeMeasureSpans: true
+            )
+        }
+    }
+}
+
 @MainActor
 private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     private(set) var appliedSongIDs: [UUID] = []
@@ -276,6 +528,40 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     func clearPreparedPracticeForLaunch() async { clearCount += 1 }
     func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
     func leavePracticeStep() async { leaveCount += 1 }
+}
+
+@MainActor
+private final class ControlledPracticeLaunchApplicator: PracticeLaunchApplying {
+    private var applyContinuation: CheckedContinuation<Void, Never>?
+    private var pendingSongID: UUID?
+    private(set) var appliedSongIDs: [UUID] = []
+    private(set) var suspendCount = 0
+
+    func applyPreparedPracticeForLaunch(
+        _ prepared: PreparedPractice,
+        isCurrent: @escaping @MainActor () -> Bool
+    ) async -> PracticeLaunchApplyOutcome? {
+        pendingSongID = prepared.identity.songID
+        await withCheckedContinuation { continuation in
+            applyContinuation = continuation
+        }
+        guard isCurrent(), let pendingSongID else { return nil }
+        appliedSongIDs.append(pendingSongID)
+        return .applied
+    }
+
+    func waitUntilApplyStarted() async {
+        while applyContinuation == nil { await Task.yield() }
+    }
+
+    func resumeApply() {
+        applyContinuation?.resume()
+        applyContinuation = nil
+    }
+
+    func clearPreparedPracticeForLaunch() async {}
+    func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
+    func leavePracticeStep() async {}
 }
 
 private func makePracticeLaunchPreparedPractice(

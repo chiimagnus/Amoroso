@@ -60,3 +60,20 @@ func consumePendingTransitionReturnsAndClears() {
     #expect(transition?.toWindowID == WindowID.practice)
     #expect(service.consumePendingTransition(to: .practice) == nil)
 }
+
+@Test
+@MainActor
+func staleWindowAppearanceCannotConsumeNewerReturnTransition() {
+    let service = WindowTransitionState(
+        practiceSetupState: PracticeSetupState(),
+        pianoModeRegistry: PianoModeRegistryService(modes: [])
+    )
+    service.beginTransition(from: .library, to: .practice)
+    service.beginTransition(from: .practice, to: .library)
+
+    #expect(service.consumePendingTransition(to: .practice) == nil)
+    let returnTransition = service.consumePendingTransition(to: .library)
+    #expect(returnTransition?.fromWindowID == WindowID.practice)
+    #expect(returnTransition?.toWindowID == WindowID.library)
+    #expect(service.pendingTransition == nil)
+}

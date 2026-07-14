@@ -18,6 +18,18 @@
 
 这些项目仍可在相关功能进入重点开发时单独验证。
 
+## 2026-07-15 P1 启动所有权 Gate 记录
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| Library 调用图不触达 prepare/apply/score read | Pass | `codegraph sync/explore` 显示 `PracticePreparationService.prepare` 的唯一生产调用方为 `PracticeLaunchViewModel`；旧 Library symbols 全仓零命中。 |
+| resolve/prepare/apply、return、scene inactive、session replacement 与连续 retry 竞态 | Pass | controllable continuation 与 lifecycle tests 全部实际运行。 |
+| visionOS Simulator 完整测试 | Pass | Apple Vision Pro visionOS 26.4：653 次设备配置测试运行通过，0 failed，0 skipped，xcresult 无 runtime warning。 |
+| visionOS Simulator App build | Pass | `xcodebuild build` 成功，无 Swift 编译 warning。 |
+| 主内容右下角按钮在最小/理想/最大窗口不遮挡试听控件 | Not Run | 当前环境没有可见的 Simulator GUI/应用窗口，不能取得可复现的目标窗口截图。 |
+| VoiceOver 名称与 hint、键盘/间接输入 | Not Run | 需要可交互 Simulator GUI 或真机。 |
+| loading/failure/retry/return 与 scene inactive 的人工交互 | Not Run | 自动化状态机与竞态已通过；交互呈现仍需可见 Simulator GUI 或真机。 |
+
 ## 1. 构建与自动化测试
 
 先查看可用 Simulator：

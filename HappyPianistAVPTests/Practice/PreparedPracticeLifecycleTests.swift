@@ -59,6 +59,27 @@ func clearWinsWhilePreparedPracticeAwaitsProgressRestore() async {
     #expect(guide.practiceSessionViewModel.sessionProgress == nil)
 }
 
+@Test
+@MainActor
+func clearingShutdownPracticeSessionInstallsFreshEmptyReplacement() async {
+    let appState = AppState()
+    let guide = makeLifecycleGuide(appState: appState)
+    let prepared = makeLifecyclePreparedPractice()
+    #expect(await guide.applyPreparedPracticeForLaunch(prepared, isCurrent: { true }) == .applied)
+    let shutdownSession = guide.practiceSessionViewModel
+    await shutdownSession.flushAndShutdown()
+    #expect(shutdownSession.hasShutdown)
+
+    await guide.clearPreparedPracticeForLaunch()
+
+    #expect(guide.practiceSessionViewModel !== shutdownSession)
+    #expect(guide.practiceSessionViewModel.hasShutdown == false)
+    #expect(guide.practiceSessionViewModel.songIdentity == nil)
+    #expect(guide.practiceSessionViewModel.steps.isEmpty)
+    #expect(guide.latestPreparedPractice == nil)
+    #expect(appState.practiceSetupState.preparedPracticeIdentity == nil)
+}
+
 @MainActor
 private func makeLifecycleGuide(
     appState: AppState,

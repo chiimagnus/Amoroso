@@ -75,6 +75,31 @@ func selectionPersistenceFailureKeepsMemorySelectionForRetry() async throws {
 
 @Test
 @MainActor
+func practiceLaunchIntentUsesMemorySelectionBeforeDiskPersistenceCompletes() async throws {
+    let entries = makeSelectionEntries()
+    let (mutationEntries, mutationEntryContinuation) = AsyncStream<Void>.makeStream()
+    var mutationEntryIterator = mutationEntries.makeAsyncIterator()
+    let store = SelectionPersistenceStore(
+        index: SongLibraryIndex(entries: entries, lastSelectedEntryID: entries[2].id),
+        delayFirstSelectionMutation: true,
+        onFirstSelectionMutationEntered: { mutationEntryContinuation.yield() }
+    )
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: entries, lastSelectedEntryID: entries[2].id),
+        indexStore: store
+    )
+
+    viewModel.selectEntry(entries[0].id)
+    _ = await mutationEntryIterator.next()
+    let requestedSongID = try #require(viewModel.selectedEntryID)
+
+    #expect(requestedSongID == entries[0].id)
+    await viewModel.flushPendingSelectionPersistence()
+    #expect(try await store.load().lastSelectedEntryID == entries[0].id)
+}
+
+@Test
+@MainActor
 func deletingSelectedEntryAdoptsPersistedFallback() async throws {
     let entries = makeSelectionEntries()
     let store = SelectionPersistenceStore(
