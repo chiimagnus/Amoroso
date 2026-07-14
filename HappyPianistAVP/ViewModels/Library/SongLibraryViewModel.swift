@@ -173,7 +173,7 @@ final class SongLibraryViewModel {
     private func requestSelectionPersistence(_ entryID: UUID?) {
         desiredPersistedSelection = entryID
         selectionPersistenceRevision += 1
-        selectionPersistenceNeedsDrain = persistedSelection != entryID
+        selectionPersistenceNeedsDrain = persistedSelection != entryID || selectionPersistenceWorker != nil
         selectionPersistenceFailedRevision = nil
         let revision = selectionPersistenceRevision
 
@@ -216,21 +216,23 @@ final class SongLibraryViewModel {
             let target = desiredPersistedSelection
             do {
                 let updatedIndex = try await indexStore.setLastSelectedEntryID(target)
+                persistedSelection = target
                 if revision == selectionPersistenceRevision {
-                    persistedSelection = target
                     index = updatedIndex
                 }
                 selectionPersistenceNeedsDrain = desiredPersistedSelection != persistedSelection
             } catch {
-                selectionPersistenceNeedsDrain = true
-                selectionPersistenceFailedRevision = revision
-                errorMessage = "保存曲库选择失败：\(error.localizedDescription)"
+                selectionPersistenceNeedsDrain = desiredPersistedSelection != persistedSelection
+                if revision == selectionPersistenceRevision {
+                    selectionPersistenceFailedRevision = revision
+                    errorMessage = "保存曲库选择失败：\(error.localizedDescription)"
+                }
                 break
             }
         }
 
         selectionPersistenceWorker = nil
-        if selectionPersistenceFailedRevision == nil {
+        if selectionPersistenceFailedRevision != selectionPersistenceRevision {
             startSelectionPersistenceWorkerIfNeeded()
         }
     }

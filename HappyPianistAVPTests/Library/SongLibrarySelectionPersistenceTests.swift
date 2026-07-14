@@ -53,6 +53,33 @@ func selectionChosenDuringOlderMutationStillWinsOnDisk() async throws {
 
 @Test
 @MainActor
+func returningToCachedPersistedSelectionStillRepairsInFlightOlderWrite() async throws {
+    let entries = makeSelectionEntries()
+    let originalID = entries[0].id
+    let (mutationEntries, mutationEntryContinuation) = AsyncStream<Void>.makeStream()
+    var mutationEntryIterator = mutationEntries.makeAsyncIterator()
+    let store = SelectionPersistenceStore(
+        index: SongLibraryIndex(entries: entries, lastSelectedEntryID: originalID),
+        delayFirstSelectionMutation: true,
+        onFirstSelectionMutationEntered: { mutationEntryContinuation.yield() }
+    )
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: entries, lastSelectedEntryID: originalID),
+        indexStore: store
+    )
+
+    viewModel.selectEntry(entries[1].id)
+    _ = await mutationEntryIterator.next()
+    viewModel.selectEntry(originalID)
+    await viewModel.flushPendingSelectionPersistence()
+
+    #expect(viewModel.selectedEntryID == originalID)
+    #expect(await store.persistedSelections == [entries[1].id, originalID])
+    #expect(try await store.load().lastSelectedEntryID == originalID)
+}
+
+@Test
+@MainActor
 func selectionPersistenceFailureKeepsMemorySelectionForRetry() async throws {
     let entries = makeSelectionEntries()
     let store = SelectionPersistenceStore(
