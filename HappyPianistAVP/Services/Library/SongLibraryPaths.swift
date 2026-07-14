@@ -2,6 +2,7 @@ import Foundation
 
 enum SongLibraryPathsError: Error {
     case documentsUnavailable
+    case invalidPathComponent
 }
 
 struct SongLibraryPaths {
@@ -27,10 +28,59 @@ struct SongLibraryPaths {
         try rootDirectoryURL().appending(path: SongLibraryLayout.indexFileName)
     }
 
+    func transactionsDirectoryURL() throws -> URL {
+        try rootDirectoryURL().appending(
+            path: SongLibraryLayout.transactionsDirectoryName,
+            directoryHint: .isDirectory
+        )
+    }
+
+    func transactionOperationDirectoryURL(operationID: UUID) throws -> URL {
+        try transactionsDirectoryURL().appending(
+            path: operationID.uuidString.lowercased(),
+            directoryHint: .isDirectory
+        )
+    }
+
+    func transactionStageFileURL(operationID: UUID, safeFileName: String) throws -> URL {
+        try transactionOperationDirectoryURL(operationID: operationID)
+            .appending(path: "stage", directoryHint: .isDirectory)
+            .appending(path: try validatedComponent(safeFileName))
+    }
+
+    func transactionBackupFileURL(operationID: UUID, safeFileName: String) throws -> URL {
+        try transactionOperationDirectoryURL(operationID: operationID)
+            .appending(path: "backup", directoryHint: .isDirectory)
+            .appending(path: try validatedComponent(safeFileName))
+    }
+
+    func transactionJournalFileURL(operationID: UUID) throws -> URL {
+        try transactionOperationDirectoryURL(operationID: operationID)
+            .appending(path: "journal.json")
+    }
+
+    func scoreFileURL(safeFileName: String) throws -> URL {
+        try scoresDirectoryURL().appending(path: try validatedComponent(safeFileName))
+    }
+
     func ensureDirectoriesExist() throws {
         try fileManager.createDirectory(at: rootDirectoryURL(), withIntermediateDirectories: true)
         try fileManager.createDirectory(at: scoresDirectoryURL(), withIntermediateDirectories: true)
         try fileManager.createDirectory(at: audioDirectoryURL(), withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: transactionsDirectoryURL(), withIntermediateDirectories: true)
+    }
+
+    private func validatedComponent(_ component: String) throws -> String {
+        guard component.isEmpty == false,
+              component != ".",
+              component != "..",
+              component.contains("/") == false,
+              component.contains("\\") == false,
+              URL(fileURLWithPath: component).lastPathComponent == component
+        else {
+            throw SongLibraryPathsError.invalidPathComponent
+        }
+        return component
     }
 
     private func documentsDirectoryURL() throws -> URL {

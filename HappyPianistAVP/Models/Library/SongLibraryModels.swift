@@ -37,9 +37,16 @@ struct SongLibraryIndex: Codable, Equatable, Sendable {
     }
 }
 
+enum SongLibraryFileNameIdentity {
+    static func isExact(_ lhs: String, _ rhs: String) -> Bool {
+        lhs.utf8.elementsEqual(rhs.utf8)
+    }
+}
+
 enum SongLibraryLayout {
     static let rootDirectoryName = "SongLibrary"
     static let scoresDirectoryName = "scores"
     static let audioDirectoryName = "audio"
+    static let transactionsDirectoryName = "transactions"
     static let indexFileName = "index.json"
 }

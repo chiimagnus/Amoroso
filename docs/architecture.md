@@ -44,6 +44,8 @@ flowchart TD
   STATE --> MODES[PianoModeRegistryService]
 
   LIBRARY --> BOOTSTRAP[SongLibraryBootstrapLoader actor]
+  BOOTSTRAP --> RECOVERY[SongLibraryImportTransactionService actor]
+  RECOVERY --> INDEX
   BOOTSTRAP --> BUNDLED[BundledSongLibraryProvider]
   BOOTSTRAP --> INDEX[SongLibraryIndexStore]
   LIBRARY --> FILES[SongFileStore]
@@ -110,8 +112,9 @@ flowchart TD
 - 退出、后台、换 session 与完成流程必须先停止新 attempt，再 flush 进度，最后 teardown 输入、追踪、RealityKit task 和回放。
 - 手部热路径只传递 `FingerTipsSnapshot`；订阅使用 newest-only current-value relay，消费者不得恢复字符串字典协议。
 - CoreMIDI 输入流必须有固定容量；发生溢出时以 channel-wide All Notes Off 作为状态恢复边界。
-- 曲库首次 bundle 扫描与索引解码必须在 `SongLibraryBootstrapLoader` actor 中完成，不得放回 ViewModel 初始化或 SwiftUI `body`。
+- 曲库 bootstrap 固定先由唯一 `SongLibraryImportTransactionService` 恢复未完成事务，再读取 index，最后扫描 bundle；恢复被阻塞时不得发布任何新 snapshot，也不得放回 ViewModel 初始化或 SwiftUI `body`。
 - bootstrap loader、Library ViewModel 与后续 resolver 必须复用 composition root 注入的同一个 `SongLibraryIndexStore` 和 bundled provider；索引写入只能通过 actor 内 concern mutation，损坏 JSON 必须 fail closed 并保留原文件。
+- score replacement 使用 song ID、旧 version token 与旧文件名三项 exact CAS，只更新文件名、导入时间与新 token；entry 顺序、显示名、音频、bundled 标志和 last-selected 原位保留。
 - `SongLibraryViewModel` 只在 MainActor 编排；Documents 查询、security scope、copy、delete 与用户文件 URL 解析全部由 `SongFileStore` / `AudioImportService` actor 执行。
 - feedback 表现不进入 progress JSON。
 - AI 失败不改变练习进度，也不自动切换后端。

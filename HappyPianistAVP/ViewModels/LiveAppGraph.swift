@@ -23,7 +23,7 @@ struct LiveAppGraph {
     let stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
     let practicePreparationService: PracticePreparationServiceProtocol =
       PracticePreparationService(parser: parser, stepBuilder: stepBuilder)
-    let songLibraryIndexStore: SongLibraryIndexStoreProtocol = SongLibraryIndexStore()
+    let songLibraryIndexStore = SongLibraryIndexStore()
     let songFileStore: SongFileStoreProtocol = SongFileStore()
     let audioImportService: AudioImportServiceProtocol = AudioImportService()
     let bundledSongLibraryProvider: BundledSongLibraryProviderProtocol =
@@ -45,6 +45,10 @@ struct LiveAppGraph {
     let diagnosticsViewModel = DiagnosticsViewModel(
       store: diagnosticsStore,
       exporter: diagnosticsExporter
+    )
+    let importTransactionService = SongLibraryImportTransactionService(
+      indexStore: songLibraryIndexStore,
+      diagnostics: diagnosticsReporter
     )
 
     let makePressDetectionService: () -> PressDetectionServiceProtocol = { PressDetectionService() }
@@ -163,6 +167,7 @@ struct LiveAppGraph {
       diagnosticsReporter: diagnosticsReporter,
       snapshotBuilder: SongPracticeLibrarySnapshotBuilder(),
       bootstrapLoader: LiveSongLibraryBootstrapLoader(
+        transactionRecovery: importTransactionService,
         indexStore: songLibraryIndexStore,
         bundledProvider: bundledSongLibraryProvider
       )

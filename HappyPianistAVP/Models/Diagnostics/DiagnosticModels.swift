@@ -42,6 +42,7 @@ enum DiagnosticCode: String, Codable, CaseIterable, Sendable {
     case practiceSavedConfigurationRepaired = "PRACTICE_SAVED_CONFIGURATION_REPAIRED"
     case practiceSavedConfigurationRepairFailed = "PRACTICE_SAVED_CONFIGURATION_REPAIR_FAILED"
     case libraryPracticeHistoryLoadFailed = "LIBRARY_PRACTICE_HISTORY_LOAD_FAILED"
+    case libraryImportRecoveryBlocked = "LIBRARY_IMPORT_RECOVERY_BLOCKED"
     case practiceScoreMetadataWriteFailed = "PRACTICE_SCORE_METADATA_WRITE_FAILED"
     case diagnosticsStoreWriteFailed = "DIAGNOSTICS_STORE_WRITE_FAILED"
     case diagnosticsRetentionCleanupFailed = "DIAGNOSTICS_RETENTION_CLEANUP_FAILED"

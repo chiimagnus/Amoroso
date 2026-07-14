@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @Test
-func songLibraryIndexStoreReturnsEmptyOnlyForMissingOrBlankFile() async throws {
+func songLibraryIndexStoreReturnsEmptyOnlyForMissingFile() async throws {
     let fixture = try SongLibraryIndexStoreFixture()
     defer { fixture.remove() }
 
@@ -15,7 +15,9 @@ func songLibraryIndexStoreReturnsEmptyOnlyForMissingOrBlankFile() async throws {
     )
     let indexFileURL = fixture.indexFileURL
     try Data(" \n\t".utf8).write(to: indexFileURL)
-    #expect(try await fixture.store.load() == .empty)
+    await #expect(throws: SongLibraryIndexStoreError.corrupted) {
+        _ = try await fixture.store.load()
+    }
 }
 
 @Test
@@ -95,6 +97,144 @@ func songLibraryIndexMutationsPreserveUnrelatedConcerns() async throws {
 }
 
 @Test
+func songLibraryScoreReplacementPreservesEntryAndIndexConcerns() async throws {
+    let fixture = try SongLibraryIndexStoreFixture()
+    defer { fixture.remove() }
+    let first = makeEntry(name: "first")
+    var replaced = makeEntry(name: "replaced")
+    replaced.scoreFileVersionID = UUID()
+    replaced.audioFileName = "replaced.m4a"
+    let third = makeEntry(name: "third")
+    _ = try await fixture.store.appendUserEntry(first)
+    _ = try await fixture.store.appendUserEntry(replaced)
+    _ = try await fixture.store.appendUserEntry(third)
+    _ = try await fixture.store.setLastSelectedEntryID(replaced.id)
+    let newToken = UUID()
+    let newDate = Date(timeIntervalSince1970: 1_800_000_000)
+
+    let result = try await fixture.store.replaceUserScore(
+        expectedSongID: replaced.id,
+        expectedScoreFileVersionID: replaced.scoreFileVersionID,
+        expectedMusicXMLFileName: replaced.musicXMLFileName,
+        with: SongLibraryScoreReplacement(
+            musicXMLFileName: "replacement.musicxml",
+            importedAt: newDate,
+            scoreFileVersionID: newToken
+        )
+    )
+
+    guard case let .applied(index, updated) = result else {
+        Issue.record("Expected applied replacement")
+        return
+    }
+    #expect(index.entries.map(\.id) == [first.id, replaced.id, third.id])
+    #expect(index.lastSelectedEntryID == replaced.id)
+    #expect(updated.displayName == replaced.displayName)
+    #expect(updated.audioFileName == "replaced.m4a")
+    #expect(updated.isBundled == replaced.isBundled)
+    #expect(updated.musicXMLFileName == "replacement.musicxml")
+    #expect(updated.importedAt == newDate)
+    #expect(updated.scoreFileVersionID == newToken)
+}
+
+@Test
+func songLibraryScoreReplacementRejectsStaleOrAmbiguousExpectationWithoutWriting() async throws {
+    let fixture = try SongLibraryIndexStoreFixture()
+    defer { fixture.remove() }
+    var entry = makeEntry(name: "song")
+    entry.scoreFileVersionID = UUID()
+    _ = try await fixture.store.appendUserEntry(entry)
+    _ = try await fixture.store.appendUserEntry(entry)
+    let before = try await fixture.store.load()
+
+    let result = try await fixture.store.replaceUserScore(
+        expectedSongID: entry.id,
+        expectedScoreFileVersionID: entry.scoreFileVersionID,
+        expectedMusicXMLFileName: entry.musicXMLFileName,
+        with: SongLibraryScoreReplacement(
+            musicXMLFileName: "replacement.musicxml",
+            importedAt: .now,
+            scoreFileVersionID: UUID()
+        )
+    )
+
+    guard case let .conflict(index, matchingEntries) = result else {
+        Issue.record("Expected replacement conflict")
+        return
+    }
+    #expect(matchingEntries.count == 2)
+    #expect(index == before)
+    #expect(try await fixture.store.load() == before)
+}
+
+@Test
+func songLibraryScoreReplacementRequiresByteExactUnicodeFileName() async throws {
+    let fixture = try SongLibraryIndexStoreFixture()
+    defer { fixture.remove() }
+    var entry = makeEntry(name: "unicode")
+    entry.musicXMLFileName = "Cafe\u{301}.musicxml"
+    entry.scoreFileVersionID = UUID()
+    _ = try await fixture.store.appendUserEntry(entry)
+
+    let result = try await fixture.store.replaceUserScore(
+        expectedSongID: entry.id,
+        expectedScoreFileVersionID: entry.scoreFileVersionID,
+        expectedMusicXMLFileName: "Café.musicxml",
+        with: SongLibraryScoreReplacement(
+            musicXMLFileName: "replacement.musicxml",
+            importedAt: .now,
+            scoreFileVersionID: UUID()
+        )
+    )
+
+    guard case .conflict = result else {
+        Issue.record("Expected byte-exact filename conflict")
+        return
+    }
+    #expect(try await fixture.store.load().entries == [entry])
+}
+
+@Test
+func songLibraryScoreReplacementSerializesWithSelectionAndAudioMutations() async throws {
+    let fixture = try SongLibraryIndexStoreFixture()
+    defer { fixture.remove() }
+    var entry = makeEntry(name: "song")
+    entry.scoreFileVersionID = UUID()
+    let other = makeEntry(name: "other")
+    _ = try await fixture.store.appendUserEntry(entry)
+    _ = try await fixture.store.appendUserEntry(other)
+    let newToken = UUID()
+    let entryID = entry.id
+    let expectedToken = entry.scoreFileVersionID
+    let expectedFileName = entry.musicXMLFileName
+    let otherID = other.id
+
+    async let replacement = fixture.store.replaceUserScore(
+        expectedSongID: entryID,
+        expectedScoreFileVersionID: expectedToken,
+        expectedMusicXMLFileName: expectedFileName,
+        with: SongLibraryScoreReplacement(
+            musicXMLFileName: "replacement.musicxml",
+            importedAt: .now,
+            scoreFileVersionID: newToken
+        )
+    )
+    async let selection = fixture.store.setLastSelectedEntryID(otherID)
+    async let audio = fixture.store.updateAudioFileName(
+        entryID: entryID,
+        expectedCurrentFileName: nil,
+        newFileName: "song.mp3"
+    )
+    _ = try await (replacement, selection, audio)
+
+    let final = try await fixture.store.load()
+    #expect(final.lastSelectedEntryID == otherID)
+    #expect(final.entries.first?.musicXMLFileName == "replacement.musicxml")
+    #expect(final.entries.first?.scoreFileVersionID == newToken)
+    #expect(final.entries.first?.audioFileName == "song.mp3")
+}
+
+@Test
 func songLibraryIndexRemoveReturnsPersistedEntryAndKeepsOrder() async throws {
     let fixture = try SongLibraryIndexStoreFixture()
     defer { fixture.remove() }
@@ -170,6 +310,18 @@ func corruptedSongLibraryIndexIsPreservedAndBlocksEveryMutation() async throws {
 
     await #expect(throws: SongLibraryIndexStoreError.corrupted) {
         _ = try await fixture.store.load()
+    }
+    await #expect(throws: SongLibraryIndexStoreError.corrupted) {
+        _ = try await fixture.store.replaceUserScore(
+            expectedSongID: entry.id,
+            expectedScoreFileVersionID: nil,
+            expectedMusicXMLFileName: entry.musicXMLFileName,
+            with: SongLibraryScoreReplacement(
+                musicXMLFileName: "blocked.musicxml",
+                importedAt: .now,
+                scoreFileVersionID: UUID()
+            )
+        )
     }
     await #expect(throws: SongLibraryIndexStoreError.corrupted) {
         _ = try await fixture.store.setLastSelectedEntryID(UUID())

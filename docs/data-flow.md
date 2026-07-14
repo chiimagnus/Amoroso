@@ -44,7 +44,9 @@ flowchart TD
 SongLibraryView.task
 -> SongLibraryViewModel.loadLibraryIfNeeded
 -> SongLibraryBootstrapLoader actor
--> injected shared BundledSongLibraryProvider + SongLibraryIndexStore actor
+-> SongLibraryImportTransactionService.recoverPendingTransactions
+-> injected shared SongLibraryIndexStore actor
+-> BundledSongLibraryProvider
 -> loaded snapshot，或保留内存状态并显示可重试的 blocked failure
 ```
 

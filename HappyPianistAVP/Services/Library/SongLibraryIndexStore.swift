@@ -39,7 +39,16 @@ protocol SongLibraryIndexStoreProtocol: Actor {
     ) throws -> SongLibraryEntryMutationResult
 }
 
-actor SongLibraryIndexStore: SongLibraryIndexStoreProtocol {
+protocol SongLibraryImportIndexStoreProtocol: SongLibraryIndexStoreProtocol {
+    func replaceUserScore(
+        expectedSongID: UUID,
+        expectedScoreFileVersionID: UUID?,
+        expectedMusicXMLFileName: String,
+        with replacement: SongLibraryScoreReplacement
+    ) throws -> SongLibraryScoreReplacementResult
+}
+
+actor SongLibraryIndexStore: SongLibraryImportIndexStoreProtocol {
     private let fileManager: FileManager
     private let paths: SongLibraryPaths
 
@@ -64,6 +73,38 @@ actor SongLibraryIndexStore: SongLibraryIndexStoreProtocol {
         index.entries.append(entry)
         try write(index)
         return index
+    }
+
+    func replaceUserScore(
+        expectedSongID: UUID,
+        expectedScoreFileVersionID: UUID?,
+        expectedMusicXMLFileName: String,
+        with replacement: SongLibraryScoreReplacement
+    ) throws -> SongLibraryScoreReplacementResult {
+        var index = try loadLatest()
+        let matchingIndices = index.entries.indices.filter {
+            index.entries[$0].id == expectedSongID && index.entries[$0].isBundled != true
+        }
+        guard matchingIndices.count == 1,
+              let entryIndex = matchingIndices.first,
+              index.entries[entryIndex].scoreFileVersionID == expectedScoreFileVersionID,
+              SongLibraryFileNameIdentity.isExact(
+                index.entries[entryIndex].musicXMLFileName,
+                expectedMusicXMLFileName
+              )
+        else {
+            return .conflict(
+                index: index,
+                matchingEntries: matchingIndices.map { index.entries[$0] }
+            )
+        }
+
+        index.entries[entryIndex].musicXMLFileName = replacement.musicXMLFileName
+        index.entries[entryIndex].importedAt = replacement.importedAt
+        index.entries[entryIndex].scoreFileVersionID = replacement.scoreFileVersionID
+        let updatedEntry = index.entries[entryIndex]
+        try write(index)
+        return .applied(index: index, entry: updatedEntry)
     }
 
     func removeUserEntry(
@@ -111,15 +152,6 @@ actor SongLibraryIndexStore: SongLibraryIndexStoreProtocol {
         }
 
         let data = try Data(contentsOf: indexFileURL)
-        if data.isEmpty {
-            return .empty
-        }
-        if let text = String(data: data, encoding: .utf8),
-           text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            return .empty
-        }
-
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         do {

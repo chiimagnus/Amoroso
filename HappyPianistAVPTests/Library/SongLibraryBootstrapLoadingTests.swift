@@ -78,6 +78,7 @@ func blockedBootstrapPreservesMemoryAndCanRetry() async {
 
 @Test
 func liveBootstrapUsesInjectedStoreAndProvider() async {
+    let recorder = BootstrapEventRecorder()
     let storedEntry = SongLibraryEntry(
         id: UUID(),
         displayName: "Stored",
@@ -94,10 +95,16 @@ func liveBootstrapUsesInjectedStoreAndProvider() async {
         isBundled: true
     )
     let store = BootstrapRecordingIndexStore(
-        index: SongLibraryIndex(entries: [storedEntry], lastSelectedEntryID: storedEntry.id)
+        index: SongLibraryIndex(entries: [storedEntry], lastSelectedEntryID: storedEntry.id),
+        recorder: recorder
     )
     let provider = BootstrapBundledProvider(entries: [bundledEntry])
-    let loader = LiveSongLibraryBootstrapLoader(indexStore: store, bundledProvider: provider)
+    let recovery = BootstrapRecordingRecovery(result: .recovered, recorder: recorder)
+    let loader = LiveSongLibraryBootstrapLoader(
+        transactionRecovery: recovery,
+        indexStore: store,
+        bundledProvider: provider
+    )
 
     let result = await loader.load()
 
@@ -108,6 +115,30 @@ func liveBootstrapUsesInjectedStoreAndProvider() async {
         )
     )
     #expect(await store.loadCount == 1)
+    #expect(recorder.events == ["recover", "load"])
+}
+
+@Test
+func blockedTransactionRecoveryPreventsIndexSnapshotPublication() async {
+    let recorder = BootstrapEventRecorder()
+    let store = BootstrapRecordingIndexStore(index: .empty, recorder: recorder)
+    let recovery = BootstrapRecordingRecovery(
+        result: .blocked(
+            SongLibraryBlockedImport(operationID: UUID(), message: "recovery blocked")
+        ),
+        recorder: recorder
+    )
+    let loader = LiveSongLibraryBootstrapLoader(
+        transactionRecovery: recovery,
+        indexStore: store,
+        bundledProvider: BootstrapBundledProvider(entries: [])
+    )
+
+    let result = await loader.load()
+
+    #expect(result == .blocked(failure: SongLibraryBootstrapFailure(message: "recovery blocked")))
+    #expect(await store.loadCount == 0)
+    #expect(recorder.events == ["recover"])
 }
 
 private actor TestSongLibraryBootstrapLoader: SongLibraryBootstrapLoading {
@@ -142,13 +173,16 @@ private actor SequencedSongLibraryBootstrapLoader: SongLibraryBootstrapLoading {
 
 private actor BootstrapRecordingIndexStore: SongLibraryIndexStoreProtocol {
     private var index: SongLibraryIndex
+    private let recorder: BootstrapEventRecorder?
     private(set) var loadCount = 0
 
-    init(index: SongLibraryIndex) {
+    init(index: SongLibraryIndex, recorder: BootstrapEventRecorder? = nil) {
         self.index = index
+        self.recorder = recorder
     }
 
     func load() throws -> SongLibraryIndex {
+        recorder?.record("load")
         loadCount += 1
         return index
     }
@@ -190,6 +224,34 @@ private actor BootstrapRecordingIndexStore: SongLibraryIndexStoreProtocol {
         }
         index.entries[entryIndex].audioFileName = newFileName
         return .applied(index: index, entry: index.entries[entryIndex])
+    }
+}
+
+private actor BootstrapRecordingRecovery: SongLibraryImportTransactionRecovering {
+    let result: SongLibraryTransactionRecoveryResult
+    let recorder: BootstrapEventRecorder
+
+    init(result: SongLibraryTransactionRecoveryResult, recorder: BootstrapEventRecorder) {
+        self.result = result
+        self.recorder = recorder
+    }
+
+    func recoverPendingTransactions() -> SongLibraryTransactionRecoveryResult {
+        recorder.record("recover")
+        return result
+    }
+}
+
+private final class BootstrapEventRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var events: [String] {
+        lock.withLock { storage }
+    }
+
+    func record(_ event: String) {
+        lock.withLock { storage.append(event) }
     }
 }
 
