@@ -89,7 +89,7 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             )
         }.sorted { lhs, rhs in
             if lhs.attemptedAt != rhs.attemptedAt { return lhs.attemptedAt > rhs.attemptedAt }
-            return sourceKey(lhs.sourceMeasureID) < sourceKey(rhs.sourceMeasureID)
+            return sourceComesFirst(lhs.sourceMeasureID, rhs.sourceMeasureID)
         }
 
         return SongPracticeCurrentFacts(
@@ -160,8 +160,8 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
         if lhs.lastAttemptAt != rhs.lastAttemptAt {
             return (lhs.lastAttemptAt ?? .distantPast) > (rhs.lastAttemptAt ?? .distantPast)
         }
-        if sourceKey(lhs.sourceMeasureID) != sourceKey(rhs.sourceMeasureID) {
-            return sourceKey(lhs.sourceMeasureID) < sourceKey(rhs.sourceMeasureID)
+        if lhs.sourceMeasureID != rhs.sourceMeasureID {
+            return sourceComesFirst(lhs.sourceMeasureID, rhs.sourceMeasureID)
         }
         return lhs.handMode.rawValue < rhs.handMode.rawValue
     }
@@ -174,8 +174,20 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
         }
     }
 
-    private nonisolated func sourceKey(_ source: PracticeSourceMeasureID) -> String {
-        "\(source.partID)|\(source.sourceMeasureIndex)|\(source.sourceNumberToken ?? "")"
+    private nonisolated func sourceComesFirst(
+        _ lhs: PracticeSourceMeasureID,
+        _ rhs: PracticeSourceMeasureID
+    ) -> Bool {
+        if lhs.partID != rhs.partID { return lhs.partID < rhs.partID }
+        if lhs.sourceMeasureIndex != rhs.sourceMeasureIndex {
+            return lhs.sourceMeasureIndex < rhs.sourceMeasureIndex
+        }
+        return switch (lhs.sourceNumberToken, rhs.sourceNumberToken) {
+        case (nil, .some): true
+        case (.some, nil): false
+        case let (.some(lhsToken), .some(rhsToken)): lhsToken < rhsToken
+        case (nil, nil): false
+        }
     }
 }
 
