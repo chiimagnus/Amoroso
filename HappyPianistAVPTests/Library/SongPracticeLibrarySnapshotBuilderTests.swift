@@ -127,6 +127,33 @@ func snapshotCurrentMetadataWithOnlyOldAttemptsDoesNotNeedRebuild() async {
 }
 
 @Test
+func snapshotKeepsUnknownMetadataTotalWithoutInventingProgress() async throws {
+    let entry = makeSnapshotEntry()
+    let progress = makeSnapshotProgress(songID: entry.id, revision: "r1", attemptedAt: 10)
+    let metadata = makeSnapshotMetadata(
+        songID: entry.id,
+        token: entry.scoreFileVersionID,
+        revision: "r1",
+        total: 0
+    )
+
+    guard case let .current(snapshot) = await snapshotBuilder.build(
+        entry: entry,
+        history: PracticeSongHistory(
+            songID: entry.id,
+            progresses: [progress],
+            scoreMetadata: [metadata]
+        )
+    ) else {
+        Issue.record("Expected current snapshot")
+        return
+    }
+
+    #expect(snapshot.totalSourceMeasureCount == 0)
+    #expect(snapshot.currentFacts != nil)
+}
+
+@Test
 func snapshotDerivesUniqueCurrentHandFactsIssuesTempoAndValidResume() async throws {
     let entry = makeSnapshotEntry()
     let revision = "current"

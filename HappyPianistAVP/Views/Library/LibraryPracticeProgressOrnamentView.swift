@@ -83,6 +83,12 @@ private struct LibraryPracticeCurrentSnapshotView: View {
                 Text(snapshot.latestPracticeDate, format: .dateTime.month().day().hour().minute())
             }
 
+            if snapshot.totalSourceMeasureCount > 0 {
+                Text("当前曲谱共 \(snapshot.totalSourceMeasureCount.formatted()) 个小节")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             if let facts = snapshot.currentFacts {
                 LabeledContent("当前手别", value: facts.handMode.libraryDisplayName)
 
@@ -100,10 +106,6 @@ private struct LibraryPracticeCurrentSnapshotView: View {
                         emphasizedShape: differentiateWithoutColor
                     )
                 }
-
-                Text("当前曲谱共 \(snapshot.totalSourceMeasureCount.formatted()) 个小节")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
 
                 if let resumeSourceMeasureID = facts.resumeSourceMeasureID {
                     LabeledContent(
