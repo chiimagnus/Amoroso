@@ -75,7 +75,11 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
         try Task.checkCancellation()
         let rawScore: MusicXMLScore
         do {
-            rawScore = try parser.parse(fileURL: scoreURL)
+            rawScore = if scoreURL.pathExtension.lowercased() == "mxl" {
+                try parser.parse(fileURL: scoreURL)
+            } else {
+                try parser.parse(data: scoreBytes)
+            }
         } catch let error as MXLReaderError {
             throw Self.mapMXLReaderError(error)
         } catch let error as MusicXMLParserError {

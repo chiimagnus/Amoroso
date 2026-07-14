@@ -4,7 +4,7 @@ enum MusicXMLParserError: Error, Equatable {
     case parseFailed(line: Int?, column: Int?, reason: String)
 }
 
-protocol MusicXMLParserProtocol {
+protocol MusicXMLParserProtocol: Sendable {
     func parse(data: Data) throws -> MusicXMLScore
     func parse(fileURL: URL) throws -> MusicXMLScore
 }

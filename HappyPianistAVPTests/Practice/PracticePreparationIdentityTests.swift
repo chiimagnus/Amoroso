@@ -1,4 +1,5 @@
 import Foundation
+import os
 @testable import HappyPianistAVP
 import Testing
 
@@ -33,4 +34,66 @@ func preparationKeepsExactSongIDAndStableRevision() async throws {
     try Data(identityFixtureB.utf8).write(to: url)
     let replaced = try await service.prepare(songID: songID, from: url, file: file)
     #expect(replaced.identity.scoreRevision != first.identity.scoreRevision)
+}
+
+@Test
+func plainMusicXMLPreparationParsesTheAlreadyReadBytes() async throws {
+    let url = FileManager.default.temporaryDirectory.appending(
+        path: "single-read-\(UUID().uuidString).musicxml"
+    )
+    let scoreBytes = Data(identityFixtureA.utf8)
+    try scoreBytes.write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let parser = RecordingPreparationParser()
+    let service = PracticePreparationService(parser: parser)
+
+    _ = try await service.prepare(
+        songID: UUID(),
+        from: url,
+        file: ImportedMusicXMLFile(fileName: "Single Read", storedURL: url, importedAt: .now)
+    )
+
+    #expect(parser.calls == [.data(scoreBytes)])
+}
+
+@Test
+func compressedMusicXMLPreparationKeepsTheArchiveParserPath() async throws {
+    let url = FileManager.default.temporaryDirectory.appending(
+        path: "archive-routing-\(UUID().uuidString).mxl"
+    )
+    try Data("archive-placeholder".utf8).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let parser = RecordingPreparationParser()
+    let service = PracticePreparationService(parser: parser)
+
+    _ = try await service.prepare(
+        songID: UUID(),
+        from: url,
+        file: ImportedMusicXMLFile(fileName: "Archive", storedURL: url, importedAt: .now)
+    )
+
+    #expect(parser.calls == [.fileURL(url)])
+}
+
+private final class RecordingPreparationParser: MusicXMLParserProtocol, Sendable {
+    enum Call: Equatable, Sendable {
+        case data(Data)
+        case fileURL(URL)
+    }
+
+    private let callsLock = OSAllocatedUnfairLock(initialState: [Call]())
+
+    var calls: [Call] {
+        callsLock.withLock { $0 }
+    }
+
+    func parse(data: Data) throws -> MusicXMLScore {
+        callsLock.withLock { $0.append(.data(data)) }
+        return try MusicXMLParser().parse(data: data)
+    }
+
+    func parse(fileURL: URL) throws -> MusicXMLScore {
+        callsLock.withLock { $0.append(.fileURL(fileURL)) }
+        return try MusicXMLParser().parse(data: Data(identityFixtureA.utf8))
+    }
 }
