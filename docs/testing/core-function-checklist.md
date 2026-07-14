@@ -83,6 +83,9 @@ xcodebuild test \
 - [ ] 曲名、作曲家与当前唱片一致
 - [ ] 唯一“开始练习”按钮始终对应当前曲目
 - [ ] 再次打开时仍选中上次曲目
+- [ ] trailing Ornament 随当前曲目显示 never/current/needs rebuild/unavailable 对应状态
+- [ ] Ornament 只有事实与说明，没有配置控件或第二个练习按钮
+- [ ] 从练习窗口返回后，同一曲目的最新 metadata/facts 会刷新
 
 ### 试听
 
@@ -263,6 +266,9 @@ xcodebuild test \
 - [ ] 练习反馈不会遮住谱面或阻止输入
 - [ ] 错误反馈没有羞辱性或惩罚性表达
 - [ ] 开启 Reduce Motion 后没有持续的大幅运动
+- [ ] 曲库窗口在 min/ideal/max 尺寸下 Ornament 与主内容均不裁切关键事实或唯一按钮
+- [ ] 最大 Dynamic Type 下事实可换行，VoiceOver 能读出状态、计数与单位
+- [ ] Reduce Motion 下 never 状态为静态图形；Differentiate Without Color 下稳定/练习中仍有文字与图标区分
 
 ### 曲库连续切换
 

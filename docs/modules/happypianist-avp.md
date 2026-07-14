@@ -14,7 +14,7 @@
 | `HappyPianistAVP/ViewModels/ARGuide/ARGuideViewModel.swift` | 练习、追踪、沉浸空间、录制与 AI 的总协调器。 |
 | `HappyPianistAVP/ViewModels/PracticeLaunch/PracticeLaunchViewModel.swift` | 唯一的练习启动 request、激活、失败、scene suspend 与 prepared-song 清理 owner。 |
 
-窗口使用系统背景；切换时由 `WindowTransitionState` 记录事务，目标根视图显式关闭来源窗口。曲库主窗口只保留唱片浏览、曲名/作曲家、试听控件和唯一“开始练习”按钮。
+窗口使用系统背景；切换时由 `WindowTransitionState` 记录事务，目标根视图显式关闭来源窗口。曲库主窗口保留唱片浏览、曲名/作曲家、试听控件和唯一“开始练习”按钮，trailing Ornament 只读展示当前曲目的练习事实。
 
 ## 钢琴模式
 
@@ -34,6 +34,7 @@
 | --- | --- |
 | `HappyPianistAVP/ViewModels/Library/SongLibraryViewModel.swift` | 接收异步 bootstrap snapshot，合并 bundled/imported entries，并作为唯一 selection owner 管理试听、导入和删除；selection 持久化与练习事实 snapshot 各有独立 generation。 |
 | `HappyPianistAVP/Services/Library/SongPracticeLibrarySnapshotBuilder.swift` | 从单曲 history 纯派生当前版本/真实 attempt facts，不读取文件或 UI 类型。 |
+| `HappyPianistAVP/Views/Library/LibraryPracticeProgressOrnamentView.swift` | 只读展示 never/current/rebuild/unavailable 等 snapshot state；无配置控件或练习按钮。 |
 | `HappyPianistAVP/Services/Library/SongLibraryBootstrapLoader.swift` | actor 隔离的首次 bundle 扫描与索引解码，避免阻塞 MainActor 启动。 |
 | `HappyPianistAVP/Services/Library/SongFileStore.swift` | 导入 MusicXML 到 Documents。 |
 | `HappyPianistAVP/Services/Library/SongLibraryIndexStore.swift` | actor 内按 concern 原子更新用户曲库索引。 |
@@ -41,7 +42,7 @@
 | `HappyPianistAVP/Services/Library/AudioImportService.swift` | 绑定 `.mp3` / `.m4a` 试听音频。 |
 | `HappyPianistAVP/Services/Practice/Session/PracticePreparationService.swift` | 把所选曲谱转换成 `PreparedPractice`。 |
 
-支持 `.musicxml`、`.xml`、`.mxl`。切换唱片只更新 selection 并异步读取同曲 history JSON；点击“开始练习”才登记 request 并打开练习窗口，曲谱解析、进度恢复和失败展示都由练习窗口拥有。snapshot generation 同时绑定 song UUID 与 entry token，旧结果不能覆盖新选择，且 Library 不访问 score/preparation/session。P2-T4 前只读 facts state 已接入但尚未挂载 Ornament；没有隐藏的旧配置路径。
+支持 `.musicxml`、`.xml`、`.mxl`。切换唱片只更新 selection 并异步读取同曲 history JSON；点击主内容中唯一的“开始练习”才登记 request 并打开练习窗口，曲谱解析、进度恢复和失败展示都由练习窗口拥有。snapshot generation 同时绑定 song UUID 与 entry token，旧结果不能覆盖新选择，且 Library/Ornament 不访问 score/preparation/session。Ornament 没有隐藏配置或练习入口。
 
 正式生产导入链只有：
 

@@ -125,6 +125,9 @@ struct SongLibraryView: View {
       idealHeight: LibraryDesignTokens.windowIdealHeight,
       maxHeight: LibraryDesignTokens.windowMaximumHeight
     )
+    .ornament(attachmentAnchor: .scene(.trailing)) {
+      LibraryPracticeProgressOrnamentView(state: viewModel.practiceSnapshotState)
+    }
     .sheet(isPresented: $isDiagnosticsPresented) {
       DiagnosticsView(viewModel: diagnosticsViewModel)
     }
