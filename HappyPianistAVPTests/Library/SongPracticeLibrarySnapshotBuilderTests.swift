@@ -18,7 +18,7 @@ func snapshotBuilderLeavesMainActorIsolation() async {
     #expect(await buildSnapshot(
         builder: builder,
         entry: entry,
-        history: PracticeSongHistory(songID: entry.id, progresses: [], scoreMetadata: [])
+        history: PracticeSongHistory(songID: entry.id, progresses: [], scoreMetadata: [], sessions: [])
     ) == .invitation(snapshotIdentity(entry)))
     #expect(probe.observedNonisolated == true)
 }
@@ -37,7 +37,8 @@ func invitationDependsOnSessionsNotMeasureAttempts() async {
         history: PracticeSongHistory(
             songID: entry.id,
             progresses: [progress],
-            scoreMetadata: [makeSnapshotMetadata(entry: entry, revision: "current")]
+            scoreMetadata: [makeSnapshotMetadata(entry: entry, revision: "current")],
+            sessions: []
         )
     ) == .invitation(snapshotIdentity(entry)))
 }

@@ -110,7 +110,8 @@ struct PracticeHistoricalPreferencesResolverTests {
             history: PracticeSongHistory(
                 songID: songID,
                 progresses: progresses,
-                scoreMetadata: []
+                scoreMetadata: [],
+                sessions: []
             )
         )
     }

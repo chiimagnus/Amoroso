@@ -18,6 +18,9 @@ struct SongPracticeSessionSummaryBuilder: Sendable {
         }
 
         let latestPracticeEndedAt = matchingSessions.compactMap(\.endedAt).max()
+        let latestPracticeActivityAt = matchingSessions.map { session in
+            session.endedAt ?? session.lastPersistedAt
+        }.max()
         let totalActiveDurationMilliseconds = matchingSessions.reduce(into: Int64(0)) { total, session in
             let (sum, overflow) = total.addingReportingOverflow(
                 session.activePracticeDurationMilliseconds
@@ -29,6 +32,7 @@ struct SongPracticeSessionSummaryBuilder: Sendable {
             Self.streak(
                 endingAt: latestOrdinal,
                 dayOrdinals: dayOrdinals,
+                latestPracticeActivityAt: latestPracticeActivityAt,
                 viewedAt: viewedAt,
                 viewingTimeZone: viewingTimeZone
             )
@@ -45,6 +49,7 @@ struct SongPracticeSessionSummaryBuilder: Sendable {
     private static func streak(
         endingAt latestOrdinal: Int,
         dayOrdinals: Set<Int>,
+        latestPracticeActivityAt: Date?,
         viewedAt: Date,
         viewingTimeZone: TimeZone
     ) -> SongPracticeStreak? {
@@ -53,12 +58,18 @@ struct SongPracticeSessionSummaryBuilder: Sendable {
             dayCount += 1
         }
         guard dayCount > 0,
+              let latestPracticeActivityAt,
+              let latestViewedDay = localDay(
+                for: latestPracticeActivityAt,
+                in: viewingTimeZone
+              ),
+              let latestViewedOrdinal = dayOrdinal(latestViewedDay),
               let viewedDay = localDay(for: viewedAt, in: viewingTimeZone),
               let viewedOrdinal = dayOrdinal(viewedDay)
         else {
             return nil
         }
-        let age = viewedOrdinal - latestOrdinal
+        let age = viewedOrdinal - latestViewedOrdinal
         return SongPracticeStreak(
             dayCount: dayCount,
             recency: (0 ... 1).contains(age) ? .current : .recent

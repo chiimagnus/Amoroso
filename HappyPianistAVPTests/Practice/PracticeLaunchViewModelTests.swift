@@ -86,6 +86,7 @@ func failedRecorderFinalizeBlocksReturnUntilUserDiscardsPendingDelta() async thr
     }
     #expect(fixture.owner.requestedSongID == fixture.songA)
     #expect(fixture.applicator.clearCount == clearCountBeforeReturn)
+    #expect(fixture.applicator.returnCommitCount == 0)
     #expect(await sessionRepository.records().last?.termination == .open)
 
     let discardOperation = fixture.owner.beginReturn()
@@ -93,6 +94,7 @@ func failedRecorderFinalizeBlocksReturnUntilUserDiscardsPendingDelta() async thr
         operationID: discardOperation
     ) == .saved)
     #expect(await sessionRepository.abandonedIDs() == [visitID])
+    #expect(fixture.applicator.returnCommitCount == 1)
     #expect(fixture.owner.currentVisitID == nil)
 }
 
@@ -383,6 +385,7 @@ func inactivePracticeLaunchReactivatesItsRegisteredRequest() async {
 func practiceLaunchReturnFinishIsIdempotentAndRejectsStaleOperation() async {
     let fixture = makePracticeLaunchFixture()
     fixture.owner.request(songID: fixture.songA)
+    let clearCountBeforeReturn = fixture.applicator.clearCount
     let operationID = fixture.owner.beginReturn()
 
     await fixture.owner.finishReturn(operationID: UUID())
@@ -392,28 +395,31 @@ func practiceLaunchReturnFinishIsIdempotentAndRejectsStaleOperation() async {
     #expect(fixture.owner.state == .requested(songID: fixture.songA))
     #expect(fixture.owner.requestedSongID == nil)
     #expect(fixture.owner.activationIdentity == nil)
-    #expect(fixture.applicator.clearCount == 1)
+    #expect(fixture.applicator.clearCount == clearCountBeforeReturn)
+    #expect(fixture.applicator.returnCommitCount == 1)
 }
 
 @MainActor
 @Test
-func failedPracticeReturnRestoresTheReadyRequestForRetry() async {
-    let fixture = makePracticeLaunchFixture()
+func successfulPracticeReturnDoesNotReuseFallibleLaunchClearAfterRecorderFinalize() async throws {
+    let sessionRepository = PracticeLaunchSessionRepository()
+    let recorder = PracticeSessionRecorder(repository: sessionRepository)
+    let fixture = makePracticeLaunchFixture(sessionRecorder: recorder)
     fixture.owner.request(songID: fixture.songA)
     await fixture.owner.activateCurrentRequest()
-    let readyState = fixture.owner.state
+    await recorder.setGuiding(true)
+    _ = await recorder.checkpoint()
+    let clearCountBeforeReturn = fixture.applicator.clearCount
     fixture.applicator.clearStatus = .failed(message: "disk full")
 
     let operationID = fixture.owner.beginReturn()
     let status = await fixture.owner.finishReturn(operationID: operationID)
 
-    guard case .failed = status else {
-        Issue.record("Expected progress-save failure")
-        return
-    }
-    #expect(fixture.owner.state == readyState)
-    #expect(fixture.owner.requestedSongID == fixture.songA)
-    #expect(fixture.owner.activationIdentity?.songID == fixture.songA)
+    #expect(status == .saved)
+    #expect(fixture.owner.requestedSongID == nil)
+    #expect(fixture.applicator.clearCount == clearCountBeforeReturn)
+    #expect(fixture.applicator.returnCommitCount == 1)
+    #expect(try #require(await sessionRepository.records().last).termination == .normal)
 }
 
 @MainActor
@@ -1051,7 +1057,8 @@ private actor RecordingPracticeLaunchProgressRepository:
         return .loaded(PracticeSongHistory(
             songID: songID,
             progresses: progresses.filter { $0.identity.songID == songID },
-            scoreMetadata: metadata.filter { $0.songID == songID }
+            scoreMetadata: metadata.filter { $0.songID == songID },
+            sessions: []
         ))
     }
     func upsert(_ progress: SongPracticeProgress) {
@@ -1113,7 +1120,7 @@ private actor SuspendedMetadataPracticeLaunchRepository: PracticeProgressReposit
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
     func upsert(_: SongPracticeProgress) {}
     func upsert(_: SongScorePracticeMetadata) async {
@@ -1362,6 +1369,7 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     private(set) var appliedSongIDs: [UUID] = []
     private(set) var restorePolicies: [PracticeLaunchRestorePolicy] = []
     private(set) var clearCount = 0
+    private(set) var returnCommitCount = 0
     private(set) var suspendCount = 0
     private(set) var guidingStartBlocks: [Bool] = []
     let applyOutcome: PracticeLaunchApplyOutcome
@@ -1389,6 +1397,9 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus {
         clearCount += 1
         return clearStatus
+    }
+    func commitPreparedPracticeReturn() {
+        returnCommitCount += 1
     }
     func setPracticeGuidingStartBlocked(_ isBlocked: Bool) {
         guidingStartBlocks.append(isBlocked)
@@ -1427,6 +1438,7 @@ private final class ControlledPracticeLaunchApplicator: PracticeLaunchApplying {
     }
 
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
+    func commitPreparedPracticeReturn() {}
     func setPracticeGuidingStartBlocked(_: Bool) {}
     func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
 }
@@ -1454,6 +1466,7 @@ private final class AppliedThenSuspendedPracticeLaunchApplicator: PracticeLaunch
     }
 
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
+    func commitPreparedPracticeReturn() {}
     func setPracticeGuidingStartBlocked(_: Bool) {}
     func suspendPracticeAndFlushProgress() async {}
 }
@@ -1473,6 +1486,7 @@ private final class RejectOncePracticeLaunchApplicator: PracticeLaunchApplying {
     }
 
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
+    func commitPreparedPracticeReturn() {}
     func setPracticeGuidingStartBlocked(_: Bool) {}
     func suspendPracticeAndFlushProgress() async {}
 }

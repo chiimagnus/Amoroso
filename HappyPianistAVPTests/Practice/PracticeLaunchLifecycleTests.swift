@@ -610,7 +610,8 @@ private actor LaunchLifecycleRepository: PracticeProgressRepositoryProtocol {
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: progresses.values.filter { $0.identity.songID == songID },
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
 
@@ -642,7 +643,7 @@ private actor LaunchRaceProgressRepository: PracticeProgressRepositoryProtocol {
     }
 
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
 
     func upsert(_: SongPracticeProgress) {}

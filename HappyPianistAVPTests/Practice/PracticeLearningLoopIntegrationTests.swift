@@ -116,7 +116,8 @@ private actor LearningLoopRepository: PracticeProgressRepositoryProtocol {
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: stored.values.filter { $0.identity.songID == songID },
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
 
