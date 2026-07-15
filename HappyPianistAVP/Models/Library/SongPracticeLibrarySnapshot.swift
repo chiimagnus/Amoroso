@@ -41,7 +41,6 @@ enum SongPracticeLibrarySnapshotBuildResult: Equatable, Sendable {
 }
 
 enum SongPracticeLibraryPresentationState: Equatable, Sendable {
-    case noSelection
     case loading(SongPracticeLibrarySelectionIdentity)
     case neverPracticed(SongPracticeLibrarySelectionIdentity)
     case current(SongPracticeLibrarySnapshot)

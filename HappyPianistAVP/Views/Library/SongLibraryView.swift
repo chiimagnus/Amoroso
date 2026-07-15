@@ -161,12 +161,15 @@ struct SongLibraryView: View {
       }
     }
     .ornament(
+      visibility: viewModel.practiceSnapshotState == nil ? .hidden : .visible,
       attachmentAnchor: .scene(.trailing),
       contentAlignment: .leading
     ) {
-      LibraryPracticeProgressOrnamentView(state: viewModel.practiceSnapshotState)
-        .frame(width: 400, height: libraryViewHeight)
-        .glassBackgroundEffect()
+      if let state = viewModel.practiceSnapshotState {
+        LibraryPracticeProgressOrnamentView(state: state)
+          .frame(width: 400, height: libraryViewHeight)
+          .glassBackgroundEffect()
+      }
     }
     .sheet(isPresented: $isDiagnosticsPresented) {
       DiagnosticsView(viewModel: diagnosticsViewModel)

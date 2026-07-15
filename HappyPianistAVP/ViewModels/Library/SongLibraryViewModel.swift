@@ -50,7 +50,7 @@ final class SongLibraryViewModel {
     var isMusicXMLImporterPresented = false
     private(set) var importState: SongLibraryImportState = .idle
     private(set) var selectedEntryID: UUID?
-    private(set) var practiceSnapshotState: SongPracticeLibraryPresentationState = .noSelection
+    private(set) var practiceSnapshotState: SongPracticeLibraryPresentationState?
 
     init(
         indexStore: SongLibraryIndexStoreProtocol,
@@ -697,7 +697,7 @@ final class SongLibraryViewModel {
             entries.first(where: { $0.id == selectedID })
         }) else {
             snapshotLoadTask = nil
-            practiceSnapshotState = .noSelection
+            practiceSnapshotState = nil
             return
         }
 

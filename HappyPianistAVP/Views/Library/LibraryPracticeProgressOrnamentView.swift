@@ -8,12 +8,6 @@ struct LibraryPracticeProgressOrnamentView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             switch state {
-            case .noSelection:
-                LibraryPracticeMessageView(
-                    systemImage: "music.note.list",
-                    title: "选择一首曲目",
-                    message: "这里会显示当前曲目的真实练习记录。"
-                )
             case .loading:
                 HStack(spacing: 12) {
                     ProgressView()

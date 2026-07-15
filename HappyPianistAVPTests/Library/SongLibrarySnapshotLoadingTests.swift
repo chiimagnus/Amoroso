@@ -4,6 +4,15 @@ import Testing
 
 @Test
 @MainActor
+func emptyLibraryHasNoPracticeSnapshotPresentation() {
+    let viewModel = SongLibraryViewModelTestHarness.make(index: .empty)
+
+    #expect(viewModel.selectedEntryID == nil)
+    #expect(viewModel.practiceSnapshotState == nil)
+}
+
+@Test
+@MainActor
 func libraryLoadsNeverPracticedSnapshotWithoutScoreAccess() async throws {
     let entry = makeLoadingEntry()
     let repository = FixedHistoryRepository(histories: [
@@ -243,7 +252,7 @@ private func waitForSnapshotState(
     matches: (SongPracticeLibraryPresentationState) -> Bool
 ) async throws {
     for _ in 0 ..< 200 {
-        if matches(viewModel.practiceSnapshotState) { return }
+        if let state = viewModel.practiceSnapshotState, matches(state) { return }
         try await Task.sleep(for: .milliseconds(5))
     }
     Issue.record("Timed out waiting for snapshot state: \(viewModel.practiceSnapshotState)")
