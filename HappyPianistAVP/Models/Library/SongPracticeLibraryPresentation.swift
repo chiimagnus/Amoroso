@@ -31,3 +31,14 @@ enum SongPracticeMeasureProgressState: Equatable, Sendable {
     case available(SongPracticeMeasureProgress)
     case metadataUnavailable
 }
+
+enum SongPracticeFocusReason: Equatable, Sendable {
+    case recentIssue(PracticeIssueKind)
+    case failedAttempts(Int)
+    case learning
+}
+
+struct SongPracticeFocusMeasure: Equatable, Sendable {
+    let sourceMeasureID: PracticeSourceMeasureID
+    let reason: SongPracticeFocusReason
+}

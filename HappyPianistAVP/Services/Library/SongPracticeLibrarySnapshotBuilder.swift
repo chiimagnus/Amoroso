@@ -25,7 +25,9 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
         let progresses = deduplicatedProgresses(
             history.progresses.filter { $0.identity.songID == entry.id }
         )
-        let realHistoricalFacts = progresses.flatMap(\.measureFacts).filter(hasRealAttempt)
+        let realHistoricalFacts = progresses.flatMap(\.measureFacts).filter(
+            SongPracticeMeasureFactOrder.hasRealAttempt
+        )
         guard realHistoricalFacts.isEmpty == false else {
             return .neverPracticed
         }
@@ -91,11 +93,9 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
         _ progress: SongPracticeProgress?,
         totalSourceMeasureCount: Int
     ) -> SongPracticeCurrentFacts {
-        let realFacts = progress?.measureFacts.filter(hasRealAttempt) ?? []
-
-        let uniqueFacts = Dictionary(grouping: realFacts) {
-            MeasureHandIdentity(sourceMeasureID: $0.sourceMeasureID, handMode: $0.handMode)
-        }.values.compactMap(preferredFact)
+        let uniqueFacts = SongPracticeMeasureFactOrder.uniqueRealFacts(
+            in: progress?.measureFacts ?? []
+        )
         let currentFact = uniqueFacts.sorted(by: currentFactComesFirst).first
         let sourceGroups = Dictionary(grouping: uniqueFacts, by: \.sourceMeasureID)
         let stableSourceIDs = Set(sourceGroups.compactMap { sourceID, facts in
@@ -127,7 +127,7 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             )
         }.sorted { lhs, rhs in
             if lhs.attemptedAt != rhs.attemptedAt { return lhs.attemptedAt > rhs.attemptedAt }
-            return sourceComesFirst(lhs.sourceMeasureID, rhs.sourceMeasureID)
+            return PracticeSourceMeasureOrder.comesFirst(lhs.sourceMeasureID, rhs.sourceMeasureID)
         }
 
         return SongPracticeCurrentFacts(
@@ -147,10 +147,6 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
         )
     }
 
-    private nonisolated func hasRealAttempt(_ fact: MeasurePracticeFacts) -> Bool {
-        fact.successfulAttempts > 0 || fact.failedAttempts > 0 || fact.lastAttemptAt != nil
-    }
-
     private nonisolated func validResumeSourceMeasureID(
         progress: SongPracticeProgress?,
         currentFacts: [MeasurePracticeFacts]
@@ -164,32 +160,7 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
     private nonisolated func preferredFact(
         _ facts: [MeasurePracticeFacts]
     ) -> MeasurePracticeFacts? {
-        facts.sorted(by: factComesFirst).first
-    }
-
-    private nonisolated func factComesFirst(
-        _ lhs: MeasurePracticeFacts,
-        _ rhs: MeasurePracticeFacts
-    ) -> Bool {
-        if lhs.lastAttemptAt != rhs.lastAttemptAt {
-            return (lhs.lastAttemptAt ?? .distantPast) > (rhs.lastAttemptAt ?? .distantPast)
-        }
-        if statePriority(lhs.state) != statePriority(rhs.state) {
-            return statePriority(lhs.state) > statePriority(rhs.state)
-        }
-        if lhs.successfulAttempts != rhs.successfulAttempts {
-            return lhs.successfulAttempts > rhs.successfulAttempts
-        }
-        if lhs.failedAttempts != rhs.failedAttempts {
-            return lhs.failedAttempts > rhs.failedAttempts
-        }
-        if lhs.consecutiveSuccesses != rhs.consecutiveSuccesses {
-            return lhs.consecutiveSuccesses > rhs.consecutiveSuccesses
-        }
-        if lhs.highestStableTempoScale != rhs.highestStableTempoScale {
-            return (lhs.highestStableTempoScale ?? 0) > (rhs.highestStableTempoScale ?? 0)
-        }
-        return (lhs.recentIssue?.rawValue ?? "") > (rhs.recentIssue?.rawValue ?? "")
+        facts.sorted(by: SongPracticeMeasureFactOrder.comesFirst).first
     }
 
     private nonisolated func currentFactComesFirst(
@@ -200,37 +171,9 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             return (lhs.lastAttemptAt ?? .distantPast) > (rhs.lastAttemptAt ?? .distantPast)
         }
         if lhs.sourceMeasureID != rhs.sourceMeasureID {
-            return sourceComesFirst(lhs.sourceMeasureID, rhs.sourceMeasureID)
+            return PracticeSourceMeasureOrder.comesFirst(lhs.sourceMeasureID, rhs.sourceMeasureID)
         }
         return lhs.handMode.rawValue < rhs.handMode.rawValue
     }
 
-    private nonisolated func statePriority(_ state: MeasureLearningState) -> Int {
-        switch state {
-        case .notStarted: 0
-        case .learning: 1
-        case .stable: 2
-        }
-    }
-
-    private nonisolated func sourceComesFirst(
-        _ lhs: PracticeSourceMeasureID,
-        _ rhs: PracticeSourceMeasureID
-    ) -> Bool {
-        if lhs.partID != rhs.partID { return lhs.partID < rhs.partID }
-        if lhs.sourceMeasureIndex != rhs.sourceMeasureIndex {
-            return lhs.sourceMeasureIndex < rhs.sourceMeasureIndex
-        }
-        return switch (lhs.sourceNumberToken, rhs.sourceNumberToken) {
-        case (nil, .some): true
-        case (.some, nil): false
-        case let (.some(lhsToken), .some(rhsToken)): lhsToken < rhsToken
-        case (nil, nil): false
-        }
-    }
-}
-
-private struct MeasureHandIdentity: Hashable, Sendable {
-    let sourceMeasureID: PracticeSourceMeasureID
-    let handMode: PracticeHandMode
 }
