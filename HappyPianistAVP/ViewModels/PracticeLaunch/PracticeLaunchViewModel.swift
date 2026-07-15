@@ -27,13 +27,16 @@ final class PracticeLaunchViewModel {
     private let applicator: any PracticeLaunchApplying
     private let diagnosticsReporter: any DiagnosticsReporting
     private let progressRepository: any PracticeProgressRepositoryProtocol
+    private let sessionRecorder: PracticeSessionRecorder?
     private let historicalPreferencesResolver: PracticeHistoricalPreferencesResolver
     private let now: @Sendable () -> Date
+    private let makeVisitID: @Sendable () -> UUID
 
     @ObservationIgnored private var activationTask: Task<Void, Never>?
     @ObservationIgnored private var metadataWriteTasks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var returnContext: PracticeLaunchReturnContext?
+    @ObservationIgnored private(set) var currentVisitID: UUID?
 
     private(set) var state: PracticeLaunchState?
     private(set) var requestedSongID: UUID?
@@ -45,16 +48,20 @@ final class PracticeLaunchViewModel {
         applicator: any PracticeLaunchApplying,
         diagnosticsReporter: any DiagnosticsReporting,
         progressRepository: any PracticeProgressRepositoryProtocol,
+        sessionRecorder: PracticeSessionRecorder? = nil,
         historicalPreferencesResolver: PracticeHistoricalPreferencesResolver = PracticeHistoricalPreferencesResolver(),
-        now: @escaping @Sendable () -> Date = { .now }
+        now: @escaping @Sendable () -> Date = { .now },
+        makeVisitID: @escaping @Sendable () -> UUID = { UUID() }
     ) {
         self.resolver = resolver
         self.preparationService = preparationService
         self.applicator = applicator
         self.diagnosticsReporter = diagnosticsReporter
         self.progressRepository = progressRepository
+        self.sessionRecorder = sessionRecorder
         self.historicalPreferencesResolver = historicalPreferencesResolver
         self.now = now
+        self.makeVisitID = makeVisitID
     }
 
     func request(songID: UUID) {
@@ -66,7 +73,10 @@ final class PracticeLaunchViewModel {
                 break
             }
         }
-        registerRequest(songID: songID)
+        registerRequest(
+            songID: songID,
+            startsNewVisit: requestedSongID != songID || currentVisitID == nil
+        )
     }
 
     func activateCurrentRequest() async {
@@ -88,7 +98,7 @@ final class PracticeLaunchViewModel {
 
     func retry() async {
         guard let songID = requestedSongID else { return }
-        registerRequest(songID: songID)
+        registerRequest(songID: songID, startsNewVisit: false)
         await activateCurrentRequest()
     }
 
@@ -156,14 +166,18 @@ final class PracticeLaunchViewModel {
             return status
         }
         returnContext = nil
+        currentVisitID = nil
         return status
     }
 
-    private func registerRequest(songID: UUID) {
+    private func registerRequest(songID: UUID, startsNewVisit: Bool) {
         activationTask?.cancel()
         activationTask = nil
         generation += 1
         returnContext = nil
+        if startsNewVisit || currentVisitID == nil {
+            currentVisitID = makeVisitID()
+        }
         requestedSongID = songID
         state = .requested(songID: songID)
         activationIdentity = PracticeLaunchActivationIdentity(
@@ -175,6 +189,18 @@ final class PracticeLaunchViewModel {
     private func performActivation(songID: UUID, generation: Int) async {
         guard isCurrent(songID: songID, generation: generation) else { return }
         state = .loading(songID: songID)
+        if let sessionRecorder, let currentVisitID {
+            let recorderStatus = await sessionRecorder.beginVisit(
+                id: currentVisitID,
+                songID: songID,
+                sceneIsActive: true
+            )
+            guard isCurrent(songID: songID, generation: generation) else { return }
+            guard recorderStatus.permitsExit else {
+                await publishRecorderFailure(songID: songID, status: recorderStatus)
+                return
+            }
+        }
         let clearStatus = await applicator.clearPreparedPracticeForLaunch()
         guard isCurrent(songID: songID, generation: generation) else { return }
         if case .failed = clearStatus {
@@ -282,8 +308,16 @@ final class PracticeLaunchViewModel {
             )
             guard let applyOutcome else {
                 guard isCurrent(songID: songID, generation: generation) else { return }
-                registerRequest(songID: songID)
+                registerRequest(songID: songID, startsNewVisit: false)
                 return
+            }
+            if let sessionRecorder {
+                let recorderStatus = await sessionRecorder.bindIdentity(prepared.identity)
+                guard isCurrent(songID: songID, generation: generation) else { return }
+                guard recorderStatus.permitsExit else {
+                    await publishRecorderFailure(songID: songID, status: recorderStatus)
+                    return
+                }
             }
 
             let metadata = SongScorePracticeMetadata(
@@ -374,6 +408,26 @@ final class PracticeLaunchViewModel {
         self.generation == generation &&
             requestedSongID == songID &&
             Task.isCancelled == false
+    }
+
+    private func publishRecorderFailure(
+        songID: UUID,
+        status: PracticeSessionRecorderSaveStatus
+    ) async {
+        let failure = PracticeLaunchFailure.progressSaveFailed(entryID: songID)
+        state = .failure(failure)
+        _ = await diagnosticsReporter.record(
+            DiagnosticEvent(
+                severity: .error,
+                code: .practiceProgressSaveFailed,
+                category: .persistence,
+                stage: "practiceSessionRecorder",
+                summary: "无法准备练习会话记录",
+                reason: "recorder=\(status.diagnosticToken)",
+                songID: songID,
+                persistence: .exportable
+            )
+        )
     }
 
     private func scheduleMetadataWrite(_ metadata: SongScorePracticeMetadata) {

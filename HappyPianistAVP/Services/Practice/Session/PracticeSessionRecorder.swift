@@ -59,13 +59,27 @@ enum PracticeSessionRecorderSaveStatus: Equatable, Sendable {
             false
         }
     }
+
+    var diagnosticToken: String {
+        switch self {
+        case .idle:
+            "idle"
+        case .pending:
+            "pending"
+        case .saved:
+            "saved"
+        case .failed:
+            "failed"
+        }
+    }
 }
 
 actor PracticeSessionRecorder {
     private struct VisitState {
         let id: UUID
-        let identity: PracticeSongIdentity
+        let songID: UUID
         let windowOpenedAt: Date
+        var scoreRevision: String?
         var lastMonotonicMilliseconds: Int64
         var sceneIsActive: Bool
         var isGuiding = false
@@ -106,7 +120,7 @@ actor PracticeSessionRecorder {
     @discardableResult
     func beginVisit(
         id: UUID,
-        identity: PracticeSongIdentity,
+        songID: UUID,
         sceneIsActive: Bool
     ) async -> PracticeSessionRecorderSaveStatus {
         if visit?.id == id {
@@ -122,12 +136,30 @@ actor PracticeSessionRecorder {
         saveStatus = .idle
         visit = VisitState(
             id: id,
-            identity: identity,
+            songID: songID,
             windowOpenedAt: clock.wallDate(),
+            scoreRevision: nil,
             lastMonotonicMilliseconds: max(0, clock.monotonicMilliseconds()),
             sceneIsActive: sceneIsActive
         )
         return .idle
+    }
+
+    @discardableResult
+    func bindIdentity(_ identity: PracticeSongIdentity) -> PracticeSessionRecorderSaveStatus {
+        guard var visit, visit.isFinalized == false else { return saveStatus }
+        guard visit.songID == identity.songID else {
+            saveStatus = .failed(description: "practice-visit-song-mismatch")
+            return saveStatus
+        }
+        if let scoreRevision = visit.scoreRevision,
+           scoreRevision != identity.scoreRevision {
+            saveStatus = .failed(description: "practice-visit-revision-mismatch")
+            return saveStatus
+        }
+        visit.scoreRevision = identity.scoreRevision
+        self.visit = visit
+        return saveStatus
     }
 
     @discardableResult
@@ -149,6 +181,11 @@ actor PracticeSessionRecorder {
         advance(&visit)
         var firstCheckpointDate: Date?
         if isGuiding, visit.practiceStartedAt == nil {
+            guard visit.scoreRevision != nil else {
+                saveStatus = .failed(description: "practice-visit-revision-unavailable")
+                self.visit = visit
+                return saveStatus
+            }
             let startedAt = clock.wallDate()
             guard let practiceDay = clock.localDay(startedAt) else {
                 saveStatus = .failed(description: "invalid-local-practice-day")
@@ -252,12 +289,13 @@ actor PracticeSessionRecorder {
 
     private func queueCurrentRecord(persistedAt: Date? = nil) {
         guard let visit,
+              let scoreRevision = visit.scoreRevision,
               let practiceStartedAt = visit.practiceStartedAt,
               let practiceDay = visit.practiceDay,
               let record = PracticeSessionRecord(
                 id: visit.id,
-                songID: visit.identity.songID,
-                scoreRevision: visit.identity.scoreRevision,
+                songID: visit.songID,
+                scoreRevision: scoreRevision,
                 windowOpenedAt: visit.windowOpenedAt,
                 practiceStartedAt: practiceStartedAt,
                 practiceDay: practiceDay,

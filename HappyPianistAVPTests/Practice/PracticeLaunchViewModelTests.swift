@@ -31,6 +31,39 @@ func practiceLaunchRegistersWithoutPreparingThenActivatesExactlyOnce() async {
 
 @MainActor
 @Test
+func practiceLaunchKeepsOneVisitIdentityForRetryAndCreatesAnotherForNewRequest() async {
+    let fixture = makePracticeLaunchFixture(error: .noPlayableNotes)
+    fixture.owner.request(songID: fixture.songA)
+    let firstVisitID = fixture.owner.currentVisitID
+    await fixture.owner.activateCurrentRequest()
+
+    await fixture.owner.retry()
+    #expect(fixture.owner.currentVisitID == firstVisitID)
+
+    fixture.owner.request(songID: fixture.songB)
+    #expect(fixture.owner.currentVisitID != firstVisitID)
+}
+
+@MainActor
+@Test
+func successfulLaunchBindsPreparedRevisionToWindowRecorder() async throws {
+    let sessionRepository = PracticeLaunchSessionRepository()
+    let recorder = PracticeSessionRecorder(repository: sessionRepository)
+    let fixture = makePracticeLaunchFixture(sessionRecorder: recorder)
+    fixture.owner.request(songID: fixture.songA)
+    let visitID = try #require(fixture.owner.currentVisitID)
+
+    await fixture.owner.activateCurrentRequest()
+    await recorder.setGuiding(true)
+
+    let record = try #require(await sessionRepository.records().last)
+    #expect(record.id == visitID)
+    #expect(record.songID == fixture.songA)
+    #expect(record.scoreRevision == fixture.songA.uuidString)
+}
+
+@MainActor
+@Test
 func practiceLaunchStopsBeforePreparationWhenPreviousProgressCannotBeSaved() async {
     let fixture = makePracticeLaunchFixture()
     fixture.applicator.clearStatus = .failed(message: "disk full")
@@ -107,7 +140,7 @@ func corruptedPracticeHistoryWarnsAndLaunchesWithUnavailablePolicy() async {
     )))
     #expect(fixture.applicator.restorePolicies == [.historyUnavailable])
     let warning = await fixture.reporter.events.first { $0.code == .practiceHistoryLoadFailed }
-    #expect(warning?.reason == "The practice progress document could not be decoded.")
+    #expect(warning?.reason == "Practice progress repository state: corrupted.")
     #expect(warning?.reason.contains("/Users/private") == false)
     let resolution = await fixture.reporter.events.first { $0.code == .practiceHistoryResolution }
     #expect(resolution?.reason == "historyCorrupted")
@@ -708,7 +741,8 @@ private func makePracticeLaunchFixture(
     applyOutcome: PracticeLaunchApplyOutcome = .applied,
     progresses: [SongPracticeProgress] = [],
     historyResultOverride: PracticeSongHistoryLoadResult? = nil,
-    historyDelay: Duration = .zero
+    historyDelay: Duration = .zero,
+    sessionRecorder: PracticeSessionRecorder? = nil
 ) -> PracticeLaunchFixture {
     let resolver = PracticeLaunchResolver(songIDs: [songA, songB])
     let preparation = PracticeLaunchPreparationService(
@@ -729,7 +763,8 @@ private func makePracticeLaunchFixture(
             preparationService: preparation,
             applicator: applicator,
             diagnosticsReporter: reporter,
-            progressRepository: metadataRepository
+            progressRepository: metadataRepository,
+            sessionRecorder: sessionRecorder
         ),
         preparation: preparation,
         applicator: applicator,
@@ -738,6 +773,20 @@ private func makePracticeLaunchFixture(
         songA: songA,
         songB: songB
     )
+}
+
+private actor PracticeLaunchSessionRepository: PracticeSessionRepositoryProtocol {
+    private var storedRecords: [PracticeSessionRecord] = []
+
+    func upsert(_ session: PracticeSessionRecord) {
+        storedRecords.append(session)
+    }
+
+    func abandonLiveSession(id _: UUID) {}
+
+    func records() -> [PracticeSessionRecord] {
+        storedRecords
+    }
 }
 
 @MainActor

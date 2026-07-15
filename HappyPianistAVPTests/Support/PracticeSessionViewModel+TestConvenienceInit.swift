@@ -13,6 +13,7 @@ extension PracticeSessionViewModel {
         audioStepAttemptAccumulator: AudioStepAttemptAccumulator? = nil,
         handPianoActivityGate: HandPianoActivityGate? = nil,
         progressCoordinator: PracticeProgressCoordinator? = nil,
+        sessionRecorder: PracticeSessionRecorder? = nil,
         manualAdvanceMode: ManualAdvanceMode = .step
     ) {
         let resolvedPlaybackService = sequencerPlaybackService ?? NoopPracticeSequencerPlaybackService()
@@ -32,7 +33,8 @@ extension PracticeSessionViewModel {
             handPianoActivityGate: resolvedHandPianoActivityGate,
             settingsProvider: settingsProvider,
             roundDefaultsStore: TestPracticeRoundDefaultsStore(),
-            progressCoordinator: progressCoordinator
+            progressCoordinator: progressCoordinator,
+            sessionRecorder: sessionRecorder
         )
     }
 }

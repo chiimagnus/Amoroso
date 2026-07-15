@@ -218,6 +218,38 @@ func stalePreparedPracticeApplyCannotOverwriteNewerLaunch() async throws {
 
 @MainActor
 @Test
+func practiceSessionReplacementKeepsWindowRecorderAndDoesNotSplitSession() async throws {
+    let repository = LaunchLifecycleSessionRepository()
+    let recorder = PracticeSessionRecorder(repository: repository)
+    let provider = LaunchLifecycleRecorderSessionProvider(recorder: recorder)
+    let appState = AppState()
+    let guide = ARGuideViewModel(
+        appState: appState,
+        practiceSetupState: appState.practiceSetupState,
+        pianoModeRegistry: PianoModeRegistryService(modes: []),
+        makePracticeSessionViewModel: provider.callAsFunction
+    )
+    let firstSession = guide.practiceSessionViewModel
+    let visitID = UUID()
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "revision")
+    await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+    await recorder.setGuiding(true)
+
+    #expect(await guide.replacePracticeSessionViewModel() == .replaced)
+    #expect(guide.practiceSessionViewModel !== firstSession)
+    #expect(guide.practiceSessionViewModel.sessionRecorder === recorder)
+    await recorder.checkpoint()
+    await recorder.finalize()
+
+    let records = await repository.records()
+    #expect(Set(records.map(\.id)) == Set([visitID]))
+    #expect(records.dropLast().allSatisfy { $0.termination == .open })
+    #expect(records.last?.termination == .normal)
+}
+
+@MainActor
+@Test
 func freshPracticeLaunchUsesFullScoreDefaults() async throws {
     let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
     let spans = makeLaunchLifecycleSpans()
@@ -522,4 +554,36 @@ private final class LaunchLifecycleChordAccumulator: ChordAttemptAccumulatorProt
     ) -> StepAttemptMatchResult { .insufficientEvidence }
 
     func reset() {}
+}
+
+private actor LaunchLifecycleSessionRepository: PracticeSessionRepositoryProtocol {
+    private var storedRecords: [PracticeSessionRecord] = []
+
+    func upsert(_ session: PracticeSessionRecord) {
+        storedRecords.append(session)
+    }
+
+    func abandonLiveSession(id _: UUID) {}
+
+    func records() -> [PracticeSessionRecord] {
+        storedRecords
+    }
+}
+
+@MainActor
+private final class LaunchLifecycleRecorderSessionProvider: @unchecked Sendable {
+    private let recorder: PracticeSessionRecorder
+
+    init(recorder: PracticeSessionRecorder) {
+        self.recorder = recorder
+    }
+
+    func callAsFunction(_: String?) -> PracticeSessionViewModel {
+        PracticeSessionViewModel(
+            pressDetectionService: LaunchLifecyclePressDetectionService(),
+            chordAttemptAccumulator: LaunchLifecycleChordAccumulator(),
+            sleeper: TaskSleeper(),
+            sessionRecorder: recorder
+        )
+    }
 }

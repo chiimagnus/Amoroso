@@ -121,8 +121,11 @@ private func beginActiveVisit(
 ) async {
     await recorder.beginVisit(
         id: visitID,
-        identity: PracticeSongIdentity(songID: songID, scoreRevision: "revision"),
+        songID: songID,
         sceneIsActive: true
+    )
+    await recorder.bindIdentity(
+        PracticeSongIdentity(songID: songID, scoreRevision: "revision")
     )
 }
 
