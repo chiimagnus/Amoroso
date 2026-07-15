@@ -28,7 +28,7 @@ struct SongPracticeLibrarySnapshot: Equatable, Sendable {
 
     let identity: SongPracticeLibrarySelectionIdentity
     let status: Status
-    let latestPracticeDate: Date
+    let latestPracticeDate: Date?
     let totalSourceMeasureCount: Int
     let currentFacts: SongPracticeCurrentFacts?
     let hasHistory: Bool
@@ -37,13 +37,13 @@ struct SongPracticeLibrarySnapshot: Equatable, Sendable {
 enum SongPracticeLibrarySnapshotBuildResult: Equatable, Sendable {
     case neverPracticed
     case current(SongPracticeLibrarySnapshot)
-    case needsRebuild(historyDate: Date)
+    case needsRebuild(historyDate: Date?)
 }
 
 enum SongPracticeLibraryPresentationState: Equatable, Sendable {
     case loading(SongPracticeLibrarySelectionIdentity)
     case neverPracticed(SongPracticeLibrarySelectionIdentity)
     case current(SongPracticeLibrarySnapshot)
-    case needsRebuild(SongPracticeLibrarySelectionIdentity, historyDate: Date)
+    case needsRebuild(SongPracticeLibrarySelectionIdentity, historyDate: Date?)
     case unavailable(SongPracticeLibrarySelectionIdentity)
 }

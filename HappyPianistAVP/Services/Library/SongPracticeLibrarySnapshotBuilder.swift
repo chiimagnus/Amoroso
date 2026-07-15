@@ -26,9 +26,10 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             history.progresses.filter { $0.identity.songID == entry.id }
         )
         let realHistoricalFacts = progresses.flatMap(\.measureFacts).filter(hasRealAttempt)
-        guard let latestPracticeDate = realHistoricalFacts.compactMap(\.lastAttemptAt).max() else {
+        guard realHistoricalFacts.isEmpty == false else {
             return .neverPracticed
         }
+        let latestPracticeDate = realHistoricalFacts.compactMap(\.lastAttemptAt).max()
 
         let metadata = SongScorePracticeMetadataOrder.preferred(
             in: history.scoreMetadata.filter {
@@ -119,7 +120,7 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
     }
 
     private nonisolated func hasRealAttempt(_ fact: MeasurePracticeFacts) -> Bool {
-        fact.lastAttemptAt != nil
+        fact.successfulAttempts > 0 || fact.failedAttempts > 0 || fact.lastAttemptAt != nil
     }
 
     private nonisolated func validResumeSourceMeasureID(

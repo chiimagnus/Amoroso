@@ -115,7 +115,7 @@ selected song UUID + entry version token
 -> UUID + token + generation 仍一致时发布 snapshot state
 ```
 
-Library 返回前台时会刷新同一 selection；同一 run-loop 的 `onAppear` / active refresh 会取消并合并到最新 generation。损坏 history 只产生 `unavailable` 与 typed diagnostic，不设置全局错误，也不禁用试听或唯一开始按钮。该路径不解析曲谱、不访问 score URL、`PreparedPractice` 或 session。trailing Ornament 渲染 no selection、loading、never practiced、current、needs rebuild 与 unavailable 六类只读状态；Reduce Motion 使用静态 phase，VoiceOver 和 Differentiate Without Color 不依赖颜色传达事实。
+Library 返回前台时会刷新同一 selection；同一 run-loop 的 `onAppear` / active refresh 会取消并合并到最新 generation。损坏 history 只产生 `unavailable` 与 typed diagnostic，不设置全局错误，也不禁用试听或唯一开始按钮。该路径不解析曲谱、不访问 score URL、`PreparedPractice` 或 session。未选择曲目时不挂载 trailing Ornament；已选曲目只渲染 loading、never practiced、current、needs rebuild 与 unavailable 五类只读状态；Reduce Motion 使用静态 phase，VoiceOver 和 Differentiate Without Color 不依赖颜色传达事实。
 
 ## 本轮配置与 active range
 
