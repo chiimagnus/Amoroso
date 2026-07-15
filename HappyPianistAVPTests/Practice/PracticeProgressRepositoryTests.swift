@@ -29,29 +29,37 @@ func progressRepositoryReturnsEmptyOnFirstRunAndRoundTrips() async throws {
     #expect(await repository.progress(for: progress.identity) == progress)
 }
 
-@Test
-func progressRepositoryQuarantinesCorruptedFileOnNextMutation() async throws {
+@Test(arguments: [Data("not-json".utf8), Data(), Data(" \n\t".utf8)])
+func progressRepositoryPreservesCorruptedFileAndRejectsEveryMutation(
+    corruptedData: Data
+) async throws {
     let (repository, directory) = try makeRepositoryFixture()
     defer { try? FileManager.default.removeItem(at: directory) }
     let paths = PracticeProgressPaths(rootDirectoryURL: directory)
-    try Data("not-json".utf8).write(to: paths.fileURL)
+    try corruptedData.write(to: paths.fileURL)
 
     guard case .corrupted = await repository.load() else {
         Issue.record("Expected explicit corruption result before recovery")
         return
     }
-    #expect(try String(contentsOf: paths.fileURL, encoding: .utf8) == "not-json")
+    #expect(try Data(contentsOf: paths.fileURL) == corruptedData)
 
     let progress = makeProgress()
-    try await repository.upsert(progress)
-    #expect(await repository.progress(for: progress.identity) == progress)
-
-    let quarantinedFiles = try FileManager.default.contentsOfDirectory(
-        at: directory,
-        includingPropertiesForKeys: nil
-    ).filter { $0.lastPathComponent.hasPrefix("progress-v1.corrupt-") }
-    #expect(quarantinedFiles.count == 1)
-    #expect(try String(contentsOf: quarantinedFiles[0], encoding: .utf8) == "not-json")
+    let metadata = makeMetadata(songID: progress.identity.songID)
+    await #expect(throws: PracticeProgressRepositoryError.self) {
+        try await repository.upsert(progress)
+    }
+    await #expect(throws: PracticeProgressRepositoryError.self) {
+        try await repository.upsert(metadata)
+    }
+    await #expect(throws: PracticeProgressRepositoryError.self) {
+        try await repository.remove(songID: progress.identity.songID)
+    }
+    guard case .corrupted = await repository.history(for: progress.identity.songID) else {
+        Issue.record("Expected corrupted history")
+        return
+    }
+    #expect(try Data(contentsOf: paths.fileURL) == corruptedData)
 }
 
 @Test
@@ -74,4 +82,96 @@ func progressRepositorySerializesConcurrentUpsertsAndRemovesSong() async throws 
     try await repository.remove(songID: first.identity.songID)
     #expect(await repository.progress(for: first.identity) == nil)
     #expect(await repository.progress(for: second.identity) == second)
+}
+
+@Test
+func progressRepositoryPreservesMetadataAndProgressAcrossConcernUpsertsAndRemoval() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let songID = UUID()
+    let progress = makeProgress(songID: songID)
+    let metadata = makeMetadata(songID: songID)
+
+    try await repository.upsert(metadata)
+    try await repository.upsert(progress)
+    guard case let .loaded(history) = await repository.history(for: songID) else {
+        Issue.record("Expected loaded history")
+        return
+    }
+    #expect(history.progresses == [progress])
+    #expect(history.scoreMetadata == [metadata])
+
+    try await repository.remove(songID: songID)
+    #expect(await repository.history(for: songID) == .loaded(
+        PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [])
+    ))
+}
+
+@Test
+func progressRepositorySelectsDuplicateIdentityDeterministically() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let paths = PracticeProgressPaths(rootDirectoryURL: directory)
+    let songID = UUID()
+    let older = makeProgress(songID: songID)
+    let newer = SongPracticeProgress(
+        identity: older.identity,
+        updatedAt: Date(timeIntervalSince1970: 200)
+    )
+    let document = PracticeProgressDocument(songs: [newer, older])
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try encoder.encode(document).write(to: paths.fileURL)
+
+    #expect(await repository.progress(for: older.identity) == newer)
+    guard case let .loaded(history) = await repository.history(for: songID) else {
+        Issue.record("Expected loaded history")
+        return
+    }
+    #expect(history.progresses == [newer, older])
+}
+
+@Test
+func progressRepositoryDoesNotLetLateOlderMetadataRegressSameIdentity() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let songID = UUID()
+    let token = UUID()
+    let newer = SongScorePracticeMetadata(
+        songID: songID,
+        scoreFileVersionID: token,
+        scoreRevision: "r1",
+        totalSourceMeasureCount: 8,
+        preparedAt: Date(timeIntervalSince1970: 200)
+    )
+    let older = SongScorePracticeMetadata(
+        songID: songID,
+        scoreFileVersionID: token,
+        scoreRevision: "r1",
+        totalSourceMeasureCount: 8,
+        preparedAt: Date(timeIntervalSince1970: 100)
+    )
+
+    try await repository.upsert(newer)
+    try await repository.upsert(older)
+
+    guard case let .loaded(history) = await repository.history(for: songID) else {
+        Issue.record("Expected loaded history")
+        return
+    }
+    #expect(history.scoreMetadata == [newer])
+}
+
+private func makeMetadata(
+    songID: UUID,
+    token: UUID? = nil,
+    revision: String = "r1"
+) -> SongScorePracticeMetadata {
+    SongScorePracticeMetadata(
+        songID: songID,
+        scoreFileVersionID: token,
+        scoreRevision: revision,
+        totalSourceMeasureCount: 8,
+        preparedAt: Date(timeIntervalSince1970: 100)
+    )
 }

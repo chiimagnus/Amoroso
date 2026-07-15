@@ -23,7 +23,6 @@ struct PracticeRoundSummaryView: View {
                 Button("返回曲库", systemImage: "books.vertical", action: onContinue)
                     .buttonStyle(.bordered)
             }
-            .buttonBorderShape(.roundedRectangle)
         }
         .padding()
         .glassBackgroundEffect()

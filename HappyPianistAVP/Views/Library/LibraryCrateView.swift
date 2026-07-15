@@ -2,11 +2,12 @@ import SwiftUI
 
 struct LibraryCrateView: View {
   let entries: [SongLibraryEntry]
-  @Binding var selectedEntryID: UUID?
+  let selectedEntryID: UUID?
   let playingEntryID: UUID?
   let isPlaying: Bool
   let reduceMotion: Bool
-  let onSelectionChanged: (UUID) -> Void
+  let allowsDestructiveActions: Bool
+  let onSelectEntry: (UUID) -> Void
   let onTogglePlayback: (UUID) -> Void
   let onImportMusicXML: () -> Void
   let onBindAudio: (UUID) -> Void
@@ -51,6 +52,10 @@ struct LibraryCrateView: View {
               Button("删除曲目", systemImage: "trash", role: .destructive) {
                 onDelete(entry.id)
               }
+              .disabled(allowsDestructiveActions == false)
+              .accessibilityHint(
+                allowsDestructiveActions ? "删除当前曲目" : "曲谱导入期间不能删除曲目"
+              )
             }
           }
           .scaleEffect(
@@ -88,13 +93,6 @@ struct LibraryCrateView: View {
           select(index: selectedIndex - 1)
         }
         .labelStyle(.iconOnly)
-        .font(.title2)
-        .frame(width: 46, height: 46)
-        .background(
-          Color(red: 26 / 255, green: 23 / 255, blue: 22 / 255).opacity(0.44), in: .circle
-        )
-        .overlay { Circle().stroke(LibraryDesignTokens.line, lineWidth: 1) }
-        .buttonStyle(.plain)
         .opacity(selectedIndex > 0 ? 0.95 : 0)
         .disabled(selectedIndex == 0)
 
@@ -104,17 +102,10 @@ struct LibraryCrateView: View {
           select(index: selectedIndex + 1)
         }
         .labelStyle(.iconOnly)
-        .font(.title2)
-        .frame(width: 46, height: 46)
-        .background(
-          Color(red: 26 / 255, green: 23 / 255, blue: 22 / 255).opacity(0.44), in: .circle
-        )
-        .overlay { Circle().stroke(LibraryDesignTokens.line, lineWidth: 1) }
-        .buttonStyle(.plain)
         .opacity(selectedIndex < entries.count - 1 ? 0.95 : 0)
         .disabled(selectedIndex >= entries.count - 1)
       }
-      .padding(.horizontal, 18)
+      .padding()
       .zIndex(50)
 
       VStack {
@@ -194,10 +185,7 @@ struct LibraryCrateView: View {
   private func select(index: Int) {
     guard entries.indices.contains(index) else { return }
     let entryID = entries[index].id
-    withAnimation(reduceMotion ? nil : LibraryDesignTokens.easeOut) {
-      selectedEntryID = entryID
-    }
-    onSelectionChanged(entryID)
+    onSelectEntry(entryID)
   }
 }
 

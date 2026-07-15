@@ -90,7 +90,6 @@ struct BluetoothMIDIConnectionSection: View {
                         isDevicePickerPresented = true
                     }
                     .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
                     .popover(isPresented: $isDevicePickerPresented) {
                         VStack(alignment: .leading) {
                             Button {
@@ -167,12 +166,10 @@ struct BluetoothMIDIConnectionSection: View {
                             Button("重载设备列表", systemImage: "arrow.clockwise") {
                                 centralViewReloadID = UUID()
                             }
-                            .buttonBorderShape(.roundedRectangle)
 
                             Button("刷新 MIDI 输入", systemImage: "arrow.clockwise") {
                                 sourceConnectionViewModel.refreshSources()
                             }
-                            .buttonBorderShape(.roundedRectangle)
 
                             Spacer()
                         }
@@ -288,7 +285,6 @@ struct BluetoothMIDIConnectionSection: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
                 }
 
                 if showsOpenSettingsButton {
@@ -298,7 +294,6 @@ struct BluetoothMIDIConnectionSection: View {
                         }
                     }
                     .buttonStyle(.borderedProminent)
-                    .buttonBorderShape(.roundedRectangle)
                 }
             }
         }

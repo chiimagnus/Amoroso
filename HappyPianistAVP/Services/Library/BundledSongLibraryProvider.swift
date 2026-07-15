@@ -1,7 +1,7 @@
 import CryptoKit
 import Foundation
 
-protocol BundledSongLibraryProviderProtocol {
+protocol BundledSongLibraryProviderProtocol: Sendable {
     func bundledEntries() -> [SongLibraryEntry]
     func musicXMLURL(fileName: String) -> URL?
     func audioURL(fileName: String) -> URL?
@@ -41,6 +41,12 @@ struct BundledSongLibraryProvider: BundledSongLibraryProviderProtocol {
                     id: DeterministicUUID.make(name: "bundled:\(fileName)"),
                     displayName: baseName,
                     musicXMLFileName: fileName,
+                    scoreFileVersionID: Self.scoreFileVersionID(
+                        fileName: fileName,
+                        bundleIdentifier: bundle.bundleIdentifier,
+                        shortVersion: bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+                        buildVersion: bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+                    ),
                     importedAt: Self.bundledImportedAt,
                     audioFileName: audioExists ? mp3FileName : nil,
                     isBundled: true
@@ -56,6 +62,20 @@ struct BundledSongLibraryProvider: BundledSongLibraryProviderProtocol {
     func audioURL(fileName: String) -> URL? {
         bundle.url(forResource: fileName, withExtension: nil, subdirectory: Self.seedSubdirectory)
             ?? bundle.url(forResource: fileName, withExtension: nil)
+    }
+
+    static func scoreFileVersionID(
+        fileName: String,
+        bundleIdentifier: String?,
+        shortVersion: String?,
+        buildVersion: String?
+    ) -> UUID {
+        let identity = bundleIdentifier ?? "<missing-bundle-identifier>"
+        let version = shortVersion ?? "<missing-short-version>"
+        let build = buildVersion ?? "<missing-build-version>"
+        return DeterministicUUID.make(
+            name: "bundled-version:\(identity)|\(version)|\(build)|\(fileName)"
+        )
     }
 }
 

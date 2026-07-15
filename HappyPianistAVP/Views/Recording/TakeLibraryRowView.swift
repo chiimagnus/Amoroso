@@ -30,7 +30,6 @@ struct TakeLibraryRowView: View {
             .font(.title2)
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
-            .buttonBorderShape(.roundedRectangle)
             .disabled(isDisabled || take.events.isEmpty)
 
             Menu {
@@ -43,7 +42,6 @@ struct TakeLibraryRowView: View {
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(.borderless)
-            .buttonBorderShape(.roundedRectangle)
         }
         .padding(.vertical, 4)
     }

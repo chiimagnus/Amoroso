@@ -7,9 +7,9 @@
 | 流程 | 入口 | 关键对象 | 输出 |
 | --- | --- | --- | --- |
 | 准备 | 钢琴模式选择 | `PracticeSetupState`、`PianoModeProtocol` | readiness gate |
-| 曲库 | bundled / 用户导入 MusicXML | `SongLibraryBootstrapLoader`、`SongLibraryViewModel`、`SongFileStore` | `SongLibraryEntry` |
-| 曲谱准备 | 曲库中切换唱片 | `SongLibraryViewModel`、`PracticePreparationService` | 右侧 Ornament 的 loading / ready / failure 状态 |
-| 练习 | prepared score + piano mode | `ARGuideViewModel`、`PracticeSessionViewModel` | 导航、判定、回放、录制 |
+| 曲库 | bundled / 用户导入 MusicXML | `SongLibraryBootstrapLoader`、`SongLibraryViewModel`、`SongLibraryImportTransactionService` | `SongLibraryEntry` |
+| 曲谱准备 | 练习窗口激活已登记 request | `PracticeLaunchViewModel`、`PracticePreparationService` | loading / ready / typed failure |
+| 练习 | ready prepared score + piano mode | `ARGuideViewModel`、`PracticeSessionViewModel` | 导航、判定、回放、录制 |
 | 持久化 | attempt 与 session 生命周期 | reducer、coordinator、repository | 小节事实与恢复点 |
 | 正反馈 | durable facts + typed attempt | feedback policies / view models | cue、summary、map、空间效果 |
 | AI 对弹 | rolling context | `AIPerformanceService`、`ImprovBackendRegistry` | playback schedule |
@@ -34,7 +34,7 @@ flowchart TD
   L --> M[mixed ImmersiveSpace]
 ```
 
-`WindowTransitionState` 维护 preparation、library、practice 三个窗口的替换式切换。ARKit provider 只在沉浸空间内启动，并由 `ARTrackingRequirements` 按校准、练习模式和虚拟琴摆放阶段选择 hand、world 与 horizontal-plane provider。scenePhase 进入非 active 时停止 session 与所有消费者，恢复 active 后从当前业务状态重新推导需求。
+`WindowTransitionState` 维护 preparation、library、practice 三个窗口的显式切换事务；目标窗口出现后关闭来源窗口。ARKit provider 只在沉浸空间内启动，并由 `ARTrackingRequirements` 按校准、练习模式和虚拟琴摆放阶段选择 hand、world 与 horizontal-plane provider。练习窗口 scenePhase 进入非 active 时取消正在进行的 preparation 并 flush session，但保留 request；恢复 active 后重新激活同一 request。
 
 ## MusicXML 导入与准备
 
@@ -44,25 +44,38 @@ flowchart TD
 SongLibraryView.task
 -> SongLibraryViewModel.loadLibraryIfNeeded
 -> SongLibraryBootstrapLoader actor
--> bundled scan + index decode off MainActor
--> one immutable bootstrap snapshot
+-> SongLibraryImportTransactionService.recoverPendingTransactions
+-> injected shared SongLibraryIndexStore actor
+-> BundledSongLibraryProvider
+-> loaded snapshot，或保留内存状态并显示可重试的 blocked failure
 ```
 
 ```text
 LibraryWindowView / SongLibraryView
 -> SongLibraryViewModel.importMusicXML
--> SongFileStore
--> Documents/SongLibrary/scores
--> SongLibraryIndexStore
+-> SongLibraryImportTransactionService.stageImports
+-> 短 security lease + transactions/<operation-id>/stage/.partial
+-> 原名 stage + journal fingerprint
+-> operation-ID 单写者队列逐项 process
+-> 读取最新 index 与目标卷 resource identity facts
+-> 无冲突：原名 target move -> SongLibraryIndexStore append -> cleanup
+-> 冲突：target/index 零 mutation，等待 typed 确认
+-> confirm(operation ID) 重新读取最新事实
+   -> indexed target：backup -> staged target -> entry CAS
+   -> indexed missing：staged target -> entry CAS
+   -> filesystem orphan：backup -> staged target -> append entry
+   -> ambiguous：阻止并清理 staged operation，不猜 song ID
 ```
 
-当前没有第二套 MusicXML import service。`.mxl` 在 preparation 阶段通过 `MXLReader` 解包。
+`SongLibraryImportTransactionService`、`SongFileStore` 与 `AudioImportService` 都是 actor；Library MainActor 不执行 Documents IO、security-scope access、copy 或 delete。确认与取消只传 operation ID，外部 URL 与 security lease 不跨 staging。`SongFileStore` 不再拥有 score import API。试听 URL await 返回后还必须匹配最新 intent、entry 和 audio filename，旧结果静默丢弃。
+
+score import 只有 transaction service 一条写入路径；`.mxl` 在 preparation 阶段通过 `MXLReader` 解包。
 
 ### 准备管线
 
 | 阶段 | 关键对象 | 产物 |
 | --- | --- | --- |
-| 读取 | `SongLibraryViewModel`、`BundledSongLibraryProvider` | score URL |
+| 读取 | `SongLibraryEntryResolver`、`BundledSongLibraryProvider`、`SongFileStore` | 已验证的 score URL |
 | 解析 | `MusicXMLParser`、`MXLReader` | score model |
 | 钢琴归一化 | `MusicXMLPianoGrandStaffNormalizer` | 双谱表结构 |
 | 展开 | `MusicXMLStructureExpander` | repeat / ending 后的 occurrence 序列 |
@@ -78,20 +91,31 @@ LibraryWindowView / SongLibraryView
 
 ```text
 选择唱片
--> 立即更新唱片、曲名和当前 Ornament loading
--> 取消旧 settle / preparation generation
--> 等待选择稳定 200 ms
--> SongLibraryIndexStore actor 保存最终 lastSelectedEntryID
--> PracticePreparationService 只准备最终曲目
--> 右侧 Ornament 显示系统骨架占位
--> 准备并恢复精确 song UUID + revision 的进度
--> 展示小节地图与 pending configuration
--> 用户点击“去练习！”
--> 配置有修改时应用 pending；未修改时保留恢复位置
--> 打开 practice window
+-> SongLibraryViewModel 立即发布唯一 selectedEntryID
+-> 独立 debounce 唤醒单写者 drain loop
+-> SongLibraryIndexStore actor 保存最新 desired lastSelectedEntryID
+-> 用户点击唯一的“开始练习”按钮
+-> LibraryWindowRootView 同步登记 PracticeLaunch request 后打开 practice window
+-> PracticeWindowRootView 激活 request
+-> resolver -> PracticePreparationService -> steps/spans 校验
+-> ARGuide apply 并恢复精确 song UUID + revision 的配置与位置
+-> apply 成功后立即 ready，并异步 best-effort upsert score metadata
+-> ready 后才挂载 PracticeStepView
 ```
 
-200 ms 内的连续切换不会写入中间选择或启动中间曲目的 preparation。切换唱片会丢弃尚未开始的草稿设置；重新选回曲目时从持久化进度或整首、双手、100%、不循环的默认值重建。曲库主内容保留曲名、作曲家与试听控件，练习信息只在 trailing Ornament 中呈现。
+SwiftUI View 与 `LibraryCrateView` 不保存第二份 selection；点击、拖动、上一首/下一首和 VoiceOver adjustable action 都只发送 `selectEntry` intent。持久化 worker 同时最多执行一个 mutation，旧写返回后会继续 drain 最新 desired selection；窗口消失时显式 flush。selection 保存尚未完成或失败都不阻塞启动，因为按钮传递当前内存 song ID。trailing Ornament 只读消费 snapshot state，不保存配置，也不提供第二个练习入口。
+
+当前曲目练习事实读取与 selection 持久化使用彼此独立的 generation：
+
+```text
+selected song UUID + entry version token
+-> 短 settle delay
+-> FilePracticeProgressRepository.history（actor 内 JSON decode/filter）
+-> nonisolated SongPracticeLibrarySnapshotBuilder（纯 facts 派生）
+-> UUID + token + generation 仍一致时发布 snapshot state
+```
+
+Library 返回前台时会刷新同一 selection；同一 run-loop 的 `onAppear` / active refresh 会取消并合并到最新 generation。损坏 history 只产生 `unavailable` 与 typed diagnostic，不设置全局错误，也不禁用试听或唯一开始按钮。该路径不解析曲谱、不访问 score URL、`PreparedPractice` 或 session。trailing Ornament 渲染 no selection、loading、never practiced、current、needs rebuild 与 unavailable 六类只读状态；Reduce Motion 使用静态 phase，VoiceOver 和 Differentiate Without Color 不依赖颜色传达事实。
 
 ## 本轮配置与 active range
 
@@ -134,6 +158,11 @@ flowchart LR
   D --> E[PracticeProgressCoordinator]
   E --> F[FilePracticeProgressRepository]
   F --> G[Documents/PracticeProgress/progress-v1.json]
+  F --> H[PracticeSongHistory]
+  H --> I[SongPracticeLibrarySnapshotBuilder]
+  I --> J[Library snapshot state]
+  H --> K[PracticeHistoricalPreferencesResolver]
+  K --> L[Launch restore policy]
 ```
 
 规则：
@@ -141,6 +170,8 @@ flowchart LR
 - `PracticeStep` 是即时判定单位。
 - source measure 是持久化学习单位。
 - occurrence identity 只负责重复结构中的播放位置。
+- launch 先按 song UUID + score revision 查 exact progress；exact 不存在时，历史 resolver 只可继承 hand mode、tempo scale、loop enabled、required successes。passage、resume、measure facts 与任何 source/occurrence identity 不跨 revision。
+- 历史记录损坏时 launch 记录 warning 并使用 `historyUnavailable` policy；无可用配置则使用 `freshDefaults`，两者都不阻止 score preparation。
 - streak 按手别、速度与本轮条件隔离。
 - resume point 保存片段、配置与当前 step。
 - 恢复完成后停在 ready/paused，不自动发声。
@@ -217,6 +248,6 @@ Typed domain failure
    -> FileDiagnosticsStore（仅 exportable）
 ```
 
-曲谱准备失败使用同一个 `LibraryPracticePreparationFailure` 生成右侧错误界面、默认展开且可选择复制的技术详情，以及诊断事件。事件写入导出存储成功后，界面才显示“此错误已写入诊断日志”。重试会生成新的事件 ID，不复用旧失败。
+曲谱准备失败使用同一个 `PracticeLaunchFailure` 生成练习窗口错误界面、可选择复制的技术详情和诊断事件。重试创建新的 generation 与事件 ID；取消或 stale generation 不记录失败。无效的同版本 passage/resume 会在内存回退到安全整首配置；落盘成功记录 `practiceSavedConfigurationRepaired`，落盘失败则记录 `practiceSavedConfigurationRepairFailed`，两者都允许 launch 进入 ready，但后者明确提示下次可能再次修复。
 
 用户通过曲库顶部“诊断”入口管理日志。导出动作在本地生成 ZIP，不自动上传。日志默认保留7 个日历日，并排除绝对路径、原始 MusicXML、逐音 MIDI、音频样本、手部帧、AI 正文和凭据。

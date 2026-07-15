@@ -57,7 +57,6 @@ struct CalibrationStageCard: View {
                                 onSimulatorDemoAdvance()
                             }
                             .buttonStyle(.borderedProminent)
-                            .buttonBorderShape(.roundedRectangle)
                         }
                     }
                 #endif
@@ -83,7 +82,6 @@ struct CalibrationStageCard: View {
                 onRecalibrate()
             }
             .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.roundedRectangle)
         }
         .frame(maxWidth: .infinity)
     }
@@ -107,7 +105,6 @@ struct CalibrationStageCard: View {
                 onReturnHome()
             }
             .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.roundedRectangle)
         }
         .frame(maxWidth: .infinity)
     }

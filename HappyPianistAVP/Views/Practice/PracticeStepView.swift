@@ -10,11 +10,10 @@ struct PracticeStepView: View {
     @State private var isStepVisible = false
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
+    @State private var isSessionReplacementErrorAlertPresented = false
     @State private var isTakeLibraryPresented = false
     @State private var isSettingsPresented = false
     @State private var practiceViewHeight: CGFloat = 640
-    @State private var isLeavingPractice = false
-
     @State private var isAutoplayEnabled = false
 
     var body: some View {
@@ -128,17 +127,15 @@ struct PracticeStepView: View {
         .toolbar {
             ToolbarItemGroup(placement: .bottomOrnament) {
                 Button("返回选曲库", systemImage: "chevron.backward") {
-                    leavePractice(shouldNavigateBack: true)
+                    onBackToLibrary()
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
+                // .buttonStyle(.bordered)
 
                 if isAutoplayEnabled == false {
                     Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
                         viewModel.skipStep()
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
+                    // .buttonStyle(.bordered)
                     .disabled(viewModel.isAIPerformanceActive || viewModel.hasImportedSteps == false || viewModel
                         .practiceSessionViewModel.state == .completed)
 
@@ -149,8 +146,7 @@ struct PracticeStepView: View {
                             viewModel.playCurrentPracticeStepSound()
                         }
                     }
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
+                    // .buttonStyle(.bordered)
                     .disabled(
                         viewModel.isAIPerformanceActive ||
                             session.state == .ready ||
@@ -160,15 +156,13 @@ struct PracticeStepView: View {
 
                 Toggle("自动播放", isOn: $isAutoplayEnabled)
                     .toggleStyle(.button)
-                    .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
+                    // .buttonStyle(.bordered)
                 .disabled(viewModel.isAIPerformanceActive)
 
                 Button("设置", systemImage: "gearshape") {
                     isSettingsPresented.toggle()
                 }
-                .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
+                // .buttonStyle(.bordered)
 
                 Text("进度 \(viewModel.practiceProgressText)")
                     .monospacedDigit()
@@ -181,7 +175,6 @@ struct PracticeStepView: View {
                 }
             }
         }
-        .buttonBorderShape(.roundedRectangle)
         .onAppear {
             isStepVisible = true
             guard hasRequestedImmersiveOpen == false else { return }
@@ -229,11 +222,20 @@ struct PracticeStepView: View {
         } message: {
             Text(session.autoplayErrorMessage ?? "")
         }
+        .onChange(of: viewModel.practiceSessionReplacementErrorMessage) {
+            isSessionReplacementErrorAlertPresented = viewModel.practiceSessionReplacementErrorMessage != nil
+        }
+        .alert("无法应用设置", isPresented: $isSessionReplacementErrorAlertPresented) {
+            Button("知道了") {
+                viewModel.clearPracticeSessionReplacementError()
+            }
+        } message: {
+            Text(viewModel.practiceSessionReplacementErrorMessage ?? "")
+        }
         .onDisappear {
             viewModel.practiceFeedbackViewModel.cancel()
             isStepVisible = false
             hasRequestedImmersiveOpen = false
-            leavePractice(shouldNavigateBack: false)
         }
         .sheet(isPresented: $isTakeLibraryPresented) {
             NavigationStack {
@@ -258,20 +260,6 @@ struct PracticeStepView: View {
                 }
             }
             .frame(minWidth: 400, minHeight: 500)
-        }
-    }
-
-    private func leavePractice(shouldNavigateBack: Bool) {
-        guard isLeavingPractice == false else { return }
-        isLeavingPractice = true
-        Task { @MainActor in
-            let dismissHandler = makePracticeImmersiveDismissHandler(dismissImmersiveSpace)
-            await viewModel.leavePracticeStep()
-            await viewModel.closeImmersiveForStep(dismissImmersiveSpace: dismissHandler)
-            await viewModel.recoverImmersiveStateIfStuck()
-            if shouldNavigateBack {
-                onBackToLibrary()
-            }
         }
     }
 

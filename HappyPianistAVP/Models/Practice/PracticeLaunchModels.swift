@@ -1,13 +1,63 @@
 import Foundation
 
-enum LibraryPracticePreparationState: Equatable, Sendable {
-    case idle
-    case loading(entryID: UUID)
-    case ready(entryID: UUID, identity: PracticeSongIdentity)
-    case failure(LibraryPracticePreparationFailure)
+enum PracticeLaunchState: Equatable, Sendable {
+    case requested(songID: UUID)
+    case loading(songID: UUID)
+    case failure(PracticeLaunchFailure)
+    case ready(PracticeSongIdentity)
 }
 
-struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
+struct PracticeLaunchActivationIdentity: Equatable, Hashable, Sendable {
+    let songID: UUID
+    let revision: Int
+}
+
+enum PracticeProgressRestoreOutcome: Equatable, Sendable {
+    case none
+    case restored
+    case repairedInvalidSavedState
+    case repairPersistenceFailed
+}
+
+enum PracticeLaunchApplyOutcome: Equatable, Sendable {
+    case applied
+    case appliedWithRepairedSavedState
+    case appliedWithUnpersistedRepair
+}
+
+struct PracticeHistoricalPreferences: Equatable, Sendable {
+    let handMode: PracticeHandMode
+    let tempoScale: Double
+    let loopEnabled: Bool
+    let requiredSuccesses: Int
+
+    init(
+        handMode: PracticeHandMode,
+        tempoScale: Double,
+        loopEnabled: Bool,
+        requiredSuccesses: Int
+    ) {
+        self.handMode = handMode
+        self.tempoScale = min(
+            max(tempoScale, PracticeRoundConfiguration.supportedTempoRange.lowerBound),
+            PracticeRoundConfiguration.supportedTempoRange.upperBound
+        )
+        self.loopEnabled = loopEnabled
+        self.requiredSuccesses = min(
+            max(requiredSuccesses, PracticeRoundConfiguration.supportedSuccessRange.lowerBound),
+            PracticeRoundConfiguration.supportedSuccessRange.upperBound
+        )
+    }
+}
+
+enum PracticeLaunchRestorePolicy: Equatable, Sendable {
+    case exactAvailable
+    case historicalPreferences(PracticeHistoricalPreferences)
+    case freshDefaults
+    case historyUnavailable
+}
+
+struct PracticeLaunchFailure: Equatable, Identifiable, Sendable {
     let id: UUID
     let occurredAt: Date
     let entryID: UUID
@@ -68,10 +118,10 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
         _ error: PracticePreparationError,
         entryID: UUID,
         file: DiagnosticFileReference?
-    ) -> LibraryPracticePreparationFailure {
+    ) -> PracticeLaunchFailure {
         switch error {
         case .scoreFileNotFound:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceScoreFileNotFound,
                 title: "找不到曲谱文件",
@@ -81,7 +131,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "The score file does not exist at the application-relative location."
             )
         case let .scoreFileUnreadable(reason):
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceScoreFileUnreadable,
                 title: "无法读取曲谱文件",
@@ -91,7 +141,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: reason
             )
         case .invalidMXLArchive:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceMXLInvalidArchive,
                 title: "压缩曲谱已损坏",
@@ -101,7 +151,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "ZIPFoundation could not open the MXL archive."
             )
         case .missingMXLContainer:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceMXLMissingContainer,
                 title: "压缩曲谱缺少入口文件",
@@ -111,7 +161,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "META-INF/container.xml is missing."
             )
         case .missingMXLRootfile:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceMXLMissingRootfile,
                 title: "压缩曲谱没有指定主曲谱",
@@ -121,7 +171,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "container.xml does not contain a rootfile full-path."
             )
         case let .missingMXLScore(path):
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceMXLMissingScore,
                 title: "压缩曲谱中找不到主曲谱",
@@ -131,7 +181,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "The rootfile entry is missing: \(PracticePreparationErrorDetails.safeArchiveEntry(path))"
             )
         case .invalidMXLContainer:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceMXLInvalidContainer,
                 title: "压缩曲谱入口文件无效",
@@ -141,7 +191,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "The MXL container document could not be parsed."
             )
         case let .xmlParseFailed(line, column, reason):
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceXMLParseFailed,
                 title: "无法解析 MusicXML",
@@ -152,7 +202,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: reason
             )
         case let .unsupportedRootElement(reason):
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practicePreparationFailed,
                 title: "不支持这份 MusicXML 结构",
@@ -162,7 +212,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: reason
             )
         case .noPlayableNotes:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceNoPlayableNotes,
                 title: "曲谱中没有可练习的音符",
@@ -172,7 +222,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "The prepared score produced zero practice steps."
             )
         case .missingMeasureStructure:
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practiceMissingMeasureStructure,
                 title: "曲谱的小节结构不完整",
@@ -182,7 +232,7 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: "Practice steps exist but measure spans are empty."
             )
         case let .unexpected(stage, reason):
-            LibraryPracticePreparationFailure(
+            PracticeLaunchFailure(
                 entryID: entryID,
                 code: .practicePreparationFailed,
                 title: "无法准备这份曲谱",
@@ -192,102 +242,5 @@ struct LibraryPracticePreparationFailure: Equatable, Identifiable, Sendable {
                 reason: reason
             )
         }
-    }
-}
-
-
-struct LibraryPracticeMeasureOption: Equatable, Identifiable, Sendable {
-    let id: PracticeMeasureOccurrenceID
-    let title: String
-    let occurrenceIndex: Int
-
-    static func make(from measureSpans: [MusicXMLMeasureSpan]) -> [LibraryPracticeMeasureOption] {
-        let occurrenceTotals = Dictionary(grouping: measureSpans, by: \.sourceMeasureID)
-            .mapValues(\.count)
-        var occurrenceCounts: [PracticeSourceMeasureID: Int] = [:]
-
-        return measureSpans.map { span in
-            let occurrenceNumber = occurrenceCounts[span.sourceMeasureID, default: 0] + 1
-            occurrenceCounts[span.sourceMeasureID] = occurrenceNumber
-            let measureTitle = PracticePassagePresentation.measureTitle(span.sourceMeasureID)
-            let title = occurrenceTotals[span.sourceMeasureID, default: 0] > 1
-                ? "第 \(measureTitle) 小节 · 第 \(occurrenceNumber) 次"
-                : "第 \(measureTitle) 小节"
-            return LibraryPracticeMeasureOption(
-                id: span.occurrenceID,
-                title: title,
-                occurrenceIndex: span.occurrenceIndex
-            )
-        }
-    }
-}
-
-struct LibraryPracticePanelPresentation: Equatable {
-    let measureMap: PracticeMeasureMapViewModel
-    let stableMeasureCount: Int
-    let totalMeasureCount: Int
-    let hotspotTitle: String?
-    let resumeText: String
-    let launchSummary: String
-
-    init?(
-        identity: PracticeSongIdentity,
-        measureSpans: [MusicXMLMeasureSpan],
-        progress: SongPracticeProgress?,
-        configuration: PracticeRoundConfiguration,
-        currentMeasure: PracticeSourceMeasureID?
-    ) {
-        guard measureSpans.isEmpty == false else { return nil }
-        let exactProgress = progress?.identity == identity ? progress : nil
-        let passageSpans = measureSpans.filter {
-            configuration.passage.start.occurrenceIndex <= $0.occurrenceIndex &&
-                $0.occurrenceIndex <= configuration.passage.end.occurrenceIndex
-        }
-        guard passageSpans.isEmpty == false else { return nil }
-
-        let passageOccurrences = passageSpans.map(\.occurrenceID)
-        let scoreSourceMeasureIDs = Set(measureSpans.map(\.sourceMeasureID))
-        let passageSourceMeasureIDs = Set(passageOccurrences.map(\.sourceMeasureID))
-        let allFacts = exactProgress?.measureFacts.filter {
-            $0.handMode == configuration.handMode && scoreSourceMeasureIDs.contains($0.sourceMeasureID)
-        } ?? []
-        let passageFacts = allFacts.filter { passageSourceMeasureIDs.contains($0.sourceMeasureID) }
-        let stableSourceMeasureIDs = Set(
-            allFacts.lazy.filter { $0.state == .stable }.map(\.sourceMeasureID)
-        )
-        let hotspot = PracticeHotspotPolicy().hotspot(in: passageFacts)
-        let isFullScore = configuration.passage.start == measureSpans.first?.occurrenceID &&
-            configuration.passage.end == measureSpans.last?.occurrenceID
-        let resolvedPassageTitle = isFullScore
-            ? "整首"
-            : PracticePassagePresentation.title(for: passageOccurrences)
-        let tempoTitle = configuration.tempoScale.formatted(
-            .percent.precision(.fractionLength(0))
-        )
-        let savedResumePoint = exactProgress.flatMap { progress -> PracticeResumePoint? in
-            guard progress.activeConfiguration == configuration,
-                  let resumePoint = progress.resumePoint,
-                  configuration.passage.start.occurrenceIndex <= resumePoint.occurrenceID.occurrenceIndex,
-                  resumePoint.occurrenceID.occurrenceIndex <= configuration.passage.end.occurrenceIndex
-            else { return nil }
-            return resumePoint
-        }
-
-        measureMap = PracticeMeasureMapViewModel(
-            measureSpans: measureSpans,
-            progress: exactProgress,
-            handMode: configuration.handMode,
-            currentPassage: configuration.passage,
-            currentMeasure: currentMeasure
-        )
-        stableMeasureCount = stableSourceMeasureIDs.count
-        totalMeasureCount = scoreSourceMeasureIDs.count
-        hotspotTitle = hotspot.map {
-            "第 \(PracticePassagePresentation.measureTitle($0.sourceMeasureID)) 小节"
-        }
-        resumeText = savedResumePoint.map {
-            "将从第 \(PracticePassagePresentation.measureTitle($0.occurrenceID.sourceMeasureID)) 小节继续"
-        } ?? (exactProgress == nil ? "尚无练习记录" : "将从所选片段开始")
-        launchSummary = "\(resolvedPassageTitle) · \(configuration.handMode.title) · \(tempoTitle)"
     }
 }

@@ -18,6 +18,29 @@
 
 这些项目仍可在相关功能进入重点开发时单独验证。
 
+## 2026-07-15 P1 启动所有权 Gate 记录
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| Library 调用图不触达 prepare/apply/score read | Pass | `codegraph sync/explore` 显示 `PracticePreparationService.prepare` 的唯一生产调用方为 `PracticeLaunchViewModel`；旧 Library symbols 全仓零命中。 |
+| resolve/prepare/apply、return、scene inactive、session replacement 与连续 retry 竞态 | Pass | controllable continuation 与 lifecycle tests 全部实际运行。 |
+| visionOS Simulator 完整测试 | Pass | Apple Vision Pro visionOS 26.4：653 次设备配置测试运行通过，0 failed，0 skipped，xcresult 无 runtime warning。 |
+| visionOS Simulator App build | Pass | `xcodebuild build` 成功，无 Swift 编译 warning。 |
+| 主内容右下角按钮在最小/理想/最大窗口不遮挡试听控件 | Not Run | 当前环境没有可见的 Simulator GUI/应用窗口，不能取得可复现的目标窗口截图。 |
+| VoiceOver 名称与 hint、键盘/间接输入 | Not Run | 需要可交互 Simulator GUI 或真机。 |
+| loading/failure/retry/return 与 scene inactive 的人工交互 | Not Run | 自动化状态机与竞态已通过；交互呈现仍需可见 Simulator GUI 或真机。 |
+
+## 2026-07-15 P2 曲库事实 Ornament Gate 记录
+
+| 检查 | 状态 | 证据 |
+| --- | --- | --- |
+| never/current/needs rebuild/unavailable 事实边界与 A→B→A 乱序 | Pass | snapshot builder、受控 actor history 与 metadata failure 回归测试实际运行。 |
+| Library/Ornament 不触达 score、prepare、session 或配置 controller | Pass | CodeGraph 调用图、score access spy 与静态符号 gate。 |
+| visionOS Simulator 完整测试与 App build | Pass | Apple Vision Pro visionOS 26.4 的本轮 `xcodebuild test` / `build` 结果。 |
+| Ornament 各状态与 min/ideal/max 窗口 | Not Run | 当前环境没有可见的 Simulator GUI/应用窗口。 |
+| 最大 Dynamic Type、VoiceOver | Not Run | 需要可交互 Simulator GUI 或真机。 |
+| Reduce Motion、Differentiate Without Color | Not Run | 自动化构建覆盖相应 SwiftUI 分支；人工呈现需要可交互 Simulator GUI 或真机。 |
+
 ## 1. 构建与自动化测试
 
 先查看可用 Simulator：
@@ -69,8 +92,11 @@ xcodebuild test \
 - [ ] 曲谱库正常打开，不崩溃、不空白
 - [ ] 唱片切换流畅，不会自动跳回第一首
 - [ ] 曲名、作曲家与当前唱片一致
-- [ ] 右侧练习 Ornament 随当前曲目更新
+- [ ] 唯一“开始练习”按钮始终对应当前曲目
 - [ ] 再次打开时仍选中上次曲目
+- [ ] trailing Ornament 随当前曲目显示 never/current/needs rebuild/unavailable 对应状态
+- [ ] Ornament 只有事实与说明，没有配置控件或第二个练习按钮
+- [ ] 从练习窗口返回后，同一曲目的最新 metadata/facts 会刷新
 
 ### 试听
 
@@ -87,21 +113,25 @@ xcodebuild test \
 - [ ] 切歌后旧音频立即停止
 - [ ] 不会同时播放两首音频
 
-## 3. 练习设置与进入练习
+## 3. 进入练习与恢复
 
-1. 在右侧 Ornament 设置小节范围。
-2. 设置右手、左手或双手。
-3. 设置速度、循环和连续成功目标。
-4. 点击“开始练习”或“继续练习”。
+1. 选择一首有历史进度的曲目。
+2. 点击“开始练习”。
+3. 返回曲库后再次进入。
+4. 在 preparation loading 时切到后台再恢复。
 
 检查：
 
 - [ ] 不出现第二套重复设置弹窗
-- [ ] 练习使用 Ornament 当前显示的配置
-- [ ] 小节范围、手别、速度、循环和成功目标均正确
+- [ ] loading / failure 状态不会短暂显示上一首曲目的练习内容
+- [ ] exact revision 的片段、手别、速度、循环、成功目标和恢复位置均正确
+- [ ] 无效 passage/resume 回退到整首且下一次启动不再重复失败
+- [ ] 替换曲谱后只继承手别、速度、循环、成功目标；passage、resume、measure facts 不跨 revision
+- [ ] 历史偏好应用到当前整首 first step，且不会改写全局 defaults
+- [ ] 损坏历史仍可进入 fresh 整首练习，并记录不含绝对路径的 warning
 - [ ] 点击一次只创建一个练习 Session
 - [ ] 快速连续点击不会打开多个练习窗口
-- [ ] 曲谱尚未准备好或准备失败时有明确状态
+- [ ] 曲谱尚未准备好或准备失败时在练习窗口有明确状态、技术详情、重试和返回
 
 ## 4. 正常练习与单手练习
 
@@ -225,9 +255,17 @@ xcodebuild test \
 
 - [ ] 导入后立即出现在曲库
 - [ ] 重启 App 后曲目仍然存在
-- [ ] 两个同名曲目都能显示
-- [ ] 同名曲目不会共享错误的练习进度
+- [ ] 同名 indexed target 显示“替换现有曲谱” destructive 确认，确认前文件和索引不变
+- [ ] indexed missing target 显示“修复缺失曲谱”非 destructive 确认，并保留 song ID、显示名、音频和曲库位置
+- [ ] filesystem orphan 明确提示“替换并加入曲库”，确认后建立新的 song ID 与版本 token
+- [ ] 多个 entry 指向同一 target 时不显示覆盖动作
+- [ ] 替换后旧练习进度仍作为历史保留，但不会作为新版本当前进度恢复
 - [ ] 导入失败不会留下半成品曲目
+- [ ] 多选队列等待确认时不处理下一项；确认或取消当前项后才继续
+- [ ] 取消整批或关闭 Library 后，已提交项保留，当前与剩余 staged operation 被清理
+- [ ] App 重启后 preparing、staged、backup moved、target installed、index committed 均幂等恢复或明确阻塞
+- [ ] 磁盘/权限失败及外部同名文件篡改不会删除非事务文件，也不会发布 dangling index
+- [ ] journal 不含 source URL、Documents 绝对路径或 XML 内容，只保存恢复必需的 byte-count/SHA-256；可导出 diagnostics 还不得包含任何文件指纹
 
 ### 删除
 
@@ -243,27 +281,30 @@ xcodebuild test \
 
 ## 10. 最小 UI 与体验检查
 
-- [ ] 右侧 Ornament 不遮挡主要曲库内容
-- [ ] 曲名、作曲家、范围、速度和按钮不被裁切
-- [ ] “开始练习”“继续练习”“从头练习”和“返回曲库”可点击
+- [ ] “开始练习”不遮挡试听与拖动进度控件
+- [ ] 曲名、作曲家、试听控件和按钮不被裁切
+- [ ] “开始练习”和“返回曲库”可点击
 - [ ] 核心按钮有文字，不是无法理解的纯图标
 - [ ] 练习反馈不会遮住谱面或阻止输入
 - [ ] 错误反馈没有羞辱性或惩罚性表达
 - [ ] 开启 Reduce Motion 后没有持续的大幅运动
+- [ ] 曲库窗口在 min/ideal/max 尺寸下 Ornament 与主内容均不裁切关键事实或唯一按钮
+- [ ] 最大 Dynamic Type 下事实可换行，VoiceOver 能读出状态、计数与单位
+- [ ] Reduce Motion 下 never 状态为静态图形；Differentiate Without Color 下稳定/练习中仍有文字与图标区分
 
 ### 曲库连续切换
 
 分别使用左右按钮、水平拖拽和 VoiceOver adjustable action 执行：
 
 1. 在 200 ms 内连续切换至少三首，包含一首小曲谱和一首大曲谱。
-2. 等最终曲目开始准备后，立即再切换一次。
+2. 选择最终曲目后立即点击“开始练习”。
 3. 选择曲目后立即离开曲库，再重新进入。
 
 检查：
 
-- [ ] 每次选择后唱片、曲名和来源立即更新，不等待磁盘写入或曲谱准备
-- [ ] 快速连续切换时动画无明显停顿，只有最终曲目进入 ready 或 failure
-- [ ] 准备中换曲后，旧曲目不会覆盖右侧 Ornament 或练习 Session
+- [ ] 每次选择后唱片、曲名和来源立即更新，不等待磁盘写入
+- [ ] 快速连续切换时动画无明显停顿，曲库不会调用 resolver、prepare 或 ARGuide
+- [ ] 只有按钮传入的内存 song ID 在练习窗口进入 ready 或 failure
 - [ ] 离开曲库后不继续保存或发布旧选择结果
 - [ ] 开启 Reduce Motion 后仍满足上述状态与取消规则
 
@@ -274,7 +315,7 @@ xcodebuild test \
 用户任务：
 
 1. 选择一首曲子。
-2. 在右侧设置范围和速度。
+2. 点击唯一的“开始练习”按钮。
 3. 开始练习。
 4. 故意弹错几次。
 5. 完成一轮。
@@ -283,7 +324,7 @@ xcodebuild test \
 只观察四个问题：
 
 - [ ] 用户能否自己找到练习入口
-- [ ] 用户是否理解右侧 Ornament 中的设置
+- [ ] 用户是否理解曲库 selection 与“开始练习”的关系
 - [ ] 弹错后的反馈是否让用户愿意再次尝试
 - [ ] 用户是否理解“继续练习”和“从头练习”的区别
 

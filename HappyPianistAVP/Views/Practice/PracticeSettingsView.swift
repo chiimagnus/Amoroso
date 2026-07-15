@@ -88,7 +88,6 @@ struct PracticeSettingsView: View {
                                     destinationConnectionViewModel.refreshDestinations()
                                 }
                                 .buttonStyle(.bordered)
-                                .buttonBorderShape(.roundedRectangle)
                             }
 
                             Toggle("Local Control Off（可选）", isOn: $roundConfigurationController.pendingSendLocalControlOff)
@@ -152,7 +151,6 @@ struct PracticeSettingsView: View {
                             onApplyPendingConfiguration()
                         }
                         .buttonStyle(.borderedProminent)
-                        .buttonBorderShape(.roundedRectangle)
                         .disabled(roundConfigurationController.hasPendingChanges == false)
                     }
                     .disabled(isAIPerformanceActive)
@@ -175,7 +173,6 @@ struct PracticeSettingsView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .tint(.red)
-                                    .buttonBorderShape(.roundedRectangle)
 
                                     Text(recordingElapsedText)
                                         .monospacedDigit()
@@ -186,7 +183,6 @@ struct PracticeSettingsView: View {
                                     }
                                     .buttonStyle(.borderedProminent)
                                     .tint(.red)
-                                    .buttonBorderShape(.roundedRectangle)
                                     .disabled(canStartRecording == false)
                                 }
 
@@ -200,7 +196,6 @@ struct PracticeSettingsView: View {
                                     onOpenTakeLibrary()
                                 }
                                 .buttonStyle(.bordered)
-                                .buttonBorderShape(.roundedRectangle)
                             }
                             .disabled(isAIPerformanceActive)
 
@@ -226,7 +221,6 @@ struct PracticeSettingsView: View {
                                 onRetryVirtualPianoPlacement()
                             }
                             .buttonStyle(.borderedProminent)
-                            .buttonBorderShape(.roundedRectangle)
                         }
                         .disabled(isAIPerformanceActive)
                     }
@@ -260,7 +254,6 @@ struct PracticeSettingsView: View {
                                     onDebugInjectAIImprovPhrase()
                                 }
                                 .buttonStyle(.bordered)
-                                .buttonBorderShape(.roundedRectangle)
 
                                 Text("用于 simulator：不依赖 Hand Tracking，直接触发 AI 生成/回放。")
                                     .font(.footnote)

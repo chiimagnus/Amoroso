@@ -22,7 +22,7 @@ func configuredAttemptPersistsAndRebuildsAsPausedResume() async throws {
     )
     firstSession.roundConfigurationController.pendingRequiredSuccesses = 1
     _ = firstSession.applyPendingRoundConfiguration()
-    await firstSession.restoreProgressIfAvailable()
+    await firstSession.applyLaunchRestorePolicy(.freshDefaults)
     firstSession.startGuidingIfReady()
     firstSession.recordAttemptOutcome(matchedLearningLoopOutcome())
     await firstSession.flushAndShutdown()
@@ -43,7 +43,7 @@ func configuredAttemptPersistsAndRebuildsAsPausedResume() async throws {
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: [span]
     )
-    await secondSession.restoreProgressIfAvailable()
+    await secondSession.applyLaunchRestorePolicy(.exactAvailable)
 
     #expect(secondSession.state == .ready)
     #expect(secondSession.isRestoredSessionPaused)
@@ -112,9 +112,19 @@ private actor LearningLoopRepository: PracticeProgressRepositoryProtocol {
         stored[identity]
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(
+            songID: songID,
+            progresses: stored.values.filter { $0.identity.songID == songID },
+            scoreMetadata: []
+        ))
+    }
+
     func upsert(_ progress: SongPracticeProgress) {
         stored[progress.identity] = progress
     }
+
+    func upsert(_: SongScorePracticeMetadata) {}
 
     func remove(songID: UUID) {
         stored = stored.filter { $0.key.songID != songID }

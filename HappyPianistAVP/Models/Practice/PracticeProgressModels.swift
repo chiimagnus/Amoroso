@@ -73,6 +73,25 @@ struct PracticeRoundConfiguration: Codable, Equatable, Sendable {
             Self.supportedSuccessRange.upperBound
         )
     }
+
+    private enum CodingKeys: String, CodingKey {
+        case passage
+        case handMode
+        case tempoScale
+        case loopEnabled
+        case requiredSuccesses
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            passage: try container.decode(PracticePassage.self, forKey: .passage),
+            handMode: try container.decode(PracticeHandMode.self, forKey: .handMode),
+            tempoScale: try container.decode(Double.self, forKey: .tempoScale),
+            loopEnabled: try container.decode(Bool.self, forKey: .loopEnabled),
+            requiredSuccesses: try container.decode(Int.self, forKey: .requiredSuccesses)
+        )
+    }
 }
 
 struct PracticeResumePoint: Codable, Equatable, Sendable {
@@ -157,10 +176,157 @@ struct SongPracticeProgress: Codable, Equatable, Sendable {
     }
 }
 
+struct SongScorePracticeMetadata: Codable, Equatable, Sendable {
+    let songID: UUID
+    let scoreFileVersionID: UUID?
+    let scoreRevision: String
+    let totalSourceMeasureCount: Int
+    let preparedAt: Date
+
+    init(
+        songID: UUID,
+        scoreFileVersionID: UUID?,
+        scoreRevision: String,
+        totalSourceMeasureCount: Int,
+        preparedAt: Date
+    ) {
+        self.songID = songID
+        self.scoreFileVersionID = scoreFileVersionID
+        self.scoreRevision = scoreRevision
+        self.totalSourceMeasureCount = max(0, totalSourceMeasureCount)
+        self.preparedAt = preparedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case songID
+        case scoreFileVersionID
+        case scoreRevision
+        case totalSourceMeasureCount
+        case preparedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            songID: try container.decode(UUID.self, forKey: .songID),
+            scoreFileVersionID: try container.decodeIfPresent(
+                UUID.self,
+                forKey: .scoreFileVersionID
+            ),
+            scoreRevision: try container.decode(String.self, forKey: .scoreRevision),
+            totalSourceMeasureCount: try container.decode(
+                Int.self,
+                forKey: .totalSourceMeasureCount
+            ),
+            preparedAt: try container.decode(Date.self, forKey: .preparedAt)
+        )
+    }
+}
+
+enum SongScorePracticeMetadataOrder {
+    static func preferred(
+        _ lhs: SongScorePracticeMetadata,
+        over rhs: SongScorePracticeMetadata
+    ) -> Bool {
+        if lhs.preparedAt != rhs.preparedAt { return lhs.preparedAt > rhs.preparedAt }
+        if lhs.scoreRevision != rhs.scoreRevision { return lhs.scoreRevision > rhs.scoreRevision }
+        if lhs.totalSourceMeasureCount != rhs.totalSourceMeasureCount {
+            return lhs.totalSourceMeasureCount > rhs.totalSourceMeasureCount
+        }
+        return canonicalKey(lhs) > canonicalKey(rhs)
+    }
+
+    static func preferred(
+        in metadata: [SongScorePracticeMetadata]
+    ) -> SongScorePracticeMetadata? {
+        metadata.reduce(nil) { current, candidate in
+            guard let current else { return candidate }
+            return preferred(candidate, over: current) ? candidate : current
+        }
+    }
+
+    private static func canonicalKey(_ metadata: SongScorePracticeMetadata) -> String {
+        "\(metadata.songID.uuidString)|\(metadata.scoreFileVersionID?.uuidString ?? "<nil>")|\(metadata.scoreRevision)"
+    }
+}
+
+struct PracticeSongHistory: Equatable, Sendable {
+    let songID: UUID
+    let progresses: [SongPracticeProgress]
+    let scoreMetadata: [SongScorePracticeMetadata]
+}
+
+enum PracticeSongHistoryLoadResult: Equatable, Sendable {
+    case loaded(PracticeSongHistory)
+    case corrupted(description: String)
+}
+
+enum PracticeProgressRecordOrder {
+    static func preferred(
+        _ lhs: SongPracticeProgress,
+        over rhs: SongPracticeProgress
+    ) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt {
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        let lhsData = canonicalData(lhs)
+        let rhsData = canonicalData(rhs)
+        return lhsData != rhsData && rhsData.lexicographicallyPrecedes(lhsData)
+    }
+
+    static func preferred(in progresses: [SongPracticeProgress]) -> SongPracticeProgress? {
+        progresses.reduce(nil) { current, candidate in
+            guard let current else { return candidate }
+            return preferred(candidate, over: current) ? candidate : current
+        }
+    }
+
+    static func sorted(_ progresses: [SongPracticeProgress]) -> [SongPracticeProgress] {
+        progresses.sorted { lhs, rhs in
+            if lhs.identity.songID != rhs.identity.songID {
+                return lhs.identity.songID.uuidString < rhs.identity.songID.uuidString
+            }
+            if lhs.identity.scoreRevision != rhs.identity.scoreRevision {
+                return lhs.identity.scoreRevision < rhs.identity.scoreRevision
+            }
+            return preferred(lhs, over: rhs)
+        }
+    }
+
+    private static func canonicalData(_ progress: SongPracticeProgress) -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .deferredToDate
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        return (try? encoder.encode(progress)) ?? Data()
+    }
+}
+
 struct PracticeProgressDocument: Codable, Equatable, Sendable {
     var songs: [SongPracticeProgress]
+    var scoreMetadata: [SongScorePracticeMetadata]
 
-    init(songs: [SongPracticeProgress] = []) {
+    init(
+        songs: [SongPracticeProgress] = [],
+        scoreMetadata: [SongScorePracticeMetadata] = []
+    ) {
         self.songs = songs
+        self.scoreMetadata = scoreMetadata
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case songs
+        case scoreMetadata
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        songs = try container.decodeIfPresent([SongPracticeProgress].self, forKey: .songs) ?? []
+        scoreMetadata = try container.decodeIfPresent([SongScorePracticeMetadata].self, forKey: .scoreMetadata) ?? []
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(songs, forKey: .songs)
+        try container.encode(scoreMetadata, forKey: .scoreMetadata)
     }
 }

@@ -6,6 +6,7 @@ struct LiveAppGraph {
   let windowState: WindowTransitionState
   let arGuideViewModel: ARGuideViewModel
   let songLibraryViewModel: SongLibraryViewModel
+  let practiceLaunchViewModel: PracticeLaunchViewModel
   let diagnosticsViewModel: DiagnosticsViewModel
 
   static func make() -> LiveAppGraph {
@@ -22,11 +23,16 @@ struct LiveAppGraph {
     let stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
     let practicePreparationService: PracticePreparationServiceProtocol =
       PracticePreparationService(parser: parser, stepBuilder: stepBuilder)
-    let songLibraryIndexStore: SongLibraryIndexStoreProtocol = SongLibraryIndexStore()
+    let songLibraryIndexStore = SongLibraryIndexStore()
     let songFileStore: SongFileStoreProtocol = SongFileStore()
     let audioImportService: AudioImportServiceProtocol = AudioImportService()
     let bundledSongLibraryProvider: BundledSongLibraryProviderProtocol =
       BundledSongLibraryProvider()
+    let songLibraryEntryResolver: any SongLibraryEntryResolving = SongLibraryEntryResolver(
+      indexStore: songLibraryIndexStore,
+      bundledProvider: bundledSongLibraryProvider,
+      fileStore: songFileStore
+    )
     let songAudioPlayer: SongAudioPlayerProtocol = SongAudioPlayer()
     let progressRepository: any PracticeProgressRepositoryProtocol =
       FilePracticeProgressRepository()
@@ -39,6 +45,10 @@ struct LiveAppGraph {
     let diagnosticsViewModel = DiagnosticsViewModel(
       store: diagnosticsStore,
       exporter: diagnosticsExporter
+    )
+    let importTransactionService = SongLibraryImportTransactionService(
+      indexStore: songLibraryIndexStore,
+      diagnostics: diagnosticsReporter
     )
 
     let makePressDetectionService: () -> PressDetectionServiceProtocol = { PressDetectionService() }
@@ -148,16 +158,27 @@ struct LiveAppGraph {
       aiPlaybackServiceFactory: makeAIPlaybackServiceFactory
     )
     let songLibraryViewModel = SongLibraryViewModel(
-      arGuideViewModel: arGuideViewModel,
-      practicePreparationService: practicePreparationService,
       indexStore: songLibraryIndexStore,
+      importTransactionService: importTransactionService,
       fileStore: songFileStore,
       audioImportService: audioImportService,
       bundledProvider: bundledSongLibraryProvider,
       audioPlayer: songAudioPlayer,
       practiceProgressRepository: progressRepository,
       diagnosticsReporter: diagnosticsReporter,
-      bootstrapLoader: LiveSongLibraryBootstrapLoader()
+      snapshotBuilder: SongPracticeLibrarySnapshotBuilder(),
+      bootstrapLoader: LiveSongLibraryBootstrapLoader(
+        transactionRecovery: importTransactionService,
+        indexStore: songLibraryIndexStore,
+        bundledProvider: bundledSongLibraryProvider
+      )
+    )
+    let practiceLaunchViewModel = PracticeLaunchViewModel(
+      resolver: songLibraryEntryResolver,
+      preparationService: practicePreparationService,
+      applicator: arGuideViewModel,
+      diagnosticsReporter: diagnosticsReporter,
+      progressRepository: progressRepository
     )
     let windowState = WindowTransitionState(
       practiceSetupState: appState.practiceSetupState,
@@ -187,6 +208,7 @@ struct LiveAppGraph {
       windowState: windowState,
       arGuideViewModel: arGuideViewModel,
       songLibraryViewModel: songLibraryViewModel,
+      practiceLaunchViewModel: practiceLaunchViewModel,
       diagnosticsViewModel: diagnosticsViewModel
     )
   }

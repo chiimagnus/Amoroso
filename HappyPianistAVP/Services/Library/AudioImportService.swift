@@ -1,42 +1,40 @@
 import Foundation
 
-protocol AudioImportServiceProtocol {
-    func importAudio(from sourceURL: URL) throws -> String
+protocol AudioImportServiceProtocol: Actor {
+    func importAudio(from sourceURL: URL) async throws -> String
 }
 
-struct AudioImportService: AudioImportServiceProtocol {
+actor AudioImportService: AudioImportServiceProtocol {
     private let fileManager: FileManager
     private let paths: SongLibraryPaths
-    private let now: () -> Date
+    private let now: @Sendable () -> Date
 
     init(
         fileManager: FileManager = .default,
         paths: SongLibraryPaths? = nil,
-        now: @escaping () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.fileManager = fileManager
         self.paths = paths ?? SongLibraryPaths(fileManager: fileManager)
         self.now = now
     }
 
-    func importAudio(from sourceURL: URL) throws -> String {
+    func importAudio(from sourceURL: URL) async throws -> String {
         let hasScopedAccess = sourceURL.startAccessingSecurityScopedResource()
         defer {
-            if hasScopedAccess {
-                sourceURL.stopAccessingSecurityScopedResource()
-            }
+            if hasScopedAccess { sourceURL.stopAccessingSecurityScopedResource() }
         }
-
         try paths.ensureDirectoriesExist()
-
+        let sourceFileName = sourceURL.lastPathComponent
+        guard sourceFileName.isEmpty == false,
+              sourceFileName != ".",
+              sourceFileName != "..",
+              URL(fileURLWithPath: sourceFileName).lastPathComponent == sourceFileName
+        else { throw SongFileStoreError.invalidFileName(sourceFileName) }
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let timestamp = formatter.string(from: now()).replacing(":", with: "-")
-
-        let sourceFileName = URL(fileURLWithPath: sourceURL.lastPathComponent).lastPathComponent
-        let targetFileName = "\(timestamp)-\(sourceFileName)"
-        let destinationURL = try uniqueDestinationURL(fileName: targetFileName)
-
+        let destinationURL = try uniqueDestinationURL(fileName: "\(timestamp)-\(sourceFileName)")
         try fileManager.copyItem(at: sourceURL, to: destinationURL)
         return destinationURL.lastPathComponent
     }
@@ -44,18 +42,11 @@ struct AudioImportService: AudioImportServiceProtocol {
     private func uniqueDestinationURL(fileName: String) throws -> URL {
         let audioDirectoryURL = try paths.audioDirectoryURL()
         var destinationURL = audioDirectoryURL.appending(path: fileName)
-
-        if fileManager.fileExists(atPath: destinationURL.path()) == false {
-            return destinationURL
-        }
-
+        if fileManager.fileExists(atPath: destinationURL.path(percentEncoded: false)) == false { return destinationURL }
         let ext = destinationURL.pathExtension
         let base = destinationURL.deletingPathExtension().lastPathComponent
         destinationURL = audioDirectoryURL.appending(path: "\(base)-\(UUID().uuidString)")
-        if ext.isEmpty == false {
-            destinationURL.appendPathExtension(ext)
-        }
-
+        if ext.isEmpty == false { destinationURL.appendPathExtension(ext) }
         return destinationURL
     }
 }

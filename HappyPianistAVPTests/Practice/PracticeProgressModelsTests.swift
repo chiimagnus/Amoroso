@@ -53,13 +53,13 @@ func practiceProgressDocumentRoundTrips() throws {
 }
 
 @Test
-func practiceProgressDocumentRejectsMissingRequiredFields() {
-    #expect(throws: DecodingError.self) {
-        try JSONDecoder().decode(
-            PracticeProgressDocument.self,
-            from: Data("{}".utf8)
-        )
-    }
+func practiceProgressDocumentDefaultsMissingLegacyArrays() throws {
+    let document = try JSONDecoder().decode(
+        PracticeProgressDocument.self,
+        from: Data("{}".utf8)
+    )
+
+    #expect(document == PracticeProgressDocument())
 }
 
 @Test
@@ -84,6 +84,31 @@ func roundConfigurationClampsSupportedValues() throws {
     #expect(low.requiredSuccesses == 1)
     #expect(high.tempoScale == 1.0)
     #expect(high.requiredSuccesses == 5)
+}
+
+@Test
+func roundConfigurationDecodeCannotBypassSupportedRanges() throws {
+    let passage = try #require(PracticePassage(start: makeOccurrence(0), end: makeOccurrence(0)))
+    let valid = PracticeRoundConfiguration(
+        passage: passage,
+        handMode: .both,
+        tempoScale: 1,
+        loopEnabled: false,
+        requiredSuccesses: 1
+    )
+    var object = try #require(
+        JSONSerialization.jsonObject(with: JSONEncoder().encode(valid)) as? [String: Any]
+    )
+    object["tempoScale"] = -1
+    object["requiredSuccesses"] = 999
+
+    let decoded = try JSONDecoder().decode(
+        PracticeRoundConfiguration.self,
+        from: JSONSerialization.data(withJSONObject: object)
+    )
+
+    #expect(decoded.tempoScale == PracticeRoundConfiguration.supportedTempoRange.lowerBound)
+    #expect(decoded.requiredSuccesses == PracticeRoundConfiguration.supportedSuccessRange.upperBound)
 }
 
 @Test

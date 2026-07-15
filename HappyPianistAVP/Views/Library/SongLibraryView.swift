@@ -5,15 +5,15 @@ struct SongLibraryView: View {
   @Bindable var viewModel: SongLibraryViewModel
   @Bindable var diagnosticsViewModel: DiagnosticsViewModel
   let onBackToPreparation: @MainActor () -> Void
-  let onStartPractice: @MainActor () -> Void
+  let onStartPractice: @MainActor (UUID) -> Void
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var selectedEntryID: UUID?
   @State private var isAudioImporterPresented = false
   @State private var pendingAudioBindingEntryID: UUID?
   @State private var pendingDeletionEntryID: UUID?
+  @State private var pendingImportConfirmationID: UUID?
   @State private var isDiagnosticsPresented = false
-  @State private var libraryViewHeight: CGFloat = LibraryDesignTokens.windowIdealHeight
+  @State private var libraryViewHeight = LibraryDesignTokens.windowIdealHeight
 
   private var audioImporterTypes: [UTType] {
     let types = SongLibraryViewModel.supportedAudioFileExtensions.compactMap {
@@ -24,7 +24,7 @@ struct SongLibraryView: View {
 
   var body: some View {
     let entries = viewModel.entries
-    let selectedIndex = entries.firstIndex(where: { $0.id == selectedEntryID })
+    let selectedIndex = entries.firstIndex(where: { $0.id == viewModel.selectedEntryID })
     let selectedEntry = selectedIndex.map { entries[$0] }
     let selectedPresentation = selectedIndex.map {
       SongLibraryTrackPresentation(entry: entries[$0], index: $0)
@@ -46,48 +46,81 @@ struct SongLibraryView: View {
         onDiagnostics: { isDiagnosticsPresented = true }
       )
 
-      if viewModel.hasLoadedLibrary == false || viewModel.isLibraryLoading {
+      if viewModel.isLibraryLoading
+        || (viewModel.hasLoadedLibrary == false && viewModel.bootstrapFailureMessage == nil)
+      {
         ProgressView("正在加载乐曲库…")
           .frame(maxWidth: .infinity, maxHeight: .infinity)
+      } else if let bootstrapFailureMessage = viewModel.bootstrapFailureMessage {
+        ContentUnavailableView {
+          Label("无法加载乐曲库", systemImage: "exclamationmark.triangle")
+        } description: {
+          Text(bootstrapFailureMessage)
+        } actions: {
+          Button("重试", systemImage: "arrow.clockwise") {
+            Task { @MainActor in
+              await viewModel.loadLibraryIfNeeded()
+            }
+          }
+          .buttonStyle(.borderedProminent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if entries.isEmpty {
         SongLibraryEmptyView(onImport: viewModel.didTapImportMusicXML)
       } else if let selectedEntry, let selectedPresentation {
-        LibraryCrateView(
-          entries: entries,
-          selectedEntryID: $selectedEntryID,
-          playingEntryID: viewModel.currentListeningEntryID,
-          isPlaying: selectedIsPlaying,
-          reduceMotion: reduceMotion,
-          onSelectionChanged: didSelectEntry,
-          onTogglePlayback: togglePlayback,
-          onImportMusicXML: viewModel.didTapImportMusicXML,
-          onBindAudio: presentAudioImporter,
-          onDelete: requestDeletion
-        )
+        ZStack(alignment: .bottomTrailing) {
+          VStack(spacing: 0) {
+            LibraryCrateView(
+              entries: entries,
+              selectedEntryID: viewModel.selectedEntryID,
+              playingEntryID: viewModel.currentListeningEntryID,
+              isPlaying: selectedIsPlaying,
+              reduceMotion: reduceMotion,
+              allowsDestructiveActions: viewModel.importState.isActive == false,
+              onSelectEntry: viewModel.selectEntry,
+              onTogglePlayback: togglePlayback,
+              onImportMusicXML: viewModel.didTapImportMusicXML,
+              onBindAudio: presentAudioImporter,
+              onDelete: requestDeletion
+            )
 
-        LibraryTrackInfoView(
-          presentation: selectedPresentation,
-          progress: selectedProgress,
-          currentTime: selectedCurrentTime,
-          duration: selectedDuration,
-          canSeek: viewModel.currentListeningEntryID == selectedEntry.id && selectedDuration > 0,
-          playbackTitle: playbackButtonTitle(
-            requiresAudioImport: requiresAudioImport,
-            isPlaying: selectedIsPlaying
-          ),
-          playbackSystemImage: playbackButtonSystemImage(
-            requiresAudioImport: requiresAudioImport,
-            isPlaying: selectedIsPlaying
-          ),
-          canPerformPlaybackAction: canPerformPlaybackAction,
-          onPlayback: toggleSelectedPlayback,
-          onSeek: { progress in
-            viewModel.seekListening(entryID: selectedEntry.id, progress: progress)
+            LibraryTrackInfoView(
+              presentation: selectedPresentation,
+              progress: selectedProgress,
+              currentTime: selectedCurrentTime,
+              duration: selectedDuration,
+              canSeek: viewModel.currentListeningEntryID == selectedEntry.id && selectedDuration > 0,
+              playbackTitle: playbackButtonTitle(
+                requiresAudioImport: requiresAudioImport,
+                isPlaying: selectedIsPlaying
+              ),
+              playbackSystemImage: playbackButtonSystemImage(
+                requiresAudioImport: requiresAudioImport,
+                isPlaying: selectedIsPlaying
+              ),
+              canPerformPlaybackAction: canPerformPlaybackAction,
+              onPlayback: toggleSelectedPlayback,
+              onSeek: { progress in
+                viewModel.seekListening(entryID: selectedEntry.id, progress: progress)
+              }
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 30)
+            .padding(.bottom, 22)
           }
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 30)
-        .padding(.bottom, 22)
+
+          Button("开始练习", systemImage: "music.note") {
+            viewModel.startPractice(entryID: selectedEntry.id, perform: onStartPractice)
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(viewModel.importState.isActive)
+          .accessibilityHint(
+            viewModel.importState.isActive
+              ? "曲谱导入完成或取消后才能开始练习"
+              : "在练习窗口中准备并打开当前曲目"
+          )
+          .padding()
+        }
       }
     }
     .frame(
@@ -101,19 +134,42 @@ struct SongLibraryView: View {
     .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
       libraryViewHeight = height
     }
+    .safeAreaInset(edge: .top) {
+      if viewModel.importState.isActive {
+        LibraryImportStatusView(
+          state: viewModel.importState,
+          onReviewConflict: { operationID in
+            pendingImportConfirmationID = operationID
+          },
+          onCancelCurrent: { operationID in
+            Task { @MainActor in
+              await viewModel.cancelPendingImport(operationID: operationID)
+            }
+          },
+          onContinue: {
+            Task { @MainActor in
+              await viewModel.continueAfterImportFailure()
+            }
+          },
+          onCancelAll: {
+            Task { @MainActor in
+              await viewModel.cancelAllImports()
+            }
+          }
+        )
+        .padding(.horizontal)
+      }
+    }
     .ornament(
-      visibility: .visible,
+      visibility: viewModel.practiceSnapshotState == nil ? .hidden : .visible,
       attachmentAnchor: .scene(.trailing),
       contentAlignment: .leading
     ) {
-      LibraryPracticeOrnamentView(
-        viewModel: viewModel,
-        isStartEnabled: viewModel.canStartSelectedPractice,
-        onStartPractice: startSelectedPractice,
-        onImportMusicXML: viewModel.didTapImportMusicXML
-      )
-      .frame(height: libraryViewHeight)
-      .glassBackgroundEffect()
+      if let state = viewModel.practiceSnapshotState {
+        LibraryPracticeProgressOrnamentView(state: state)
+          .frame(width: 400, height: libraryViewHeight)
+          .glassBackgroundEffect()
+      }
     }
     .sheet(isPresented: $isDiagnosticsPresented) {
       DiagnosticsView(viewModel: diagnosticsViewModel)
@@ -126,21 +182,20 @@ struct SongLibraryView: View {
     )
     .task {
       await viewModel.loadLibraryIfNeeded()
-      synchronizeSelection()
-      await viewModel.reloadPracticeProgress()
-      if let selectedEntryID {
-        viewModel.selectEntryForPractice(selectedEntryID)
-      }
-    }
-    .onChange(of: viewModel.entries) {
-      synchronizeSelection()
-      if let selectedEntryID {
-        viewModel.selectEntryForPractice(selectedEntryID)
-      }
     }
     .onDisappear {
       viewModel.stopListening()
-      viewModel.cancelPracticePreparation()
+      Task { @MainActor in
+        await viewModel.cancelAllImports()
+        await viewModel.flushPendingSelectionPersistence()
+      }
+    }
+    .onChange(of: viewModel.importState) { _, state in
+      guard case let .awaitingConfirmation(pending, _, _) = state else {
+        pendingImportConfirmationID = nil
+        return
+      }
+      pendingImportConfirmationID = pending.id
     }
     .alert(
       "提示",
@@ -156,6 +211,40 @@ struct SongLibraryView: View {
       Button("好", action: viewModel.dismissError)
     } message: {
       Text(viewModel.errorMessage ?? "未知错误")
+    }
+    .confirmationDialog(
+      importConflictTitle,
+      isPresented: Binding(
+        get: { pendingImportConfirmationID != nil && pendingImport != nil },
+        set: { isPresented in
+          if isPresented == false {
+            pendingImportConfirmationID = nil
+          }
+        }
+      ),
+      titleVisibility: .visible
+    ) {
+      if let pendingImport {
+        let presentation = SongLibraryImportConflictPresentation(conflict: pendingImport.conflict)
+        if let actionTitle = presentation.actionTitle {
+          Button(actionTitle, role: presentation.actionRole) {
+            pendingImportConfirmationID = nil
+            Task { @MainActor in
+              await viewModel.confirmPendingImport(operationID: pendingImport.id)
+            }
+          }
+        }
+      }
+      if let pendingImport {
+        Button("跳过此项", role: .cancel) {
+          pendingImportConfirmationID = nil
+          Task { @MainActor in
+            await viewModel.cancelPendingImport(operationID: pendingImport.id)
+          }
+        }
+      }
+    } message: {
+      Text(importConflictPresentation?.message ?? "曲谱冲突状态已变化。")
     }
     .confirmationDialog(
       "确认删除该曲目？",
@@ -190,6 +279,22 @@ struct SongLibraryView: View {
     return presentation?.knownDuration ?? 0
   }
 
+  private var pendingImport: SongLibraryPendingImport? {
+    guard case let .awaitingConfirmation(pending, _, _) = viewModel.importState,
+      pending.id == pendingImportConfirmationID
+    else { return nil }
+    return pending
+  }
+
+  private var importConflictTitle: String {
+    guard let pendingImport else { return "处理曲谱冲突" }
+    return "处理“\(pendingImport.fileName)”"
+  }
+
+  private var importConflictPresentation: SongLibraryImportConflictPresentation? {
+    pendingImport.map { SongLibraryImportConflictPresentation(conflict: $0.conflict) }
+  }
+
   private func resolvedCurrentTime(selectedEntry: SongLibraryEntry?) -> TimeInterval {
     guard let selectedEntry, viewModel.currentListeningEntryID == selectedEntry.id else { return 0 }
     return viewModel.listeningCurrentTime
@@ -209,34 +314,8 @@ struct SongLibraryView: View {
     return isPlaying ? "pause.fill" : "play.fill"
   }
 
-  private func synchronizeSelection() {
-    let entries = viewModel.entries
-    guard entries.isEmpty == false else {
-      selectedEntryID = nil
-      return
-    }
-
-    if let selectedEntryID, entries.contains(where: { $0.id == selectedEntryID }) {
-      return
-    }
-
-    selectedEntryID =
-      viewModel.index.lastSelectedEntryID.flatMap { preferredID in
-        entries.first(where: { $0.id == preferredID })?.id
-      } ?? entries.first?.id
-  }
-
-  private func didSelectEntry(_ entryID: UUID) {
-    if let currentListeningEntryID = viewModel.currentListeningEntryID,
-      currentListeningEntryID != entryID
-    {
-      viewModel.stopListening()
-    }
-    viewModel.selectEntryForPractice(entryID)
-  }
-
   private func toggleSelectedPlayback() {
-    guard let selectedEntryID else { return }
+    guard let selectedEntryID = viewModel.selectedEntryID else { return }
     togglePlayback(selectedEntryID)
   }
 
@@ -250,12 +329,9 @@ struct SongLibraryView: View {
       }
       return
     }
-    viewModel.didTapListen(entryID: entryID)
-  }
-
-  private func startSelectedPractice() {
-    guard viewModel.startSelectedPractice() else { return }
-    onStartPractice()
+    Task { @MainActor in
+      await viewModel.didTapListen(entryID: entryID)
+    }
   }
 
   private func presentAudioImporter(_ entryID: UUID) {
@@ -268,6 +344,10 @@ struct SongLibraryView: View {
   }
 
   private func requestDeletion(_ entryID: UUID) {
+    guard viewModel.importState.isActive == false else {
+      viewModel.errorMessage = "曲谱导入完成或取消后才能删除曲目。"
+      return
+    }
     guard let entry = viewModel.entries.first(where: { $0.id == entryID }), entry.isBundled != true
     else {
       return
@@ -294,20 +374,117 @@ struct SongLibraryView: View {
     Task { @MainActor in
       await viewModel.deleteEntry(entryID: entryID)
       pendingDeletionEntryID = nil
-      synchronizeSelection()
+    }
+  }
+}
+
+private struct LibraryImportStatusView: View {
+  let state: SongLibraryImportState
+  let onReviewConflict: (UUID) -> Void
+  let onCancelCurrent: (UUID) -> Void
+  let onContinue: () -> Void
+  let onCancelAll: () -> Void
+
+  var body: some View {
+    HStack(spacing: 12) {
+      if showsProgress {
+        ProgressView()
+          .controlSize(.small)
+      }
+
+      Text(statusText)
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
+
+      switch state {
+      case let .awaitingConfirmation(pending, _, _):
+        Button("处理此项") { onReviewConflict(pending.id) }
+          .buttonStyle(.borderedProminent)
+        Button("取消此项") { onCancelCurrent(pending.id) }
+          .buttonStyle(.bordered)
+        Button("取消剩余导入", role: .cancel, action: onCancelAll)
+          .buttonStyle(.bordered)
+      case .itemFailure:
+        Button("继续下一项", action: onContinue)
+          .buttonStyle(.borderedProminent)
+        Button("取消剩余导入", role: .cancel, action: onCancelAll)
+          .buttonStyle(.bordered)
+      case .idle, .staging, .processing:
+        // ponytail: the parent only creates this view while an import is active.
+        Button("取消导入", role: .cancel, action: onCancelAll)
+          .buttonStyle(.bordered)
+      }
+    }
+    .padding(12)
+    .background(.regularMaterial, in: .rect(cornerRadius: 14))
+    .accessibilityElement(children: .contain)
+  }
+
+  private var showsProgress: Bool {
+    switch state {
+    case .staging, .processing:
+      true
+    case .idle, .awaitingConfirmation, .itemFailure:
+      false
+    }
+  }
+
+  private var statusText: String {
+    switch state {
+    case let .staging(index, count):
+      "正在暂存曲谱 \(min(index + 1, count))/\(count)…"
+    case let .processing(_, index, count):
+      "正在导入第 \(index)/\(count) 项…"
+    case let .awaitingConfirmation(pending, index, count):
+      "第 \(index)/\(count) 项“\(pending.fileName)”需要确认后才能继续。"
+    case let .itemFailure(failure, index, count):
+      "第 \(index)/\(count) 项“\(failure.fileName)”失败：\(failure.message)"
+    case .idle:
+      ""
     }
   }
 }
 
 #Preview {
   let graph = LiveAppGraph.make()
-  return SongLibraryView(
+  SongLibraryView(
     viewModel: graph.songLibraryViewModel,
     diagnosticsViewModel: graph.diagnosticsViewModel,
     onBackToPreparation: {},
-    onStartPractice: {}
+    onStartPractice: { _ in }
   )
 
+}
+
+struct SongLibraryImportConflictPresentation {
+  let actionTitle: String?
+  let actionRole: ButtonRole?
+  let message: String
+
+  init(conflict: SongLibraryImportConflictKind) {
+    switch conflict {
+    case .indexedTarget:
+      actionTitle = "替换现有曲谱"
+      actionRole = .destructive
+      message = "将替换现有曲谱文件并保留曲目名称、音频、练习历史和曲库位置。"
+    case .indexedMissingTarget:
+      actionTitle = "修复缺失曲谱"
+      actionRole = nil
+      message = "曲库条目仍在，但曲谱文件缺失。将用所选文件修复该曲目。"
+    case .filesystemOrphan:
+      actionTitle = "替换并加入曲库"
+      actionRole = .destructive
+      message = "同名文件尚未加入曲库。将替换该文件并创建新的曲库条目。"
+    case .none:
+      actionTitle = "继续导入"
+      actionRole = nil
+      message = "冲突已消失，将按新曲谱导入。"
+    case .ambiguousIndexedTargets:
+      actionTitle = nil
+      actionRole = nil
+      message = "多个曲库条目指向同一文件，无法安全判断要更新哪一项。"
+    }
+  }
 }
 
 private struct LibraryTopBarView: View {
@@ -318,13 +495,11 @@ private struct LibraryTopBarView: View {
     HStack {
       Button("重新选择钢琴", action: onBack)
         .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
 
       Spacer()
 
       Button("诊断", systemImage: "stethoscope", action: onDiagnostics)
         .buttonStyle(.bordered)
-        .buttonBorderShape(.capsule)
     }
     .frame(height: 70)
     .padding(.horizontal, 28)
@@ -430,7 +605,6 @@ private struct LibraryTrackInfoView: View {
         Button(playbackTitle, systemImage: playbackSystemImage, action: onPlayback)
           .labelStyle(.iconOnly)
           .buttonStyle(.bordered)
-          .buttonBorderShape(.circle)
           .disabled(canPerformPlaybackAction == false)
       }
       .padding(.top, 9)

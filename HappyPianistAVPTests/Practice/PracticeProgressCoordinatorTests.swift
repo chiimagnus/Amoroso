@@ -182,11 +182,21 @@ private actor InMemoryPracticeProgressRepository: PracticeProgressRepositoryProt
         values[identity]
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(
+            songID: songID,
+            progresses: values.values.filter { $0.identity.songID == songID },
+            scoreMetadata: []
+        ))
+    }
+
     func upsert(_ progress: SongPracticeProgress) throws {
         if let upsertError { throw upsertError }
         upsertCount += 1
         values[progress.identity] = progress
     }
+
+    func upsert(_: SongScorePracticeMetadata) {}
 
     func remove(songID: UUID) {
         values = values.filter { $0.key.songID != songID }
@@ -204,6 +214,10 @@ private actor SuspendedPracticeProgressRepository: PracticeProgressRepositoryPro
         }
     }
 
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    }
+
     func waitForRequest(identity: PracticeSongIdentity) async {
         while continuations[identity] == nil {
             await Task.yield()
@@ -215,5 +229,6 @@ private actor SuspendedPracticeProgressRepository: PracticeProgressRepositoryPro
     }
 
     func upsert(_: SongPracticeProgress) {}
+    func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID _: UUID) {}
 }

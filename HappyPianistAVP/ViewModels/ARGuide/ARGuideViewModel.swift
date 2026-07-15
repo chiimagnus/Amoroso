@@ -3,9 +3,14 @@ import Foundation
 import Observation
 import simd
 
+enum PracticeSessionReplacementResult: Equatable, Sendable {
+    case replaced
+    case progressSaveFailed
+}
+
 @MainActor
 @Observable
-final class ARGuideViewModel {
+final class ARGuideViewModel: PracticeLaunchApplying {
     typealias CalibrationPhase = CalibrationGuideViewModel.CalibrationPhase
     typealias PracticeLocalizationFailure = PracticeLocalizationViewModel.PracticeLocalizationFailure
     typealias PracticeLocalizationState = PracticeLocalizationViewModel.PracticeLocalizationState
@@ -31,6 +36,8 @@ final class ARGuideViewModel {
 
     var practiceSessionViewModel: PracticeSessionViewModel
     var latestPreparedPractice: PreparedPractice?
+    var practiceSessionReplacementErrorMessage: String?
+    @ObservationIgnored private var latestPracticeRestorePolicy: PracticeLaunchRestorePolicy?
 
     @ObservationIgnored private var handTrackingConsumerTask: Task<Void, Never>?
     @ObservationIgnored private var preparedPracticeApplicationID: UUID?
@@ -149,41 +156,62 @@ final class ARGuideViewModel {
         }
     }
 
-    @discardableResult
-    func applyPreparedPractice(
+    func applyPreparedPracticeForLaunch(
         _ prepared: PreparedPractice,
+        restorePolicy: PracticeLaunchRestorePolicy,
         isCurrent: @escaping @MainActor () -> Bool
-    ) async -> Bool {
+    ) async -> PracticeLaunchApplyOutcome? {
         let applicationID = UUID()
+        let session = practiceSessionViewModel
         preparedPracticeApplicationID = applicationID
         guard isCurrent() else {
             preparedPracticeApplicationID = nil
-            return false
+            return nil
         }
         guard await applyPreparedPractice(
             prepared,
-            to: practiceSessionViewModel,
+            restorePolicy: restorePolicy,
+            to: session,
             applicationID: applicationID,
             isCurrent: isCurrent
-        ) else { return false }
+        ) else { return nil }
+        guard practiceSessionViewModel === session,
+              preparedPracticeApplicationID == applicationID,
+              isCurrent()
+        else {
+            clearStalePreparedPractice(applicationID: applicationID, session: session)
+            return nil
+        }
 
         practiceSetupState.setImportedSteps(from: prepared)
         appState.applySessionIfPossible()
         latestPreparedPractice = prepared
+        latestPracticeRestorePolicy = restorePolicy
         preparedPracticeApplicationID = nil
         if isVirtualPerformerEnabled {
             setPracticeVirtualPerformerEnabled(true)
         }
-        return true
+        return switch practiceSessionViewModel.lastProgressRestoreOutcome {
+        case .repairedInvalidSavedState:
+            .appliedWithRepairedSavedState
+        case .repairPersistenceFailed:
+            .appliedWithUnpersistedRepair
+        case .none, .restored:
+            .applied
+        }
     }
 
     private func applyPreparedPractice(
         _ prepared: PreparedPractice,
+        restorePolicy: PracticeLaunchRestorePolicy,
         to session: PracticeSessionViewModel,
         applicationID: UUID,
         isCurrent: @escaping @MainActor () -> Bool
     ) async -> Bool {
-        guard preparedPracticeApplicationID == applicationID, isCurrent() else { return false }
+        guard practiceSessionViewModel === session,
+              preparedPracticeApplicationID == applicationID,
+              isCurrent()
+        else { return false }
         session.installPreparedSteps(
             prepared.steps,
             identity: prepared.identity,
@@ -194,12 +222,18 @@ final class ARGuideViewModel {
             highlightGuides: prepared.highlightGuides,
             measureSpans: prepared.measureSpans
         )
-        guard preparedPracticeApplicationID == applicationID, isCurrent() else {
+        guard practiceSessionViewModel === session,
+              preparedPracticeApplicationID == applicationID,
+              isCurrent()
+        else {
             clearStalePreparedPractice(applicationID: applicationID, session: session)
             return false
         }
-        await session.restoreProgressIfAvailable()
-        guard preparedPracticeApplicationID == applicationID, isCurrent() else {
+        await session.applyLaunchRestorePolicy(restorePolicy)
+        guard practiceSessionViewModel === session,
+              preparedPracticeApplicationID == applicationID,
+              isCurrent()
+        else {
             clearStalePreparedPractice(applicationID: applicationID, session: session)
             return false
         }
@@ -211,27 +245,61 @@ final class ARGuideViewModel {
         session: PracticeSessionViewModel
     ) {
         guard preparedPracticeApplicationID == applicationID else { return }
-        session.resetSession()
+        session.clearPreparedSong()
         preparedPracticeApplicationID = nil
     }
 
-    func replacePracticeSessionViewModel() async {
-        await practiceSessionViewModel.flushAndShutdown()
+    func clearPreparedPracticeForLaunch() async {
+        preparedPracticeApplicationID = nil
+        latestPreparedPractice = nil
+        latestPracticeRestorePolicy = nil
+        practiceSetupState.clearSongAndSteps()
+        invalidatePracticeFeedbackPresentation()
+
+        var session = practiceSessionViewModel
+        while true {
+            await session.suspendAndFlushProgress()
+            await session.finishProgressSession()
+            session.clearPreparedSong()
+            guard practiceSessionViewModel !== session else { break }
+            session = practiceSessionViewModel
+        }
+        if practiceSessionViewModel.hasShutdown {
+            await replacePracticeSessionViewModel()
+        }
+    }
+
+    @discardableResult
+    func replacePracticeSessionViewModel() async -> PracticeSessionReplacementResult {
+        let hadCurrentProgress = practiceSessionViewModel.progressCoordinator != nil &&
+            practiceSessionViewModel.sessionProgress != nil
+        let saveStatus = await practiceSessionViewModel.flushAndShutdown()
+        if case .failed = saveStatus {
+            practiceSessionReplacementErrorMessage = "练习进度尚未保存，设置没有应用。请检查存储空间后重试。"
+            return .progressSaveFailed
+        }
+        practiceSessionReplacementErrorMessage = nil
         let next = makePracticeSessionViewModel(practiceSetupState.selectedPianoModeID)
         practiceSessionViewModel = next
         placementViewModel.updatePracticeSession(next)
         practiceViewModel.updatePracticeSession(next)
         aiPerformanceViewModel.updatePracticeSession(next)
 
-        if let prepared = latestPreparedPractice {
+        if let prepared = latestPreparedPractice,
+           let previousRestorePolicy = latestPracticeRestorePolicy {
+            let restorePolicy: PracticeLaunchRestorePolicy = hadCurrentProgress
+                ? .exactAvailable
+                : previousRestorePolicy
             let applicationID = UUID()
             preparedPracticeApplicationID = applicationID
             _ = await applyPreparedPractice(
                 prepared,
+                restorePolicy: restorePolicy,
                 to: next,
                 applicationID: applicationID,
                 isCurrent: { true }
             )
+            latestPracticeRestorePolicy = restorePolicy
             preparedPracticeApplicationID = nil
         }
 
@@ -247,6 +315,11 @@ final class ARGuideViewModel {
             usesBluetoothMIDIInput: selectedPianoMode?.usesBluetoothMIDIInput == true,
             eventSource: next.practiceInputEventSource
         )
+        return .replaced
+    }
+
+    func clearPracticeSessionReplacementError() {
+        practiceSessionReplacementErrorMessage = nil
     }
 
     var calibration: PianoCalibration? {
