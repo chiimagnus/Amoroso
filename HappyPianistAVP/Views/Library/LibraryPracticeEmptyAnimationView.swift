@@ -63,7 +63,7 @@ struct LibraryPracticeEmptyAnimationView: View {
 }
 
 private struct LibraryPracticePianoKeyboardView: View {
-  private let blackKeyOffsets: [CGFloat] = [39, 70, 132, 163, 194]
+  private static let blackKeyOffsets: [CGFloat] = [39, 70, 132, 163, 194]
 
   var body: some View {
     ZStack(alignment: .topLeading) {
@@ -106,7 +106,7 @@ private struct LibraryPracticePianoKeyboardView: View {
       .padding(.leading, 10)
       .padding(.top, 10)
 
-      ForEach(blackKeyOffsets.indices, id: \.self) { index in
+      ForEach(Self.blackKeyOffsets.indices, id: \.self) { index in
         RoundedRectangle(cornerRadius: 4)
           .fill(
             LinearGradient(
@@ -116,7 +116,7 @@ private struct LibraryPracticePianoKeyboardView: View {
             )
           )
           .frame(width: 18, height: 57)
-          .offset(x: blackKeyOffsets[index], y: 10)
+          .offset(x: Self.blackKeyOffsets[index], y: 10)
           .shadow(color: .black.opacity(0.22), radius: 3, y: 3)
       }
     }
