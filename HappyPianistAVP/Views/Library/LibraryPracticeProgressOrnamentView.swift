@@ -26,7 +26,7 @@ struct LibraryPracticeProgressOrnamentView: View {
                 LibraryPracticeMessageView(
                     systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
                     title: "当前版本尚未建立进度",
-                    message: "保留了历史记录（最近练习：\(historyDate.formatted(date: .abbreviated, time: .shortened))）。开始一次练习后会重建当前结构。"
+                    message: rebuildMessage(historyDate: historyDate)
                 )
             case .unavailable:
                 LibraryPracticeMessageView(
@@ -40,6 +40,13 @@ struct LibraryPracticeProgressOrnamentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("当前曲目练习概览")
+    }
+
+    private func rebuildMessage(historyDate: Date?) -> String {
+        guard let historyDate else {
+            return "保留了历史练习事实。开始一次练习后会重建当前结构。"
+        }
+        return "保留了历史记录（最近练习：\(historyDate.formatted(date: .abbreviated, time: .shortened))）。开始一次练习后会重建当前结构。"
     }
 }
 
@@ -72,8 +79,10 @@ private struct LibraryPracticeCurrentSnapshotView: View {
                 .font(.headline)
                 .bold()
 
-            LabeledContent("最近练习") {
-                Text(snapshot.latestPracticeDate, format: .dateTime.month().day().hour().minute())
+            if let latestPracticeDate = snapshot.latestPracticeDate {
+                LabeledContent("最近练习") {
+                    Text(latestPracticeDate, format: .dateTime.month().day().hour().minute())
+                }
             }
 
             if snapshot.totalSourceMeasureCount > 0 {

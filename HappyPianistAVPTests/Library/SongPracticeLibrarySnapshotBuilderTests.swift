@@ -21,7 +21,7 @@ func snapshotBuilderLeavesMainActorIsolation() async {
 }
 
 @Test
-func snapshotNeverPracticedIgnoresUpdatedAtWithoutAttempts() async {
+func snapshotRecognizesCountOnlyAttemptsWithoutInventingPracticeDate() async {
     let entry = makeSnapshotEntry()
     let progress = SongPracticeProgress(
         identity: PracticeSongIdentity(songID: entry.id, scoreRevision: "r1"),
@@ -34,11 +34,47 @@ func snapshotNeverPracticedIgnoresUpdatedAtWithoutAttempts() async {
         )],
         updatedAt: Date(timeIntervalSince1970: 500)
     )
+    let metadata = makeSnapshotMetadata(
+        songID: entry.id,
+        token: entry.scoreFileVersionID,
+        revision: "r1"
+    )
+
+    guard case let .current(snapshot) = await snapshotBuilder.build(
+        entry: entry,
+        history: PracticeSongHistory(
+            songID: entry.id,
+            progresses: [progress],
+            scoreMetadata: [metadata]
+        )
+    ) else {
+        Issue.record("Expected current snapshot")
+        return
+    }
+    #expect(snapshot.status == .practicedCurrentVersion)
+    #expect(snapshot.latestPracticeDate == nil)
+    #expect(snapshot.currentFacts?.learningSourceMeasureCount == 1)
+}
+
+@Test
+func snapshotNeedsRebuildForCountOnlyHistoryWithoutUsingUpdatedAtAsPracticeDate() async {
+    let entry = makeSnapshotEntry()
+    let progress = SongPracticeProgress(
+        identity: PracticeSongIdentity(songID: entry.id, scoreRevision: "old"),
+        measureFacts: [MeasurePracticeFacts(
+            sourceMeasureID: snapshotSource(0),
+            handMode: .both,
+            state: .learning,
+            failedAttempts: 1,
+            lastAttemptAt: nil
+        )],
+        updatedAt: Date(timeIntervalSince1970: 500)
+    )
 
     #expect(await snapshotBuilder.build(
         entry: entry,
         history: PracticeSongHistory(songID: entry.id, progresses: [progress], scoreMetadata: [])
-    ) == .neverPracticed)
+    ) == .needsRebuild(historyDate: nil))
 }
 
 @Test

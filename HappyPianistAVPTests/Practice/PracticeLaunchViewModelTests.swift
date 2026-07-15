@@ -31,6 +31,26 @@ func practiceLaunchRegistersWithoutPreparingThenActivatesExactlyOnce() async {
 
 @MainActor
 @Test
+func practiceLaunchStopsBeforePreparationWhenPreviousProgressCannotBeSaved() async {
+    let fixture = makePracticeLaunchFixture()
+    fixture.applicator.clearStatus = .failed(message: "disk full")
+    fixture.owner.request(songID: fixture.songA)
+
+    await fixture.owner.activateCurrentRequest()
+
+    guard case let .failure(failure) = fixture.owner.state else {
+        Issue.record("Expected a typed progress-save failure")
+        return
+    }
+    #expect(failure.code == .practiceProgressSaveFailed)
+    #expect(failure.diagnosticEvent.category == .persistence)
+    #expect(await fixture.preparation.requestedSongIDs().isEmpty)
+    #expect(fixture.applicator.appliedSongIDs.isEmpty)
+    #expect(await fixture.reporter.events.last == failure.diagnosticEvent)
+}
+
+@MainActor
+@Test
 func practiceLaunchPassesExactRestorePolicyBeforeSessionApply() async {
     let songID = fixtureSongA
     let fixture = makePracticeLaunchFixture(
@@ -91,6 +111,27 @@ func corruptedPracticeHistoryWarnsAndLaunchesWithUnavailablePolicy() async {
     #expect(warning?.reason.contains("/Users/private") == false)
     let resolution = await fixture.reporter.events.first { $0.code == .practiceHistoryResolution }
     #expect(resolution?.reason == "historyCorrupted")
+}
+
+@MainActor
+@Test
+func staleCorruptedHistoryDoesNotRecordWarningAfterRequestChanges() async {
+    let fixture = makePracticeLaunchFixture(
+        historyResultOverride: .corrupted(description: "invalid progress document"),
+        historyDelay: .milliseconds(50)
+    )
+    fixture.owner.request(songID: fixture.songA)
+    let activation = Task { @MainActor in
+        await fixture.owner.activateCurrentRequest()
+    }
+    await fixture.metadataRepository.waitUntilHistoryRequested()
+
+    fixture.owner.request(songID: fixture.songB)
+    await activation.value
+
+    let warnings = await fixture.reporter.events.filter { $0.code == .practiceHistoryLoadFailed }
+    #expect(warnings.isEmpty)
+    #expect(fixture.owner.state == .requested(songID: fixture.songB))
 }
 
 @MainActor
@@ -205,6 +246,41 @@ func practiceLaunchReturnFinishIsIdempotentAndRejectsStaleOperation() async {
     #expect(fixture.owner.requestedSongID == nil)
     #expect(fixture.owner.activationIdentity == nil)
     #expect(fixture.applicator.clearCount == 1)
+}
+
+@MainActor
+@Test
+func failedPracticeReturnRestoresTheReadyRequestForRetry() async {
+    let fixture = makePracticeLaunchFixture()
+    fixture.owner.request(songID: fixture.songA)
+    await fixture.owner.activateCurrentRequest()
+    let readyState = fixture.owner.state
+    fixture.applicator.clearStatus = .failed(message: "disk full")
+
+    let operationID = fixture.owner.beginReturn()
+    let status = await fixture.owner.finishReturn(operationID: operationID)
+
+    guard case .failed = status else {
+        Issue.record("Expected progress-save failure")
+        return
+    }
+    #expect(fixture.owner.state == readyState)
+    #expect(fixture.owner.requestedSongID == fixture.songA)
+    #expect(fixture.owner.activationIdentity?.songID == fixture.songA)
+}
+
+@MainActor
+@Test
+func abortingPracticeReturnRestoresARequestedLaunch() {
+    let fixture = makePracticeLaunchFixture()
+    fixture.owner.request(songID: fixture.songA)
+
+    let operationID = fixture.owner.beginReturn()
+    fixture.owner.abortReturn(operationID: operationID)
+
+    #expect(fixture.owner.state == .requested(songID: fixture.songA))
+    #expect(fixture.owner.requestedSongID == fixture.songA)
+    #expect(fixture.owner.activationIdentity?.songID == fixture.songA)
 }
 
 @MainActor
@@ -631,7 +707,8 @@ private func makePracticeLaunchFixture(
     includeMeasureSpans: Bool = true,
     applyOutcome: PracticeLaunchApplyOutcome = .applied,
     progresses: [SongPracticeProgress] = [],
-    historyResultOverride: PracticeSongHistoryLoadResult? = nil
+    historyResultOverride: PracticeSongHistoryLoadResult? = nil,
+    historyDelay: Duration = .zero
 ) -> PracticeLaunchFixture {
     let resolver = PracticeLaunchResolver(songIDs: [songA, songB])
     let preparation = PracticeLaunchPreparationService(
@@ -643,7 +720,8 @@ private func makePracticeLaunchFixture(
     let reporter = InMemoryDiagnosticsReporter()
     let metadataRepository = RecordingPracticeLaunchProgressRepository(
         progresses: progresses,
-        historyResultOverride: historyResultOverride
+        historyResultOverride: historyResultOverride,
+        historyDelay: historyDelay
     )
     return PracticeLaunchFixture(
         owner: PracticeLaunchViewModel(
@@ -678,20 +756,28 @@ private actor RecordingPracticeLaunchProgressRepository: PracticeProgressReposit
     private var progresses: [SongPracticeProgress]
     let metadataError: Error?
     let historyResultOverride: PracticeSongHistoryLoadResult?
+    let historyDelay: Duration
+    private var historyRequestCount = 0
 
     init(
         metadataError: Error? = nil,
         progresses: [SongPracticeProgress] = [],
-        historyResultOverride: PracticeSongHistoryLoadResult? = nil
+        historyResultOverride: PracticeSongHistoryLoadResult? = nil,
+        historyDelay: Duration = .zero
     ) {
         self.metadataError = metadataError
         self.progresses = progresses
         self.historyResultOverride = historyResultOverride
+        self.historyDelay = historyDelay
     }
 
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
-    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+    func history(for songID: UUID) async -> PracticeSongHistoryLoadResult {
+        historyRequestCount += 1
+        if historyDelay != .zero {
+            try? await Task.sleep(for: historyDelay)
+        }
         if let historyResultOverride { return historyResultOverride }
         return .loaded(PracticeSongHistory(
             songID: songID,
@@ -713,9 +799,13 @@ private actor RecordingPracticeLaunchProgressRepository: PracticeProgressReposit
         while metadata.count < count { await Task.yield() }
     }
 
-    func loadedHistory(songID: UUID) -> PracticeSongHistory? {
-        guard case let .loaded(history) = history(for: songID) else { return nil }
+    func loadedHistory(songID: UUID) async -> PracticeSongHistory? {
+        guard case let .loaded(history) = await history(for: songID) else { return nil }
         return history
+    }
+
+    func waitUntilHistoryRequested() async {
+        while historyRequestCount == 0 { await Task.yield() }
     }
 }
 
@@ -944,9 +1034,14 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     private(set) var suspendCount = 0
     private(set) var leaveCount = 0
     let applyOutcome: PracticeLaunchApplyOutcome
+    var clearStatus: PracticeProgressSaveStatus
 
-    init(applyOutcome: PracticeLaunchApplyOutcome) {
+    init(
+        applyOutcome: PracticeLaunchApplyOutcome,
+        clearStatus: PracticeProgressSaveStatus = .saved
+    ) {
         self.applyOutcome = applyOutcome
+        self.clearStatus = clearStatus
     }
 
     func applyPreparedPracticeForLaunch(
@@ -960,9 +1055,15 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
         return applyOutcome
     }
 
-    func clearPreparedPracticeForLaunch() async { clearCount += 1 }
+    func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus {
+        clearCount += 1
+        return clearStatus
+    }
     func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
-    func leavePracticeStep() async { leaveCount += 1 }
+    func leavePracticeStep() async -> PracticeProgressSaveStatus {
+        leaveCount += 1
+        return .saved
+    }
 }
 
 @MainActor
@@ -995,9 +1096,9 @@ private final class ControlledPracticeLaunchApplicator: PracticeLaunchApplying {
         applyContinuation = nil
     }
 
-    func clearPreparedPracticeForLaunch() async {}
+    func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
     func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
-    func leavePracticeStep() async {}
+    func leavePracticeStep() async -> PracticeProgressSaveStatus { .saved }
 }
 
 @MainActor
@@ -1022,9 +1123,9 @@ private final class AppliedThenSuspendedPracticeLaunchApplicator: PracticeLaunch
         continuation = nil
     }
 
-    func clearPreparedPracticeForLaunch() async {}
+    func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
     func suspendPracticeAndFlushProgress() async {}
-    func leavePracticeStep() async {}
+    func leavePracticeStep() async -> PracticeProgressSaveStatus { .saved }
 }
 
 @MainActor
@@ -1041,9 +1142,9 @@ private final class RejectOncePracticeLaunchApplicator: PracticeLaunchApplying {
         return .applied
     }
 
-    func clearPreparedPracticeForLaunch() async {}
+    func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
     func suspendPracticeAndFlushProgress() async {}
-    func leavePracticeStep() async {}
+    func leavePracticeStep() async -> PracticeProgressSaveStatus { .saved }
 }
 
 private func makePracticeLaunchPreparedPractice(

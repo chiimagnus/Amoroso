@@ -855,6 +855,7 @@ func cancellingDuringStagingDiscardsReturnedOperationsByGeneration() async {
     await importTask.value
 
     #expect(viewModel.importState == .idle)
+    #expect(await service.stageCancellationObserved)
     #expect(await service.cancelledOperationIDs == [operationID])
     #expect(await service.processedOperationIDs.isEmpty)
 }
@@ -1220,6 +1221,7 @@ private actor QueueImportTransactionService: SongLibraryImportTransactionServici
     private(set) var cancelledOperationIDs: [UUID] = []
     private(set) var processedOperationIDs: [UUID] = []
     private(set) var confirmedOperationIDs: [UUID] = []
+    private(set) var stageCancellationObserved = false
 
     init(
         items: [SongLibraryImportBatchItem],
@@ -1237,7 +1239,11 @@ private actor QueueImportTransactionService: SongLibraryImportTransactionServici
 
     func stageImports(from _: [URL]) async -> SongLibraryImportBatchStageResult {
         if stageDelay != .zero {
-            try? await Task.sleep(for: stageDelay)
+            do {
+                try await Task.sleep(for: stageDelay)
+            } catch is CancellationError {
+                stageCancellationObserved = true
+            } catch {}
         }
         return SongLibraryImportBatchStageResult(items: items, blocked: nil)
     }

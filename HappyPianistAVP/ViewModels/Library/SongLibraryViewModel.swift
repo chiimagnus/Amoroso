@@ -9,7 +9,7 @@ final class SongLibraryViewModel {
     private let fileStore: SongFileStoreProtocol
     private let audioImportService: AudioImportServiceProtocol
     private let bundledProvider: BundledSongLibraryProviderProtocol
-    private let bootstrapLoader: (any SongLibraryBootstrapLoading)?
+    private let bootstrapLoader: any SongLibraryBootstrapLoading
     private var bundledEntries: [SongLibraryEntry]
     private let audioPlaybackController: SongAudioPlaybackStateController
     private let practiceProgressRepository: any PracticeProgressRepositoryProtocol
@@ -29,6 +29,7 @@ final class SongLibraryViewModel {
     @ObservationIgnored private var selectionPersistenceNeedsDrain = false
     @ObservationIgnored private var snapshotLoadTask: Task<Void, Never>?
     @ObservationIgnored private var snapshotGeneration = 0
+    @ObservationIgnored private var importStagingTask: Task<SongLibraryImportBatchStageResult, Never>?
     @ObservationIgnored private var importQueue: [SongLibraryImportBatchItem] = []
     @ObservationIgnored private var importQueueIndex = 0
     @ObservationIgnored private var importQueueGeneration = 0
@@ -62,7 +63,7 @@ final class SongLibraryViewModel {
         practiceProgressRepository: any PracticeProgressRepositoryProtocol,
         diagnosticsReporter: any DiagnosticsReporting,
         snapshotBuilder: any SongPracticeLibrarySnapshotBuilding = SongPracticeLibrarySnapshotBuilder(),
-        bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
+        bootstrapLoader: any SongLibraryBootstrapLoading,
         initialSnapshot: SongLibraryBootstrapSnapshot? = nil,
         snapshotSleeper: any SleeperProtocol = TaskSleeper(),
         snapshotSettleDelay: Duration = .milliseconds(150),
@@ -115,10 +116,6 @@ final class SongLibraryViewModel {
 
     func loadLibraryIfNeeded() async {
         guard hasLoadedLibrary == false, isLibraryLoading == false else { return }
-        guard let bootstrapLoader else {
-            hasLoadedLibrary = true
-            return
-        }
 
         isLibraryLoading = true
         let snapshot = await bootstrapLoader.load()
@@ -133,15 +130,6 @@ final class SongLibraryViewModel {
             bootstrapFailureMessage = failure.message
         }
         isLibraryLoading = false
-    }
-
-    func reload() async {
-        do {
-            index = try await indexStore.load()
-            installBootstrapSelection()
-        } catch {
-            errorMessage = "加载乐曲库失败：\(error.localizedDescription)"
-        }
     }
 
     func refreshSelectedPracticeSnapshot() {
@@ -278,8 +266,15 @@ final class SongLibraryViewModel {
         guard selectedURLs.isEmpty == false, importState.isActive == false else { return }
         importQueueGeneration += 1
         let generation = importQueueGeneration
-        importState = .staging(index: 0, count: selectedURLs.count)
-        let batch = await importTransactionService.stageImports(from: selectedURLs)
+        importState = .staging(count: selectedURLs.count)
+        let stagingTask = Task {
+            await importTransactionService.stageImports(from: selectedURLs)
+        }
+        importStagingTask = stagingTask
+        let batch = await stagingTask.value
+        if generation == importQueueGeneration {
+            importStagingTask = nil
+        }
         guard generation == importQueueGeneration else {
             for item in batch.items {
                 guard case let .staged(descriptor) = item else { continue }
@@ -364,6 +359,10 @@ final class SongLibraryViewModel {
     func cancelAllImports() async {
         guard importState.isActive else { return }
         importQueueGeneration += 1
+        let stagingTask = importStagingTask
+        stagingTask?.cancel()
+        await stagingTask?.value
+        importStagingTask = nil
         let operationIDs = importQueue.dropFirst(importQueueIndex).compactMap { item -> UUID? in
             guard case let .staged(descriptor) = item else { return nil }
             return descriptor.id
@@ -637,6 +636,9 @@ final class SongLibraryViewModel {
             syncListeningState()
             updatePlaybackProgressTask()
         } catch {
+            guard generation == listenIntentGeneration,
+                  entries.first(where: { $0.id == entryID })?.audioFileName == audioFileName
+            else { return }
             errorMessage = "播放失败：\(error.localizedDescription)"
         }
     }
