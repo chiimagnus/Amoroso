@@ -16,6 +16,12 @@ enum PracticeProgressRecoveryResult: Equatable, Sendable {
     case notNeeded
 }
 
+enum PracticeSessionMutationError: Error, Equatable, Sendable {
+    case identityMismatch(id: UUID)
+    case durationRegression(id: UUID)
+    case cannotReopen(id: UUID)
+}
+
 protocol PracticeProgressRepositoryProtocol: Sendable {
     func load() async -> PracticeProgressLoadResult
     func progress(for identity: PracticeSongIdentity) async -> SongPracticeProgress?
@@ -29,6 +35,10 @@ protocol PracticeProgressRecoveryProtocol: Sendable {
     func recoverFromCorruption() async throws -> PracticeProgressRecoveryResult
 }
 
+protocol PracticeSessionRepositoryProtocol: Sendable {
+    func upsert(_ session: PracticeSessionRecord) async throws
+}
+
 typealias PracticeProgressFileReplacement = @Sendable (
     _ fileManager: FileManager,
     _ originalURL: URL,
@@ -36,10 +46,15 @@ typealias PracticeProgressFileReplacement = @Sendable (
     _ backupName: String
 ) throws -> Void
 
-actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol, PracticeProgressRecoveryProtocol {
+actor FilePracticeProgressRepository:
+    PracticeProgressRepositoryProtocol,
+    PracticeProgressRecoveryProtocol,
+    PracticeSessionRepositoryProtocol
+{
     private let fileManager: FileManager
     private let paths: PracticeProgressPaths
     private let replaceFile: PracticeProgressFileReplacement
+    private var liveSessionIDs: Set<UUID> = []
 
     init(
         fileManager: FileManager = .default,
@@ -91,6 +106,9 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol, Practi
                     ),
                     scoreMetadata: Self.sortedMetadata(
                         document.scoreMetadata.filter { $0.songID == songID }
+                    ),
+                    sessions: PracticeSessionRecordOrder.sorted(
+                        document.sessions.filter { $0.songID == songID }
                     )
                 )
             )
@@ -128,11 +146,32 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol, Practi
         try saveDocument(document)
     }
 
+    func upsert(_ session: PracticeSessionRecord) throws {
+        var document = try loadDocument()
+        if let existing = document.sessions.first(where: { $0.id == session.id }) {
+            try validateReplacement(of: existing, with: session)
+        }
+        document.sessions.removeAll { $0.id == session.id }
+        document.sessions.append(session)
+        document.sessions = PracticeSessionRecordOrder.sorted(document.sessions)
+        try saveDocument(document)
+        if session.termination == .open {
+            liveSessionIDs.insert(session.id)
+        } else {
+            liveSessionIDs.remove(session.id)
+        }
+    }
+
     func remove(songID: UUID) throws {
         var document = try loadDocument()
+        let removedSessionIDs = Set(
+            document.sessions.lazy.filter { $0.songID == songID }.map(\.id)
+        )
         document.songs.removeAll(where: { $0.identity.songID == songID })
         document.scoreMetadata.removeAll(where: { $0.songID == songID })
+        document.sessions.removeAll(where: { $0.songID == songID })
         try saveDocument(document)
+        liveSessionIDs.subtract(removedSessionIDs)
     }
 
     func recoverFromCorruption() throws -> PracticeProgressRecoveryResult {
@@ -180,7 +219,7 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol, Practi
         }
 
         do {
-            return try decodedDocument(from: data)
+            return try recoveringInterruptedSessions(in: decodedDocument(from: data))
         } catch {
             throw PracticeProgressRepositoryError.corrupted(
                 description: Self.safeDescription(error)
@@ -192,6 +231,63 @@ actor FilePracticeProgressRepository: PracticeProgressRepositoryProtocol, Practi
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(PracticeProgressDocument.self, from: data)
+    }
+
+    private func recoveringInterruptedSessions(
+        in document: PracticeProgressDocument
+    ) throws -> PracticeProgressDocument {
+        var recoveredDocument = document
+        var didRecover = false
+        recoveredDocument.sessions = document.sessions.map { session in
+            guard session.termination == .open,
+                  liveSessionIDs.contains(session.id) == false,
+                  let recovered = PracticeSessionRecord(
+                    id: session.id,
+                    songID: session.songID,
+                    scoreRevision: session.scoreRevision,
+                    windowOpenedAt: session.windowOpenedAt,
+                    practiceStartedAt: session.practiceStartedAt,
+                    practiceDay: session.practiceDay,
+                    endedAt: session.lastPersistedAt,
+                    lastPersistedAt: session.lastPersistedAt,
+                    practiceWindowDurationMilliseconds: session.practiceWindowDurationMilliseconds,
+                    activePracticeDurationMilliseconds: session.activePracticeDurationMilliseconds,
+                    termination: .recoveredAfterInterruption
+                  )
+            else {
+                return session
+            }
+            didRecover = true
+            return recovered
+        }
+        guard didRecover else { return document }
+        recoveredDocument.sessions = PracticeSessionRecordOrder.sorted(recoveredDocument.sessions)
+        try saveDocument(recoveredDocument)
+        return recoveredDocument
+    }
+
+    private func validateReplacement(
+        of existing: PracticeSessionRecord,
+        with replacement: PracticeSessionRecord
+    ) throws {
+        guard existing.songID == replacement.songID,
+              existing.scoreRevision == replacement.scoreRevision,
+              existing.windowOpenedAt == replacement.windowOpenedAt,
+              existing.practiceStartedAt == replacement.practiceStartedAt,
+              existing.practiceDay == replacement.practiceDay
+        else {
+            throw PracticeSessionMutationError.identityMismatch(id: replacement.id)
+        }
+        guard replacement.practiceWindowDurationMilliseconds
+                >= existing.practiceWindowDurationMilliseconds,
+              replacement.activePracticeDurationMilliseconds
+                >= existing.activePracticeDurationMilliseconds
+        else {
+            throw PracticeSessionMutationError.durationRegression(id: replacement.id)
+        }
+        guard existing.termination == .open || replacement.termination != .open else {
+            throw PracticeSessionMutationError.cannotReopen(id: replacement.id)
+        }
     }
 
     private func saveDocument(_ document: PracticeProgressDocument) throws {

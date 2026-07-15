@@ -18,6 +18,36 @@ private func makeProgress(songID: UUID = UUID(), revision: String = "r1") -> Son
     )
 }
 
+private func makeSession(
+    id: UUID = UUID(),
+    songID: UUID = UUID(),
+    revision: String = "r1",
+    persistedAt: Date = Date(timeIntervalSince1970: 200),
+    windowDuration: Int64 = 5_000,
+    activeDuration: Int64 = 3_000,
+    termination: PracticeSessionTermination = .open
+) throws -> PracticeSessionRecord {
+    let day = try #require(PracticeLocalDay(
+        year: 2026,
+        month: 7,
+        day: 15,
+        timeZoneIdentifier: "Asia/Singapore"
+    ))
+    return try #require(PracticeSessionRecord(
+        id: id,
+        songID: songID,
+        scoreRevision: revision,
+        windowOpenedAt: Date(timeIntervalSince1970: 100),
+        practiceStartedAt: Date(timeIntervalSince1970: 120),
+        practiceDay: day,
+        endedAt: termination == .open ? nil : persistedAt,
+        lastPersistedAt: persistedAt,
+        practiceWindowDurationMilliseconds: windowDuration,
+        activePracticeDurationMilliseconds: activeDuration,
+        termination: termination
+    ))
+}
+
 @Test
 func progressRepositoryReturnsEmptyOnFirstRunAndRoundTrips() async throws {
     let (repository, directory) = try makeRepositoryFixture()
@@ -153,26 +183,155 @@ func progressRepositorySerializesConcurrentUpsertsAndRemovesSong() async throws 
 }
 
 @Test
+func progressRepositoryUpsertsAndFinalizesOneSessionWithoutDuplicatingCheckpoints() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let id = UUID()
+    let songID = UUID()
+    let opened = try makeSession(id: id, songID: songID)
+    let checkpoint = try makeSession(
+        id: id,
+        songID: songID,
+        persistedAt: Date(timeIntervalSince1970: 230),
+        windowDuration: 8_000,
+        activeDuration: 6_000
+    )
+    let finalized = try makeSession(
+        id: id,
+        songID: songID,
+        persistedAt: Date(timeIntervalSince1970: 240),
+        windowDuration: 9_000,
+        activeDuration: 7_000,
+        termination: .normal
+    )
+
+    try await repository.upsert(opened)
+    try await repository.upsert(checkpoint)
+    guard case let .loaded(liveDocument) = await repository.load() else {
+        Issue.record("Expected a readable live session")
+        return
+    }
+    #expect(liveDocument.sessions == [checkpoint])
+
+    try await repository.upsert(finalized)
+    try await repository.upsert(finalized)
+    guard case let .loaded(finalizedDocument) = await repository.load() else {
+        Issue.record("Expected a readable finalized session")
+        return
+    }
+    #expect(finalizedDocument.sessions == [finalized])
+}
+
+@Test
+func progressRepositoryStoresSessionsInDeterministicOrder() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let songID = UUID()
+    let lowID = try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+    let highID = try #require(UUID(uuidString: "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"))
+    let low = try makeSession(id: lowID, songID: songID)
+    let high = try makeSession(id: highID, songID: songID)
+
+    try await repository.upsert(high)
+    try await repository.upsert(low)
+
+    guard case let .loaded(document) = await repository.load() else {
+        Issue.record("Expected deterministically sorted sessions")
+        return
+    }
+    #expect(document.sessions.map(\.id) == [lowID, highID])
+}
+
+@Test
+func progressRepositoryRecoversOnlySessionsNotLiveInCurrentActor() async throws {
+    let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let paths = PracticeProgressPaths(rootDirectoryURL: directory)
+    let stale = try makeSession(songID: UUID())
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    try encoder.encode(PracticeProgressDocument(sessions: [stale])).write(to: paths.fileURL)
+
+    let repository = FilePracticeProgressRepository(paths: paths)
+    guard case let .loaded(recoveredDocument) = await repository.load() else {
+        Issue.record("Expected stale session recovery")
+        return
+    }
+    let recovered = try #require(recoveredDocument.sessions.first)
+    #expect(recovered.id == stale.id)
+    #expect(recovered.endedAt == stale.lastPersistedAt)
+    #expect(recovered.termination == .recoveredAfterInterruption)
+    #expect(recovered.practiceWindowDurationMilliseconds == stale.practiceWindowDurationMilliseconds)
+    #expect(recovered.activePracticeDurationMilliseconds == stale.activePracticeDurationMilliseconds)
+
+    #expect(await repository.load() == .loaded(recoveredDocument))
+
+    let live = try makeSession(songID: UUID())
+    try await repository.upsert(live)
+    guard case let .loaded(documentWithLiveSession) = await repository.load() else {
+        Issue.record("Expected live session to stay readable")
+        return
+    }
+    #expect(documentWithLiveSession.sessions.contains(live))
+}
+
+@Test
+func progressRepositoryRejectsSessionRegressionAndIdentityCollision() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let original = try makeSession()
+    try await repository.upsert(original)
+
+    let regressed = try makeSession(
+        id: original.id,
+        songID: original.songID,
+        persistedAt: Date(timeIntervalSince1970: 250),
+        windowDuration: 4_000,
+        activeDuration: 2_000
+    )
+    await #expect(throws: PracticeSessionMutationError.durationRegression(id: original.id)) {
+        try await repository.upsert(regressed)
+    }
+
+    let collision = try makeSession(id: original.id, songID: UUID())
+    await #expect(throws: PracticeSessionMutationError.identityMismatch(id: original.id)) {
+        try await repository.upsert(collision)
+    }
+}
+
+@Test
 func progressRepositoryPreservesMetadataAndProgressAcrossConcernUpsertsAndRemoval() async throws {
     let (repository, directory) = try makeRepositoryFixture()
     defer { try? FileManager.default.removeItem(at: directory) }
     let songID = UUID()
     let progress = makeProgress(songID: songID)
     let metadata = makeMetadata(songID: songID)
+    let session = try makeSession(songID: songID)
+    let otherSession = try makeSession(songID: UUID())
 
     try await repository.upsert(metadata)
     try await repository.upsert(progress)
+    try await repository.upsert(session)
+    try await repository.upsert(otherSession)
     guard case let .loaded(history) = await repository.history(for: songID) else {
         Issue.record("Expected loaded history")
         return
     }
     #expect(history.progresses == [progress])
     #expect(history.scoreMetadata == [metadata])
+    #expect(history.sessions == [session])
 
     try await repository.remove(songID: songID)
     #expect(await repository.history(for: songID) == .loaded(
-        PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [])
+        PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: [])
     ))
+    guard case let .loaded(otherHistory) = await repository.history(for: otherSession.songID) else {
+        Issue.record("Expected another song's session to survive removal")
+        return
+    }
+    #expect(otherHistory.sessions == [otherSession])
 }
 
 @Test

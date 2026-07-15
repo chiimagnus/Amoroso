@@ -106,6 +106,11 @@ struct PracticeSessionRecord: Codable, Equatable, Sendable {
         guard (termination == .open) == (endedAt == nil) else {
             return nil
         }
+        let windowDuration = max(0, practiceWindowDurationMilliseconds)
+        let activeDuration = max(0, activePracticeDurationMilliseconds)
+        guard activeDuration <= windowDuration else {
+            return nil
+        }
         self.id = id
         self.songID = songID
         self.scoreRevision = scoreRevision
@@ -114,8 +119,8 @@ struct PracticeSessionRecord: Codable, Equatable, Sendable {
         self.practiceDay = practiceDay
         self.endedAt = endedAt
         self.lastPersistedAt = lastPersistedAt
-        self.practiceWindowDurationMilliseconds = max(0, practiceWindowDurationMilliseconds)
-        self.activePracticeDurationMilliseconds = max(0, activePracticeDurationMilliseconds)
+        self.practiceWindowDurationMilliseconds = windowDuration
+        self.activePracticeDurationMilliseconds = activeDuration
         self.termination = termination
     }
 
@@ -409,6 +414,19 @@ struct PracticeSongHistory: Equatable, Sendable {
     let songID: UUID
     let progresses: [SongPracticeProgress]
     let scoreMetadata: [SongScorePracticeMetadata]
+    let sessions: [PracticeSessionRecord]
+
+    init(
+        songID: UUID,
+        progresses: [SongPracticeProgress],
+        scoreMetadata: [SongScorePracticeMetadata],
+        sessions: [PracticeSessionRecord] = []
+    ) {
+        self.songID = songID
+        self.progresses = progresses
+        self.scoreMetadata = scoreMetadata
+        self.sessions = sessions
+    }
 }
 
 enum PracticeSongHistoryLoadResult: Equatable, Sendable {
@@ -454,6 +472,20 @@ enum PracticeProgressRecordOrder {
         encoder.dateEncodingStrategy = .deferredToDate
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         return (try? encoder.encode(progress)) ?? Data()
+    }
+}
+
+enum PracticeSessionRecordOrder {
+    static func sorted(_ sessions: [PracticeSessionRecord]) -> [PracticeSessionRecord] {
+        sessions.sorted { lhs, rhs in
+            if lhs.songID != rhs.songID {
+                return lhs.songID.uuidString < rhs.songID.uuidString
+            }
+            if lhs.practiceStartedAt != rhs.practiceStartedAt {
+                return lhs.practiceStartedAt < rhs.practiceStartedAt
+            }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
     }
 }
 
