@@ -9,10 +9,12 @@ private enum RecorderRepositoryError: Error {
 
 private actor RecorderRepository: PracticeSessionRepositoryProtocol {
     private var failuresRemaining = 0
+    private var writeAttemptCount = 0
     private var savedRecords: [PracticeSessionRecord] = []
     private var abandonedSessionIDs: [UUID] = []
 
     func upsert(_ session: PracticeSessionRecord) throws {
+        writeAttemptCount += 1
         if failuresRemaining > 0 {
             failuresRemaining -= 1
             throw RecorderRepositoryError.writeFailed
@@ -34,6 +36,10 @@ private actor RecorderRepository: PracticeSessionRepositoryProtocol {
 
     func abandonedIDs() -> [UUID] {
         abandonedSessionIDs
+    }
+
+    func waitForWriteAttempts(_ count: Int) async {
+        while writeAttemptCount < count { await Task.yield() }
     }
 }
 
@@ -129,8 +135,12 @@ func recorderReportsLifecycleWithoutExportingSessionContents() async throws {
     await beginActiveVisit(recorder: recorder)
 
     await recorder.setGuiding(true)
+    _ = await recorder.checkpoint()
     await repository.failNextWrites(1)
     await recorder.setSettingsPresented(true)
+    await repository.waitForWriteAttempts(3)
+    for _ in 0 ..< 10 { await Task.yield() }
+    _ = await recorder.checkpoint()
     await recorder.finalize()
 
     let events = await reporter.events
@@ -262,14 +272,14 @@ func recorderRetriesFailedWriteAtNextBoundary() async throws {
 
     await beginActiveVisit(recorder: recorder)
     clock.advance(milliseconds: 1_000)
-    guard case .failed = await recorder.setGuiding(true) else {
-        Issue.record("Expected the first session write to remain pending")
-        return
-    }
+    await recorder.setGuiding(true)
+    await repository.waitForWriteAttempts(1)
+    for _ in 0 ..< 10 { await Task.yield() }
     #expect(await repository.records().isEmpty)
 
     clock.advance(milliseconds: 1_000)
-    #expect(await recorder.setSettingsPresented(true) == .saved)
+    await recorder.setSettingsPresented(true)
+    #expect(await recorder.checkpoint() == .saved)
     let retried = try #require(await repository.records().last)
     #expect(retried.practiceWindowDurationMilliseconds == 2_000)
     #expect(retried.activePracticeDurationMilliseconds == 1_000)
@@ -285,14 +295,14 @@ func recorderDiscardKeepsLastSuccessfulCheckpoint() async throws {
     await beginActiveVisit(recorder: recorder, visitID: visitID)
     clock.advance(milliseconds: 1_000)
     await recorder.setGuiding(true)
+    _ = await recorder.checkpoint()
     let saved = try #require(await repository.records().last)
     await repository.failNextWrites(1)
 
     clock.advance(milliseconds: 1_000)
-    guard case .failed = await recorder.setSettingsPresented(true) else {
-        Issue.record("Expected an unsaved delta")
-        return
-    }
+    await recorder.setSettingsPresented(true)
+    await repository.waitForWriteAttempts(2)
+    for _ in 0 ..< 10 { await Task.yield() }
     await recorder.discardPendingDelta()
 
     #expect(await repository.records() == [saved])
@@ -333,6 +343,7 @@ func recorderIgnoresCancelledPeriodicCheckpointThatFinishesLate() async throws {
     await waitForSleep(1, sleeper: sleeper)
     clock.advance(milliseconds: 5_000)
     await recorder.setSettingsPresented(true)
+    _ = await recorder.checkpoint()
     let countAfterSettingsBoundary = await repository.records().count
 
     clock.advance(milliseconds: 30_000)
@@ -340,4 +351,78 @@ func recorderIgnoresCancelledPeriodicCheckpointThatFinishesLate() async throws {
     for _ in 0 ..< 20 { await Task.yield() }
 
     #expect(await repository.records().count == countAfterSettingsBoundary)
+}
+
+@Test
+func recorderSemanticEventsReturnBeforeSlowPersistenceCompletes() async throws {
+    let repository = GatedRecorderRepository()
+    let clock = try RecorderClock()
+    let recorder = PracticeSessionRecorder(
+        repository: repository,
+        clock: clock.makeClock(),
+        sleeper: RecorderSleeper()
+    )
+    await beginActiveVisit(recorder: recorder)
+    let guidingCompletion = RecorderCompletionProbe()
+    let settingsCompletion = RecorderCompletionProbe()
+
+    let guidingTask = Task {
+        _ = await recorder.setGuiding(true)
+        await guidingCompletion.markCompleted()
+    }
+    await repository.waitUntilFirstWriteStarts()
+    for _ in 0 ..< 20 { await Task.yield() }
+    let guidingReturnedBeforeRelease = await guidingCompletion.isCompleted
+
+    clock.advance(milliseconds: 10_000)
+    let settingsTask = Task {
+        _ = await recorder.setSettingsPresented(true)
+        await settingsCompletion.markCompleted()
+    }
+    for _ in 0 ..< 20 { await Task.yield() }
+    let settingsReturnedBeforeRelease = await settingsCompletion.isCompleted
+
+    await repository.resumeFirstWrite()
+    await guidingTask.value
+    await settingsTask.value
+    #expect(guidingReturnedBeforeRelease)
+    #expect(settingsReturnedBeforeRelease)
+    #expect(await recorder.finalize() == .saved)
+    let final = try #require(await repository.records().last)
+    #expect(final.activePracticeDurationMilliseconds == 10_000)
+}
+
+private actor GatedRecorderRepository: PracticeSessionRepositoryProtocol {
+    private var firstWriteContinuation: CheckedContinuation<Void, Never>?
+    private var didStartFirstWrite = false
+    private var savedRecords: [PracticeSessionRecord] = []
+
+    func upsert(_ session: PracticeSessionRecord) async {
+        if didStartFirstWrite == false {
+            didStartFirstWrite = true
+            await withCheckedContinuation { firstWriteContinuation = $0 }
+        }
+        savedRecords.append(session)
+    }
+
+    func abandonLiveSession(id _: UUID) {}
+
+    func waitUntilFirstWriteStarts() async {
+        while didStartFirstWrite == false { await Task.yield() }
+    }
+
+    func resumeFirstWrite() {
+        firstWriteContinuation?.resume()
+        firstWriteContinuation = nil
+    }
+
+    func records() -> [PracticeSessionRecord] { savedRecords }
+}
+
+private actor RecorderCompletionProbe {
+    private(set) var isCompleted = false
+
+    func markCompleted() {
+        isCompleted = true
+    }
 }

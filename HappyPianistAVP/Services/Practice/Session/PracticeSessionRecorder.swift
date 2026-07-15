@@ -178,7 +178,8 @@ actor PracticeSessionRecorder {
         self.visit = visit
         queueCurrentRecord()
         refreshPeriodicCheckpoint()
-        return await flushPendingRecord()
+        startPendingRecordPersistence()
+        return saveStatus
     }
 
     @discardableResult
@@ -208,7 +209,8 @@ actor PracticeSessionRecorder {
         self.visit = visit
         queueCurrentRecord(persistedAt: firstCheckpointDate)
         refreshPeriodicCheckpoint()
-        return await flushPendingRecord()
+        startPendingRecordPersistence()
+        return saveStatus
     }
 
     @discardableResult
@@ -220,7 +222,8 @@ actor PracticeSessionRecorder {
         self.visit = visit
         queueCurrentRecord()
         refreshPeriodicCheckpoint()
-        return await flushPendingRecord()
+        startPendingRecordPersistence()
+        return saveStatus
     }
 
     @discardableResult
@@ -241,18 +244,35 @@ actor PracticeSessionRecorder {
 
         cancelPeriodicCheckpoint()
         advance(&visit)
-        visit.isFinalized = true
         guard visit.practiceStartedAt != nil else {
+            visit.isFinalized = true
             self.visit = visit
             saveStatus = .idle
             return .idle
         }
 
         let endedAt = clock.wallDate()
-        visit.endedAt = endedAt
         self.visit = visit
-        queueCurrentRecord(persistedAt: endedAt)
-        return await flushPendingRecord()
+        if let persistenceTask {
+            _ = await persistenceTask.value
+        }
+        queueCurrentRecord(
+            persistedAt: endedAt,
+            endedAt: endedAt,
+            termination: .normal
+        )
+        let status = await flushPendingRecord()
+        guard status == .saved,
+              var currentVisit = self.visit,
+              currentVisit.id == visit.id
+        else {
+            return status
+        }
+        currentVisit.endedAt = endedAt
+        currentVisit.isFinalized = true
+        self.visit = currentVisit
+        await reportPersistenceStatus(status)
+        return status
     }
 
     func discardPendingDelta() async {
@@ -295,7 +315,11 @@ actor PracticeSessionRecorder {
         return overflow ? .max : result
     }
 
-    private func queueCurrentRecord(persistedAt: Date? = nil) {
+    private func queueCurrentRecord(
+        persistedAt: Date? = nil,
+        endedAt: Date? = nil,
+        termination: PracticeSessionTermination? = nil
+    ) {
         guard let visit,
               let scoreRevision = visit.scoreRevision,
               let practiceStartedAt = visit.practiceStartedAt,
@@ -307,11 +331,11 @@ actor PracticeSessionRecorder {
                 windowOpenedAt: visit.windowOpenedAt,
                 practiceStartedAt: practiceStartedAt,
                 practiceDay: practiceDay,
-                endedAt: visit.endedAt,
+                endedAt: endedAt ?? visit.endedAt,
                 lastPersistedAt: persistedAt ?? clock.wallDate(),
                 practiceWindowDurationMilliseconds: visit.windowDurationMilliseconds,
                 activePracticeDurationMilliseconds: visit.activeDurationMilliseconds,
-                termination: visit.isFinalized ? .normal : .open
+                termination: termination ?? (visit.isFinalized ? .normal : .open)
               )
         else {
             return
@@ -325,19 +349,32 @@ actor PracticeSessionRecorder {
             await reportPersistenceStatus(saveStatus)
             return saveStatus
         }
-        if let persistenceTask {
-            let status = await persistenceTask.value
-            await reportPersistenceStatus(status)
-            return status
-        }
+        startPendingRecordPersistence()
+        guard let persistenceTask else { return saveStatus }
+        return await persistenceTask.value
+    }
 
+    private func startPendingRecordPersistence() {
+        guard pendingRecord != nil, persistenceTask == nil else { return }
         persistenceGeneration += 1
         let generation = persistenceGeneration
-        let task = Task { await self.drainPendingRecords(generation: generation) }
-        persistenceTask = task
-        let status = await task.value
-        await reportPersistenceStatus(status)
-        return status
+        persistenceTask = Task {
+            let status = await self.drainPendingRecords()
+            await self.reportPersistenceStatus(status)
+            self.completePersistence(status: status, generation: generation)
+            return status
+        }
+    }
+
+    private func completePersistence(
+        status: PracticeSessionRecorderSaveStatus,
+        generation: Int
+    ) {
+        guard generation == persistenceGeneration else { return }
+        persistenceTask = nil
+        if status == .saved, pendingRecord != nil {
+            startPendingRecordPersistence()
+        }
     }
 
     private func reportPersistenceStatus(_ status: PracticeSessionRecorderSaveStatus) async {
@@ -403,9 +440,7 @@ actor PracticeSessionRecorder {
         }
     }
 
-    private func drainPendingRecords(
-        generation: Int
-    ) async -> PracticeSessionRecorderSaveStatus {
+    private func drainPendingRecords() async -> PracticeSessionRecorderSaveStatus {
         var didSave = false
         while let record = pendingRecord {
             pendingRecord = nil
@@ -417,18 +452,11 @@ actor PracticeSessionRecorder {
                     pendingRecord = record
                 }
                 saveStatus = .failed(description: Self.safeDescription(error))
-                clearPersistenceTask(generation: generation)
                 return saveStatus
             }
         }
         saveStatus = didSave ? .saved : saveStatus
-        clearPersistenceTask(generation: generation)
         return saveStatus
-    }
-
-    private func clearPersistenceTask(generation: Int) {
-        guard generation == persistenceGeneration else { return }
-        persistenceTask = nil
     }
 
     private func refreshPeriodicCheckpoint() {
