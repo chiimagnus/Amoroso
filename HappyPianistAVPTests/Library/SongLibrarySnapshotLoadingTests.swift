@@ -19,7 +19,8 @@ func libraryLoadsInvitationWithoutScoreAccess() async throws {
         entry.id: .loaded(PracticeSongHistory(
             songID: entry.id,
             progresses: [],
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     ])
     let fileStore = SnapshotScoreAccessSpy()
@@ -447,7 +448,7 @@ private func corruptedUnavailable(
 }
 
 private func emptyHistory(for songID: UUID) -> PracticeSongHistoryLoadResult {
-    .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+    .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
 }
 
 private func currentHistory(for entry: SongLibraryEntry) -> PracticeSongHistoryLoadResult {

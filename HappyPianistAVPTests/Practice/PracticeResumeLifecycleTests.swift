@@ -565,7 +565,8 @@ private actor ResumeRepository: PracticeProgressRepositoryProtocol {
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: stored.map { $0.identity.songID == songID ? [$0] : [] } ?? [],
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
 
@@ -599,7 +600,8 @@ private actor FailingRepairRepository: PracticeProgressRepositoryProtocol {
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: stored.identity.songID == songID ? [stored] : [],
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
 

@@ -13,7 +13,7 @@ private actor RecordingProgressRepository: PracticeProgressRepositoryProtocol {
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
     func upsert(_: SongPracticeProgress) {}
     func upsert(_: SongScorePracticeMetadata) {}

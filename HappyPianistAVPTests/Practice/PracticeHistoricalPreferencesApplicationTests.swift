@@ -157,7 +157,8 @@ private actor HistoricalApplicationRepository: PracticeProgressRepositoryProtoco
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: progress.map { $0.identity.songID == songID ? [$0] : [] } ?? [],
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
     func upsert(_ progress: SongPracticeProgress) { self.progress = progress }

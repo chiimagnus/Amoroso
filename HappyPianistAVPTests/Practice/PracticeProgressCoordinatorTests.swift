@@ -259,7 +259,8 @@ private actor InMemoryPracticeProgressRepository: PracticeProgressRepositoryProt
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: values.values.filter { $0.identity.songID == songID },
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
 
@@ -292,7 +293,7 @@ private actor SuspendedPracticeProgressRepository: PracticeProgressRepositoryPro
     }
 
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
 
     func waitForRequest(identity: PracticeSongIdentity) async {

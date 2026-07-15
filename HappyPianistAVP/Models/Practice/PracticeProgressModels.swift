@@ -420,7 +420,7 @@ struct PracticeSongHistory: Equatable, Sendable {
         songID: UUID,
         progresses: [SongPracticeProgress],
         scoreMetadata: [SongScorePracticeMetadata],
-        sessions: [PracticeSessionRecord] = []
+        sessions: [PracticeSessionRecord]
     ) {
         self.songID = songID
         self.progresses = progresses

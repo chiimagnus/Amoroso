@@ -334,7 +334,7 @@ private actor SuspendedLifecycleProgressRepository: PracticeProgressRepositoryPr
     }
 
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
 
     func waitForRequest(identity: PracticeSongIdentity) async {
@@ -367,7 +367,8 @@ private actor LifecycleProgressRepository: PracticeProgressRepositoryProtocol {
         .loaded(PracticeSongHistory(
             songID: songID,
             progresses: storedProgress.map { $0.identity.songID == songID ? [$0] : [] } ?? [],
-            scoreMetadata: []
+            scoreMetadata: [],
+            sessions: []
         ))
     }
 
@@ -382,7 +383,7 @@ private actor FailingLifecycleProgressRepository: PracticeProgressRepositoryProt
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
     func upsert(_: SongPracticeProgress) throws { throw CocoaError(.fileWriteOutOfSpace) }
     func upsert(_: SongScorePracticeMetadata) {}
@@ -404,7 +405,7 @@ private actor FirstSuspendedLifecycleProgressRepository: PracticeProgressReposit
     }
 
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
 
     func waitForFirstRequest() async {

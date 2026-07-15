@@ -1056,7 +1056,8 @@ private actor RecordingPracticeLaunchProgressRepository:
         return .loaded(PracticeSongHistory(
             songID: songID,
             progresses: progresses.filter { $0.identity.songID == songID },
-            scoreMetadata: metadata.filter { $0.songID == songID }
+            scoreMetadata: metadata.filter { $0.songID == songID },
+            sessions: []
         ))
     }
     func upsert(_ progress: SongPracticeProgress) {
@@ -1118,7 +1119,7 @@ private actor SuspendedMetadataPracticeLaunchRepository: PracticeProgressReposit
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
     func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
-        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: []))
+        .loaded(PracticeSongHistory(songID: songID, progresses: [], scoreMetadata: [], sessions: []))
     }
     func upsert(_: SongPracticeProgress) {}
     func upsert(_: SongScorePracticeMetadata) async {
