@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 protocol PracticeProgressClockProtocol: Sendable {
     func now() -> Date
@@ -27,7 +26,7 @@ actor PracticeProgressCoordinator {
     private let repository: any PracticeProgressRepositoryProtocol
     private let clock: any PracticeProgressClockProtocol
     private let checkpointDelay: Duration
-    private let logger = Logger(subsystem: "HappyPianistAVP", category: "PracticeProgress")
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
 
     private var currentGeneration = 0
     private var currentIdentity: PracticeSongIdentity?
@@ -39,11 +38,13 @@ actor PracticeProgressCoordinator {
     init(
         repository: any PracticeProgressRepositoryProtocol,
         clock: any PracticeProgressClockProtocol = SystemPracticeProgressClock(),
-        checkpointDelay: Duration = .milliseconds(350)
+        checkpointDelay: Duration = .milliseconds(350),
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         self.repository = repository
         self.clock = clock
         self.checkpointDelay = checkpointDelay
+        self.diagnosticsReporter = diagnosticsReporter
     }
 
     func begin(identity: PracticeSongIdentity) async -> PracticeProgressSession {
@@ -102,8 +103,24 @@ actor PracticeProgressCoordinator {
         } catch {
             guard generation == currentGeneration else { return saveStatus }
             let message = error.localizedDescription
-            saveStatus = .failed(message: message)
-            logger.error("Unable to save practice progress: \(message, privacy: .public)")
+            let failureStatus = PracticeProgressSaveStatus.failed(message: message)
+            saveStatus = failureStatus
+            if let diagnosticsReporter {
+                _ = await diagnosticsReporter.record(
+                    DiagnosticEvent(
+                        severity: .warning,
+                        code: .practiceProgressSaveFailed,
+                        category: .persistence,
+                        stage: "practiceProgressCheckpoint",
+                        summary: "无法保存练习进度 checkpoint",
+                        reason: PracticePreparationErrorDetails.safeErrorSummary(error),
+                        songID: currentIdentity?.songID,
+                        scoreRevision: currentIdentity?.scoreRevision,
+                        persistence: .exportable
+                    )
+                )
+            }
+            return failureStatus
         }
         return saveStatus
     }
@@ -120,6 +137,17 @@ actor PracticeProgressCoordinator {
         lastAcceptedUpdatedAt = nil
         currentGeneration += 1
         return status
+    }
+
+    func discardPendingProgress(generation: Int) {
+        guard generation == currentGeneration else { return }
+        delayedFlushTask?.cancel()
+        delayedFlushTask = nil
+        currentIdentity = nil
+        pendingProgress = nil
+        lastAcceptedUpdatedAt = nil
+        saveStatus = .idle
+        currentGeneration += 1
     }
 
     private func accepts(progress: SongPracticeProgress, generation: Int) -> Bool {

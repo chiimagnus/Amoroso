@@ -6,6 +6,12 @@ import os
 @MainActor
 @Observable
 final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, PracticeSessionEffectHandlerProtocol {
+    enum SessionRecorderEvent: Sendable {
+        case guiding(Bool)
+        case settingsPresented(Bool)
+        case checkpoint
+    }
+
     let stateStore: PracticeSessionStateStore
     let stepNavigator: PracticeStepNavigator
 
@@ -24,6 +30,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     let attemptReducer = PracticeAttemptReducer()
     let roundConfigurationController: PracticeRoundConfigurationController
     let progressCoordinator: PracticeProgressCoordinator?
+    let sessionRecorder: PracticeSessionRecorder?
     let feedbackPolicy = PracticeFeedbackPolicy()
 
     var practiceMIDIInputService: PracticeMIDIInputService?
@@ -40,7 +47,9 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     let autoplayTimingLeadInSeconds: TimeInterval = 0.05
 
     private(set) var hasShutdown = false
+    private(set) var guidingStartIsBlocked = false
     var lastProgressRestoreOutcome: PracticeProgressRestoreOutcome = .none
+    @ObservationIgnored private var sessionRecorderEventTask: Task<Void, Never>?
 
     var practiceHandMode: PracticeHandMode {
         stateStore.activeRoundConfiguration?.handMode ?? .both
@@ -66,7 +75,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         handPianoActivityGate: HandPianoActivityGate,
         settingsProvider: (any PracticeSessionSettingsProviderProtocol)? = nil,
         roundDefaultsStore: (any PracticeRoundDefaultsStoreProtocol)? = nil,
-        progressCoordinator: PracticeProgressCoordinator? = nil
+        progressCoordinator: PracticeProgressCoordinator? = nil,
+        sessionRecorder: PracticeSessionRecorder? = nil
     ) {
         stateStore = PracticeSessionStateStore()
         stepNavigator = PracticeStepNavigator()
@@ -86,6 +96,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         let resolvedSettingsProvider = settingsProvider ?? UserDefaultsPracticeSessionSettingsProvider()
         self.settingsProvider = resolvedSettingsProvider
         self.progressCoordinator = progressCoordinator
+        self.sessionRecorder = sessionRecorder
         roundConfigurationController = PracticeRoundConfigurationController(
             stateStore: stateStore,
             settingsProvider: resolvedSettingsProvider,
@@ -162,6 +173,30 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         manualReplayService?.shutdown()
         handGateController?.shutdown()
         virtualPianoInputController?.shutdown()
+    }
+
+    func setGuidingStartBlocked(_ isBlocked: Bool) {
+        guidingStartIsBlocked = isBlocked
+    }
+
+    func enqueueSessionRecorderEvent(_ event: SessionRecorderEvent) {
+        guard let sessionRecorder else { return }
+        let previousTask = sessionRecorderEventTask
+        sessionRecorderEventTask = Task { @MainActor in
+            await previousTask?.value
+            switch event {
+            case let .guiding(isGuiding):
+                await sessionRecorder.setGuiding(isGuiding)
+            case let .settingsPresented(isPresented):
+                await sessionRecorder.setSettingsPresented(isPresented)
+            case .checkpoint:
+                await sessionRecorder.checkpoint()
+            }
+        }
+    }
+
+    func waitForSessionRecorderEvents() async {
+        await sessionRecorderEventTask?.value
     }
 
     func handle(effect: PracticeSessionEffect) {

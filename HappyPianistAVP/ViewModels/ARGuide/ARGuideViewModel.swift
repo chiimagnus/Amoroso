@@ -38,6 +38,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     var latestPreparedPractice: PreparedPractice?
     var practiceProgressSaveErrorMessage: String?
     @ObservationIgnored private var latestPracticeRestorePolicy: PracticeLaunchRestorePolicy?
+    @ObservationIgnored private var practiceGuidingStartIsBlocked = false
 
     @ObservationIgnored private var handTrackingConsumerTask: Task<Void, Never>?
     @ObservationIgnored private var preparedPracticeApplicationID: UUID?
@@ -201,6 +202,11 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         }
     }
 
+    func setPracticeGuidingStartBlocked(_ isBlocked: Bool) {
+        practiceGuidingStartIsBlocked = isBlocked
+        practiceSessionViewModel.setGuidingStartBlocked(isBlocked)
+    }
+
     private func applyPreparedPractice(
         _ prepared: PreparedPractice,
         restorePolicy: PracticeLaunchRestorePolicy,
@@ -299,6 +305,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         }
         practiceProgressSaveErrorMessage = nil
         let next = makePracticeSessionViewModel(practiceSetupState.selectedPianoModeID)
+        next.setGuidingStartBlocked(practiceGuidingStartIsBlocked)
         practiceSessionViewModel = next
         placementViewModel.updatePracticeSession(next)
         practiceViewModel.updatePracticeSession(next)
@@ -629,20 +636,40 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     @discardableResult
-    func leavePracticeStep() async -> PracticeProgressSaveStatus {
-        let saveStatus = await practiceSessionViewModel.flushAndShutdown()
+    func flushPracticeProgressForReturn() async -> PracticeProgressSaveStatus {
+        let saveStatus = await practiceSessionViewModel.suspendAndFlushProgress()
         if case .failed = saveStatus {
+            practiceSessionViewModel.resumeAfterSuspension()
             publishPracticeProgressSaveFailure()
             return saveStatus
         }
         practiceProgressSaveErrorMessage = nil
+        return saveStatus
+    }
+
+    func discardUnsavedPracticeProgressForReturn() async {
+        await practiceSessionViewModel.discardPendingProgress()
+        practiceProgressSaveErrorMessage = nil
+    }
+
+    func completePracticeExit() {
+        practiceSessionViewModel.shutdown()
+        cleanUpPracticePresentation()
+    }
+
+    func closePracticeStepForSystemDisappear() async {
+        _ = await practiceSessionViewModel.suspendAndFlushProgress()
+        practiceSessionViewModel.shutdown()
+        cleanUpPracticePresentation()
+    }
+
+    private func cleanUpPracticePresentation() {
         recordingViewModel.stop()
         takePlaybackViewModel.stop()
         setPracticeAutoplayEnabled(false)
         hideVirtualPiano()
         setPracticeVirtualPerformerEnabled(false)
         resetPracticeLocalizationState()
-        return saveStatus
     }
 
     var recordingElapsedText: String {

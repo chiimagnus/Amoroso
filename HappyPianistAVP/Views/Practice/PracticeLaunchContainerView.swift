@@ -20,6 +20,12 @@ struct PracticeLaunchContainerView: View {
                                 await launchViewModel.retry()
                             }
                         },
+                        canRecoverCorruptedProgress: failure.recoveryAction == .backupAndResetCorruptedProgress,
+                        onRecoverCorruptedProgress: {
+                            Task { @MainActor in
+                                await launchViewModel.recoverCorruptedProgress()
+                            }
+                        },
                         onReturn: onReturn
                     )
                 case .ready:
@@ -27,6 +33,24 @@ struct PracticeLaunchContainerView: View {
                         viewModel: arGuideViewModel,
                         onBackToLibrary: onReturn
                     )
+                    .overlay(alignment: .top) {
+                        if let failure = launchViewModel.progressAccessFailure {
+                            PracticeProgressAccessFailureBanner(
+                                failure: failure,
+                                onRetry: {
+                                    Task { @MainActor in
+                                        await launchViewModel.retry()
+                                    }
+                                },
+                                onRecoverCorruptedProgress: {
+                                    Task { @MainActor in
+                                        await launchViewModel.recoverCorruptedProgress()
+                                    }
+                                }
+                            )
+                            .padding()
+                        }
+                    }
                 }
             }
         }

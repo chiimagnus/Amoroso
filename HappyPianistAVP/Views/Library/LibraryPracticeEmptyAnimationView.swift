@@ -122,7 +122,7 @@ private struct LibraryPracticePianoKeyboardView: View {
     }
     .frame(width: 252, height: 128)
     .rotationEffect(.degrees(-6))
-    .rotation3DEffect(
+    .perspectiveRotationEffect(
       .degrees(16),
       axis: (x: 1, y: 0, z: 0),
       perspective: 0.52

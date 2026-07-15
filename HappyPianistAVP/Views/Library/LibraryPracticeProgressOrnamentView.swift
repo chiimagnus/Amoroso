@@ -1,50 +1,62 @@
 import SwiftUI
 
 struct LibraryPracticeProgressOrnamentView: View {
-  static let minimumWidth: CGFloat = 360
-  static let idealWidth: CGFloat = 420
-  static let maximumWidth: CGFloat = 440
-
   let state: SongPracticeLibraryPresentationState
+  let height: CGFloat
+  let onRetry: () -> Void
+  let onConfirmedReset: () -> Void
 
   var body: some View {
     ScrollView {
-      LibraryPracticeOrnamentContentView(state: state)
+      LibraryPracticeOrnamentContentView(
+        state: state,
+        onRetry: onRetry,
+        onConfirmedReset: onConfirmedReset
+      )
         .padding(LibraryPracticeOrnamentLayout.contentPadding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
     .scrollIndicators(.hidden)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("当前曲目练习概览")
+    .frame(
+      minWidth: LibraryPracticeOrnamentLayout.minimumWidth,
+      idealWidth: LibraryPracticeOrnamentLayout.idealWidth,
+      maxWidth: LibraryPracticeOrnamentLayout.maximumWidth,
+      minHeight: height,
+      idealHeight: height,
+      maxHeight: height
+    )
   }
 }
 
 private enum LibraryPracticeOrnamentLayout {
+  static let minimumWidth: CGFloat = 360
+  static let idealWidth: CGFloat = 420
+  static let maximumWidth: CGFloat = 440
   static let contentPadding: CGFloat = 24
   static let cardCornerRadius: CGFloat = 22
 }
 
 private struct LibraryPracticeOrnamentContentView: View {
   let state: SongPracticeLibraryPresentationState
+  let onRetry: () -> Void
+  let onConfirmedReset: () -> Void
 
   var body: some View {
     switch state {
     case .loading:
       LibraryPracticeLoadingView()
-    case .neverPracticed:
+    case .invitation:
       LibraryPracticeInvitationView()
-    case .current(let snapshot):
-      LibraryPracticeOverviewView(
-        presentation: LibraryPracticeOverviewPresentation(snapshot: snapshot)
+    case .overview(let overview):
+      LibraryPracticeOverviewView(overview: overview)
+    case .unavailable(let unavailable):
+      LibraryPracticeUnavailableView(
+        unavailable: unavailable,
+        onRetry: onRetry,
+        onConfirmedReset: onConfirmedReset
       )
-    case .needsRebuild(_, let historyDate):
-      LibraryPracticeOverviewView(
-        presentation: LibraryPracticeOverviewPresentation.needsRebuild(
-          historyDate: historyDate
-        )
-      )
-    case .unavailable:
-      LibraryPracticeUnavailableView()
     }
   }
 }
@@ -95,14 +107,55 @@ private struct LibraryPracticeLoadingPlaceholderView: View {
 }
 
 private struct LibraryPracticeUnavailableView: View {
+  let unavailable: SongPracticeLibraryUnavailable
+  let onRetry: () -> Void
+  let onConfirmedReset: () -> Void
+
+  @State private var isResetConfirmationPresented = false
+
   var body: some View {
     ContentUnavailableView {
-      Label("暂时无法读取练习记录", systemImage: "exclamationmark.triangle")
+      Label(title, systemImage: "exclamationmark.triangle")
     } description: {
-      Text("你仍然可以试听曲目或从主窗口开始练习；这里不会修改已有数据。")
+      Text(message)
+    } actions: {
+      Button("重试", systemImage: "arrow.clockwise", action: onRetry)
+        .buttonStyle(.borderedProminent)
+
+      if unavailable.recoveryOptions == .retryAndConfirmedBackupReset {
+        Button("备份并重置", systemImage: "externaldrive.badge.xmark") {
+          isResetConfirmationPresented = true
+        }
+      }
     }
     .foregroundStyle(.primary)
     .frame(maxWidth: .infinity, minHeight: 420)
+    .confirmationDialog(
+      "备份并重置练习记录？",
+      isPresented: $isResetConfirmationPresented,
+      titleVisibility: .visible
+    ) {
+      Button("备份并重置", role: .destructive, action: onConfirmedReset)
+      Button("取消", role: .cancel) {}
+    } message: {
+      Text("仅在记录已确认损坏时使用。原文件会先备份，再创建空记录。")
+    }
+  }
+
+  private var title: String {
+    switch unavailable.reason {
+    case .temporarilyUnavailable: "暂时无法读取练习记录"
+    case .corrupted: "练习记录已损坏"
+    }
+  }
+
+  private var message: String {
+    switch unavailable.reason {
+    case .temporarilyUnavailable:
+      "你仍然可以试听曲目；请稍后重试读取练习记录。"
+    case .corrupted:
+      "你仍然可以试听曲目；可以重试，或确认备份损坏文件后重置练习记录。"
+    }
   }
 }
 
@@ -209,37 +262,43 @@ private struct LibraryPracticeBenefitRow: View {
 }
 
 private struct LibraryPracticeOverviewView: View {
-  let presentation: LibraryPracticeOverviewPresentation
+  let overview: SongPracticeLibraryOverview
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      LibraryPracticeOverviewHeader(presentation: presentation)
+      LibraryPracticeOverviewHeader(status: overview.status)
         .padding(.bottom, 4)
-      LibraryPracticeSummaryView(items: presentation.summaryItems)
+      LibraryPracticeSummaryView(summary: overview.sessionSummary)
 
-      if let progress = presentation.progress {
+      switch overview.measureProgress {
+      case let .available(progress):
         LibraryPracticeProgressSection(progress: progress)
-      } else if let progressMessage = presentation.progressMessage {
-        LibraryPracticeProgressMessageSection(message: progressMessage)
+      case .metadataUnavailable:
+        LibraryPracticeProgressMessageSection(
+          message: "下次成功准备曲谱后建立当前版本进度。"
+        )
       }
 
-      if let resume = presentation.resume {
+      if let resume = overview.resumeSourceMeasureID {
         LibraryPracticeResumeSection(resume: resume)
       }
 
-      if presentation.focusItems.isEmpty == false {
-        LibraryPracticeFocusSection(items: presentation.focusItems)
+      if overview.focusMeasures.isEmpty == false {
+        LibraryPracticeFocusSection(items: overview.focusMeasures)
       }
 
-      if let encouragement = presentation.encouragement {
-        LibraryPracticeEncouragementSection(encouragement: encouragement)
+      if let streak = overview.sessionSummary.streak {
+        LibraryPracticeEncouragementSection(
+          streak: streak,
+          stableMeasureCount: overview.measureProgress.stableMeasureCount
+        )
       }
     }
   }
 }
 
 private struct LibraryPracticeOverviewHeader: View {
-  let presentation: LibraryPracticeOverviewPresentation
+  let status: SongPracticeLibraryOverviewStatus
 
   @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
   @Environment(\.colorSchemeContrast) private var colorSchemeContrast
@@ -262,14 +321,14 @@ private struct LibraryPracticeOverviewHeader: View {
       Spacer(minLength: 8)
 
       HStack(spacing: 7) {
-        Image(systemName: presentation.status.systemImage)
+        Image(systemName: status.systemImage)
           .accessibilityHidden(true)
 
-        Text(presentation.status.title)
+        Text(status.title)
           .font(.caption)
           .bold()
       }
-      .foregroundStyle(presentation.status.tint)
+      .foregroundStyle(status.tint)
       .padding(.horizontal, 11)
       .padding(.vertical, 8)
       .background(.thinMaterial, in: .capsule)
@@ -279,53 +338,70 @@ private struct LibraryPracticeOverviewHeader: View {
             .strokeBorder(Color.primary.opacity(0.32), lineWidth: 1)
         }
       }
-      .accessibilityElement(children: .combine)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("练习状态")
+      .accessibilityValue(status.title)
     }
   }
 }
 
 private struct LibraryPracticeSummaryView: View {
-  let items: [LibraryPracticeSummaryItem]
-
-  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  let summary: SongPracticeSessionSummary
 
   var body: some View {
-    let layout =
-      dynamicTypeSize.isAccessibilitySize
-      ? AnyLayout(VStackLayout(spacing: 10))
-      : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
-
-    layout {
-      ForEach(items) { item in
-        LibraryPracticeMetricCard(item: item)
+    ViewThatFits(in: .horizontal) {
+      HStack(alignment: .top, spacing: 10) {
+        LibraryPracticeSummaryCards(summary: summary)
+      }
+      VStack(spacing: 10) {
+        LibraryPracticeSummaryCards(summary: summary)
       }
     }
   }
 }
 
+private struct LibraryPracticeSummaryCards: View {
+  let summary: SongPracticeSessionSummary
+
+  var body: some View {
+    Group {
+      LibraryPracticeMetricCard(
+        title: "最近练习",
+        value: summary.latestPracticeEndedAt?.formatted(
+          date: .abbreviated,
+          time: .omitted
+        ) ?? "暂无"
+      )
+      LibraryPracticeMetricCard(
+        title: "累计练习",
+        value: summary.formattedActiveDuration
+      )
+      LibraryPracticeMetricCard(
+        title: "练习次数",
+        value: summary.sessionCount.formatted()
+      )
+    }
+  }
+}
+
 private struct LibraryPracticeMetricCard: View {
-  let item: LibraryPracticeSummaryItem
+  let title: String
+  let value: String
 
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
-      Text(item.title)
+      Text(title)
         .font(.caption2)
         .foregroundStyle(.secondary)
         .lineLimit(2)
 
-      Text(item.value)
+      Text(value)
         .font(.title3)
         .bold()
         .foregroundStyle(.primary)
         .minimumScaleFactor(0.76)
         .lineLimit(1)
-
-      if let note = item.note {
-        Text(note)
-          .font(.caption2)
-          .foregroundStyle(.secondary.opacity(0.74))
-          .lineLimit(1)
-      }
+        .fixedSize(horizontal: true, vertical: false)
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 14)
@@ -336,7 +412,7 @@ private struct LibraryPracticeMetricCard: View {
 }
 
 private struct LibraryPracticeProgressSection: View {
-  let progress: LibraryPracticeMeasureProgress
+  let progress: SongPracticeMeasureProgress
 
   var body: some View {
     LibraryPracticeSectionCard {
@@ -348,7 +424,7 @@ private struct LibraryPracticeProgressSection: View {
 
           Spacer()
 
-          Text("\(progress.total.formatted()) 个小节 · \(progress.handModeText)")
+          Text("\(progress.totalSourceMeasureCount.formatted()) 个小节 · 当前版本")
             .font(.caption)
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.trailing)
@@ -366,32 +442,40 @@ private struct LibraryPracticeProgressSection: View {
 }
 
 private struct LibraryPracticeProgressLegend: View {
-  let progress: LibraryPracticeMeasureProgress
-
-  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  let progress: SongPracticeMeasureProgress
 
   var body: some View {
-    let layout =
-      dynamicTypeSize.isAccessibilitySize
-      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
-      : AnyLayout(HStackLayout(spacing: 8))
+    ViewThatFits(in: .horizontal) {
+      HStack(spacing: 8) {
+        LibraryPracticeLegendItems(progress: progress)
+      }
+      VStack(alignment: .leading, spacing: 10) {
+        LibraryPracticeLegendItems(progress: progress)
+      }
+    }
+  }
+}
 
-    layout {
+private struct LibraryPracticeLegendItems: View {
+  let progress: SongPracticeMeasureProgress
+
+  var body: some View {
+    Group {
       LibraryPracticeLegendItem(
         title: "稳定",
-        count: progress.stable,
+        count: progress.stableSourceMeasureCount,
         systemImage: "checkmark.circle.fill",
         tint: .green
       )
       LibraryPracticeLegendItem(
         title: "学习中",
-        count: progress.learning,
+        count: progress.learningSourceMeasureCount,
         systemImage: "clock.fill",
         tint: .orange
       )
       LibraryPracticeLegendItem(
         title: "未练习",
-        count: progress.unpracticed,
+        count: progress.unpracticedSourceMeasureCount,
         systemImage: "circle.dotted",
         tint: .secondary
       )
@@ -400,7 +484,7 @@ private struct LibraryPracticeProgressLegend: View {
 }
 
 private struct LibraryPracticeSegmentedProgressBar: View {
-  let progress: LibraryPracticeMeasureProgress
+  let progress: SongPracticeMeasureProgress
 
   var body: some View {
     Canvas { context, size in
@@ -412,20 +496,20 @@ private struct LibraryPracticeSegmentedProgressBar: View {
 
       let segments = [
         LibraryPracticeProgressSegment(
-          count: progress.stable,
+          count: progress.stableSourceMeasureCount,
           tint: .green
         ),
         LibraryPracticeProgressSegment(
-          count: progress.learning,
+          count: progress.learningSourceMeasureCount,
           tint: .orange
         ),
         LibraryPracticeProgressSegment(
-          count: progress.unpracticed,
+          count: progress.unpracticedSourceMeasureCount,
           tint: Color.primary.opacity(0.18)
         ),
       ].filter { $0.count > 0 }
 
-      guard progress.total > 0, segments.isEmpty == false else { return }
+      guard progress.totalSourceMeasureCount > 0, segments.isEmpty == false else { return }
 
       let spacing: CGFloat = 4
       let totalSpacing = spacing * CGFloat(max(segments.count - 1, 0))
@@ -433,7 +517,7 @@ private struct LibraryPracticeSegmentedProgressBar: View {
       var x: CGFloat = 0
 
       for segment in segments {
-        let fraction = CGFloat(segment.count) / CGFloat(progress.total)
+        let fraction = CGFloat(segment.count) / CGFloat(progress.totalSourceMeasureCount)
         let width = availableWidth * fraction
         let segmentRect = CGRect(x: x, y: 0, width: width, height: size.height)
         context.fill(
@@ -473,6 +557,7 @@ private struct LibraryPracticeLegendItem: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     } icon: {
       Image(systemName: systemImage)
         .foregroundStyle(tint)
@@ -480,7 +565,7 @@ private struct LibraryPracticeLegendItem: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(title)
-    .accessibilityValue(count.formatted())
+    .accessibilityValue("\(count.formatted()) 个小节")
   }
 }
 
@@ -508,7 +593,7 @@ private struct LibraryPracticeProgressMessageSection: View {
 }
 
 private struct LibraryPracticeResumeSection: View {
-  let resume: LibraryPracticeResumePresentation
+  let resume: PracticeSourceMeasureID
 
   var body: some View {
     LibraryPracticeSectionCard {
@@ -517,7 +602,7 @@ private struct LibraryPracticeResumeSection: View {
           Text("上次练习位置")
             .font(.headline)
             .bold()
-          Text(resume.measureText)
+          Text("第 \(resume.libraryMeasureText) 小节")
             .font(.title2)
             .bold()
           Text("上次在这里结束，可以继续衔接。")
@@ -540,7 +625,7 @@ private struct LibraryPracticeResumeSection: View {
 }
 
 private struct LibraryPracticeFocusSection: View {
-  let items: [LibraryPracticeFocusItem]
+  let items: [SongPracticeFocusMeasure]
 
   var body: some View {
     LibraryPracticeSectionCard {
@@ -556,8 +641,8 @@ private struct LibraryPracticeFocusSection: View {
         }
 
         VStack(spacing: 9) {
-          ForEach(items) { item in
-            LibraryPracticeFocusRow(item: item)
+          ForEach(items.enumerated(), id: \.offset) { index, item in
+            LibraryPracticeFocusRow(rank: index + 1, item: item)
           }
         }
       }
@@ -566,11 +651,12 @@ private struct LibraryPracticeFocusSection: View {
 }
 
 private struct LibraryPracticeFocusRow: View {
-  let item: LibraryPracticeFocusItem
+  let rank: Int
+  let item: SongPracticeFocusMeasure
 
   var body: some View {
     HStack(spacing: 11) {
-      Text(item.rank.formatted())
+      Text(rank.formatted())
         .font(.caption)
         .bold()
         .foregroundStyle(.primary)
@@ -579,10 +665,10 @@ private struct LibraryPracticeFocusRow: View {
         .accessibilityHidden(true)
 
       VStack(alignment: .leading, spacing: 3) {
-        Text(item.title)
+        Text("第 \(item.sourceMeasureID.libraryMeasureText) 小节")
           .font(.subheadline)
           .bold()
-        Text(item.detail)
+        Text(item.reason.libraryDisplayName)
           .font(.caption)
           .foregroundStyle(.secondary)
       }
@@ -596,7 +682,8 @@ private struct LibraryPracticeFocusRow: View {
 }
 
 private struct LibraryPracticeEncouragementSection: View {
-  let encouragement: LibraryPracticeEncouragementPresentation
+  let streak: SongPracticeStreak
+  let stableMeasureCount: Int
 
   var body: some View {
     LibraryPracticeSectionCard {
@@ -607,11 +694,19 @@ private struct LibraryPracticeEncouragementSection: View {
           .accessibilityHidden(true)
 
         VStack(alignment: .leading, spacing: 7) {
-          Text(encouragement.title)
+          Text(
+            streak.recency == .current
+              ? "已连续练习 \(streak.dayCount.formatted()) 天"
+              : "最近连续练习 \(streak.dayCount.formatted()) 天"
+          )
             .font(.headline)
             .bold()
             .frame(maxWidth: 280, alignment: .leading)
-          Text(encouragement.message)
+          Text(
+            stableMeasureCount > 0
+              ? "已经稳定掌握 \(stableMeasureCount.formatted()) 个小节。"
+              : "每一次练习都在积累。"
+          )
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .frame(maxWidth: 300, alignment: .leading)
@@ -668,253 +763,54 @@ extension View {
   }
 }
 
-private struct LibraryPracticeOverviewPresentation {
-  enum Status {
-    case learning
-    case stable
-    case pending
-
-    var title: String {
-      switch self {
-      case .learning: "正在学习"
-      case .stable: "进展稳定"
-      case .pending: "待建立进度"
-      }
-    }
-
-    var systemImage: String {
-      switch self {
-      case .learning: "clock.fill"
-      case .stable: "checkmark.circle.fill"
-      case .pending: "sparkles"
-      }
-    }
-
-    var tint: Color {
-      switch self {
-      case .learning: .orange
-      case .stable: .green
-      case .pending: .secondary
-      }
-    }
-  }
-
-  let status: Status
-  let summaryItems: [LibraryPracticeSummaryItem]
-  let progress: LibraryPracticeMeasureProgress?
-  let progressMessage: String?
-  let resume: LibraryPracticeResumePresentation?
-  let focusItems: [LibraryPracticeFocusItem]
-  let encouragement: LibraryPracticeEncouragementPresentation?
-
-  init(snapshot: SongPracticeLibrarySnapshot) {
-    let facts = snapshot.currentFacts
-    let stableCount = facts?.stableSourceMeasureCount ?? 0
-    let learningCount = facts?.learningSourceMeasureCount ?? 0
-    let latestPracticeText =
-      snapshot.latestPracticeDate.map {
-        $0.formatted(date: .abbreviated, time: .omitted)
-      } ?? "暂无"
-
-    status = Self.status(
-      stableCount: stableCount,
-      learningCount: learningCount,
-      totalCount: snapshot.totalSourceMeasureCount,
-      hasCurrentFacts: facts != nil
-    )
-
-    summaryItems = [
-      LibraryPracticeSummaryItem(
-        id: "latest",
-        title: "最近练习",
-        value: latestPracticeText,
-        note: nil
-      ),
-      LibraryPracticeSummaryItem(
-        id: "stable",
-        title: "稳定小节",
-        value: stableCount.formatted(),
-        note: "当前版本"
-      ),
-      LibraryPracticeSummaryItem(
-        id: "learning",
-        title: "练习中",
-        value: learningCount.formatted(),
-        note: facts?.handMode.libraryDisplayName
-      ),
-    ]
-
-    if snapshot.totalSourceMeasureCount > 0 {
-      progress = LibraryPracticeMeasureProgress(
-        total: snapshot.totalSourceMeasureCount,
-        stable: stableCount,
-        learning: learningCount,
-        handModeText: facts?.handMode.libraryDisplayName ?? "当前版本"
-      )
-      progressMessage = nil
-    } else {
-      progress = nil
-      progressMessage = "开始一次练习后会建立当前曲谱结构。"
-    }
-
-    resume = facts?.resumeSourceMeasureID.map {
-      LibraryPracticeResumePresentation(
-        measureText: "第 \($0.libraryMeasureText) 小节"
-      )
-    }
-
-    focusItems =
-      facts?.recentIssues.prefix(3).enumerated().map { index, issue in
-        LibraryPracticeFocusItem(
-          rank: index + 1,
-          title: "第 \(issue.sourceMeasureID.libraryMeasureText) 小节",
-          detail:
-            "近期\(issue.kind.libraryDisplayName) · \(issue.attemptedAt.formatted(date: .abbreviated, time: .omitted))"
-        )
-      } ?? []
-
-    if stableCount > 0 {
-      encouragement = LibraryPracticeEncouragementPresentation(
-        title: "已经稳定掌握 \(stableCount.formatted()) 个小节",
-        message: "保持这个节奏。你正在把困难的小节变成身体记忆。"
-      )
-    } else if facts != nil {
-      encouragement = LibraryPracticeEncouragementPresentation(
-        title: "每一次练习都在积累",
-        message: "继续完成当前小节，稳定进度会逐步出现在这里。"
-      )
-    } else {
-      encouragement = nil
-    }
-  }
-
-  static func needsRebuild(historyDate: Date?) -> LibraryPracticeOverviewPresentation {
-    let latestText =
-      historyDate.map {
-        $0.formatted(date: .abbreviated, time: .omitted)
-      } ?? "已保留"
-
-    return LibraryPracticeOverviewPresentation(
-      status: .pending,
-      summaryItems: [
-        LibraryPracticeSummaryItem(
-          id: "latest",
-          title: "最近练习",
-          value: latestText,
-          note: nil
-        ),
-        LibraryPracticeSummaryItem(
-          id: "progress",
-          title: "当前进度",
-          value: "待建立",
-          note: nil
-        ),
-        LibraryPracticeSummaryItem(
-          id: "history",
-          title: "历史记录",
-          value: "已保留",
-          note: nil
-        ),
-      ],
-      progress: nil,
-      progressMessage: "历史练习事实已经保留。开始一次练习后，会按当前曲谱版本重新建立小节进度。",
-      resume: nil,
-      focusItems: [],
-      encouragement: LibraryPracticeEncouragementPresentation(
-        title: "可以从当前版本重新开始",
-        message: "历史练习不会丢失，新的小节进度会在练习后逐步建立。"
-      )
-    )
-  }
-
-  private init(
-    status: Status,
-    summaryItems: [LibraryPracticeSummaryItem],
-    progress: LibraryPracticeMeasureProgress?,
-    progressMessage: String?,
-    resume: LibraryPracticeResumePresentation?,
-    focusItems: [LibraryPracticeFocusItem],
-    encouragement: LibraryPracticeEncouragementPresentation?
-  ) {
-    self.status = status
-    self.summaryItems = summaryItems
-    self.progress = progress
-    self.progressMessage = progressMessage
-    self.resume = resume
-    self.focusItems = focusItems
-    self.encouragement = encouragement
-  }
-
-  private static func status(
-    stableCount: Int,
-    learningCount: Int,
-    totalCount: Int,
-    hasCurrentFacts: Bool
-  ) -> Status {
-    guard hasCurrentFacts else { return .pending }
-    if totalCount > 0, stableCount == totalCount, learningCount == 0 {
-      return .stable
-    }
-    return .learning
-  }
-}
-
-private struct LibraryPracticeSummaryItem: Identifiable {
-  let id: String
-  let title: String
-  let value: String
-  let note: String?
-}
-
-private struct LibraryPracticeMeasureProgress {
-  let total: Int
-  let stable: Int
-  let learning: Int
-  let handModeText: String
-
-  init(total: Int, stable: Int, learning: Int, handModeText: String) {
-    let safeTotal = max(total, 0)
-    let safeStable = min(max(stable, 0), safeTotal)
-    let safeLearning = min(max(learning, 0), safeTotal - safeStable)
-
-    self.total = safeTotal
-    self.stable = safeStable
-    self.learning = safeLearning
-    self.handModeText = handModeText
-  }
-
-  var unpracticed: Int {
-    total - stable - learning
-  }
-
-  var accessibilityValue: String {
-    "稳定 \(stable.formatted()) 个小节，学习中 \(learning.formatted()) 个小节，未练习 \(unpracticed.formatted()) 个小节，共 \(total.formatted()) 个小节"
-  }
-}
-
-private struct LibraryPracticeResumePresentation {
-  let measureText: String
-}
-
-private struct LibraryPracticeFocusItem: Identifiable {
-  var id: Int { rank }
-  let rank: Int
-  let title: String
-  let detail: String
-}
-
-private struct LibraryPracticeEncouragementPresentation {
-  let title: String
-  let message: String
-}
-
-extension PracticeHandMode {
-  fileprivate var libraryDisplayName: String {
+extension SongPracticeLibraryOverviewStatus {
+  fileprivate var title: String {
     switch self {
-    case .both: "双手"
-    case .right: "右手"
-    case .left: "左手"
+    case .learning: "正在学习"
+    case .stable: "进展稳定"
+    case .pending: "待建立进度"
     }
+  }
+
+  fileprivate var systemImage: String {
+    switch self {
+    case .learning: "clock.fill"
+    case .stable: "checkmark.circle.fill"
+    case .pending: "sparkles"
+    }
+  }
+
+  fileprivate var tint: Color {
+    switch self {
+    case .learning: .orange
+    case .stable: .green
+    case .pending: .secondary
+    }
+  }
+}
+
+extension SongPracticeSessionSummary {
+  fileprivate var formattedActiveDuration: String {
+    let duration = Duration.milliseconds(totalActiveDurationMilliseconds)
+    if totalActiveDurationMilliseconds < 60_000 {
+      return duration.formatted(.units(allowed: [.seconds], width: .abbreviated))
+    }
+    return duration.formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+  }
+}
+
+extension SongPracticeMeasureProgressState {
+  fileprivate var stableMeasureCount: Int {
+    switch self {
+    case let .available(progress): progress.stableSourceMeasureCount
+    case .metadataUnavailable: 0
+    }
+  }
+}
+
+extension SongPracticeMeasureProgress {
+  fileprivate var accessibilityValue: String {
+    "稳定 \(stableSourceMeasureCount.formatted()) 个小节，学习中 \(learningSourceMeasureCount.formatted()) 个小节，未练习 \(unpracticedSourceMeasureCount.formatted()) 个小节，共 \(totalSourceMeasureCount.formatted()) 个小节"
   }
 }
 
@@ -934,96 +830,110 @@ extension PracticeIssueKind {
   }
 }
 
+extension SongPracticeFocusReason {
+  fileprivate var libraryDisplayName: String {
+    switch self {
+    case let .recentIssue(issue): "近期\(issue.libraryDisplayName)"
+    case let .failedAttempts(count): "失败 \(count.formatted()) 次"
+    case .learning: "仍在学习"
+    }
+  }
+}
+
 #if DEBUG
-  extension LibraryPracticeOverviewPresentation {
-    fileprivate static let preview = LibraryPracticeOverviewPresentation(
+  private enum LibraryPracticePreviewFixture {
+    static let identity = SongPracticeLibrarySelectionIdentity(
+      songID: UUID(),
+      scoreFileVersionID: UUID()
+    )
+
+    static let overview = SongPracticeLibraryOverview(
+      identity: identity,
       status: .learning,
-      summaryItems: [
-        LibraryPracticeSummaryItem(
-          id: "latest",
-          title: "最近练习",
-          value: "昨天",
-          note: nil
-        ),
-        LibraryPracticeSummaryItem(
-          id: "duration",
-          title: "累计练习",
-          value: "42 分钟",
-          note: nil
-        ),
-        LibraryPracticeSummaryItem(
-          id: "sessions",
-          title: "练习次数",
-          value: "8 次",
-          note: nil
-        ),
-      ],
-      progress: LibraryPracticeMeasureProgress(
-        total: 24,
-        stable: 10,
-        learning: 6,
-        handModeText: "双手"
+      sessionSummary: SongPracticeSessionSummary(
+        latestPracticeEndedAt: .now.addingTimeInterval(-86_400),
+        totalActiveDurationMilliseconds: 2_520_000,
+        sessionCount: 8,
+        streak: SongPracticeStreak(dayCount: 3, recency: .current)
       ),
-      progressMessage: nil,
-      resume: LibraryPracticeResumePresentation(measureText: "第 18 小节"),
-      focusItems: [
-        LibraryPracticeFocusItem(
-          rank: 1,
-          title: "第 14 小节",
-          detail: "近期错误较多 · 右手节奏"
+      measureProgress: .available(SongPracticeMeasureProgress(
+        stableSourceMeasureCount: 10,
+        learningSourceMeasureCount: 6,
+        unpracticedSourceMeasureCount: 8
+      )),
+      resumeSourceMeasureID: PracticeSourceMeasureID(
+        partID: "P1",
+        sourceMeasureIndex: 17,
+        sourceNumberToken: "18"
+      ),
+      focusMeasures: [
+        SongPracticeFocusMeasure(
+          sourceMeasureID: PracticeSourceMeasureID(
+            partID: "P1",
+            sourceMeasureIndex: 13,
+            sourceNumberToken: "14"
+          ),
+          reason: .recentIssue(.wrongNote)
         ),
-        LibraryPracticeFocusItem(
-          rank: 2,
-          title: "第 18 小节",
-          detail: "仍在学习 · 双手配合"
+        SongPracticeFocusMeasure(
+          sourceMeasureID: PracticeSourceMeasureID(
+            partID: "P1",
+            sourceMeasureIndex: 17,
+            sourceNumberToken: "18"
+          ),
+          reason: .learning
         ),
-        LibraryPracticeFocusItem(
-          rank: 3,
-          title: "第 21 小节",
-          detail: "最近练习 · 稳定度不足"
-        ),
-      ],
-      encouragement: LibraryPracticeEncouragementPresentation(
-        title: "已经连续练习 3 天",
-        message: "保持这个节奏。你正在把困难的小节变成身体记忆。"
-      )
+      ]
+    )
+
+    static let metadataUnavailableOverview = SongPracticeLibraryOverview(
+      identity: identity,
+      status: .pending,
+      sessionSummary: SongPracticeSessionSummary(
+        latestPracticeEndedAt: .now.addingTimeInterval(-172_800),
+        totalActiveDurationMilliseconds: 45_000,
+        sessionCount: 1,
+        streak: nil
+      ),
+      measureProgress: .metadataUnavailable,
+      resumeSourceMeasureID: nil,
+      focusMeasures: []
     )
   }
 
-  private struct LibraryPracticePreviewOrnament<Content: View>: View {
-    let content: Content
-
-    init(@ViewBuilder content: () -> Content) {
-      self.content = content()
-    }
+  private struct LibraryPracticePreviewPanel: View {
+    let state: SongPracticeLibraryPresentationState
 
     var body: some View {
-      ScrollView {
-        content
-          .padding(LibraryPracticeOrnamentLayout.contentPadding)
-      }
-      .scrollIndicators(.hidden)
-      .frame(
-        minWidth: LibraryPracticeProgressOrnamentView.minimumWidth,
-        idealWidth: LibraryPracticeProgressOrnamentView.idealWidth,
-        maxWidth: LibraryPracticeProgressOrnamentView.maximumWidth,
-        minHeight: 720,
-        idealHeight: 720,
-        maxHeight: 720
+      LibraryPracticeProgressOrnamentView(
+        state: state,
+        height: 720,
+        onRetry: {},
+        onConfirmedReset: {}
       )
       .glassBackgroundEffect()
     }
   }
 
-  #Preview("练习概览") {
-    LibraryPracticePreviewOrnament {
-      LibraryPracticeOverviewView(presentation: .preview)
-    }
+  #Preview("完整练习概览") {
+    LibraryPracticePreviewPanel(state: .overview(LibraryPracticePreviewFixture.overview))
   }
 
   #Preview("首次练习邀请") {
-    LibraryPracticePreviewOrnament {
-      LibraryPracticeInvitationView()
-    }
+    LibraryPracticePreviewPanel(state: .invitation(LibraryPracticePreviewFixture.identity))
+  }
+
+  #Preview("当前版本 metadata 缺失") {
+    LibraryPracticePreviewPanel(
+      state: .overview(LibraryPracticePreviewFixture.metadataUnavailableOverview)
+    )
+  }
+
+  #Preview("练习记录不可用") {
+    LibraryPracticePreviewPanel(state: .unavailable(SongPracticeLibraryUnavailable(
+      identity: LibraryPracticePreviewFixture.identity,
+      reason: .corrupted,
+      recoveryOptions: .retryAndConfirmedBackupReset
+    )))
   }
 #endif

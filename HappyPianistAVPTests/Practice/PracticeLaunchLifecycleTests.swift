@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 @testable import HappyPianistAVP
 import Testing
 
@@ -27,12 +28,13 @@ func duplicatePracticeDisappearAndReturnIntentsRunOneOrderedTeardown() async {
                 calls.append("finish")
                 return .saved
             },
+            tearDown: { calls.append("teardown") },
             navigate: { calls.append("navigate") }
         )
     }
     await coordinator.waitForCompletion()
 
-    #expect(calls == ["begin", "leave", "close", "recover", "finish", "navigate"])
+    #expect(calls == ["begin", "leave", "finish", "close", "recover", "teardown", "navigate"])
 }
 
 @MainActor
@@ -60,22 +62,72 @@ func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() as
                 calls.append("finish")
                 return .saved
             },
+            onFailure: { calls.append("failure") },
+            tearDown: { calls.append("teardown") },
             navigate: { calls.append("navigate") }
         )
     }
 
     begin()
     await coordinator.waitForCompletion()
-    #expect(calls == ["begin", "leave", "abort"])
+    #expect(calls == ["begin", "leave", "abort", "failure"])
     #expect(coordinator.isReturning == false)
 
     shouldFail = false
     begin()
     await coordinator.waitForCompletion()
     #expect(calls == [
-        "begin", "leave", "abort",
-        "begin", "leave", "close", "recover", "finish", "navigate",
+        "begin", "leave", "abort", "failure",
+        "begin", "leave", "finish", "close", "recover", "teardown", "navigate",
     ])
+}
+
+@MainActor
+@Test
+func failedFinalizationKeepsRuntimeOpenAndSkipsImmersiveClose() async {
+    let coordinator = PracticeWindowReturnCoordinator()
+    var calls: [String] = []
+
+    coordinator.begin(
+        beginReturn: {
+            calls.append("begin")
+            return UUID()
+        },
+        leave: {
+            calls.append("leave")
+            return .saved
+        },
+        closeImmersive: { calls.append("close") },
+        recoverImmersive: { calls.append("recover") },
+        abortReturn: { _ in calls.append("abort") },
+        finishReturn: { _ in
+            calls.append("finish")
+            return .failed(message: "disk full")
+        },
+        onFailure: { calls.append("failure") },
+        tearDown: { calls.append("teardown") },
+        navigate: { calls.append("navigate") }
+    )
+    await coordinator.waitForCompletion()
+
+    #expect(calls == ["begin", "leave", "finish", "abort", "failure"])
+    #expect(coordinator.isReturning == false)
+}
+
+@MainActor
+@Test
+func systemDisappearRunsBestEffortCloseOnceWithoutReturnNavigation() async {
+    let coordinator = PracticeSystemCloseCoordinator()
+    var calls: [String] = []
+
+    for _ in 0 ..< 2 {
+        coordinator.begin {
+            calls.append("finalize")
+        }
+    }
+    await coordinator.waitForCompletion()
+
+    #expect(calls == ["finalize"])
 }
 
 @MainActor
@@ -214,6 +266,139 @@ func stalePreparedPracticeApplyCannotOverwriteNewerLaunch() async throws {
     #expect(session.activeRoundConfiguration?.tempoScale == 1)
     #expect(session.activeRoundConfiguration?.loopEnabled == false)
     #expect(guide.latestPreparedPractice?.identity == second.identity)
+}
+
+@MainActor
+@Test
+func practiceSessionReplacementKeepsWindowRecorderAndDoesNotSplitSession() async throws {
+    let repository = LaunchLifecycleSessionRepository()
+    let recorder = PracticeSessionRecorder(repository: repository)
+    let provider = LaunchLifecycleRecorderSessionProvider(recorder: recorder)
+    let appState = AppState()
+    let guide = ARGuideViewModel(
+        appState: appState,
+        practiceSetupState: appState.practiceSetupState,
+        pianoModeRegistry: PianoModeRegistryService(modes: []),
+        makePracticeSessionViewModel: provider.callAsFunction
+    )
+    let firstSession = guide.practiceSessionViewModel
+    let visitID = UUID()
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "revision")
+    await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+    await recorder.setGuiding(true)
+
+    #expect(await guide.replacePracticeSessionViewModel() == .replaced)
+    #expect(guide.practiceSessionViewModel !== firstSession)
+    #expect(guide.practiceSessionViewModel.sessionRecorder === recorder)
+    await recorder.checkpoint()
+    await recorder.finalize()
+
+    let records = await repository.records()
+    #expect(Set(records.map(\.id)) == Set([visitID]))
+    #expect(records.dropLast().allSatisfy { $0.termination == .open })
+    #expect(records.last?.termination == .normal)
+}
+
+@MainActor
+@Test
+func failedGuidingStartLeavesWindowWithoutSessionFact() async throws {
+    let repository = LaunchLifecycleSessionRepository()
+    let clock = try LaunchLifecycleRecorderClock()
+    let recorder = PracticeSessionRecorder(repository: repository, clock: clock.makeClock())
+    let session = LaunchLifecycleRecorderSessionProvider(recorder: recorder).callAsFunction(nil)
+    let visitID = UUID()
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "revision")
+    await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+
+    session.startGuidingIfReady()
+    await session.waitForSessionRecorderEvents()
+
+    #expect(session.state == .idle)
+    #expect(await recorder.finalize() == .idle)
+    #expect(await repository.records().isEmpty)
+}
+
+@MainActor
+@Test
+func multipleRoundsAndSettingsUseOneWindowSessionAndPauseActiveTime() async throws {
+    let repository = LaunchLifecycleSessionRepository()
+    let clock = try LaunchLifecycleRecorderClock()
+    let recorder = PracticeSessionRecorder(repository: repository, clock: clock.makeClock())
+    let session = LaunchLifecycleRecorderSessionProvider(recorder: recorder).callAsFunction(nil)
+    session.setSteps(
+        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
+    let identity = try #require(session.songIdentity)
+    let visitID = UUID()
+    await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+
+    clock.advance(milliseconds: 5_000)
+    session.startGuidingIfReady()
+    await session.waitForSessionRecorderEvents()
+    clock.advance(milliseconds: 4_000)
+    session.setPracticeSettingsPresented(true)
+    await session.waitForSessionRecorderEvents()
+    clock.advance(milliseconds: 3_000)
+    session.setPracticeSettingsPresented(false)
+    await session.waitForSessionRecorderEvents()
+    clock.advance(milliseconds: 2_000)
+    session.skip()
+    await session.waitForSessionRecorderEvents()
+    #expect(session.state == .completed)
+
+    #expect(session.perform(.continuePassage))
+    await session.waitForSessionRecorderEvents()
+    clock.advance(milliseconds: 3_000)
+    session.skip()
+    await session.waitForSessionRecorderEvents()
+    clock.advance(milliseconds: 5_000)
+    #expect(await recorder.finalize() == .saved)
+
+    let records = await repository.records()
+    let final = try #require(records.last)
+    #expect(Set(records.map(\.id)) == [visitID])
+    #expect(final.practiceWindowDurationMilliseconds == 22_000)
+    #expect(final.activePracticeDurationMilliseconds == 9_000)
+    #expect(final.termination == .normal)
+}
+
+@MainActor
+@Test
+func inactiveSceneExcludesBackgroundTimeAndRequiresRealGuidingResume() async throws {
+    let repository = LaunchLifecycleSessionRepository()
+    let clock = try LaunchLifecycleRecorderClock()
+    let recorder = PracticeSessionRecorder(repository: repository, clock: clock.makeClock())
+    let session = LaunchLifecycleRecorderSessionProvider(recorder: recorder).callAsFunction(nil)
+    session.setSteps(
+        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1)])],
+        tempoMap: MusicXMLTempoMap(tempoEvents: [])
+    )
+    let identity = try #require(session.songIdentity)
+    let visitID = UUID()
+    await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+    session.startGuidingIfReady()
+    await session.waitForSessionRecorderEvents()
+
+    clock.advance(milliseconds: 4_000)
+    await recorder.setSceneActive(false)
+    await session.suspendAndFlushProgress()
+    clock.advance(milliseconds: 100_000)
+    await recorder.setSceneActive(true)
+    session.resumeAfterSuspension()
+    session.startGuidingIfReady()
+    await session.waitForSessionRecorderEvents()
+    clock.advance(milliseconds: 3_000)
+    await recorder.finalize()
+
+    let final = try #require(await repository.records().last)
+    #expect(final.id == visitID)
+    #expect(final.practiceWindowDurationMilliseconds == 7_000)
+    #expect(final.activePracticeDurationMilliseconds == 7_000)
 }
 
 @MainActor
@@ -522,4 +707,74 @@ private final class LaunchLifecycleChordAccumulator: ChordAttemptAccumulatorProt
     ) -> StepAttemptMatchResult { .insufficientEvidence }
 
     func reset() {}
+}
+
+private actor LaunchLifecycleSessionRepository: PracticeSessionRepositoryProtocol {
+    private var storedRecords: [PracticeSessionRecord] = []
+
+    func upsert(_ session: PracticeSessionRecord) {
+        storedRecords.append(session)
+    }
+
+    func abandonLiveSession(id _: UUID) {}
+
+    func records() -> [PracticeSessionRecord] {
+        storedRecords
+    }
+}
+
+private final class LaunchLifecycleRecorderClock: Sendable {
+    private struct State {
+        var monotonicMilliseconds: Int64 = 0
+        var wallDate = Date(timeIntervalSince1970: 1_000)
+    }
+
+    private let state = Mutex(State())
+    let practiceDay: PracticeLocalDay
+
+    init() throws {
+        practiceDay = try #require(PracticeLocalDay(
+            year: 2026,
+            month: 7,
+            day: 15,
+            timeZoneIdentifier: "Asia/Singapore"
+        ))
+    }
+
+    func makeClock() -> PracticeSessionRecorderClock {
+        PracticeSessionRecorderClock(
+            monotonicMilliseconds: { [self] in
+                state.withLock(\.monotonicMilliseconds)
+            },
+            wallDate: { [self] in
+                state.withLock(\.wallDate)
+            },
+            localDay: { [practiceDay] _ in practiceDay }
+        )
+    }
+
+    func advance(milliseconds: Int64) {
+        state.withLock { state in
+            state.monotonicMilliseconds += milliseconds
+            state.wallDate.addTimeInterval(Double(milliseconds) / 1_000)
+        }
+    }
+}
+
+@MainActor
+private final class LaunchLifecycleRecorderSessionProvider: @unchecked Sendable {
+    private let recorder: PracticeSessionRecorder
+
+    init(recorder: PracticeSessionRecorder) {
+        self.recorder = recorder
+    }
+
+    func callAsFunction(_: String?) -> PracticeSessionViewModel {
+        PracticeSessionViewModel(
+            pressDetectionService: LaunchLifecyclePressDetectionService(),
+            chordAttemptAccumulator: LaunchLifecycleChordAccumulator(),
+            sleeper: TaskSleeper(),
+            sessionRecorder: recorder
+        )
+    }
 }

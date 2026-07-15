@@ -77,3 +77,25 @@ func staleWindowAppearanceCannotConsumeNewerReturnTransition() {
     #expect(returnTransition?.toWindowID == WindowID.library)
     #expect(service.pendingTransition == nil)
 }
+
+#if DEBUG
+@Test
+func appUICaptureRouteParsesRealWindowDestinations() {
+    let songID = UUID(uuid: (17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17, 17))
+
+    #expect(AppUICaptureRoute(arguments: ["app", "--ui-capture", "library"]) == .library)
+    #expect(AppUICaptureRoute(arguments: [
+        "app", "--ui-capture", "practice", "--song-id", songID.uuidString,
+    ]) == .practice(songID: songID))
+}
+
+@Test
+func appUICaptureRouteRejectsIncompleteOrUnknownDestinations() {
+    #expect(AppUICaptureRoute(arguments: ["app"]) == nil)
+    #expect(AppUICaptureRoute(arguments: ["app", "--ui-capture", "unknown"]) == nil)
+    #expect(AppUICaptureRoute(arguments: ["app", "--ui-capture", "practice"]) == nil)
+    #expect(AppUICaptureRoute(arguments: [
+        "app", "--ui-capture", "practice", "--song-id", "invalid",
+    ]) == nil)
+}
+#endif

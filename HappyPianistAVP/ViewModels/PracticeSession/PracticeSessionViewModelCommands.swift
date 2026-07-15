@@ -150,7 +150,7 @@ extension PracticeSessionViewModel {
                 rebuildActiveRange()
             }
             finishFreshLaunchRestore()
-        case .freshDefaults, .historyUnavailable:
+        case .freshDefaults:
             finishFreshLaunchRestore()
         }
     }
@@ -248,6 +248,22 @@ extension PracticeSessionViewModel {
 
     @discardableResult
     func suspendAndFlushProgress() async -> PracticeProgressSaveStatus {
+        suspendPracticeWork()
+        await waitForSessionRecorderEvents()
+        await sessionRecorder?.setGuiding(false)
+        return await flushProgress()
+    }
+
+    func discardPendingProgress() async {
+        suspendPracticeWork()
+        await waitForSessionRecorderEvents()
+        if let progressCoordinator, let generation = self.progressGeneration {
+            await progressCoordinator.discardPendingProgress(generation: generation)
+        }
+        self.progressGeneration = nil
+    }
+
+    private func suspendPracticeWork() {
         self.acceptsPracticeAttempts = false
         invalidateFeedbackPresentation()
         stopManualReplayTask()
@@ -255,7 +271,6 @@ extension PracticeSessionViewModel {
         stopAutoplayAudio()
         stopAudioRecognition()
         stopPracticeInput()
-        return await flushProgress()
     }
 
     func invalidateFeedbackPresentation() {
@@ -379,6 +394,7 @@ extension PracticeSessionViewModel {
 
     @discardableResult
     func applyPendingRoundConfiguration() -> Bool {
+        enqueueSessionRecorderEvent(.guiding(false))
         stopManualReplayTask()
         stopAutoplayTask()
         stopAutoplayAudio()
@@ -596,6 +612,7 @@ extension PracticeSessionViewModel {
     }
 
     func startGuidingIfReady() {
+        guard self.guidingStartIsBlocked == false else { return }
         guard self.stateStore.isActiveRangeInvalid == false else { return }
         guard self.state == .ready, self.steps.isEmpty == false else { return }
 
@@ -611,6 +628,9 @@ extension PracticeSessionViewModel {
             setCurrentHighlightGuideForStepIndex(self.currentStepIndex)
             self.state = navigation.state
         }
+
+        guard case .guiding = self.state else { return }
+        enqueueSessionRecorderEvent(.guiding(true))
 
         if self.autoplayState == .playing {
             refreshAudioRecognitionForCurrentState()
@@ -741,6 +761,7 @@ extension PracticeSessionViewModel {
                self.isActivePassageStable == false,
                let firstStepIndex = self.activeRange?.firstStepIndex
             {
+                enqueueSessionRecorderEvent(.checkpoint)
                 beginNextLoopRound(at: firstStepIndex)
                 return
             }
@@ -752,6 +773,7 @@ extension PracticeSessionViewModel {
             stopAutoplayTask()
             stopAutoplayAudio()
             stopAudioRecognition()
+            enqueueSessionRecorderEvent(.guiding(false))
             return
         }
 
@@ -816,6 +838,7 @@ extension PracticeSessionViewModel {
            self.isActivePassageStable == false,
            let firstStepIndex = self.activeRange?.firstStepIndex
         {
+            enqueueSessionRecorderEvent(.checkpoint)
             beginNextLoopRound(at: firstStepIndex)
             return
         }
@@ -827,6 +850,11 @@ extension PracticeSessionViewModel {
         stopAutoplayTask()
         stopAutoplayAudio()
         stopAudioRecognition()
+        enqueueSessionRecorderEvent(.guiding(false))
+    }
+
+    func setPracticeSettingsPresented(_ isPresented: Bool) {
+        enqueueSessionRecorderEvent(.settingsPresented(isPresented))
     }
 
     private func beginNextLoopRound(at firstStepIndex: Int) {

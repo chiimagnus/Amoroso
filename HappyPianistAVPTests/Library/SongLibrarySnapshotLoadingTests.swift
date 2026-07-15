@@ -13,7 +13,7 @@ func emptyLibraryHasNoPracticeSnapshotPresentation() {
 
 @Test
 @MainActor
-func libraryLoadsNeverPracticedSnapshotWithoutScoreAccess() async throws {
+func libraryLoadsInvitationWithoutScoreAccess() async throws {
     let entry = makeLoadingEntry()
     let repository = FixedHistoryRepository(histories: [
         entry.id: .loaded(PracticeSongHistory(
@@ -30,7 +30,7 @@ func libraryLoadsNeverPracticedSnapshotWithoutScoreAccess() async throws {
     )
 
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(entry))
+        $0 == .invitation(selectionIdentity(entry))
     }
 
     #expect(await fileStore.scoreAccessCount == 0)
@@ -42,9 +42,11 @@ func libraryRejectsStaleSnapshotWhenSelectionChangesDuringHistoryRead() async th
     let first = makeLoadingEntry(name: "A")
     let second = makeLoadingEntry(name: "B")
     let repository = SuspendedHistoryRepository()
+    let diagnostics = SnapshotDiagnosticsRecorder()
     let viewModel = SongLibraryViewModelTestHarness.make(
         index: SongLibraryIndex(entries: [first, second], lastSelectedEntryID: first.id),
-        practiceProgressRepository: repository
+        practiceProgressRepository: repository,
+        diagnosticsReporter: diagnostics
     )
     await repository.waitForRequest(songID: first.id)
 
@@ -52,12 +54,16 @@ func libraryRejectsStaleSnapshotWhenSelectionChangesDuringHistoryRead() async th
     await repository.waitForRequest(songID: second.id)
     await repository.resume(songID: second.id, result: emptyHistory(for: second.id))
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(second))
+        $0 == .invitation(selectionIdentity(second))
     }
 
     await repository.resume(songID: first.id, result: currentHistory(for: first))
     try await Task.sleep(for: .milliseconds(20))
-    #expect(viewModel.practiceSnapshotState == .neverPracticed(selectionIdentity(second)))
+    #expect(viewModel.practiceSnapshotState == .invitation(selectionIdentity(second)))
+    try await waitForDiagnostic(diagnostics, code: .libraryPracticeHistoryAction)
+    #expect(await diagnostics.events.contains {
+        $0.reason == "action=staleResultDiscarded" && $0.songID == first.id
+    })
 }
 
 @Test
@@ -79,13 +85,13 @@ func libraryAtoBtoAActorReadDisorderOnlyPublishesLatestA() async throws {
 
     await repository.resumeRequest(at: 2, result: emptyHistory(for: first.id))
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(first))
+        $0 == .invitation(selectionIdentity(first))
     }
     await repository.resumeRequest(at: 1, result: currentHistory(for: second))
     await repository.resumeRequest(at: 0, result: currentHistory(for: first))
     try await Task.sleep(for: .milliseconds(20))
 
-    #expect(viewModel.practiceSnapshotState == .neverPracticed(selectionIdentity(first)))
+    #expect(viewModel.practiceSnapshotState == .invitation(selectionIdentity(first)))
 }
 
 @Test
@@ -102,7 +108,7 @@ func libraryRefreshCoalescesSameSelectionAndReadsHistoryOnce() async throws {
     viewModel.refreshSelectedPracticeSnapshot()
     viewModel.refreshSelectedPracticeSnapshot()
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(entry))
+        $0 == .invitation(selectionIdentity(entry))
     }
 
     #expect(await repository.historyRequestCount == 1)
@@ -127,8 +133,8 @@ func committedReplacementBindsSnapshotGenerationToChangedEntryToken() async thro
 
     await viewModel.importMusicXML(from: [URL(fileURLWithPath: "/tmp/Versioned.musicxml")])
     try await waitForSnapshotState(viewModel) { state in
-        guard case let .current(snapshot) = state else { return false }
-        return snapshot.identity == selectionIdentity(second)
+        guard case let .overview(overview) = state else { return false }
+        return overview.identity == selectionIdentity(second)
     }
 }
 
@@ -147,7 +153,11 @@ func corruptedHistoryIsUnavailableWithoutGlobalErrorAndUsesTypedDiagnostic() asy
     )
 
     try await waitForSnapshotState(viewModel) {
-        $0 == .unavailable(selectionIdentity(entry))
+        $0 == .unavailable(SongPracticeLibraryUnavailable(
+            identity: selectionIdentity(entry),
+            reason: .corrupted,
+            recoveryOptions: .retry
+        ))
     }
     try await waitForDiagnostic(diagnostics)
 
@@ -156,6 +166,142 @@ func corruptedHistoryIsUnavailableWithoutGlobalErrorAndUsesTypedDiagnostic() asy
     #expect(event.code == .libraryPracticeHistoryLoadFailed)
     #expect(event.songID == entry.id)
     #expect(event.reason.contains("/Users/") == false)
+}
+
+@Test
+@MainActor
+func retryStartsANewGenerationAndPublishesTheReloadedState() async throws {
+    let entry = makeLoadingEntry()
+    let repository = UpdatingHistoryRepository(
+        result: .unavailable(description: "NSCocoaErrorDomain#640")
+    )
+    let diagnostics = SnapshotDiagnosticsRecorder()
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: [entry], lastSelectedEntryID: entry.id),
+        practiceProgressRepository: repository,
+        diagnosticsReporter: diagnostics
+    )
+    try await waitForSnapshotState(viewModel) {
+        $0 == .unavailable(SongPracticeLibraryUnavailable(
+            identity: selectionIdentity(entry),
+            reason: .temporarilyUnavailable,
+            recoveryOptions: .retry
+        ))
+    }
+
+    await repository.setResult(emptyHistory(for: entry.id))
+    viewModel.retrySelectedPracticeSnapshot()
+
+    try await waitForSnapshotState(viewModel) {
+        $0 == .invitation(selectionIdentity(entry))
+    }
+    #expect(await repository.historyRequestCount == 2)
+    try await waitForDiagnostic(diagnostics, code: .libraryPracticeHistoryAction)
+    #expect(await diagnostics.events.contains { $0.reason == "action=retry" })
+}
+
+@Test
+@MainActor
+func confirmedCorruptionResetReloadsOnlyAfterRecoverySucceeds() async throws {
+    let entry = makeLoadingEntry()
+    let repository = ControlledSnapshotRecoveryRepository(
+        initial: [entry.id: .corrupted(description: "invalid JSON")],
+        recovered: [entry.id: emptyHistory(for: entry.id)],
+        behavior: .succeeds
+    )
+    let diagnostics = SnapshotDiagnosticsRecorder()
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: [entry], lastSelectedEntryID: entry.id),
+        practiceProgressRepository: repository,
+        practiceProgressRecovery: repository,
+        diagnosticsReporter: diagnostics
+    )
+    try await waitForSnapshotState(viewModel) {
+        $0 == corruptedUnavailable(for: entry, canReset: true)
+    }
+
+    await viewModel.recoverCorruptedSelectedPracticeHistory()
+
+    try await waitForSnapshotState(viewModel) {
+        $0 == .invitation(selectionIdentity(entry))
+    }
+    #expect(await repository.recoveryCount == 1)
+    #expect(await repository.historyRequestCount == 2)
+    try await waitForDiagnostic(diagnostics, code: .practiceProgressStoreReset)
+}
+
+@Test
+@MainActor
+func failedCorruptionResetKeepsUnavailableAndDoesNotPublishInvitation() async throws {
+    let entry = makeLoadingEntry()
+    let repository = ControlledSnapshotRecoveryRepository(
+        initial: [entry.id: .corrupted(description: "invalid JSON")],
+        recovered: [entry.id: emptyHistory(for: entry.id)],
+        behavior: .fails
+    )
+    let diagnostics = SnapshotDiagnosticsRecorder()
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: [entry], lastSelectedEntryID: entry.id),
+        practiceProgressRepository: repository,
+        practiceProgressRecovery: repository,
+        diagnosticsReporter: diagnostics
+    )
+    try await waitForSnapshotState(viewModel) {
+        $0 == corruptedUnavailable(for: entry, canReset: true)
+    }
+
+    await viewModel.recoverCorruptedSelectedPracticeHistory()
+
+    #expect(viewModel.practiceSnapshotState == corruptedUnavailable(for: entry, canReset: true))
+    #expect(await repository.recoveryCount == 1)
+    #expect(await repository.historyRequestCount == 1)
+    try await waitForDiagnostic(diagnostics, code: .libraryPracticeHistoryLoadFailed)
+    #expect(await diagnostics.events.contains {
+        $0.stage == "practiceHistoryRecovery" && $0.reason.contains("/Users/") == false
+    })
+}
+
+@Test
+@MainActor
+func completedResetCannotResurrectASelectionThatChangedDuringRecovery() async throws {
+    let first = makeLoadingEntry(name: "A")
+    let second = makeLoadingEntry(name: "B")
+    let repository = ControlledSnapshotRecoveryRepository(
+        initial: [
+            first.id: .corrupted(description: "invalid JSON"),
+            second.id: emptyHistory(for: second.id),
+        ],
+        recovered: [
+            first.id: emptyHistory(for: first.id),
+            second.id: emptyHistory(for: second.id),
+        ],
+        behavior: .suspended
+    )
+    let diagnostics = SnapshotDiagnosticsRecorder()
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: [first, second], lastSelectedEntryID: first.id),
+        practiceProgressRepository: repository,
+        practiceProgressRecovery: repository,
+        diagnosticsReporter: diagnostics
+    )
+    try await waitForSnapshotState(viewModel) {
+        $0 == corruptedUnavailable(for: first, canReset: true)
+    }
+
+    let recoveryTask = Task { await viewModel.recoverCorruptedSelectedPracticeHistory() }
+    await repository.waitForRecovery()
+    viewModel.selectEntry(second.id)
+    try await waitForSnapshotState(viewModel) {
+        $0 == .invitation(selectionIdentity(second))
+    }
+    await repository.resumeRecovery()
+    await recoveryTask.value
+
+    #expect(viewModel.practiceSnapshotState == .invitation(selectionIdentity(second)))
+    try await waitForDiagnostic(diagnostics, code: .libraryPracticeHistoryAction)
+    #expect(await diagnostics.events.contains {
+        $0.reason == "action=staleResultDiscarded" && $0.songID == first.id
+    })
 }
 
 @Test
@@ -177,7 +323,7 @@ func rapidSelectionDragOnlyReadsFinalSongAfterSettleDelay() async throws {
     viewModel.selectEntry(second.id)
     viewModel.selectEntry(third.id)
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(third))
+        $0 == .invitation(selectionIdentity(third))
     }
 
     #expect(await repository.requestedSongIDs == [third.id])
@@ -193,15 +339,15 @@ func refreshingSameSelectionReadsPracticeFactsWrittenWhileLibraryWasAway() async
         practiceProgressRepository: repository
     )
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(entry))
+        $0 == .invitation(selectionIdentity(entry))
     }
 
     await repository.setResult(currentHistory(for: entry))
     viewModel.refreshSelectedPracticeSnapshot()
 
     try await waitForSnapshotState(viewModel) {
-        guard case let .current(snapshot) = $0 else { return false }
-        return snapshot.identity == selectionIdentity(entry)
+        guard case let .overview(overview) = $0 else { return false }
+        return overview.identity == selectionIdentity(entry)
     }
 }
 
@@ -223,7 +369,7 @@ func deletingSelectedSongLoadsFallbackSnapshot() async throws {
 
     #expect(viewModel.selectedEntryID == second.id)
     try await waitForSnapshotState(viewModel) {
-        $0 == .neverPracticed(selectionIdentity(second))
+        $0 == .invitation(selectionIdentity(second))
     }
 }
 
@@ -256,9 +402,12 @@ private func waitForSnapshotState(
     Issue.record("Timed out waiting for snapshot state: \(viewModel.practiceSnapshotState)")
 }
 
-private func waitForDiagnostic(_ recorder: SnapshotDiagnosticsRecorder) async throws {
+private func waitForDiagnostic(
+    _ recorder: SnapshotDiagnosticsRecorder,
+    code: DiagnosticCode? = nil
+) async throws {
     for _ in 0 ..< 200 {
-        if await recorder.events.isEmpty == false { return }
+        if await recorder.events.contains(where: { code == nil || $0.code == code }) { return }
         try await Task.sleep(for: .milliseconds(5))
     }
     Issue.record("Timed out waiting for diagnostic")
@@ -284,6 +433,17 @@ private func selectionIdentity(_ entry: SongLibraryEntry) -> SongPracticeLibrary
         songID: entry.id,
         scoreFileVersionID: entry.scoreFileVersionID
     )
+}
+
+private func corruptedUnavailable(
+    for entry: SongLibraryEntry,
+    canReset: Bool
+) -> SongPracticeLibraryPresentationState {
+    .unavailable(SongPracticeLibraryUnavailable(
+        identity: selectionIdentity(entry),
+        reason: .corrupted,
+        recoveryOptions: canReset ? .retryAndConfirmedBackupReset : .retry
+    ))
 }
 
 private func emptyHistory(for songID: UUID) -> PracticeSongHistoryLoadResult {
@@ -312,8 +472,31 @@ private func currentHistory(for entry: SongLibraryEntry) -> PracticeSongHistoryL
             scoreRevision: revision,
             totalSourceMeasureCount: 1,
             preparedAt: date
-        )]
+        )],
+        sessions: [makeLoadingSession(songID: entry.id, revision: revision)]
     ))
+}
+
+private func makeLoadingSession(songID: UUID, revision: String) -> PracticeSessionRecord {
+    let day = PracticeLocalDay(
+        year: 2026,
+        month: 7,
+        day: 15,
+        timeZoneIdentifier: "Asia/Singapore"
+    )!
+    return PracticeSessionRecord(
+        id: UUID(),
+        songID: songID,
+        scoreRevision: revision,
+        windowOpenedAt: Date(timeIntervalSince1970: 0),
+        practiceStartedAt: Date(timeIntervalSince1970: 1),
+        practiceDay: day,
+        endedAt: Date(timeIntervalSince1970: 10),
+        lastPersistedAt: Date(timeIntervalSince1970: 10),
+        practiceWindowDurationMilliseconds: 10_000,
+        activePracticeDurationMilliseconds: 5_000,
+        termination: .normal
+    )!
 }
 
 private actor FixedHistoryRepository: PracticeProgressRepositoryProtocol {
@@ -413,14 +596,81 @@ private actor RequestedSongHistoryRepository: PracticeProgressRepositoryProtocol
 
 private actor UpdatingHistoryRepository: PracticeProgressRepositoryProtocol {
     private var result: PracticeSongHistoryLoadResult
+    private(set) var historyRequestCount = 0
     init(result: PracticeSongHistoryLoadResult) { self.result = result }
     func setResult(_ result: PracticeSongHistoryLoadResult) { self.result = result }
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
-    func history(for _: UUID) -> PracticeSongHistoryLoadResult { result }
+    func history(for _: UUID) -> PracticeSongHistoryLoadResult {
+        historyRequestCount += 1
+        return result
+    }
     func upsert(_: SongPracticeProgress) {}
     func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID _: UUID) {}
+}
+
+private actor ControlledSnapshotRecoveryRepository:
+    PracticeProgressRepositoryProtocol,
+    PracticeProgressRecoveryProtocol
+{
+    enum Behavior: Sendable {
+        case succeeds
+        case fails
+        case suspended
+    }
+
+    private var histories: [UUID: PracticeSongHistoryLoadResult]
+    private let recoveredHistories: [UUID: PracticeSongHistoryLoadResult]
+    private let behavior: Behavior
+    private var recoveryContinuation: CheckedContinuation<Void, Never>?
+    private(set) var historyRequestCount = 0
+    private(set) var recoveryCount = 0
+
+    init(
+        initial: [UUID: PracticeSongHistoryLoadResult],
+        recovered: [UUID: PracticeSongHistoryLoadResult],
+        behavior: Behavior
+    ) {
+        histories = initial
+        recoveredHistories = recovered
+        self.behavior = behavior
+    }
+
+    func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
+    func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
+    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+        historyRequestCount += 1
+        return histories[songID] ?? emptyHistory(for: songID)
+    }
+    func upsert(_: SongPracticeProgress) {}
+    func upsert(_: SongScorePracticeMetadata) {}
+    func remove(songID _: UUID) {}
+
+    func recoverFromCorruption() async throws -> PracticeProgressRecoveryResult {
+        recoveryCount += 1
+        switch behavior {
+        case .succeeds:
+            break
+        case .fails:
+            throw PracticeProgressRepositoryError.unavailable(
+                description: "/Users/private/PracticeProgress/progress-v1.json"
+            )
+        case .suspended:
+            await withCheckedContinuation { recoveryContinuation = $0 }
+        }
+        histories = recoveredHistories
+        return .recovered(backupURL: URL(fileURLWithPath: "/tmp/progress-backup.json"))
+    }
+
+    func waitForRecovery() async {
+        while recoveryContinuation == nil { await Task.yield() }
+    }
+
+    func resumeRecovery() {
+        recoveryContinuation?.resume()
+        recoveryContinuation = nil
+    }
 }
 
 private actor CommittedSnapshotImportService: SongLibraryImportTransactionServicing {

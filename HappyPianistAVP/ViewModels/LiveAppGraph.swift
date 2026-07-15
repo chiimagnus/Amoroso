@@ -7,6 +7,7 @@ struct LiveAppGraph {
   let arGuideViewModel: ARGuideViewModel
   let songLibraryViewModel: SongLibraryViewModel
   let practiceLaunchViewModel: PracticeLaunchViewModel
+  let practiceSessionRecorder: PracticeSessionRecorder
   let diagnosticsViewModel: DiagnosticsViewModel
 
   static func make() -> LiveAppGraph {
@@ -34,17 +35,23 @@ struct LiveAppGraph {
       fileStore: songFileStore
     )
     let songAudioPlayer: SongAudioPlayerProtocol = SongAudioPlayer()
-    let progressRepository: any PracticeProgressRepositoryProtocol =
-      FilePracticeProgressRepository()
-    let progressCoordinator = PracticeProgressCoordinator(repository: progressRepository)
+    let progressRepository = FilePracticeProgressRepository()
     let diagnosticsStore: any DiagnosticsStoreProtocol = FileDiagnosticsStore()
     let diagnosticsReporter: any DiagnosticsReporting = AppDiagnosticsReporter(
       exportStore: diagnosticsStore)
+    let progressCoordinator = PracticeProgressCoordinator(
+      repository: progressRepository,
+      diagnosticsReporter: diagnosticsReporter
+    )
     let diagnosticsExporter: any DiagnosticsArchiveExporting = DiagnosticsArchiveExporter(
       store: diagnosticsStore)
     let diagnosticsViewModel = DiagnosticsViewModel(
       store: diagnosticsStore,
       exporter: diagnosticsExporter
+    )
+    let practiceSessionRecorder = PracticeSessionRecorder(
+      repository: progressRepository,
+      diagnosticsReporter: diagnosticsReporter
     )
     let importTransactionService = SongLibraryImportTransactionService(
       indexStore: songLibraryIndexStore,
@@ -118,7 +125,8 @@ struct LiveAppGraph {
           audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
           handPianoActivityGate: makeHandPianoActivityGate(),
           settingsProvider: settingsProvider,
-          progressCoordinator: progressCoordinator
+          progressCoordinator: progressCoordinator,
+          sessionRecorder: practiceSessionRecorder
         )
 
       case .virtualPiano:
@@ -131,7 +139,8 @@ struct LiveAppGraph {
           practiceInputEventSource: nil,
           audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
           handPianoActivityGate: makeHandPianoActivityGate(),
-          progressCoordinator: progressCoordinator
+          progressCoordinator: progressCoordinator,
+          sessionRecorder: practiceSessionRecorder
         )
 
       default:
@@ -144,7 +153,8 @@ struct LiveAppGraph {
           practiceInputEventSource: nil,
           audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
           handPianoActivityGate: makeHandPianoActivityGate(),
-          progressCoordinator: progressCoordinator
+          progressCoordinator: progressCoordinator,
+          sessionRecorder: practiceSessionRecorder
         )
       }
     }
@@ -165,6 +175,7 @@ struct LiveAppGraph {
       bundledProvider: bundledSongLibraryProvider,
       audioPlayer: songAudioPlayer,
       practiceProgressRepository: progressRepository,
+      practiceProgressRecovery: progressRepository,
       diagnosticsReporter: diagnosticsReporter,
       snapshotBuilder: SongPracticeLibrarySnapshotBuilder(),
       bootstrapLoader: LiveSongLibraryBootstrapLoader(
@@ -178,7 +189,9 @@ struct LiveAppGraph {
       preparationService: practicePreparationService,
       applicator: arGuideViewModel,
       diagnosticsReporter: diagnosticsReporter,
-      progressRepository: progressRepository
+      progressRepository: progressRepository,
+      progressRecovery: progressRepository,
+      sessionRecorder: practiceSessionRecorder
     )
     let windowState = WindowTransitionState(
       practiceSetupState: appState.practiceSetupState,
@@ -209,6 +222,7 @@ struct LiveAppGraph {
       arGuideViewModel: arGuideViewModel,
       songLibraryViewModel: songLibraryViewModel,
       practiceLaunchViewModel: practiceLaunchViewModel,
+      practiceSessionRecorder: practiceSessionRecorder,
       diagnosticsViewModel: diagnosticsViewModel
     )
   }
