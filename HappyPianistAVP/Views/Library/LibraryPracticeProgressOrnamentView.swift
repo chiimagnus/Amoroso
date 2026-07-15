@@ -401,6 +401,7 @@ private struct LibraryPracticeMetricCard: View {
         .foregroundStyle(.primary)
         .minimumScaleFactor(0.76)
         .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 14)
@@ -556,6 +557,7 @@ private struct LibraryPracticeLegendItem: View {
         .font(.caption2)
         .foregroundStyle(.secondary)
         .lineLimit(1)
+        .fixedSize(horizontal: true, vertical: false)
     } icon: {
       Image(systemName: systemImage)
         .foregroundStyle(tint)

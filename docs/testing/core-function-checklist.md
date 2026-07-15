@@ -47,7 +47,7 @@
 | --- | --- | --- |
 | visionOS Simulator 完整测试与 App build | Pass | Apple Vision Pro visionOS 26.4（device `86364D5F-BCCF-48C5-AF79-8154E5689FA3`）实际运行 `xcodebuild test` 与 `build`，两者 exit 0。 |
 | invitation、metadata 缺失、IO unavailable、corruption | Pass | 向 Simulator Documents 注入严格 schema 或明确故障后，以 production Library root 实际渲染并截取 device framebuffer；IO 仅有重试，corruption 同时显示备份重置。 |
-| overview、resume、focus、streak | Fail | production overview 均已渲染，但普通字号横排摘要中的最近练习日期被单行截断；转入 P3 audit 修复。 |
+| overview、resume、focus、streak | Pass | P3 audit 让横排候选按事实文本 intrinsic width 测量；DEBUG capture route + `$screenshot` 在普通字号确认 `Jul 15, 2026` 完整显示，AX XXXL 自动切为纵排且无省略。证据位于 feature `.audit/screenshots/`。 |
 | Practice preparation 与 ready 界面 | Pass | 同一测试曲目经真实 resolver/preparation 后在 Simulator 显示五线谱、琴键、bottom ornament 与 `0 / 8` 进度。 |
 | 超大 Dynamic Type 与增强对比度 | Pass | `accessibility-extra-extra-extra-large` + Increase Contrast 下摘要退化为纵排，日期、时长、次数、状态、进度与符号仍可辨识，剩余区域可由单一 ScrollView 访问。 |
 | 切换曲目与 corruption 二次确认点击 | Not Run | 当前 Xcode 安装没有可交互的独立 Simulator GUI；generation/capability/action 由自动化测试覆盖，但不冒充手工点击通过。 |
