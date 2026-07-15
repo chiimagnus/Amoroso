@@ -1,230 +1,999 @@
 import SwiftUI
 
 struct LibraryPracticeProgressOrnamentView: View {
-    let state: SongPracticeLibraryPresentationState
+  let state: SongPracticeLibraryPresentationState
 
-    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            switch state {
-            case .loading:
-                HStack(spacing: 12) {
-                    ProgressView()
-                    Text("正在读取练习记录…")
-                        .foregroundStyle(.secondary)
-                }
-                .accessibilityElement(children: .combine)
-            case .neverPracticed:
-                LibraryPracticeNeverView()
-            case let .current(snapshot):
-                LibraryPracticeCurrentSnapshotView(
-                    snapshot: snapshot,
-                    differentiateWithoutColor: differentiateWithoutColor
-                )
-            case let .needsRebuild(_, historyDate):
-                LibraryPracticeMessageView(
-                    systemImage: "arrow.trianglehead.2.clockwise.rotate.90",
-                    title: "当前版本尚未建立进度",
-                    message: rebuildMessage(historyDate: historyDate)
-                )
-            case .unavailable:
-                LibraryPracticeMessageView(
-                    systemImage: "exclamationmark.triangle",
-                    title: "暂时无法读取记录",
-                    message: "仍可试听或进入练习窗口；已有数据不会在这里被修改。"
-                )
-            }
-        }
-        .padding(20)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("当前曲目练习概览")
+  var body: some View {
+    ScrollView {
+      LibraryPracticeOrnamentContentView(state: state)
+        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
     }
-
-    private func rebuildMessage(historyDate: Date?) -> String {
-        guard let historyDate else {
-            return "保留了历史练习事实。开始一次练习后会重建当前结构。"
-        }
-        return "保留了历史记录（最近练习：\(historyDate.formatted(date: .abbreviated, time: .shortened))）。开始一次练习后会重建当前结构。"
-    }
+    .scrollIndicators(.hidden)
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("当前曲目练习概览")
+  }
 }
 
-private struct LibraryPracticeNeverView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            LibraryPracticeEmptyAnimationView()
-                .frame(maxWidth: .infinity)
+private struct LibraryPracticeOrnamentContentView: View {
+  let state: SongPracticeLibraryPresentationState
 
-            Text("从第一小节开始")
-                .font(.headline)
-                .bold()
-            Text("完成一次真实练习后，这里会显示稳定小节、练习中小节和恢复位置。")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("尚未练习这首曲目")
-        .accessibilityValue("完成一次练习后将显示练习事实")
+  var body: some View {
+    switch state {
+    case .loading:
+      LibraryPracticeLoadingView()
+    case .neverPracticed:
+      LibraryPracticeInvitationView()
+    case .current(let snapshot):
+      LibraryPracticeOverviewView(
+        presentation: LibraryPracticeOverviewPresentation(snapshot: snapshot)
+      )
+    case .needsRebuild(_, let historyDate):
+      LibraryPracticeOverviewView(
+        presentation: LibraryPracticeOverviewPresentation.needsRebuild(
+          historyDate: historyDate
+        )
+      )
+    case .unavailable:
+      LibraryPracticeUnavailableView()
     }
+  }
 }
 
-private struct LibraryPracticeCurrentSnapshotView: View {
-    let snapshot: SongPracticeLibrarySnapshot
-    let differentiateWithoutColor: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label("练习概览", systemImage: "chart.bar.xaxis")
-                .font(.headline)
-                .bold()
-
-            if let latestPracticeDate = snapshot.latestPracticeDate {
-                LabeledContent("最近练习") {
-                    Text(latestPracticeDate, format: .dateTime.month().day().hour().minute())
-                }
-            }
-
-            if snapshot.totalSourceMeasureCount > 0 {
-                Text("当前曲谱共 \(snapshot.totalSourceMeasureCount.formatted()) 个小节")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            if let facts = snapshot.currentFacts {
-                LabeledContent("当前手别", value: facts.handMode.libraryDisplayName)
-
-                HStack(spacing: 10) {
-                    LibraryPracticeCountBadge(
-                        title: "稳定",
-                        count: facts.stableSourceMeasureCount,
-                        systemImage: "checkmark.circle.fill",
-                        emphasizedShape: differentiateWithoutColor
-                    )
-                    LibraryPracticeCountBadge(
-                        title: "练习中",
-                        count: facts.learningSourceMeasureCount,
-                        systemImage: "clock.fill",
-                        emphasizedShape: differentiateWithoutColor
-                    )
-                }
-
-                if let resumeSourceMeasureID = facts.resumeSourceMeasureID {
-                    LabeledContent(
-                        "恢复位置",
-                        value: "第 \(resumeSourceMeasureID.libraryMeasureText) 小节"
-                    )
-                }
-
-                if let tempo = facts.highestStableTempoScale {
-                    LabeledContent("最高稳定速度") {
-                        Text(tempo, format: .percent.precision(.fractionLength(0)))
-                    }
-                }
-
-                if facts.recentIssues.isEmpty == false {
-                    Divider()
-                    Text("最近需要留意")
-                        .font(.subheadline)
-                        .bold()
-                    ForEach(facts.recentIssues.prefix(3), id: \.sourceMeasureID) { issue in
-                        Label(
-                            "第 \(issue.sourceMeasureID.libraryMeasureText) 小节 · \(issue.kind.libraryDisplayName)",
-                            systemImage: issue.kind.librarySystemImage
-                        )
-                        .font(.caption)
-                    }
-                }
-            } else {
-                Label("当前曲谱版本尚未练习", systemImage: "sparkles")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
+private struct LibraryPracticeLoadingView: View {
+  var body: some View {
+    VStack(alignment: .leading, spacing: 18) {
+      HStack(spacing: 12) {
+        ProgressView()
+        VStack(alignment: .leading, spacing: 4) {
+          Text("正在读取练习记录")
+            .font(.headline)
+            .bold()
+          Text("正在准备当前曲目的练习概览。")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
         }
+      }
+      .accessibilityElement(children: .combine)
+
+      LibraryPracticeLoadingPlaceholderView()
+      LibraryPracticeLoadingPlaceholderView()
+      LibraryPracticeLoadingPlaceholderView()
     }
+    .padding(.top, 4)
+  }
 }
 
-private struct LibraryPracticeCountBadge: View {
-    let title: String
-    let count: Int
-    let systemImage: String
-    let emphasizedShape: Bool
-
-    var body: some View {
-        Label {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(count, format: .number)
-                    .font(.title3)
-                    .bold()
-                Text(title)
-                    .font(.caption)
-            }
-        } icon: {
-            Image(systemName: systemImage)
+private struct LibraryPracticeLoadingPlaceholderView: View {
+  var body: some View {
+    RoundedRectangle(cornerRadius: LibraryDesignTokens.practiceCardCornerRadius)
+      .fill(.thinMaterial)
+      .frame(height: 92)
+      .overlay(alignment: .leading) {
+        VStack(alignment: .leading, spacing: 10) {
+          Capsule()
+            .fill(.secondary.opacity(0.22))
+            .frame(width: 96, height: 10)
+          Capsule()
+            .fill(.secondary.opacity(0.14))
+            .frame(maxWidth: .infinity)
+            .frame(height: 9)
         }
-        .padding(10)
+        .padding(18)
+      }
+      .accessibilityHidden(true)
+  }
+}
+
+private struct LibraryPracticeUnavailableView: View {
+  var body: some View {
+    ContentUnavailableView {
+      Label("暂时无法读取练习记录", systemImage: "exclamationmark.triangle")
+    } description: {
+      Text("你仍然可以试听曲目或从主窗口开始练习；这里不会修改已有数据。")
+    }
+    .frame(maxWidth: .infinity, minHeight: 420)
+  }
+}
+
+private struct LibraryPracticeInvitationView: View {
+  private let benefits = [
+    LibraryPracticeBenefit(
+      title: "记录真实练习时长与练习次数",
+      systemImage: "clock"
+    ),
+    LibraryPracticeBenefit(
+      title: "追踪稳定、学习中与未练习小节",
+      systemImage: "chart.bar.fill"
+    ),
+    LibraryPracticeBenefit(
+      title: "自动发现值得继续关注的重点小节",
+      systemImage: "sparkles"
+    ),
+  ]
+
+  var body: some View {
+    VStack(spacing: 22) {
+      Spacer(minLength: 20)
+
+      LibraryPracticeEmptyAnimationView()
+        .frame(maxWidth: .infinity)
+
+      VStack(spacing: 10) {
+        Text("这首曲子还没有练习记录")
+          .font(.title2)
+          .bold()
+          .multilineTextAlignment(.center)
+
+        Text("第一次弹下琴键，就是这首曲子的开始。完成一次真实练习后，这里会逐步记录你的进展。")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      .accessibilityElement(children: .combine)
+
+      VStack(spacing: 10) {
+        ForEach(benefits) { benefit in
+          LibraryPracticeBenefitRow(benefit: benefit)
+        }
+      }
+      .accessibilityElement(children: .contain)
+      .accessibilityLabel("练习后可查看的信息")
+
+      Label(
+        "准备好后，从主窗口右下角开始练习",
+        systemImage: "arrow.down.right"
+      )
+      .font(.subheadline)
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, 16)
+      .padding(.vertical, 14)
+      .frame(maxWidth: .infinity)
+      .background(.thinMaterial, in: .rect(cornerRadius: 16))
+      .accessibilityElement(children: .combine)
+
+      Spacer(minLength: 20)
+    }
+    .frame(maxWidth: .infinity, minHeight: 600)
+  }
+}
+
+private struct LibraryPracticeBenefit: Identifiable {
+  var id: String { title }
+  let title: String
+  let systemImage: String
+}
+
+private struct LibraryPracticeBenefitRow: View {
+  let benefit: LibraryPracticeBenefit
+
+  var body: some View {
+    Label {
+      Text(benefit.title)
+        .font(.subheadline)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.thinMaterial, in: .rect(cornerRadius: 12))
-        .overlay {
-            if emphasizedShape {
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(.primary.opacity(0.35), lineWidth: 1)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(title)
-        .accessibilityValue(count.formatted())
+    } icon: {
+      Image(systemName: benefit.systemImage)
+        .foregroundStyle(LibraryDesignTokens.accent)
+        .frame(width: 24)
     }
+    .padding(.horizontal, 14)
+    .padding(.vertical, 12)
+    .background(.thinMaterial, in: .rect(cornerRadius: 15))
+  }
 }
 
-private struct LibraryPracticeMessageView: View {
-    let systemImage: String
-    let title: String
-    let message: String
+private struct LibraryPracticeOverviewView: View {
+  let presentation: LibraryPracticeOverviewPresentation
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-                .bold()
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+  var body: some View {
+    VStack(alignment: .leading, spacing: 16) {
+      LibraryPracticeOverviewHeader(presentation: presentation)
+      LibraryPracticeSummaryView(items: presentation.summaryItems)
+
+      if let progress = presentation.progress {
+        LibraryPracticeProgressSection(progress: progress)
+      } else if let progressMessage = presentation.progressMessage {
+        LibraryPracticeProgressMessageSection(message: progressMessage)
+      }
+
+      if let resume = presentation.resume {
+        LibraryPracticeResumeSection(resume: resume)
+      }
+
+      if presentation.focusItems.isEmpty == false {
+        LibraryPracticeFocusSection(items: presentation.focusItems)
+      }
+
+      if let encouragement = presentation.encouragement {
+        LibraryPracticeEncouragementSection(encouragement: encouragement)
+      }
+    }
+  }
+}
+
+private struct LibraryPracticeOverviewHeader: View {
+  let presentation: LibraryPracticeOverviewPresentation
+
+  @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+  @Environment(\.accessibilityContrast) private var accessibilityContrast
+
+  var body: some View {
+    HStack(alignment: .top, spacing: 14) {
+      VStack(alignment: .leading, spacing: 5) {
+        Text("当前曲目")
+          .font(.caption2)
+          .bold()
+          .textCase(.uppercase)
+          .foregroundStyle(LibraryDesignTokens.accent)
+
+        Text("练习概览")
+          .font(.title2)
+          .bold()
+      }
+
+      Spacer(minLength: 8)
+
+      Label(presentation.status.title, systemImage: presentation.status.systemImage)
+        .font(.caption)
+        .bold()
+        .foregroundStyle(presentation.status.tint)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 8)
+        .background(presentation.status.tint.opacity(0.14), in: .capsule)
+        .overlay {
+          if differentiateWithoutColor || accessibilityContrast == .increased {
+            Capsule()
+              .strokeBorder(presentation.status.tint.opacity(0.65), lineWidth: 1)
+          }
         }
         .accessibilityElement(children: .combine)
     }
+  }
 }
 
-private extension PracticeHandMode {
-    var libraryDisplayName: String {
-        switch self {
-        case .both: "双手"
-        case .right: "右手"
-        case .left: "左手"
+private struct LibraryPracticeSummaryView: View {
+  let items: [LibraryPracticeSummaryItem]
+
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+  var body: some View {
+    if dynamicTypeSize.isAccessibilitySize {
+      VStack(spacing: 10) {
+        ForEach(items) { item in
+          LibraryPracticeMetricCard(item: item)
         }
-    }
-}
-
-private extension PracticeSourceMeasureID {
-    var libraryMeasureText: String {
-        sourceNumberToken ?? (sourceMeasureIndex + 1).formatted()
-    }
-}
-
-private extension PracticeIssueKind {
-    var libraryDisplayName: String {
-        switch self {
-        case .wrongNote: "错音"
-        case .missedNote: "漏音"
-        case .incompleteChord: "和弦不完整"
+      }
+    } else {
+      HStack(alignment: .top, spacing: 10) {
+        ForEach(items) { item in
+          LibraryPracticeMetricCard(item: item)
         }
+      }
+    }
+  }
+}
+
+private struct LibraryPracticeMetricCard: View {
+  let item: LibraryPracticeSummaryItem
+
+  var body: some View {
+    LibraryPracticeSectionCard(cornerRadius: 16) {
+      VStack(alignment: .leading, spacing: 7) {
+        Text(item.title)
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+
+        Text(item.value)
+          .font(.title3)
+          .bold()
+          .minimumScaleFactor(0.78)
+          .lineLimit(1)
+
+        if let note = item.note {
+          Text(note)
+            .font(.caption2)
+            .foregroundStyle(.tertiary)
+            .lineLimit(1)
+        }
+      }
+      .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
+    }
+    .accessibilityElement(children: .combine)
+  }
+}
+
+private struct LibraryPracticeProgressSection: View {
+  let progress: LibraryPracticeMeasureProgress
+
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+  var body: some View {
+    LibraryPracticeSectionCard {
+      VStack(alignment: .leading, spacing: 14) {
+        HStack(alignment: .firstTextBaseline) {
+          Text("全曲进度")
+            .font(.headline)
+            .bold()
+
+          Spacer()
+
+          Text("\(progress.total.formatted()) 个小节 · \(progress.handModeText)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.trailing)
+        }
+
+        LibraryPracticeSegmentedProgressBar(progress: progress)
+          .accessibilityElement(children: .ignore)
+          .accessibilityLabel("全曲进度")
+          .accessibilityValue(progress.accessibilityValue)
+
+        if dynamicTypeSize.isAccessibilitySize {
+          VStack(alignment: .leading, spacing: 10) {
+            LibraryPracticeLegendItem(
+              title: "稳定",
+              count: progress.stable,
+              systemImage: "checkmark.circle.fill",
+              tint: .green
+            )
+            LibraryPracticeLegendItem(
+              title: "学习中",
+              count: progress.learning,
+              systemImage: "clock.fill",
+              tint: LibraryDesignTokens.accent
+            )
+            LibraryPracticeLegendItem(
+              title: "未练习",
+              count: progress.unpracticed,
+              systemImage: "circle.dotted",
+              tint: .secondary
+            )
+          }
+        } else {
+          HStack(spacing: 8) {
+            LibraryPracticeLegendItem(
+              title: "稳定",
+              count: progress.stable,
+              systemImage: "checkmark.circle.fill",
+              tint: .green
+            )
+            LibraryPracticeLegendItem(
+              title: "学习中",
+              count: progress.learning,
+              systemImage: "clock.fill",
+              tint: LibraryDesignTokens.accent
+            )
+            LibraryPracticeLegendItem(
+              title: "未练习",
+              count: progress.unpracticed,
+              systemImage: "circle.dotted",
+              tint: .secondary
+            )
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct LibraryPracticeSegmentedProgressBar: View {
+  let progress: LibraryPracticeMeasureProgress
+
+  var body: some View {
+    Canvas { context, size in
+      let bounds = CGRect(origin: .zero, size: size)
+      context.fill(
+        roundedPath(in: bounds, radius: size.height / 2),
+        with: .color(.secondary.opacity(0.16))
+      )
+
+      let segments = [
+        LibraryPracticeProgressSegment(count: progress.stable, tint: .green),
+        LibraryPracticeProgressSegment(
+          count: progress.learning,
+          tint: LibraryDesignTokens.accent
+        ),
+        LibraryPracticeProgressSegment(
+          count: progress.unpracticed,
+          tint: .secondary.opacity(0.32)
+        ),
+      ].filter { $0.count > 0 }
+
+      guard progress.total > 0, segments.isEmpty == false else { return }
+
+      let spacing: CGFloat = 4
+      let totalSpacing = spacing * CGFloat(max(segments.count - 1, 0))
+      let availableWidth = max(size.width - totalSpacing, 0)
+      var x: CGFloat = 0
+
+      for segment in segments {
+        let fraction = CGFloat(segment.count) / CGFloat(progress.total)
+        let width = availableWidth * fraction
+        let segmentRect = CGRect(x: x, y: 0, width: width, height: size.height)
+        context.fill(
+          roundedPath(in: segmentRect, radius: size.height / 2),
+          with: .color(segment.tint)
+        )
+        x += width + spacing
+      }
+    }
+    .frame(height: 11)
+  }
+
+  private func roundedPath(in rect: CGRect, radius: CGFloat) -> Path {
+    var path = Path()
+    path.addRoundedRect(
+      in: rect,
+      cornerSize: CGSize(width: radius, height: radius)
+    )
+    return path
+  }
+}
+
+private struct LibraryPracticeProgressSegment {
+  let count: Int
+  let tint: Color
+}
+
+private struct LibraryPracticeLegendItem: View {
+  let title: String
+  let count: Int
+  let systemImage: String
+  let tint: Color
+
+  var body: some View {
+    Label {
+      Text("\(title) · \(count.formatted())")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+    } icon: {
+      Image(systemName: systemImage)
+        .foregroundStyle(tint)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel(title)
+    .accessibilityValue(count.formatted())
+  }
+}
+
+private struct LibraryPracticeProgressMessageSection: View {
+  let message: String
+
+  var body: some View {
+    LibraryPracticeSectionCard {
+      Label {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("当前版本进度待建立")
+            .font(.headline)
+            .bold()
+          Text(message)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+      } icon: {
+        Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+          .foregroundStyle(LibraryDesignTokens.accent)
+      }
+      .accessibilityElement(children: .combine)
+    }
+  }
+}
+
+private struct LibraryPracticeResumeSection: View {
+  let resume: LibraryPracticeResumePresentation
+
+  var body: some View {
+    LibraryPracticeSectionCard {
+      HStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("上次练习位置")
+            .font(.headline)
+            .bold()
+          Text(resume.measureText)
+            .font(.title2)
+            .bold()
+          Text("上次在这里结束，可以继续衔接。")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        Spacer(minLength: 12)
+
+        Image(systemName: "arrow.up.forward")
+          .font(.title3)
+          .foregroundStyle(LibraryDesignTokens.accent)
+          .frame(width: 46, height: 46)
+          .background(LibraryDesignTokens.accent.opacity(0.14), in: .rect(cornerRadius: 15))
+          .accessibilityHidden(true)
+      }
+      .accessibilityElement(children: .combine)
+    }
+  }
+}
+
+private struct LibraryPracticeFocusSection: View {
+  let items: [LibraryPracticeFocusItem]
+
+  var body: some View {
+    LibraryPracticeSectionCard {
+      VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .firstTextBaseline) {
+          Text("重点小节")
+            .font(.headline)
+            .bold()
+          Spacer()
+          Text("自动分析")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+
+        VStack(spacing: 9) {
+          ForEach(items) { item in
+            LibraryPracticeFocusRow(item: item)
+          }
+        }
+      }
+    }
+  }
+}
+
+private struct LibraryPracticeFocusRow: View {
+  let item: LibraryPracticeFocusItem
+
+  var body: some View {
+    HStack(spacing: 11) {
+      Text(item.rank.formatted())
+        .font(.caption)
+        .bold()
+        .foregroundStyle(LibraryDesignTokens.accentForeground)
+        .frame(width: 28, height: 28)
+        .background(LibraryDesignTokens.accent.opacity(0.72), in: .rect(cornerRadius: 9))
+        .accessibilityHidden(true)
+
+      VStack(alignment: .leading, spacing: 3) {
+        Text(item.title)
+          .font(.subheadline)
+          .bold()
+        Text(item.detail)
+          .font(.caption)
+          .foregroundStyle(.secondary)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 11)
+    .background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
+    .accessibilityElement(children: .combine)
+  }
+}
+
+private struct LibraryPracticeEncouragementSection: View {
+  let encouragement: LibraryPracticeEncouragementPresentation
+
+  var body: some View {
+    LibraryPracticeSectionCard(accented: true) {
+      ZStack(alignment: .topTrailing) {
+        Image(systemName: "sparkles")
+          .font(.largeTitle)
+          .foregroundStyle(LibraryDesignTokens.accent.opacity(0.45))
+          .accessibilityHidden(true)
+
+        VStack(alignment: .leading, spacing: 7) {
+          Text(encouragement.title)
+            .font(.headline)
+            .bold()
+            .frame(maxWidth: 280, alignment: .leading)
+          Text(encouragement.message)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: 300, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .accessibilityElement(children: .combine)
+    }
+  }
+}
+
+private struct LibraryPracticeSectionCard<Content: View>: View {
+  let cornerRadius: CGFloat
+  let accented: Bool
+  let content: Content
+
+  @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+  @Environment(\.accessibilityContrast) private var accessibilityContrast
+
+  init(
+    cornerRadius: CGFloat = LibraryDesignTokens.practiceCardCornerRadius,
+    accented: Bool = false,
+    @ViewBuilder content: () -> Content
+  ) {
+    self.cornerRadius = cornerRadius
+    self.accented = accented
+    self.content = content()
+  }
+
+  var body: some View {
+    content
+      .padding(18)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background {
+        if accented {
+          RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(LibraryDesignTokens.accent.opacity(0.16))
+        } else {
+          RoundedRectangle(cornerRadius: cornerRadius)
+            .fill(.thinMaterial)
+        }
+      }
+      .overlay {
+        if differentiateWithoutColor || accessibilityContrast == .increased {
+          RoundedRectangle(cornerRadius: cornerRadius)
+            .strokeBorder(.primary.opacity(0.28), lineWidth: 1)
+        }
+      }
+  }
+}
+
+private struct LibraryPracticeOverviewPresentation {
+  enum Status {
+    case learning
+    case stable
+    case pending
+
+    var title: String {
+      switch self {
+      case .learning: "正在学习"
+      case .stable: "进展稳定"
+      case .pending: "待建立进度"
+      }
     }
 
-    var librarySystemImage: String {
-        switch self {
-        case .wrongNote: "music.note"
-        case .missedNote: "music.note.slash"
-        case .incompleteChord: "square.stack.3d.up"
-        }
+    var systemImage: String {
+      switch self {
+      case .learning: "clock.fill"
+      case .stable: "checkmark.circle.fill"
+      case .pending: "sparkles"
+      }
     }
+
+    var tint: Color {
+      switch self {
+      case .learning: LibraryDesignTokens.accent
+      case .stable: .green
+      case .pending: .secondary
+      }
+    }
+  }
+
+  let status: Status
+  let summaryItems: [LibraryPracticeSummaryItem]
+  let progress: LibraryPracticeMeasureProgress?
+  let progressMessage: String?
+  let resume: LibraryPracticeResumePresentation?
+  let focusItems: [LibraryPracticeFocusItem]
+  let encouragement: LibraryPracticeEncouragementPresentation?
+
+  init(snapshot: SongPracticeLibrarySnapshot) {
+    let facts = snapshot.currentFacts
+    let stableCount = facts?.stableSourceMeasureCount ?? 0
+    let learningCount = facts?.learningSourceMeasureCount ?? 0
+    let latestPracticeText =
+      snapshot.latestPracticeDate.map {
+        $0.formatted(date: .abbreviated, time: .omitted)
+      } ?? "暂无"
+
+    status = Self.status(
+      stableCount: stableCount,
+      learningCount: learningCount,
+      totalCount: snapshot.totalSourceMeasureCount,
+      hasCurrentFacts: facts != nil
+    )
+
+    summaryItems = [
+      LibraryPracticeSummaryItem(
+        id: "latest",
+        title: "最近练习",
+        value: latestPracticeText,
+        note: nil
+      ),
+      LibraryPracticeSummaryItem(
+        id: "stable",
+        title: "稳定小节",
+        value: stableCount.formatted(),
+        note: "当前版本"
+      ),
+      LibraryPracticeSummaryItem(
+        id: "learning",
+        title: "练习中",
+        value: learningCount.formatted(),
+        note: facts?.handMode.libraryDisplayName
+      ),
+    ]
+
+    if snapshot.totalSourceMeasureCount > 0 {
+      progress = LibraryPracticeMeasureProgress(
+        total: snapshot.totalSourceMeasureCount,
+        stable: stableCount,
+        learning: learningCount,
+        handModeText: facts?.handMode.libraryDisplayName ?? "当前版本"
+      )
+      progressMessage = nil
+    } else {
+      progress = nil
+      progressMessage = "开始一次练习后会建立当前曲谱结构。"
+    }
+
+    resume = facts?.resumeSourceMeasureID.map {
+      LibraryPracticeResumePresentation(
+        measureText: "第 \($0.libraryMeasureText) 小节"
+      )
+    }
+
+    focusItems =
+      facts?.recentIssues.prefix(3).enumerated().map { index, issue in
+        LibraryPracticeFocusItem(
+          rank: index + 1,
+          title: "第 \(issue.sourceMeasureID.libraryMeasureText) 小节",
+          detail:
+            "近期\(issue.kind.libraryDisplayName) · \(issue.attemptedAt.formatted(date: .abbreviated, time: .omitted))"
+        )
+      } ?? []
+
+    if stableCount > 0 {
+      encouragement = LibraryPracticeEncouragementPresentation(
+        title: "已经稳定掌握 \(stableCount.formatted()) 个小节",
+        message: "保持这个节奏。你正在把困难的小节变成身体记忆。"
+      )
+    } else if facts != nil {
+      encouragement = LibraryPracticeEncouragementPresentation(
+        title: "每一次练习都在积累",
+        message: "继续完成当前小节，稳定进度会逐步出现在这里。"
+      )
+    } else {
+      encouragement = nil
+    }
+  }
+
+  static func needsRebuild(historyDate: Date?) -> LibraryPracticeOverviewPresentation {
+    let latestText =
+      historyDate.map {
+        $0.formatted(date: .abbreviated, time: .omitted)
+      } ?? "已保留"
+
+    return LibraryPracticeOverviewPresentation(
+      status: .pending,
+      summaryItems: [
+        LibraryPracticeSummaryItem(
+          id: "latest",
+          title: "最近练习",
+          value: latestText,
+          note: nil
+        ),
+        LibraryPracticeSummaryItem(
+          id: "progress",
+          title: "当前进度",
+          value: "待建立",
+          note: nil
+        ),
+        LibraryPracticeSummaryItem(
+          id: "history",
+          title: "历史记录",
+          value: "已保留",
+          note: nil
+        ),
+      ],
+      progress: nil,
+      progressMessage: "历史练习事实已经保留。开始一次练习后，会按当前曲谱版本重新建立小节进度。",
+      resume: nil,
+      focusItems: [],
+      encouragement: LibraryPracticeEncouragementPresentation(
+        title: "可以从当前版本重新开始",
+        message: "历史练习不会丢失，新的小节进度会在练习后逐步建立。"
+      )
+    )
+  }
+
+  private init(
+    status: Status,
+    summaryItems: [LibraryPracticeSummaryItem],
+    progress: LibraryPracticeMeasureProgress?,
+    progressMessage: String?,
+    resume: LibraryPracticeResumePresentation?,
+    focusItems: [LibraryPracticeFocusItem],
+    encouragement: LibraryPracticeEncouragementPresentation?
+  ) {
+    self.status = status
+    self.summaryItems = summaryItems
+    self.progress = progress
+    self.progressMessage = progressMessage
+    self.resume = resume
+    self.focusItems = focusItems
+    self.encouragement = encouragement
+  }
+
+  private static func status(
+    stableCount: Int,
+    learningCount: Int,
+    totalCount: Int,
+    hasCurrentFacts: Bool
+  ) -> Status {
+    guard hasCurrentFacts else { return .pending }
+    if totalCount > 0, stableCount == totalCount, learningCount == 0 {
+      return .stable
+    }
+    return .learning
+  }
 }
+
+private struct LibraryPracticeSummaryItem: Identifiable {
+  let id: String
+  let title: String
+  let value: String
+  let note: String?
+}
+
+private struct LibraryPracticeMeasureProgress {
+  let total: Int
+  let stable: Int
+  let learning: Int
+  let handModeText: String
+
+  init(total: Int, stable: Int, learning: Int, handModeText: String) {
+    let safeTotal = max(total, 0)
+    let safeStable = min(max(stable, 0), safeTotal)
+    let safeLearning = min(max(learning, 0), safeTotal - safeStable)
+
+    self.total = safeTotal
+    self.stable = safeStable
+    self.learning = safeLearning
+    self.handModeText = handModeText
+  }
+
+  var unpracticed: Int {
+    total - stable - learning
+  }
+
+  var accessibilityValue: String {
+    "稳定 \(stable.formatted()) 个小节，学习中 \(learning.formatted()) 个小节，未练习 \(unpracticed.formatted()) 个小节，共 \(total.formatted()) 个小节"
+  }
+}
+
+private struct LibraryPracticeResumePresentation {
+  let measureText: String
+}
+
+private struct LibraryPracticeFocusItem: Identifiable {
+  var id: Int { rank }
+  let rank: Int
+  let title: String
+  let detail: String
+}
+
+private struct LibraryPracticeEncouragementPresentation {
+  let title: String
+  let message: String
+}
+
+extension PracticeHandMode {
+  fileprivate var libraryDisplayName: String {
+    switch self {
+    case .both: "双手"
+    case .right: "右手"
+    case .left: "左手"
+    }
+  }
+}
+
+extension PracticeSourceMeasureID {
+  fileprivate var libraryMeasureText: String {
+    sourceNumberToken ?? (sourceMeasureIndex + 1).formatted()
+  }
+}
+
+extension PracticeIssueKind {
+  fileprivate var libraryDisplayName: String {
+    switch self {
+    case .wrongNote: "错音"
+    case .missedNote: "漏音"
+    case .incompleteChord: "和弦不完整"
+    }
+  }
+}
+
+#if DEBUG
+  extension LibraryPracticeOverviewPresentation {
+    fileprivate static let preview = LibraryPracticeOverviewPresentation(
+      status: .learning,
+      summaryItems: [
+        LibraryPracticeSummaryItem(
+          id: "latest",
+          title: "最近练习",
+          value: "昨天",
+          note: nil
+        ),
+        LibraryPracticeSummaryItem(
+          id: "duration",
+          title: "累计练习",
+          value: "42 分钟",
+          note: nil
+        ),
+        LibraryPracticeSummaryItem(
+          id: "sessions",
+          title: "练习次数",
+          value: "8 次",
+          note: nil
+        ),
+      ],
+      progress: LibraryPracticeMeasureProgress(
+        total: 24,
+        stable: 10,
+        learning: 6,
+        handModeText: "双手"
+      ),
+      progressMessage: nil,
+      resume: LibraryPracticeResumePresentation(measureText: "第 18 小节"),
+      focusItems: [
+        LibraryPracticeFocusItem(
+          rank: 1,
+          title: "第 14 小节",
+          detail: "近期错误较多 · 右手节奏"
+        ),
+        LibraryPracticeFocusItem(
+          rank: 2,
+          title: "第 18 小节",
+          detail: "仍在学习 · 双手配合"
+        ),
+        LibraryPracticeFocusItem(
+          rank: 3,
+          title: "第 21 小节",
+          detail: "最近练习 · 稳定度不足"
+        ),
+      ],
+      encouragement: LibraryPracticeEncouragementPresentation(
+        title: "已经连续练习 3 天",
+        message: "保持这个节奏。你正在把困难的小节变成身体记忆。"
+      )
+    )
+  }
+
+  #Preview("练习概览") {
+    ScrollView {
+      LibraryPracticeOverviewView(presentation: .preview)
+        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+    }
+    .scrollIndicators(.hidden)
+    .frame(
+      minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
+      idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
+      maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
+      minHeight: 720,
+      idealHeight: 720,
+      maxHeight: 720
+    )
+    .glassBackgroundEffect()
+  }
+
+  #Preview("首次练习邀请") {
+    ScrollView {
+      LibraryPracticeInvitationView()
+        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+    }
+    .scrollIndicators(.hidden)
+    .frame(
+      minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
+      idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
+      maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
+      minHeight: 720,
+      idealHeight: 720,
+      maxHeight: 720
+    )
+    .glassBackgroundEffect()
+  }
+#endif

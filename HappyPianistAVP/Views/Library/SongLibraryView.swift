@@ -167,7 +167,14 @@ struct SongLibraryView: View {
     ) {
       if let state = viewModel.practiceSnapshotState {
         LibraryPracticeProgressOrnamentView(state: state)
-          .frame(width: 400, height: libraryViewHeight)
+          .frame(
+            minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
+            idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
+            maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
+            minHeight: libraryViewHeight,
+            idealHeight: libraryViewHeight,
+            maxHeight: libraryViewHeight
+          )
           .glassBackgroundEffect()
       }
     }
