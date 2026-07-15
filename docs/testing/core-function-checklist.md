@@ -35,7 +35,7 @@
 | 检查 | 状态 | 证据 |
 | --- | --- | --- |
 | invitation/overview(metadata 缺失)/unavailable 事实边界与 A→B→A 乱序 | Pass | presentation builder、受控 actor history 与 metadata failure 回归测试实际运行。 |
-| Library/Ornament 不触达 score、prepare、session 或配置 controller | Pass | CodeGraph 调用图、score access spy 与静态符号 gate。 |
+| Library/Ornament 不访问 score URL、prepare 服务或 Practice session/config controller | Pass | CodeGraph 调用图、score access spy 与静态符号 gate；View 只消费最终 presentation 中的 session summary 与当前 revision facts。 |
 | visionOS Simulator 完整测试与 App build | Pass | Apple Vision Pro visionOS 26.4 的本轮 `xcodebuild test` / `build` 结果。 |
 | Ornament 各状态与 min/ideal/max 窗口 | Not Run | 当前环境没有可见的 Simulator GUI/应用窗口。 |
 | 最大 Dynamic Type、VoiceOver | Not Run | 需要可交互 Simulator GUI 或真机。 |
@@ -45,7 +45,7 @@
 
 | 检查 | 状态 | 证据 |
 | --- | --- | --- |
-| visionOS Simulator 完整测试与 App build | Pass | Apple Vision Pro visionOS 26.4（device `86364D5F-BCCF-48C5-AF79-8154E5689FA3`）实际运行 `xcodebuild test` 与 `build`，两者 exit 0。 |
+| visionOS Simulator 完整测试与 App build | Pass | Apple Vision Pro visionOS 26.4（device `86364D5F-BCCF-48C5-AF79-8154E5689FA3`）最终 `xcodebuild test` 为 815/815、0 failed、0 skipped、0 runtime warning；Debug 与 Release `xcodebuild build` 均 exit 0。 |
 | invitation、metadata 缺失、IO unavailable、corruption | Pass | 向 Simulator Documents 注入严格 schema 或明确故障后，以 production Library root 实际渲染并截取 device framebuffer；IO 仅有重试，corruption 同时显示备份重置。 |
 | overview、resume、focus、streak | Pass | P3 audit 让横排候选按事实文本 intrinsic width 测量；DEBUG capture route + `$screenshot` 在普通字号确认 `Jul 15, 2026` 完整显示，AX XXXL 自动切为纵排且无省略。证据位于 feature `.audit/screenshots/`。 |
 | Practice preparation 与 ready 界面 | Pass | 同一测试曲目经真实 resolver/preparation 后在 Simulator 显示五线谱、琴键、bottom ornament 与 `0 / 8` 进度。 |
