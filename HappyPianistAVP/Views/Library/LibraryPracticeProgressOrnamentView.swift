@@ -218,7 +218,7 @@ private struct LibraryPracticeOverviewHeader: View {
   let presentation: LibraryPracticeOverviewPresentation
 
   @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
-  @Environment(\.accessibilityContrast) private var accessibilityContrast
+  @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
@@ -244,7 +244,7 @@ private struct LibraryPracticeOverviewHeader: View {
         .padding(.vertical, 8)
         .background(presentation.status.tint.opacity(0.14), in: .capsule)
         .overlay {
-          if differentiateWithoutColor || accessibilityContrast == .increased {
+          if differentiateWithoutColor || colorSchemeContrast == .increased {
             Capsule()
               .strokeBorder(presentation.status.tint.opacity(0.65), lineWidth: 1)
           }
@@ -607,7 +607,7 @@ private struct LibraryPracticeSectionCard<Content: View>: View {
   let content: Content
 
   @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
-  @Environment(\.accessibilityContrast) private var accessibilityContrast
+  @Environment(\.colorSchemeContrast) private var colorSchemeContrast
 
   init(
     cornerRadius: CGFloat = LibraryDesignTokens.practiceCardCornerRadius,
@@ -633,7 +633,7 @@ private struct LibraryPracticeSectionCard<Content: View>: View {
         }
       }
       .overlay {
-        if differentiateWithoutColor || accessibilityContrast == .increased {
+        if differentiateWithoutColor || colorSchemeContrast == .increased {
           RoundedRectangle(cornerRadius: cornerRadius)
             .strokeBorder(.primary.opacity(0.28), lineWidth: 1)
         }
