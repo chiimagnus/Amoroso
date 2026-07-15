@@ -439,7 +439,9 @@ final class SongLibraryViewModel {
         importQueueGeneration += 1
         let stagingTask = importStagingTask
         stagingTask?.cancel()
-        _ = await stagingTask?.value
+        if let stagingTask {
+            _ = await stagingTask.value
+        }
         importStagingTask = nil
         let operationIDs = importQueue.dropFirst(importQueueIndex).compactMap { item -> UUID? in
             guard case let .staged(descriptor) = item else { return nil }
