@@ -338,10 +338,11 @@ private struct LibraryPracticeOverviewHeader: View {
             .strokeBorder(Color.primary.opacity(0.32), lineWidth: 1)
         }
       }
-      .accessibilityElement(children: .combine)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel("练习状态")
+      .accessibilityValue(status.title)
     }
   }
-
 }
 
 private struct LibraryPracticeSummaryView: View {
@@ -562,7 +563,7 @@ private struct LibraryPracticeLegendItem: View {
     .frame(maxWidth: .infinity, alignment: .leading)
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(title)
-    .accessibilityValue(count.formatted())
+    .accessibilityValue("\(count.formatted()) 个小节")
   }
 }
 
@@ -838,87 +839,99 @@ extension SongPracticeFocusReason {
 }
 
 #if DEBUG
-  private struct LibraryPracticePreviewOrnament<Content: View>: View {
-    let content: Content
+  private enum LibraryPracticePreviewFixture {
+    static let identity = SongPracticeLibrarySelectionIdentity(
+      songID: UUID(),
+      scoreFileVersionID: UUID()
+    )
 
-    init(@ViewBuilder content: () -> Content) {
-      self.content = content()
-    }
+    static let overview = SongPracticeLibraryOverview(
+      identity: identity,
+      status: .learning,
+      sessionSummary: SongPracticeSessionSummary(
+        latestPracticeEndedAt: .now.addingTimeInterval(-86_400),
+        totalActiveDurationMilliseconds: 2_520_000,
+        sessionCount: 8,
+        streak: SongPracticeStreak(dayCount: 3, recency: .current)
+      ),
+      measureProgress: .available(SongPracticeMeasureProgress(
+        stableSourceMeasureCount: 10,
+        learningSourceMeasureCount: 6,
+        unpracticedSourceMeasureCount: 8
+      )),
+      resumeSourceMeasureID: PracticeSourceMeasureID(
+        partID: "P1",
+        sourceMeasureIndex: 17,
+        sourceNumberToken: "18"
+      ),
+      focusMeasures: [
+        SongPracticeFocusMeasure(
+          sourceMeasureID: PracticeSourceMeasureID(
+            partID: "P1",
+            sourceMeasureIndex: 13,
+            sourceNumberToken: "14"
+          ),
+          reason: .recentIssue(.wrongNote)
+        ),
+        SongPracticeFocusMeasure(
+          sourceMeasureID: PracticeSourceMeasureID(
+            partID: "P1",
+            sourceMeasureIndex: 17,
+            sourceNumberToken: "18"
+          ),
+          reason: .learning
+        ),
+      ]
+    )
+
+    static let metadataUnavailableOverview = SongPracticeLibraryOverview(
+      identity: identity,
+      status: .pending,
+      sessionSummary: SongPracticeSessionSummary(
+        latestPracticeEndedAt: .now.addingTimeInterval(-172_800),
+        totalActiveDurationMilliseconds: 45_000,
+        sessionCount: 1,
+        streak: nil
+      ),
+      measureProgress: .metadataUnavailable,
+      resumeSourceMeasureID: nil,
+      focusMeasures: []
+    )
+  }
+
+  private struct LibraryPracticePreviewPanel: View {
+    let state: SongPracticeLibraryPresentationState
 
     var body: some View {
-      ScrollView {
-        content
-          .padding(LibraryPracticeOrnamentLayout.contentPadding)
-      }
-      .scrollIndicators(.hidden)
-      .frame(
-        minWidth: LibraryPracticeOrnamentLayout.minimumWidth,
-        idealWidth: LibraryPracticeOrnamentLayout.idealWidth,
-        maxWidth: LibraryPracticeOrnamentLayout.maximumWidth,
-        minHeight: 720,
-        idealHeight: 720,
-        maxHeight: 720
+      LibraryPracticeProgressOrnamentView(
+        state: state,
+        height: 720,
+        onRetry: {},
+        onConfirmedReset: {}
       )
       .glassBackgroundEffect()
     }
   }
 
-  #Preview("练习概览") {
-    LibraryPracticePreviewOrnament {
-      LibraryPracticeOrnamentContentView(state: .overview(SongPracticeLibraryOverview(
-        identity: SongPracticeLibrarySelectionIdentity(
-          songID: UUID(),
-          scoreFileVersionID: UUID()
-        ),
-        status: .learning,
-        sessionSummary: SongPracticeSessionSummary(
-          latestPracticeEndedAt: .now.addingTimeInterval(-86_400),
-          totalActiveDurationMilliseconds: 2_520_000,
-          sessionCount: 8,
-          streak: SongPracticeStreak(dayCount: 3, recency: .current)
-        ),
-        measureProgress: .available(SongPracticeMeasureProgress(
-          stableSourceMeasureCount: 10,
-          learningSourceMeasureCount: 6,
-          unpracticedSourceMeasureCount: 8
-        )),
-        resumeSourceMeasureID: PracticeSourceMeasureID(
-          partID: "P1",
-          sourceMeasureIndex: 17,
-          sourceNumberToken: "18"
-        ),
-        focusMeasures: [
-          SongPracticeFocusMeasure(
-            sourceMeasureID: PracticeSourceMeasureID(
-              partID: "P1",
-              sourceMeasureIndex: 13,
-              sourceNumberToken: "14"
-            ),
-            reason: .recentIssue(.wrongNote)
-          ),
-          SongPracticeFocusMeasure(
-            sourceMeasureID: PracticeSourceMeasureID(
-              partID: "P1",
-              sourceMeasureIndex: 17,
-              sourceNumberToken: "18"
-            ),
-            reason: .learning
-          ),
-        ]
-      )), onRetry: {}, onConfirmedReset: {})
-    }
+  #Preview("完整练习概览") {
+    LibraryPracticePreviewPanel(state: .overview(LibraryPracticePreviewFixture.overview))
   }
 
   #Preview("首次练习邀请") {
-    LibraryPracticePreviewOrnament {
-      LibraryPracticeOrnamentContentView(
-        state: .invitation(SongPracticeLibrarySelectionIdentity(
-          songID: UUID(),
-          scoreFileVersionID: UUID()
-        )),
-        onRetry: {},
-        onConfirmedReset: {}
-      )
-    }
+    LibraryPracticePreviewPanel(state: .invitation(LibraryPracticePreviewFixture.identity))
+  }
+
+  #Preview("当前版本 metadata 缺失") {
+    LibraryPracticePreviewPanel(
+      state: .overview(LibraryPracticePreviewFixture.metadataUnavailableOverview)
+    )
+  }
+
+  #Preview("练习记录不可用") {
+    LibraryPracticePreviewPanel(state: .unavailable(SongPracticeLibraryUnavailable(
+      identity: LibraryPracticePreviewFixture.identity,
+      reason: .corrupted,
+      recoveryOptions: .retryAndConfirmedBackupReset
+    )))
   }
 #endif
