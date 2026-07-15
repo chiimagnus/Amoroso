@@ -22,6 +22,9 @@ enum SongLibraryViewModelTestHarness {
         let resolvedIndexStore = indexStore ?? InMemorySongLibraryIndexStore(index: resolvedIndex)
         let resolvedFileStore = fileStore ?? InMemorySongFileStore()
         let resolvedBundledProvider = StubBundledSongLibraryProvider(entries: bundledEntries)
+        let resolvedBootstrapLoader = bootstrapLoader ?? FixedSongLibraryBootstrapLoader(
+            snapshot: .loaded(index: resolvedIndex, bundledEntries: bundledEntries)
+        )
         return SongLibraryViewModel(
             indexStore: resolvedIndexStore,
             importTransactionService: importTransactionService ?? NoopSongLibraryImportTransactionService(),
@@ -32,7 +35,7 @@ enum SongLibraryViewModelTestHarness {
             practiceProgressRepository: practiceProgressRepository ?? InMemoryPracticeProgressRepository(),
             diagnosticsReporter: diagnosticsReporter ?? NoopLibraryDiagnosticsReporter(),
             snapshotBuilder: snapshotBuilder ?? SongPracticeLibrarySnapshotBuilder(),
-            bootstrapLoader: bootstrapLoader,
+            bootstrapLoader: resolvedBootstrapLoader,
             initialSnapshot: deferInitialLoad
                 ? nil
                 : .loaded(index: resolvedIndex, bundledEntries: bundledEntries),
@@ -40,6 +43,18 @@ enum SongLibraryViewModelTestHarness {
             snapshotSettleDelay: snapshotSettleDelay,
             selectionPersistenceDelay: .zero
         )
+    }
+}
+
+private actor FixedSongLibraryBootstrapLoader: SongLibraryBootstrapLoading {
+    let snapshot: SongLibraryBootstrapSnapshot
+
+    init(snapshot: SongLibraryBootstrapSnapshot) {
+        self.snapshot = snapshot
+    }
+
+    func load() -> SongLibraryBootstrapSnapshot {
+        snapshot
     }
 }
 

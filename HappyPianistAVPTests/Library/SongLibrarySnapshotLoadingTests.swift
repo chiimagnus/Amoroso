@@ -110,24 +110,22 @@ func libraryRefreshCoalescesSameSelectionAndReadsHistoryOnce() async throws {
 
 @Test
 @MainActor
-func libraryReloadBindsSnapshotGenerationToChangedEntryToken() async throws {
+func committedReplacementBindsSnapshotGenerationToChangedEntryToken() async throws {
     let songID = UUID()
     let first = makeLoadingEntry(id: songID, name: "Versioned", token: UUID())
     let second = makeLoadingEntry(id: songID, name: "Versioned", token: UUID())
-    let indexStore = MutableSnapshotIndexStore(
-        index: SongLibraryIndex(entries: [first], lastSelectedEntryID: songID)
-    )
+    let updatedIndex = SongLibraryIndex(entries: [second], lastSelectedEntryID: songID)
+    let importService = CommittedSnapshotImportService(index: updatedIndex, entry: second)
     let repository = FixedHistoryRepository(histories: [
         songID: currentHistory(for: second)
     ])
     let viewModel = SongLibraryViewModelTestHarness.make(
         index: SongLibraryIndex(entries: [first], lastSelectedEntryID: songID),
-        indexStore: indexStore,
+        importTransactionService: importService,
         practiceProgressRepository: repository
     )
-    await indexStore.replaceEntries([second])
 
-    await viewModel.reload()
+    await viewModel.importMusicXML(from: [URL(fileURLWithPath: "/tmp/Versioned.musicxml")])
     try await waitForSnapshotState(viewModel) { state in
         guard case let .current(snapshot) = state else { return false }
         return snapshot.identity == selectionIdentity(second)
@@ -425,45 +423,34 @@ private actor UpdatingHistoryRepository: PracticeProgressRepositoryProtocol {
     func remove(songID _: UUID) {}
 }
 
-private actor MutableSnapshotIndexStore: SongLibraryIndexStoreProtocol {
-    private var index: SongLibraryIndex
+private actor CommittedSnapshotImportService: SongLibraryImportTransactionServicing {
+    private let descriptor = SongLibraryStagedImport(id: UUID(), fileName: "Versioned.musicxml")
+    private let index: SongLibraryIndex
+    private let entry: SongLibraryEntry
 
-    init(index: SongLibraryIndex) { self.index = index }
-    func replaceEntries(_ entries: [SongLibraryEntry]) { index.entries = entries }
-    func load() -> SongLibraryIndex { index }
-    func setLastSelectedEntryID(_ entryID: UUID?) -> SongLibraryIndex {
-        index.lastSelectedEntryID = entryID
-        return index
+    init(index: SongLibraryIndex, entry: SongLibraryEntry) {
+        self.index = index
+        self.entry = entry
     }
-    func appendUserEntry(_ entry: SongLibraryEntry) -> SongLibraryIndex {
-        index.entries.append(entry)
-        return index
+
+    func recoverPendingTransactions() -> SongLibraryTransactionRecoveryResult { .recovered }
+
+    func stageImports(from _: [URL]) -> SongLibraryImportBatchStageResult {
+        SongLibraryImportBatchStageResult(items: [.staged(descriptor)], blocked: nil)
     }
-    func removeUserEntry(
-        id: UUID,
-        fallbackLastSelectedEntryID: UUID?
-    ) -> SongLibraryEntryMutationResult {
-        guard let entryIndex = index.entries.firstIndex(where: { $0.id == id }) else {
-            return .notFound(index: index)
+
+    func process(operationID: UUID) -> SongLibraryImportProcessResult {
+        guard operationID == descriptor.id else {
+            return .blocked(SongLibraryBlockedImport(operationID: operationID, message: "unexpected operation"))
         }
-        let entry = index.entries.remove(at: entryIndex)
-        index.lastSelectedEntryID = fallbackLastSelectedEntryID
-        return .applied(index: index, entry: entry)
+        return .committed(index: index, entry: entry)
     }
-    func updateAudioFileName(
-        entryID: UUID,
-        expectedCurrentFileName: String?,
-        newFileName: String?
-    ) -> SongLibraryEntryMutationResult {
-        guard let entryIndex = index.entries.firstIndex(where: { $0.id == entryID }) else {
-            return .notFound(index: index)
-        }
-        guard index.entries[entryIndex].audioFileName == expectedCurrentFileName else {
-            return .conflict(index: index, entry: index.entries[entryIndex])
-        }
-        index.entries[entryIndex].audioFileName = newFileName
-        return .applied(index: index, entry: index.entries[entryIndex])
+
+    func confirm(operationID: UUID) -> SongLibraryImportProcessResult {
+        .blocked(SongLibraryBlockedImport(operationID: operationID, message: "unexpected confirmation"))
     }
+
+    func cancel(operationID _: UUID) -> Bool { true }
 }
 
 private actor SnapshotScoreAccessSpy: SongFileStoreProtocol {

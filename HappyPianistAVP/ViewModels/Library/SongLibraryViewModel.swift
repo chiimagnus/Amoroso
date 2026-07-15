@@ -9,7 +9,7 @@ final class SongLibraryViewModel {
     private let fileStore: SongFileStoreProtocol
     private let audioImportService: AudioImportServiceProtocol
     private let bundledProvider: BundledSongLibraryProviderProtocol
-    private let bootstrapLoader: (any SongLibraryBootstrapLoading)?
+    private let bootstrapLoader: any SongLibraryBootstrapLoading
     private var bundledEntries: [SongLibraryEntry]
     private let audioPlaybackController: SongAudioPlaybackStateController
     private let practiceProgressRepository: any PracticeProgressRepositoryProtocol
@@ -62,7 +62,7 @@ final class SongLibraryViewModel {
         practiceProgressRepository: any PracticeProgressRepositoryProtocol,
         diagnosticsReporter: any DiagnosticsReporting,
         snapshotBuilder: any SongPracticeLibrarySnapshotBuilding = SongPracticeLibrarySnapshotBuilder(),
-        bootstrapLoader: (any SongLibraryBootstrapLoading)? = nil,
+        bootstrapLoader: any SongLibraryBootstrapLoading,
         initialSnapshot: SongLibraryBootstrapSnapshot? = nil,
         snapshotSleeper: any SleeperProtocol = TaskSleeper(),
         snapshotSettleDelay: Duration = .milliseconds(150),
@@ -115,10 +115,6 @@ final class SongLibraryViewModel {
 
     func loadLibraryIfNeeded() async {
         guard hasLoadedLibrary == false, isLibraryLoading == false else { return }
-        guard let bootstrapLoader else {
-            hasLoadedLibrary = true
-            return
-        }
 
         isLibraryLoading = true
         let snapshot = await bootstrapLoader.load()
@@ -133,15 +129,6 @@ final class SongLibraryViewModel {
             bootstrapFailureMessage = failure.message
         }
         isLibraryLoading = false
-    }
-
-    func reload() async {
-        do {
-            index = try await indexStore.load()
-            installBootstrapSelection()
-        } catch {
-            errorMessage = "加载乐曲库失败：\(error.localizedDescription)"
-        }
     }
 
     func refreshSelectedPracticeSnapshot() {
