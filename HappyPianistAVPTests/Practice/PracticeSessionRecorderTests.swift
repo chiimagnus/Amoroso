@@ -46,6 +46,7 @@ private actor RecorderRepository: PracticeSessionRepositoryProtocol {
 private final class RecorderClock: Sendable {
     private struct State {
         var monotonicMilliseconds: Int64 = 0
+        var monotonicReadCount = 0
         var wallDate = Date(timeIntervalSince1970: 1_000)
     }
 
@@ -74,10 +75,19 @@ private final class RecorderClock: Sendable {
         }
     }
 
+    func waitForMonotonicReads(_ count: Int) async {
+        while state.withLock({ $0.monotonicReadCount }) < count {
+            await Task.yield()
+        }
+    }
+
     func makeClock() -> PracticeSessionRecorderClock {
         PracticeSessionRecorderClock(
             monotonicMilliseconds: { [self] in
-                state.withLock(\.monotonicMilliseconds)
+                state.withLock { state in
+                    state.monotonicReadCount += 1
+                    return state.monotonicMilliseconds
+                }
             },
             wallDate: { [self] in
                 state.withLock(\.wallDate)
@@ -352,6 +362,36 @@ func recorderIgnoresCancelledPeriodicCheckpointThatFinishesLate() async throws {
     for _ in 0 ..< 20 { await Task.yield() }
 
     #expect(await repository.records().count == countAfterSettingsBoundary)
+}
+
+@Test
+func recorderFinalizeUsesBoundaryAfterBlockedPersistenceAndInterleavedEvent() async throws {
+    let repository = GatedRecorderRepository()
+    let clock = try RecorderClock()
+    let recorder = PracticeSessionRecorder(
+        repository: repository,
+        clock: clock.makeClock(),
+        sleeper: RecorderSleeper()
+    )
+    await beginActiveVisit(recorder: recorder)
+    await recorder.setGuiding(true)
+    await repository.waitUntilFirstWriteStarts()
+
+    clock.advance(milliseconds: 10_000)
+    let finalizationTask = Task { await recorder.finalize() }
+    await clock.waitForMonotonicReads(3)
+    clock.advance(milliseconds: 5_000)
+    await recorder.setSettingsPresented(true)
+
+    await repository.resumeFirstWrite()
+    #expect(await finalizationTask.value == .saved)
+
+    let final = try #require(await repository.records().last)
+    let expectedEnd = Date(timeIntervalSince1970: 1_015)
+    #expect(final.endedAt == expectedEnd)
+    #expect(final.lastPersistedAt == expectedEnd)
+    #expect(final.practiceWindowDurationMilliseconds == 15_000)
+    #expect(final.activePracticeDurationMilliseconds == 15_000)
 }
 
 @Test

@@ -251,11 +251,19 @@ actor PracticeSessionRecorder {
             return .idle
         }
 
-        let endedAt = clock.wallDate()
+        let visitID = visit.id
         self.visit = visit
         if let persistenceTask {
             _ = await persistenceTask.value
         }
+        guard var currentVisit = self.visit,
+              currentVisit.id == visitID
+        else {
+            return saveStatus
+        }
+        advance(&currentVisit)
+        let endedAt = clock.wallDate()
+        self.visit = currentVisit
         queueCurrentRecord(
             persistedAt: endedAt,
             endedAt: endedAt,
