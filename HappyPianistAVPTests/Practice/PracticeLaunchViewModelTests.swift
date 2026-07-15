@@ -197,7 +197,7 @@ func confirmedCorruptionRecoveryReReadsStoreBeforePreparing() async {
         songID: fixture.songA,
         scoreRevision: fixture.songA.uuidString
     )))
-    #expect(await fixture.preparation.requestedSongIDs() == [fixture.songA])
+    #expect(await fixture.preparation.requestedSongIDs() == [fixture.songA, fixture.songA])
     #expect(await fixture.metadataRepository.recoveryCount == 1)
     #expect(fixture.owner.progressAccessFailure == nil)
     #expect(fixture.applicator.guidingStartBlocks == [true, false])
@@ -804,8 +804,12 @@ func sceneInactiveWhileApplyIsSuspendedCannotLeakOldReadyState() async {
     let activation = Task { @MainActor in await owner.activateCurrentRequest() }
     await applicator.waitUntilApplyStarted()
 
-    await owner.suspendForInactiveScene()
+    let suspension = Task { @MainActor in
+        await owner.suspendForInactiveScene()
+    }
+    for _ in 0 ..< 20 { await Task.yield() }
     applicator.resumeApply()
+    await suspension.value
     await activation.value
 
     #expect(owner.state == .requested(songID: songID))

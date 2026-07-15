@@ -286,7 +286,8 @@ func interruptedSessionRecoveryWriteFailureIsUnavailableNotCorruption() async th
     let openSession = try makeSession()
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
-    try encoder.encode(PracticeProgressDocument(sessions: [openSession])).write(to: paths.fileURL)
+    let originalData = try encoder.encode(PracticeProgressDocument(sessions: [openSession]))
+    try originalData.write(to: paths.fileURL)
     let repository = FilePracticeProgressRepository(
         paths: paths,
         writeDocument: { _, _ in throw CocoaError(.fileWriteOutOfSpace) }
@@ -296,7 +297,7 @@ func interruptedSessionRecoveryWriteFailureIsUnavailableNotCorruption() async th
         Issue.record("Expected a recovery write failure to remain an availability failure")
         return
     }
-    #expect(try Data(contentsOf: paths.fileURL) == encoder.encode(PracticeProgressDocument(sessions: [openSession])))
+    #expect(try Data(contentsOf: paths.fileURL) == originalData)
 }
 
 @Test

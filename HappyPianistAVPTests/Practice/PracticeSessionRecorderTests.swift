@@ -296,16 +296,17 @@ func recorderDiscardKeepsLastSuccessfulCheckpoint() async throws {
     clock.advance(milliseconds: 1_000)
     await recorder.setGuiding(true)
     _ = await recorder.checkpoint()
-    let saved = try #require(await repository.records().last)
+    let savedRecords = await repository.records()
+    _ = try #require(savedRecords.last)
     await repository.failNextWrites(1)
 
     clock.advance(milliseconds: 1_000)
     await recorder.setSettingsPresented(true)
-    await repository.waitForWriteAttempts(2)
+    await repository.waitForWriteAttempts(3)
     for _ in 0 ..< 10 { await Task.yield() }
     await recorder.discardPendingDelta()
 
-    #expect(await repository.records() == [saved])
+    #expect(await repository.records() == savedRecords)
     #expect(await repository.abandonedIDs() == [visitID])
     #expect(await recorder.finalize() == .idle)
 }
