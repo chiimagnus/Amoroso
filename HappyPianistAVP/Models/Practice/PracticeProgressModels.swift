@@ -10,6 +10,161 @@ struct PracticeSongIdentity: Codable, Equatable, Hashable, Sendable {
     }
 }
 
+struct PracticeLocalDay: Codable, Equatable, Hashable, Sendable {
+    let year: Int
+    let month: Int
+    let day: Int
+    let timeZoneIdentifier: String
+
+    init?(year: Int, month: Int, day: Int, timeZoneIdentifier: String) {
+        guard let timeZone = TimeZone(identifier: timeZoneIdentifier) else {
+            return nil
+        }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        let components = DateComponents(
+            calendar: calendar,
+            timeZone: timeZone,
+            year: year,
+            month: month,
+            day: day
+        )
+        guard let date = calendar.date(from: components) else {
+            return nil
+        }
+        let validated = calendar.dateComponents([.year, .month, .day], from: date)
+        guard validated.year == year, validated.month == month, validated.day == day else {
+            return nil
+        }
+        self.year = year
+        self.month = month
+        self.day = day
+        self.timeZoneIdentifier = timeZoneIdentifier
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case year
+        case month
+        case day
+        case timeZoneIdentifier
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let year = try container.decode(Int.self, forKey: .year)
+        let month = try container.decode(Int.self, forKey: .month)
+        let day = try container.decode(Int.self, forKey: .day)
+        let timeZoneIdentifier = try container.decode(String.self, forKey: .timeZoneIdentifier)
+        guard let localDay = Self(
+            year: year,
+            month: month,
+            day: day,
+            timeZoneIdentifier: timeZoneIdentifier
+        ) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .day,
+                in: container,
+                debugDescription: "PracticeLocalDay must be a valid Gregorian date and time zone"
+            )
+        }
+        self = localDay
+    }
+}
+
+enum PracticeSessionTermination: String, Codable, Equatable, Sendable {
+    case open
+    case normal
+    case recoveredAfterInterruption
+}
+
+struct PracticeSessionRecord: Codable, Equatable, Sendable {
+    let id: UUID
+    let songID: UUID
+    let scoreRevision: String
+    let windowOpenedAt: Date
+    let practiceStartedAt: Date
+    let practiceDay: PracticeLocalDay
+    let endedAt: Date?
+    let lastPersistedAt: Date
+    let practiceWindowDurationMilliseconds: Int64
+    let activePracticeDurationMilliseconds: Int64
+    let termination: PracticeSessionTermination
+
+    init?(
+        id: UUID,
+        songID: UUID,
+        scoreRevision: String,
+        windowOpenedAt: Date,
+        practiceStartedAt: Date,
+        practiceDay: PracticeLocalDay,
+        endedAt: Date?,
+        lastPersistedAt: Date,
+        practiceWindowDurationMilliseconds: Int64,
+        activePracticeDurationMilliseconds: Int64,
+        termination: PracticeSessionTermination
+    ) {
+        guard (termination == .open) == (endedAt == nil) else {
+            return nil
+        }
+        self.id = id
+        self.songID = songID
+        self.scoreRevision = scoreRevision
+        self.windowOpenedAt = windowOpenedAt
+        self.practiceStartedAt = practiceStartedAt
+        self.practiceDay = practiceDay
+        self.endedAt = endedAt
+        self.lastPersistedAt = lastPersistedAt
+        self.practiceWindowDurationMilliseconds = max(0, practiceWindowDurationMilliseconds)
+        self.activePracticeDurationMilliseconds = max(0, activePracticeDurationMilliseconds)
+        self.termination = termination
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case songID
+        case scoreRevision
+        case windowOpenedAt
+        case practiceStartedAt
+        case practiceDay
+        case endedAt
+        case lastPersistedAt
+        case practiceWindowDurationMilliseconds
+        case activePracticeDurationMilliseconds
+        case termination
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let termination = try container.decode(PracticeSessionTermination.self, forKey: .termination)
+        guard let record = Self(
+            id: try container.decode(UUID.self, forKey: .id),
+            songID: try container.decode(UUID.self, forKey: .songID),
+            scoreRevision: try container.decode(String.self, forKey: .scoreRevision),
+            windowOpenedAt: try container.decode(Date.self, forKey: .windowOpenedAt),
+            practiceStartedAt: try container.decode(Date.self, forKey: .practiceStartedAt),
+            practiceDay: try container.decode(PracticeLocalDay.self, forKey: .practiceDay),
+            endedAt: try container.decodeIfPresent(Date.self, forKey: .endedAt),
+            lastPersistedAt: try container.decode(Date.self, forKey: .lastPersistedAt),
+            practiceWindowDurationMilliseconds: try container.decode(
+                Int64.self,
+                forKey: .practiceWindowDurationMilliseconds
+            ),
+            activePracticeDurationMilliseconds: try container.decode(
+                Int64.self,
+                forKey: .activePracticeDurationMilliseconds
+            ),
+            termination: termination
+        ) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .termination,
+                in: container,
+                debugDescription: "Open sessions must not have endedAt; terminated sessions must have endedAt"
+            )
+        }
+        self = record
+    }
+}
+
 struct PracticeSourceMeasureID: Codable, Equatable, Hashable, Sendable {
     let partID: String
     let sourceMeasureIndex: Int
@@ -304,29 +459,15 @@ enum PracticeProgressRecordOrder {
 struct PracticeProgressDocument: Codable, Equatable, Sendable {
     var songs: [SongPracticeProgress]
     var scoreMetadata: [SongScorePracticeMetadata]
+    var sessions: [PracticeSessionRecord]
 
     init(
         songs: [SongPracticeProgress] = [],
-        scoreMetadata: [SongScorePracticeMetadata] = []
+        scoreMetadata: [SongScorePracticeMetadata] = [],
+        sessions: [PracticeSessionRecord] = []
     ) {
         self.songs = songs
         self.scoreMetadata = scoreMetadata
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case songs
-        case scoreMetadata
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        songs = try container.decodeIfPresent([SongPracticeProgress].self, forKey: .songs) ?? []
-        scoreMetadata = try container.decodeIfPresent([SongScorePracticeMetadata].self, forKey: .scoreMetadata) ?? []
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(songs, forKey: .songs)
-        try container.encode(scoreMetadata, forKey: .scoreMetadata)
+        self.sessions = sessions
     }
 }
