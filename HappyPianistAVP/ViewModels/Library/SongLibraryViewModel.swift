@@ -624,6 +624,9 @@ final class SongLibraryViewModel {
             syncListeningState()
             updatePlaybackProgressTask()
         } catch {
+            guard generation == listenIntentGeneration,
+                  entries.first(where: { $0.id == entryID })?.audioFileName == audioFileName
+            else { return }
             errorMessage = "播放失败：\(error.localizedDescription)"
         }
     }

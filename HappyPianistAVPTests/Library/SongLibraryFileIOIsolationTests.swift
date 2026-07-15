@@ -25,6 +25,25 @@ func staleAudioURLResolutionCannotStartPlaybackAfterSelectionChanges() async thr
 
 @Test
 @MainActor
+func staleAudioURLFailureDoesNotPublishPlaybackErrorAfterSelectionChanges() async throws {
+    let first = makeListeningEntry(name: "first")
+    let second = makeListeningEntry(name: "second")
+    let fileStore = DelayedFailingListeningFileStore()
+    let viewModel = SongLibraryViewModelTestHarness.make(
+        index: SongLibraryIndex(entries: [first, second], lastSelectedEntryID: first.id),
+        fileStore: fileStore
+    )
+
+    let listenTask = Task { await viewModel.didTapListen(entryID: first.id) }
+    try await waitForFailureRequest(in: fileStore)
+    viewModel.selectEntry(second.id)
+    await listenTask.value
+
+    #expect(viewModel.errorMessage == nil)
+}
+
+@Test
+@MainActor
 func outOfOrderSameEntryAudioResolutionsHonorOnlyLatestIntent() async throws {
     let entry = makeListeningEntry(name: "same")
     let fileStore = DelayedListeningFileStore()
@@ -73,6 +92,28 @@ private actor DelayedListeningFileStore: SongFileStoreProtocol {
         let request = requests
         try await Task.sleep(for: request == 1 ? .milliseconds(50) : .milliseconds(5))
         return URL(fileURLWithPath: "/tmp/audio.mp3")
+    }
+    func deleteScoreFile(named _: String) async throws {}
+    func deleteAudioFile(named _: String) async throws {}
+}
+
+private func waitForFailureRequest(in store: DelayedFailingListeningFileStore) async throws {
+    for _ in 0..<100 {
+        if await store.requestCount == 1 { return }
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    Issue.record("Timed out waiting for failing audio URL request")
+}
+
+private actor DelayedFailingListeningFileStore: SongFileStoreProtocol {
+    private var requests = 0
+    var requestCount: Int { requests }
+
+    func scoreFileURL(fileName _: String) async throws -> URL { throw CocoaError(.fileNoSuchFile) }
+    func audioFileURL(fileName _: String) async throws -> URL {
+        requests += 1
+        try await Task.sleep(for: .milliseconds(50))
+        throw CocoaError(.fileReadUnknown)
     }
     func deleteScoreFile(named _: String) async throws {}
     func deleteAudioFile(named _: String) async throws {}
