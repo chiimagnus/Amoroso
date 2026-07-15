@@ -29,7 +29,7 @@ final class PracticeLaunchViewModel {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var returnOperationID: UUID?
 
-    private(set) var state: PracticeLaunchState = .noRequest
+    private(set) var state: PracticeLaunchState?
     private(set) var requestedSongID: UUID?
     private(set) var activationIdentity: PracticeLaunchActivationIdentity?
 
@@ -52,11 +52,11 @@ final class PracticeLaunchViewModel {
     }
 
     func request(songID: UUID) {
-        if requestedSongID == songID {
+        if requestedSongID == songID, let state {
             switch state {
             case .requested, .loading, .ready:
                 return
-            case .noRequest, .failure:
+            case .failure:
                 break
             }
         }
@@ -107,7 +107,6 @@ final class PracticeLaunchViewModel {
         generation += 1
         requestedSongID = nil
         activationIdentity = nil
-        state = .noRequest
         let operationID = UUID()
         returnOperationID = operationID
         return operationID

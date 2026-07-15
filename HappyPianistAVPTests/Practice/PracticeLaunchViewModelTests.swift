@@ -201,8 +201,26 @@ func practiceLaunchReturnFinishIsIdempotentAndRejectsStaleOperation() async {
     await fixture.owner.finishReturn(operationID: operationID)
     await fixture.owner.finishReturn(operationID: operationID)
 
-    #expect(fixture.owner.state == .noRequest)
+    #expect(fixture.owner.state == .requested(songID: fixture.songA))
+    #expect(fixture.owner.requestedSongID == nil)
+    #expect(fixture.owner.activationIdentity == nil)
     #expect(fixture.applicator.clearCount == 1)
+}
+
+@MainActor
+@Test
+func practiceLaunchReturnKeepsReadyPresentationUntilWindowCloses() async {
+    let fixture = makePracticeLaunchFixture()
+    fixture.owner.request(songID: fixture.songA)
+    await fixture.owner.activateCurrentRequest()
+    let readyState = fixture.owner.state
+
+    let operationID = fixture.owner.beginReturn()
+    await fixture.owner.finishReturn(operationID: operationID)
+
+    #expect(fixture.owner.state == readyState)
+    #expect(fixture.owner.requestedSongID == nil)
+    #expect(fixture.owner.activationIdentity == nil)
 }
 
 @MainActor
@@ -469,7 +487,9 @@ func returnWhilePrepareIsSuspendedCannotApplyOrPublishFailure() async {
     await activation.value
     await owner.finishReturn(operationID: operationID)
 
-    #expect(owner.state == .noRequest)
+    #expect(owner.state == .loading(songID: songID))
+    #expect(owner.requestedSongID == nil)
+    #expect(owner.activationIdentity == nil)
     #expect(applicator.appliedSongIDs.isEmpty)
     #expect(await reporter.events.filter { $0.severity == .error }.isEmpty)
 }

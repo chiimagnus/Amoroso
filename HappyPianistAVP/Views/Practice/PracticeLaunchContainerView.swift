@@ -7,27 +7,27 @@ struct PracticeLaunchContainerView: View {
 
     var body: some View {
         Group {
-            switch launchViewModel.state {
-            case .noRequest:
-                EmptyView()
-            case .requested, .loading:
-                ProgressView("正在准备练习…")
-                    .controlSize(.large)
-            case let .failure(failure):
-                PracticeLaunchFailureView(
-                    failure: failure,
-                    onRetry: {
-                        Task { @MainActor in
-                            await launchViewModel.retry()
-                        }
-                    },
-                    onReturn: onReturn
-                )
-            case .ready:
-                PracticeStepView(
-                    viewModel: arGuideViewModel,
-                    onBackToLibrary: onReturn
-                )
+            if let state = launchViewModel.state {
+                switch state {
+                case .requested, .loading:
+                    ProgressView("正在准备练习…")
+                        .controlSize(.large)
+                case let .failure(failure):
+                    PracticeLaunchFailureView(
+                        failure: failure,
+                        onRetry: {
+                            Task { @MainActor in
+                                await launchViewModel.retry()
+                            }
+                        },
+                        onReturn: onReturn
+                    )
+                case .ready:
+                    PracticeStepView(
+                        viewModel: arGuideViewModel,
+                        onBackToLibrary: onReturn
+                    )
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

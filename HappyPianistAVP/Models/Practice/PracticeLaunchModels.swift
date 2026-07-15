@@ -1,7 +1,6 @@
 import Foundation
 
 enum PracticeLaunchState: Equatable, Sendable {
-    case noRequest
     case requested(songID: UUID)
     case loading(songID: UUID)
     case failure(PracticeLaunchFailure)
