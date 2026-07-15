@@ -1,18 +1,27 @@
 import SwiftUI
 
 struct LibraryPracticeProgressOrnamentView: View {
+  static let minimumWidth: CGFloat = 360
+  static let idealWidth: CGFloat = 420
+  static let maximumWidth: CGFloat = 440
+
   let state: SongPracticeLibraryPresentationState
 
   var body: some View {
     ScrollView {
       LibraryPracticeOrnamentContentView(state: state)
-        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+        .padding(LibraryPracticeOrnamentLayout.contentPadding)
         .frame(maxWidth: .infinity, alignment: .topLeading)
     }
     .scrollIndicators(.hidden)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("当前曲目练习概览")
   }
+}
+
+private enum LibraryPracticeOrnamentLayout {
+  static let contentPadding: CGFloat = 24
+  static let cardCornerRadius: CGFloat = 22
 }
 
 private struct LibraryPracticeOrnamentContentView: View {
@@ -79,7 +88,7 @@ private struct LibraryPracticeLoadingPlaceholderView: View {
     .padding(18)
     .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
     .libraryPracticeCardSurface(
-      cornerRadius: LibraryDesignTokens.practiceCardCornerRadius
+      cornerRadius: LibraryPracticeOrnamentLayout.cardCornerRadius
     )
     .accessibilityHidden(true)
   }
@@ -260,7 +269,7 @@ private struct LibraryPracticeOverviewHeader: View {
           .font(.caption)
           .bold()
       }
-      .foregroundStyle(.primary)
+      .foregroundStyle(presentation.status.tint)
       .padding(.horizontal, 11)
       .padding(.vertical, 8)
       .background(.thinMaterial, in: .capsule)
@@ -372,13 +381,13 @@ private struct LibraryPracticeProgressLegend: View {
         title: "稳定",
         count: progress.stable,
         systemImage: "checkmark.circle.fill",
-        tint: Color.primary.opacity(0.82)
+        tint: .green
       )
       LibraryPracticeLegendItem(
         title: "学习中",
         count: progress.learning,
         systemImage: "clock.fill",
-        tint: Color.primary.opacity(0.52)
+        tint: .orange
       )
       LibraryPracticeLegendItem(
         title: "未练习",
@@ -404,11 +413,11 @@ private struct LibraryPracticeSegmentedProgressBar: View {
       let segments = [
         LibraryPracticeProgressSegment(
           count: progress.stable,
-          tint: Color.primary.opacity(0.82)
+          tint: .green
         ),
         LibraryPracticeProgressSegment(
           count: progress.learning,
-          tint: Color.primary.opacity(0.52)
+          tint: .orange
         ),
         LibraryPracticeProgressSegment(
           count: progress.unpracticed,
@@ -619,7 +628,7 @@ private struct LibraryPracticeSectionCard<Content: View>: View {
   let content: Content
 
   init(
-    cornerRadius: CGFloat = LibraryDesignTokens.practiceCardCornerRadius,
+    cornerRadius: CGFloat = LibraryPracticeOrnamentLayout.cardCornerRadius,
     @ViewBuilder content: () -> Content
   ) {
     self.cornerRadius = cornerRadius
@@ -678,6 +687,14 @@ private struct LibraryPracticeOverviewPresentation {
       case .learning: "clock.fill"
       case .stable: "checkmark.circle.fill"
       case .pending: "sparkles"
+      }
+    }
+
+    var tint: Color {
+      switch self {
+      case .learning: .orange
+      case .stable: .green
+      case .pending: .secondary
       }
     }
   }
@@ -983,13 +1000,13 @@ extension PracticeIssueKind {
     var body: some View {
       ScrollView {
         content
-          .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+          .padding(LibraryPracticeOrnamentLayout.contentPadding)
       }
       .scrollIndicators(.hidden)
       .frame(
-        minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
-        idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
-        maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
+        minWidth: LibraryPracticeProgressOrnamentView.minimumWidth,
+        idealWidth: LibraryPracticeProgressOrnamentView.idealWidth,
+        maxWidth: LibraryPracticeProgressOrnamentView.maximumWidth,
         minHeight: 720,
         idealHeight: 720,
         maxHeight: 720

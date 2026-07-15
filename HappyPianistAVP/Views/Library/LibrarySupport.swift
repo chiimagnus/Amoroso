@@ -20,12 +20,6 @@ enum LibraryDesignTokens {
   static let windowIdealHeight: CGFloat = 720
   static let windowMaximumHeight: CGFloat = 860
 
-  static let practiceOrnamentMinimumWidth: CGFloat = 360
-  static let practiceOrnamentIdealWidth: CGFloat = 420
-  static let practiceOrnamentMaximumWidth: CGFloat = 440
-  static let practiceOrnamentContentPadding: CGFloat = 24
-  static let practiceCardCornerRadius: CGFloat = 22
-
   static let liftMaximum: CGFloat = 72
   static let liftTrigger: CGFloat = 44
 

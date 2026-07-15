@@ -177,14 +177,8 @@ private struct LibraryPracticeFloatingNote: View {
   var body: some View {
     Image(systemName: systemImage)
       .font(.system(.title2, design: .rounded))
+      .symbolRenderingMode(.hierarchical)
       .foregroundStyle(.tint)
-      .frame(width: 48, height: 48)
-      .background(.thinMaterial, in: .circle)
-      .overlay {
-        Circle()
-          .strokeBorder(Color.primary.opacity(0.12), lineWidth: 1)
-      }
-      .shadow(color: .black.opacity(0.10), radius: 10, y: 6)
       .offset(x: horizontalOffset, y: verticalOffset)
       .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, raised in
         content

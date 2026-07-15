@@ -168,9 +168,9 @@ struct SongLibraryView: View {
       if let state = viewModel.practiceSnapshotState {
         LibraryPracticeProgressOrnamentView(state: state)
           .frame(
-            minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
-            idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
-            maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
+            minWidth: LibraryPracticeProgressOrnamentView.minimumWidth,
+            idealWidth: LibraryPracticeProgressOrnamentView.idealWidth,
+            maxWidth: LibraryPracticeProgressOrnamentView.maximumWidth,
             minHeight: libraryViewHeight,
             idealHeight: libraryViewHeight,
             maxHeight: libraryViewHeight
