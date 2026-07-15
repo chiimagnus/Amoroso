@@ -95,6 +95,27 @@ func corruptedPracticeHistoryWarnsAndLaunchesWithUnavailablePolicy() async {
 
 @MainActor
 @Test
+func staleCorruptedHistoryDoesNotRecordWarningAfterRequestChanges() async {
+    let fixture = makePracticeLaunchFixture(
+        historyResultOverride: .corrupted(description: "invalid progress document"),
+        historyDelay: .milliseconds(50)
+    )
+    fixture.owner.request(songID: fixture.songA)
+    let activation = Task { @MainActor in
+        await fixture.owner.activateCurrentRequest()
+    }
+    await fixture.metadataRepository.waitUntilHistoryRequested()
+
+    fixture.owner.request(songID: fixture.songB)
+    await activation.value
+
+    let warnings = await fixture.reporter.events.filter { $0.code == .practiceHistoryLoadFailed }
+    #expect(warnings.isEmpty)
+    #expect(fixture.owner.state == .requested(songID: fixture.songB))
+}
+
+@MainActor
+@Test
 func practiceLaunchLatestAtoBtoARequestWins() async throws {
     let songA = UUID()
     let songB = UUID()
@@ -631,7 +652,8 @@ private func makePracticeLaunchFixture(
     includeMeasureSpans: Bool = true,
     applyOutcome: PracticeLaunchApplyOutcome = .applied,
     progresses: [SongPracticeProgress] = [],
-    historyResultOverride: PracticeSongHistoryLoadResult? = nil
+    historyResultOverride: PracticeSongHistoryLoadResult? = nil,
+    historyDelay: Duration = .zero
 ) -> PracticeLaunchFixture {
     let resolver = PracticeLaunchResolver(songIDs: [songA, songB])
     let preparation = PracticeLaunchPreparationService(
@@ -643,7 +665,8 @@ private func makePracticeLaunchFixture(
     let reporter = InMemoryDiagnosticsReporter()
     let metadataRepository = RecordingPracticeLaunchProgressRepository(
         progresses: progresses,
-        historyResultOverride: historyResultOverride
+        historyResultOverride: historyResultOverride,
+        historyDelay: historyDelay
     )
     return PracticeLaunchFixture(
         owner: PracticeLaunchViewModel(
@@ -678,20 +701,28 @@ private actor RecordingPracticeLaunchProgressRepository: PracticeProgressReposit
     private var progresses: [SongPracticeProgress]
     let metadataError: Error?
     let historyResultOverride: PracticeSongHistoryLoadResult?
+    let historyDelay: Duration
+    private var historyRequestCount = 0
 
     init(
         metadataError: Error? = nil,
         progresses: [SongPracticeProgress] = [],
-        historyResultOverride: PracticeSongHistoryLoadResult? = nil
+        historyResultOverride: PracticeSongHistoryLoadResult? = nil,
+        historyDelay: Duration = .zero
     ) {
         self.metadataError = metadataError
         self.progresses = progresses
         self.historyResultOverride = historyResultOverride
+        self.historyDelay = historyDelay
     }
 
     func load() -> PracticeProgressLoadResult { .loaded(PracticeProgressDocument()) }
     func progress(for _: PracticeSongIdentity) -> SongPracticeProgress? { nil }
-    func history(for songID: UUID) -> PracticeSongHistoryLoadResult {
+    func history(for songID: UUID) async -> PracticeSongHistoryLoadResult {
+        historyRequestCount += 1
+        if historyDelay != .zero {
+            try? await Task.sleep(for: historyDelay)
+        }
         if let historyResultOverride { return historyResultOverride }
         return .loaded(PracticeSongHistory(
             songID: songID,
@@ -713,9 +744,13 @@ private actor RecordingPracticeLaunchProgressRepository: PracticeProgressReposit
         while metadata.count < count { await Task.yield() }
     }
 
-    func loadedHistory(songID: UUID) -> PracticeSongHistory? {
-        guard case let .loaded(history) = history(for: songID) else { return nil }
+    func loadedHistory(songID: UUID) async -> PracticeSongHistory? {
+        guard case let .loaded(history) = await history(for: songID) else { return nil }
         return history
+    }
+
+    func waitUntilHistoryRequested() async {
+        while historyRequestCount == 0 { await Task.yield() }
     }
 }
 

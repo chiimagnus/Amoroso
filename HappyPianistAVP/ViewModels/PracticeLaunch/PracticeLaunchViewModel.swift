@@ -142,6 +142,7 @@ final class PracticeLaunchViewModel {
             let resolved = try await resolver.resolve(songID: songID)
             fileReference = resolved.diagnosticFileReference
             let history = await progressRepository.history(for: songID)
+            guard isCurrent(songID: songID, generation: generation) else { return }
             if case .corrupted = history {
                 _ = await diagnosticsReporter.record(
                     DiagnosticEvent(
@@ -157,7 +158,6 @@ final class PracticeLaunchViewModel {
                     )
                 )
             }
-            guard isCurrent(songID: songID, generation: generation) else { return }
             _ = await diagnosticsReporter.record(
                 DiagnosticEvent(
                     severity: .info,
