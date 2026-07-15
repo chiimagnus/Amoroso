@@ -15,6 +15,14 @@ enum ARTrackingServiceError: LocalizedError {
 
 @MainActor
 final class ARTrackingService: ARTrackingServiceProtocol {
+    // ponytail: ARKit providers cannot run again after stopping, so one runtime owns exactly one start generation.
+    final class Runtime {
+        let session = ARKitSession()
+        let worldTrackingProvider = WorldTrackingProvider()
+        let handTrackingProvider = HandTrackingProvider()
+        let planeDetectionProvider = PlaneDetectionProvider(alignments: [.horizontal])
+    }
+
     private(set) var fingerTipsSnapshot = FingerTipsSnapshot.empty
     private(set) var worldAnchorsByID: [UUID: WorldAnchor] = [:]
     private(set) var planeAnchorsByID: [UUID: PlaneAnchor] = [:]
@@ -31,12 +39,9 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         WorldTrackingProvider.isSupported
     }
 
-    private let session = ARKitSession()
-    private let worldTrackingProvider = WorldTrackingProvider()
-    private let handTrackingProvider = HandTrackingProvider()
-    private let planeDetectionProvider = PlaneDetectionProvider(alignments: [.horizontal])
     private let fingerTipUpdates = CurrentValueAsyncStreamRelay(FingerTipsSnapshot.empty)
 
+    private(set) var activeRuntime: Runtime?
     private var sessionTask: Task<Void, Never>?
     private var handUpdatesTask: Task<Void, Never>?
     private var worldAnchorUpdatesTask: Task<Void, Never>?
@@ -50,25 +55,25 @@ final class ARTrackingService: ARTrackingServiceProtocol {
 
     func deviceWorldTransform(atTimestamp timestamp: TimeInterval) -> simd_float4x4? {
         guard providerStateByName["world"] == .running,
-              let anchor = worldTrackingProvider.queryDeviceAnchor(atTimestamp: timestamp),
+              let anchor = activeRuntime?.worldTrackingProvider.queryDeviceAnchor(atTimestamp: timestamp),
               anchor.isTracked else { return nil }
         return anchor.originFromAnchorTransform
     }
 
     func addWorldAnchor(originFromAnchorTransform: simd_float4x4) async throws -> UUID {
-        guard providerStateByName["world"] == .running else {
+        guard providerStateByName["world"] == .running, let activeRuntime else {
             throw ARTrackingServiceError.worldTrackingNotRunning
         }
         let anchor = WorldAnchor(originFromAnchorTransform: originFromAnchorTransform)
-        try await worldTrackingProvider.addAnchor(anchor)
+        try await activeRuntime.worldTrackingProvider.addAnchor(anchor)
         return anchor.id
     }
 
     func removeWorldAnchor(id: UUID) async throws {
-        guard providerStateByName["world"] == .running else {
+        guard providerStateByName["world"] == .running, let activeRuntime else {
             throw ARTrackingServiceError.worldTrackingNotRunning
         }
-        try await worldTrackingProvider.removeAnchor(forID: id)
+        try await activeRuntime.worldTrackingProvider.removeAnchor(forID: id)
     }
 
     func start(requirements: ARTrackingRequirements) {
@@ -84,6 +89,8 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         configureInitialProviderStates(requirements: requirements)
 
         guard requirements.isEmpty == false else { return }
+        let runtime = Runtime()
+        activeRuntime = runtime
 
         sessionTask = Task { [weak self] in
             guard let self else { return }
@@ -110,7 +117,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
                 includePlane: planeSupported
             )
             let statuses: [ARKitSession.AuthorizationType: ARKitSession.AuthorizationStatus] =
-                requiredAuthorizations.isEmpty ? [:] : await session.requestAuthorization(for: requiredAuthorizations)
+                requiredAuthorizations.isEmpty ? [:] : await runtime.session.requestAuthorization(for: requiredAuthorizations)
 
             guard Task.isCancelled == false, sessionGeneration == generation else { return }
             authorizationStatusByType = statuses
@@ -139,22 +146,22 @@ final class ARTrackingService: ARTrackingServiceProtocol {
             )
 
             var providersToRun: [any DataProvider] = []
-            if handAllowed { providersToRun.append(handTrackingProvider) }
-            if worldAllowed { providersToRun.append(worldTrackingProvider) }
-            if planeAllowed { providersToRun.append(planeDetectionProvider) }
+            if handAllowed { providersToRun.append(runtime.handTrackingProvider) }
+            if worldAllowed { providersToRun.append(runtime.worldTrackingProvider) }
+            if planeAllowed { providersToRun.append(runtime.planeDetectionProvider) }
             guard providersToRun.isEmpty == false else { return }
 
             do {
-                try await session.run(providersToRun)
+                try await runtime.session.run(providersToRun)
                 guard Task.isCancelled == false, sessionGeneration == generation else {
-                    session.stop()
+                    runtime.session.stop()
                     return
                 }
                 isSessionRunning = true
                 if handAllowed { providerStateByName["hand"] = .running }
                 if worldAllowed { providerStateByName["world"] = .running }
                 if planeAllowed { providerStateByName["plane"] = .running }
-                startUpdateTasks(generation: generation)
+                startUpdateTasks(runtime: runtime, generation: generation)
             } catch {
                 guard sessionGeneration == generation else { return }
                 isSessionRunning = false
@@ -189,7 +196,8 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         planeAnchorUpdatesTask = nil
         sessionTask = nil
 
-        session.stop()
+        activeRuntime?.session.stop()
+        activeRuntime = nil
         isSessionRunning = false
     }
 
@@ -261,11 +269,11 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         }
     }
 
-    private func startUpdateTasks(generation: Int) {
+    private func startUpdateTasks(runtime: Runtime, generation: Int) {
         if handUpdatesTask == nil, providerStateByName["hand"] == .running {
             handUpdatesTask = Task { [weak self] in
                 guard let self else { return }
-                for await update in handTrackingProvider.anchorUpdates {
+                for await update in runtime.handTrackingProvider.anchorUpdates {
                     guard Task.isCancelled == false, sessionGeneration == generation else { return }
                     updateFingerTips(from: update.anchor)
                 }
@@ -275,7 +283,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         if worldAnchorUpdatesTask == nil, providerStateByName["world"] == .running {
             worldAnchorUpdatesTask = Task { [weak self] in
                 guard let self else { return }
-                for await update in worldTrackingProvider.anchorUpdates {
+                for await update in runtime.worldTrackingProvider.anchorUpdates {
                     guard Task.isCancelled == false, sessionGeneration == generation else { return }
                     switch update.event {
                     case .removed:
@@ -292,7 +300,7 @@ final class ARTrackingService: ARTrackingServiceProtocol {
         if planeAnchorUpdatesTask == nil, providerStateByName["plane"] == .running {
             planeAnchorUpdatesTask = Task { [weak self] in
                 guard let self else { return }
-                for await update in planeDetectionProvider.anchorUpdates {
+                for await update in runtime.planeDetectionProvider.anchorUpdates {
                     guard Task.isCancelled == false, sessionGeneration == generation else { return }
                     switch update.event {
                     case .removed:

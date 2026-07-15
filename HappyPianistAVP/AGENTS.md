@@ -69,6 +69,7 @@
 ### 6. ARKit 与世界感知
 - **仅 Full Space:** 只有当 app 处于 `Full Space` 时，ARKit 数据才可用。在 Shared Space（Windows/Volumes）里不可用。
 - **Session 管理:** 使用 `ARKitSession` 管理 data providers，并保持对 session 的强引用。
+- **Provider 生命周期:** `ARKitSession.stop()` 后的 data provider 不得再次传给 `run(_:)`。每次重启都创建一组新的 session/providers，且异步任务只操作自己启动时捕获的那一代原生句柄，避免旧任务停止新会话。
 - **授权:**
   - 只为“确实会访问的 ARKit 数据类型”添加对应的 usage descriptions:
     - `NSHandsTrackingUsageDescription`: 当你使用 hand tracking 时才需要。
