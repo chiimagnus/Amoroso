@@ -4,15 +4,55 @@ struct LibraryPracticeProgressOrnamentView: View {
   let state: SongPracticeLibraryPresentationState
 
   var body: some View {
-    ScrollView {
-      LibraryPracticeOrnamentContentView(state: state)
-        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+    ZStack {
+      LibraryPracticeOrnamentBackdrop()
+
+      ScrollView {
+        LibraryPracticeOrnamentContentView(state: state)
+          .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+          .frame(maxWidth: .infinity, alignment: .topLeading)
+      }
+      .scrollIndicators(.hidden)
     }
-    .scrollIndicators(.hidden)
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    .clipShape(.rect(cornerRadius: LibraryDesignTokens.practiceOrnamentCornerRadius))
+    .overlay {
+      RoundedRectangle(cornerRadius: LibraryDesignTokens.practiceOrnamentCornerRadius)
+        .strokeBorder(.white.opacity(0.72), lineWidth: 1)
+    }
+    .foregroundStyle(LibraryDesignTokens.practiceInk)
+    .environment(\.colorScheme, .light)
     .accessibilityElement(children: .contain)
     .accessibilityLabel("当前曲目练习概览")
+  }
+}
+
+private struct LibraryPracticeOrnamentBackdrop: View {
+  var body: some View {
+    ZStack {
+      LibraryDesignTokens.practicePanel
+
+      LinearGradient(
+        colors: [
+          .white.opacity(0.52),
+          .white.opacity(0.08),
+          LibraryDesignTokens.practiceAccent.opacity(0.04),
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+      )
+
+      RadialGradient(
+        colors: [
+          LibraryDesignTokens.practiceAccent.opacity(0.16),
+          LibraryDesignTokens.practiceAccent.opacity(0.04),
+          .clear,
+        ],
+        center: .topTrailing,
+        startRadius: 0,
+        endRadius: 260
+      )
+    }
+    .accessibilityHidden(true)
   }
 }
 
@@ -46,13 +86,15 @@ private struct LibraryPracticeLoadingView: View {
     VStack(alignment: .leading, spacing: 18) {
       HStack(spacing: 12) {
         ProgressView()
+          .tint(LibraryDesignTokens.practiceAccent)
+
         VStack(alignment: .leading, spacing: 4) {
           Text("正在读取练习记录")
             .font(.headline)
             .bold()
           Text("正在准备当前曲目的练习概览。")
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
         }
       }
       .accessibilityElement(children: .combine)
@@ -68,19 +110,23 @@ private struct LibraryPracticeLoadingView: View {
 private struct LibraryPracticeLoadingPlaceholderView: View {
   var body: some View {
     RoundedRectangle(cornerRadius: LibraryDesignTokens.practiceCardCornerRadius)
-      .fill(.thinMaterial)
+      .fill(LibraryDesignTokens.practiceCard)
       .frame(height: 92)
       .overlay(alignment: .leading) {
         VStack(alignment: .leading, spacing: 10) {
           Capsule()
-            .fill(.secondary.opacity(0.22))
+            .fill(LibraryDesignTokens.practiceInk.opacity(0.16))
             .frame(width: 96, height: 10)
           Capsule()
-            .fill(.secondary.opacity(0.14))
+            .fill(LibraryDesignTokens.practiceInk.opacity(0.09))
             .frame(maxWidth: .infinity)
             .frame(height: 9)
         }
         .padding(18)
+      }
+      .overlay {
+        RoundedRectangle(cornerRadius: LibraryDesignTokens.practiceCardCornerRadius)
+          .strokeBorder(LibraryDesignTokens.practiceLine, lineWidth: 1)
       }
       .accessibilityHidden(true)
   }
@@ -93,6 +139,7 @@ private struct LibraryPracticeUnavailableView: View {
     } description: {
       Text("你仍然可以试听曲目或从主窗口开始练习；这里不会修改已有数据。")
     }
+    .foregroundStyle(LibraryDesignTokens.practiceInk)
     .frame(maxWidth: .infinity, minHeight: 420)
   }
 }
@@ -114,8 +161,8 @@ private struct LibraryPracticeInvitationView: View {
   ]
 
   var body: some View {
-    VStack(spacing: 22) {
-      Spacer(minLength: 20)
+    VStack(spacing: 20) {
+      Spacer(minLength: 8)
 
       LibraryPracticeEmptyAnimationView()
         .frame(maxWidth: .infinity)
@@ -125,16 +172,19 @@ private struct LibraryPracticeInvitationView: View {
           .font(.title2)
           .bold()
           .multilineTextAlignment(.center)
+          .foregroundStyle(LibraryDesignTokens.practiceInk)
 
         Text("第一次弹下琴键，就是这首曲子的开始。完成一次真实练习后，这里会逐步记录你的进展。")
           .font(.subheadline)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
           .multilineTextAlignment(.center)
+          .lineSpacing(3)
           .fixedSize(horizontal: false, vertical: true)
+          .frame(maxWidth: 330)
       }
       .accessibilityElement(children: .combine)
 
-      VStack(spacing: 10) {
+      VStack(spacing: 9) {
         ForEach(benefits) { benefit in
           LibraryPracticeBenefitRow(benefit: benefit)
         }
@@ -147,16 +197,25 @@ private struct LibraryPracticeInvitationView: View {
         systemImage: "arrow.down.right"
       )
       .font(.subheadline)
-      .foregroundStyle(.secondary)
+      .bold()
+      .foregroundStyle(LibraryDesignTokens.practiceAccentDeep)
       .padding(.horizontal, 16)
       .padding(.vertical, 14)
       .frame(maxWidth: .infinity)
-      .background(.thinMaterial, in: .rect(cornerRadius: 16))
+      .background(
+        LibraryDesignTokens.practiceAccent.opacity(0.13),
+        in: .rect(cornerRadius: 16)
+      )
+      .overlay {
+        RoundedRectangle(cornerRadius: 16)
+          .strokeBorder(LibraryDesignTokens.practiceAccent.opacity(0.12), lineWidth: 1)
+      }
       .accessibilityElement(children: .combine)
 
-      Spacer(minLength: 20)
+      Spacer(minLength: 8)
     }
-    .frame(maxWidth: .infinity, minHeight: 600)
+    .frame(maxWidth: .infinity)
+    .containerRelativeFrame(.vertical, alignment: .center)
   }
 }
 
@@ -170,18 +229,30 @@ private struct LibraryPracticeBenefitRow: View {
   let benefit: LibraryPracticeBenefit
 
   var body: some View {
-    Label {
+    HStack(spacing: 12) {
+      Image(systemName: benefit.systemImage)
+        .font(.body)
+        .foregroundStyle(LibraryDesignTokens.practiceAccentDeep)
+        .frame(width: 32, height: 32)
+        .background(
+          LibraryDesignTokens.practiceAccent.opacity(0.13),
+          in: .rect(cornerRadius: 10)
+        )
+        .accessibilityHidden(true)
+
       Text(benefit.title)
         .font(.subheadline)
+        .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
         .frame(maxWidth: .infinity, alignment: .leading)
-    } icon: {
-      Image(systemName: benefit.systemImage)
-        .foregroundStyle(LibraryDesignTokens.accent)
-        .frame(width: 24)
     }
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 13)
     .padding(.vertical, 12)
-    .background(.thinMaterial, in: .rect(cornerRadius: 15))
+    .background(LibraryDesignTokens.practiceCard, in: .rect(cornerRadius: 15))
+    .overlay {
+      RoundedRectangle(cornerRadius: 15)
+        .strokeBorder(LibraryDesignTokens.practiceLine, lineWidth: 1)
+    }
+    .accessibilityElement(children: .combine)
   }
 }
 
@@ -189,8 +260,9 @@ private struct LibraryPracticeOverviewView: View {
   let presentation: LibraryPracticeOverviewPresentation
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
+    VStack(alignment: .leading, spacing: 12) {
       LibraryPracticeOverviewHeader(presentation: presentation)
+        .padding(.bottom, 4)
       LibraryPracticeSummaryView(items: presentation.summaryItems)
 
       if let progress = presentation.progress {
@@ -223,33 +295,45 @@ private struct LibraryPracticeOverviewHeader: View {
   var body: some View {
     HStack(alignment: .top, spacing: 14) {
       VStack(alignment: .leading, spacing: 5) {
-        Text("当前曲目")
+        Text("CURRENT SONG")
           .font(.caption2)
           .bold()
-          .textCase(.uppercase)
-          .foregroundStyle(LibraryDesignTokens.accent)
+          .tracking(1.1)
+          .foregroundStyle(LibraryDesignTokens.practiceAccent)
 
         Text("练习概览")
           .font(.title2)
           .bold()
+          .foregroundStyle(LibraryDesignTokens.practiceInk)
       }
 
       Spacer(minLength: 8)
 
-      Label(presentation.status.title, systemImage: presentation.status.systemImage)
-        .font(.caption)
-        .bold()
-        .foregroundStyle(presentation.status.tint)
-        .padding(.horizontal, 11)
-        .padding(.vertical, 8)
-        .background(presentation.status.tint.opacity(0.14), in: .capsule)
-        .overlay {
-          if differentiateWithoutColor || colorSchemeContrast == .increased {
-            Capsule()
-              .strokeBorder(presentation.status.tint.opacity(0.65), lineWidth: 1)
+      HStack(spacing: 7) {
+        Circle()
+          .fill(presentation.status.tint)
+          .frame(width: 8, height: 8)
+          .overlay {
+            Circle()
+              .strokeBorder(presentation.status.tint.opacity(0.18), lineWidth: 5)
           }
+          .accessibilityHidden(true)
+
+        Text(presentation.status.title)
+          .font(.caption)
+          .bold()
+      }
+      .foregroundStyle(presentation.status.tint)
+      .padding(.horizontal, 11)
+      .padding(.vertical, 8)
+      .background(presentation.status.tint.opacity(0.12), in: .capsule)
+      .overlay {
+        if differentiateWithoutColor || colorSchemeContrast == .increased {
+          Capsule()
+            .strokeBorder(presentation.status.tint.opacity(0.65), lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
+      }
+      .accessibilityElement(children: .combine)
     }
   }
 }
@@ -280,27 +364,33 @@ private struct LibraryPracticeMetricCard: View {
   let item: LibraryPracticeSummaryItem
 
   var body: some View {
-    LibraryPracticeSectionCard(cornerRadius: 16) {
-      VStack(alignment: .leading, spacing: 7) {
-        Text(item.title)
+    VStack(alignment: .leading, spacing: 7) {
+      Text(item.title)
+        .font(.caption2)
+        .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
+        .lineLimit(2)
+
+      Text(item.value)
+        .font(.title3)
+        .bold()
+        .foregroundStyle(LibraryDesignTokens.practiceInk)
+        .minimumScaleFactor(0.76)
+        .lineLimit(1)
+
+      if let note = item.note {
+        Text(note)
           .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(2)
-
-        Text(item.value)
-          .font(.title3)
-          .bold()
-          .minimumScaleFactor(0.78)
+          .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk.opacity(0.74))
           .lineLimit(1)
-
-        if let note = item.note {
-          Text(note)
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
-            .lineLimit(1)
-        }
       }
-      .frame(maxWidth: .infinity, minHeight: 68, alignment: .topLeading)
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 14)
+    .frame(maxWidth: .infinity, minHeight: 82, alignment: .topLeading)
+    .background(LibraryDesignTokens.practiceCard, in: .rect(cornerRadius: 16))
+    .overlay {
+      RoundedRectangle(cornerRadius: 16)
+        .strokeBorder(LibraryDesignTokens.practiceLine, lineWidth: 1)
     }
     .accessibilityElement(children: .combine)
   }
@@ -323,7 +413,7 @@ private struct LibraryPracticeProgressSection: View {
 
           Text("\(progress.total.formatted()) 个小节 · \(progress.handModeText)")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
             .multilineTextAlignment(.trailing)
         }
 
@@ -334,49 +424,37 @@ private struct LibraryPracticeProgressSection: View {
 
         if dynamicTypeSize.isAccessibilitySize {
           VStack(alignment: .leading, spacing: 10) {
-            LibraryPracticeLegendItem(
-              title: "稳定",
-              count: progress.stable,
-              systemImage: "checkmark.circle.fill",
-              tint: .green
-            )
-            LibraryPracticeLegendItem(
-              title: "学习中",
-              count: progress.learning,
-              systemImage: "clock.fill",
-              tint: LibraryDesignTokens.accent
-            )
-            LibraryPracticeLegendItem(
-              title: "未练习",
-              count: progress.unpracticed,
-              systemImage: "circle.dotted",
-              tint: .secondary
-            )
+            legendItems
           }
         } else {
           HStack(spacing: 8) {
-            LibraryPracticeLegendItem(
-              title: "稳定",
-              count: progress.stable,
-              systemImage: "checkmark.circle.fill",
-              tint: .green
-            )
-            LibraryPracticeLegendItem(
-              title: "学习中",
-              count: progress.learning,
-              systemImage: "clock.fill",
-              tint: LibraryDesignTokens.accent
-            )
-            LibraryPracticeLegendItem(
-              title: "未练习",
-              count: progress.unpracticed,
-              systemImage: "circle.dotted",
-              tint: .secondary
-            )
+            legendItems
           }
         }
       }
     }
+  }
+
+  @ViewBuilder
+  private var legendItems: some View {
+    LibraryPracticeLegendItem(
+      title: "稳定",
+      count: progress.stable,
+      systemImage: "checkmark.circle.fill",
+      tint: LibraryDesignTokens.practiceStable
+    )
+    LibraryPracticeLegendItem(
+      title: "学习中",
+      count: progress.learning,
+      systemImage: "clock.fill",
+      tint: LibraryDesignTokens.practiceLearning
+    )
+    LibraryPracticeLegendItem(
+      title: "未练习",
+      count: progress.unpracticed,
+      systemImage: "circle.dotted",
+      tint: LibraryDesignTokens.practiceUnpracticedInk
+    )
   }
 }
 
@@ -388,18 +466,21 @@ private struct LibraryPracticeSegmentedProgressBar: View {
       let bounds = CGRect(origin: .zero, size: size)
       context.fill(
         roundedPath(in: bounds, radius: size.height / 2),
-        with: .color(.secondary.opacity(0.16))
+        with: .color(LibraryDesignTokens.practiceUnpracticed)
       )
 
       let segments = [
-        LibraryPracticeProgressSegment(count: progress.stable, tint: .green),
+        LibraryPracticeProgressSegment(
+          count: progress.stable,
+          tint: LibraryDesignTokens.practiceStable
+        ),
         LibraryPracticeProgressSegment(
           count: progress.learning,
-          tint: LibraryDesignTokens.accent
+          tint: LibraryDesignTokens.practiceLearning
         ),
         LibraryPracticeProgressSegment(
           count: progress.unpracticed,
-          tint: .secondary.opacity(0.32)
+          tint: LibraryDesignTokens.practiceUnpracticed
         ),
       ].filter { $0.count > 0 }
 
@@ -449,7 +530,7 @@ private struct LibraryPracticeLegendItem: View {
     Label {
       Text("\(title) · \(count.formatted())")
         .font(.caption2)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
         .lineLimit(1)
     } icon: {
       Image(systemName: systemImage)
@@ -474,11 +555,11 @@ private struct LibraryPracticeProgressMessageSection: View {
             .bold()
           Text(message)
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
         }
       } icon: {
         Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
-          .foregroundStyle(LibraryDesignTokens.accent)
+          .foregroundStyle(LibraryDesignTokens.practiceAccent)
       }
       .accessibilityElement(children: .combine)
     }
@@ -500,16 +581,19 @@ private struct LibraryPracticeResumeSection: View {
             .bold()
           Text("上次在这里结束，可以继续衔接。")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
         }
 
         Spacer(minLength: 12)
 
         Image(systemName: "arrow.up.forward")
           .font(.title3)
-          .foregroundStyle(LibraryDesignTokens.accent)
+          .foregroundStyle(LibraryDesignTokens.practiceAccentDeep)
           .frame(width: 46, height: 46)
-          .background(LibraryDesignTokens.accent.opacity(0.14), in: .rect(cornerRadius: 15))
+          .background(
+            LibraryDesignTokens.practiceAccent.opacity(0.13),
+            in: .rect(cornerRadius: 15)
+          )
           .accessibilityHidden(true)
       }
       .accessibilityElement(children: .combine)
@@ -530,7 +614,7 @@ private struct LibraryPracticeFocusSection: View {
           Spacer()
           Text("自动分析")
             .font(.caption)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
         }
 
         VStack(spacing: 9) {
@@ -551,9 +635,12 @@ private struct LibraryPracticeFocusRow: View {
       Text(item.rank.formatted())
         .font(.caption)
         .bold()
-        .foregroundStyle(LibraryDesignTokens.accentForeground)
+        .foregroundStyle(LibraryDesignTokens.practiceAccentDeep)
         .frame(width: 28, height: 28)
-        .background(LibraryDesignTokens.accent.opacity(0.72), in: .rect(cornerRadius: 9))
+        .background(
+          LibraryDesignTokens.practiceAccent.opacity(0.14),
+          in: .rect(cornerRadius: 9)
+        )
         .accessibilityHidden(true)
 
       VStack(alignment: .leading, spacing: 3) {
@@ -562,13 +649,17 @@ private struct LibraryPracticeFocusRow: View {
           .bold()
         Text(item.detail)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
     }
     .padding(.horizontal, 12)
     .padding(.vertical, 11)
-    .background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
+    .background(LibraryDesignTokens.practiceCardStrong, in: .rect(cornerRadius: 14))
+    .overlay {
+      RoundedRectangle(cornerRadius: 14)
+        .strokeBorder(LibraryDesignTokens.practiceLine.opacity(0.72), lineWidth: 1)
+    }
     .accessibilityElement(children: .combine)
   }
 }
@@ -581,7 +672,7 @@ private struct LibraryPracticeEncouragementSection: View {
       ZStack(alignment: .topTrailing) {
         Image(systemName: "sparkles")
           .font(.largeTitle)
-          .foregroundStyle(LibraryDesignTokens.accent.opacity(0.45))
+          .foregroundStyle(LibraryDesignTokens.practiceAccent.opacity(0.42))
           .accessibilityHidden(true)
 
         VStack(alignment: .leading, spacing: 7) {
@@ -591,7 +682,7 @@ private struct LibraryPracticeEncouragementSection: View {
             .frame(maxWidth: 280, alignment: .leading)
           Text(encouragement.message)
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(LibraryDesignTokens.practiceSecondaryInk)
             .frame(maxWidth: 300, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -626,17 +717,27 @@ private struct LibraryPracticeSectionCard<Content: View>: View {
       .background {
         if accented {
           RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(LibraryDesignTokens.accent.opacity(0.16))
+            .fill(
+              LinearGradient(
+                colors: [
+                  LibraryDesignTokens.practiceCardStrong,
+                  LibraryDesignTokens.practiceAccent.opacity(0.13),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+              )
+            )
         } else {
           RoundedRectangle(cornerRadius: cornerRadius)
-            .fill(.thinMaterial)
+            .fill(LibraryDesignTokens.practiceCard)
         }
       }
       .overlay {
-        if differentiateWithoutColor || colorSchemeContrast == .increased {
-          RoundedRectangle(cornerRadius: cornerRadius)
-            .strokeBorder(.primary.opacity(0.28), lineWidth: 1)
-        }
+        RoundedRectangle(cornerRadius: cornerRadius)
+          .strokeBorder(
+            LibraryDesignTokens.practiceLine,
+            lineWidth: differentiateWithoutColor || colorSchemeContrast == .increased ? 1.5 : 1
+          )
       }
   }
 }
@@ -963,37 +1064,51 @@ extension PracticeIssueKind {
     )
   }
 
-  #Preview("练习概览") {
-    ScrollView {
-      LibraryPracticeOverviewView(presentation: .preview)
-        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+  private struct LibraryPracticePreviewOrnament<Content: View>: View {
+    let content: Content
+
+    init(@ViewBuilder content: () -> Content) {
+      self.content = content()
     }
-    .scrollIndicators(.hidden)
-    .frame(
-      minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
-      idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
-      maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
-      minHeight: 720,
-      idealHeight: 720,
-      maxHeight: 720
-    )
-    .glassBackgroundEffect()
+
+    var body: some View {
+      ZStack {
+        LibraryPracticeOrnamentBackdrop()
+
+        ScrollView {
+          content
+            .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
+        }
+        .scrollIndicators(.hidden)
+      }
+      .clipShape(.rect(cornerRadius: LibraryDesignTokens.practiceOrnamentCornerRadius))
+      .overlay {
+        RoundedRectangle(cornerRadius: LibraryDesignTokens.practiceOrnamentCornerRadius)
+          .strokeBorder(.white.opacity(0.72), lineWidth: 1)
+      }
+      .foregroundStyle(LibraryDesignTokens.practiceInk)
+      .environment(\.colorScheme, .light)
+      .frame(
+        minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
+        idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
+        maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
+        minHeight: 720,
+        idealHeight: 720,
+        maxHeight: 720
+      )
+      .glassBackgroundEffect()
+    }
+  }
+
+  #Preview("练习概览") {
+    LibraryPracticePreviewOrnament {
+      LibraryPracticeOverviewView(presentation: .preview)
+    }
   }
 
   #Preview("首次练习邀请") {
-    ScrollView {
+    LibraryPracticePreviewOrnament {
       LibraryPracticeInvitationView()
-        .padding(LibraryDesignTokens.practiceOrnamentContentPadding)
     }
-    .scrollIndicators(.hidden)
-    .frame(
-      minWidth: LibraryDesignTokens.practiceOrnamentMinimumWidth,
-      idealWidth: LibraryDesignTokens.practiceOrnamentIdealWidth,
-      maxWidth: LibraryDesignTokens.practiceOrnamentMaximumWidth,
-      minHeight: 720,
-      idealHeight: 720,
-      maxHeight: 720
-    )
-    .glassBackgroundEffect()
   }
 #endif

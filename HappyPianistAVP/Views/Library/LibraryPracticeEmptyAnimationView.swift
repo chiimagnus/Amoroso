@@ -5,93 +5,163 @@ struct LibraryPracticeEmptyAnimationView: View {
 
   var body: some View {
     ZStack {
-      Circle()
-        .fill(LibraryDesignTokens.accent.opacity(0.18))
-        .frame(width: 190, height: 190)
-        .blur(radius: 22)
-        .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, expanded in
-          content
-            .scaleEffect(expanded ? 1.08 : 0.92)
-            .opacity(expanded ? 0.84 : 0.58)
-        } animation: { _ in
-          reduceMotion ? nil : .easeInOut(duration: 1.8)
-        }
+      RadialGradient(
+        colors: [
+          LibraryDesignTokens.practiceAccent.opacity(0.24),
+          LibraryDesignTokens.practiceAccent.opacity(0.07),
+          .clear,
+        ],
+        center: .center,
+        startRadius: 8,
+        endRadius: 138
+      )
+      .frame(width: 282, height: 228)
+      .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, expanded in
+        content
+          .scaleEffect(expanded ? 1.04 : 0.96)
+          .opacity(expanded ? 1 : 0.72)
+      } animation: { _ in
+        reduceMotion ? nil : .easeInOut(duration: 2.4)
+      }
 
-      LibraryPracticePianoKeysView()
-        .offset(y: 38)
+      LibraryPracticePianoKeyboardView()
+        .offset(y: 42)
+        .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, raised in
+          content
+            .offset(y: raised ? -3 : 2)
+        } animation: { _ in
+          reduceMotion ? nil : .easeInOut(duration: 2.2)
+        }
 
       LibraryPracticeFloatingNote(
         systemImage: "music.note",
-        horizontalOffset: -76,
-        verticalOffset: -54,
+        horizontalOffset: -78,
+        verticalOffset: -60,
         lift: 12,
         delay: 0
       )
 
       LibraryPracticeFloatingNote(
         systemImage: "music.note.list",
-        horizontalOffset: 68,
-        verticalOffset: -66,
+        horizontalOffset: 72,
+        verticalOffset: -62,
         lift: 9,
-        delay: 0.18
+        delay: 0.2
       )
 
       LibraryPracticeFloatingNote(
         systemImage: "music.quarternote.3",
-        horizontalOffset: 10,
-        verticalOffset: -96,
+        horizontalOffset: 8,
+        verticalOffset: -103,
         lift: 14,
-        delay: 0.34
+        delay: 0.42
       )
     }
-    .frame(height: 230)
+    .frame(height: 246)
     .accessibilityHidden(true)
   }
 }
 
-private struct LibraryPracticePianoKeysView: View {
-  private let keyCount = 7
+private struct LibraryPracticePianoKeyboardView: View {
+  private let blackKeyOffsets: [CGFloat] = [39, 70, 132, 163, 194]
 
   var body: some View {
     ZStack(alignment: .topLeading) {
+      RoundedRectangle(cornerRadius: 20)
+        .fill(
+          LinearGradient(
+            colors: [
+              LibraryDesignTokens.practiceKeyboardDeep,
+              LibraryDesignTokens.practiceKeyboardDark,
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+          )
+        )
+        .frame(width: 252, height: 116)
+        .offset(y: 12)
+
+      RoundedRectangle(cornerRadius: 18)
+        .fill(
+          LinearGradient(
+            colors: [
+              LibraryDesignTokens.practiceKeyboardTop,
+              LibraryDesignTokens.practiceKeyboardDark,
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+        )
+        .frame(width: 252, height: 112)
+        .overlay {
+          RoundedRectangle(cornerRadius: 18)
+            .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+        }
+
       HStack(spacing: 3) {
-        ForEach(0..<keyCount, id: \.self) { _ in
-          RoundedRectangle(cornerRadius: 6)
-            .fill(.regularMaterial)
-            .frame(width: 34, height: 82)
-            .overlay {
-              RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(.primary.opacity(0.14), lineWidth: 1)
-            }
+        ForEach(0..<7, id: \.self) { index in
+          LibraryPracticeWhiteKey(index: index)
         }
       }
+      .padding(.leading, 10)
+      .padding(.top, 10)
 
-      HStack(spacing: 0) {
-        Color.clear.frame(width: 24)
-        LibraryPracticeBlackKey()
-        Color.clear.frame(width: 18)
-        LibraryPracticeBlackKey()
-        Color.clear.frame(width: 55)
-        LibraryPracticeBlackKey()
-        Color.clear.frame(width: 18)
-        LibraryPracticeBlackKey()
-        Color.clear.frame(width: 18)
-        LibraryPracticeBlackKey()
+      ForEach(blackKeyOffsets.indices, id: \.self) { index in
+        RoundedRectangle(cornerRadius: 4)
+          .fill(
+            LinearGradient(
+              colors: [.black.opacity(0.88), LibraryDesignTokens.practiceKeyboardDeep],
+              startPoint: .top,
+              endPoint: .bottom
+            )
+          )
+          .frame(width: 18, height: 57)
+          .offset(x: blackKeyOffsets[index], y: 10)
+          .shadow(color: .black.opacity(0.22), radius: 3, y: 3)
       }
-      .offset(y: -1)
     }
-    .padding(10)
-    .background(.thinMaterial, in: .rect(cornerRadius: 18))
-    .rotation3DEffect(.degrees(7), axis: (x: 1, y: 0, z: 0))
-    .shadow(radius: 18, y: 12)
+    .frame(width: 252, height: 128)
+    .rotationEffect(.degrees(-6))
+    .rotation3DEffect(
+      .degrees(16),
+      axis: (x: 1, y: 0, z: 0),
+      perspective: 0.52
+    )
+    .shadow(color: LibraryDesignTokens.practiceAccentDeep.opacity(0.22), radius: 22, y: 18)
   }
 }
 
-private struct LibraryPracticeBlackKey: View {
+private struct LibraryPracticeWhiteKey: View {
+  let index: Int
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
   var body: some View {
-    RoundedRectangle(cornerRadius: 4)
-      .fill(.primary.opacity(0.82))
-      .frame(width: 18, height: 49)
+    RoundedRectangle(cornerRadius: 6)
+      .fill(
+        LinearGradient(
+          colors: [
+            LibraryDesignTokens.practiceIvoryHighlight,
+            LibraryDesignTokens.practiceIvory,
+          ],
+          startPoint: .top,
+          endPoint: .bottom
+        )
+      )
+      .frame(width: 30, height: 92)
+      .overlay {
+        RoundedRectangle(cornerRadius: 6)
+          .strokeBorder(LibraryDesignTokens.practiceKeyboardDark.opacity(0.13), lineWidth: 1)
+      }
+      .shadow(color: .black.opacity(0.08), radius: 2, y: 2)
+      .phaseAnimator(reduceMotion ? [false] : [false, true, false]) { content, pressed in
+        content
+          .offset(y: pressed ? 3 : 0)
+          .brightness(pressed ? -0.04 : 0)
+      } animation: { phase in
+        guard reduceMotion == false else { return nil }
+        return .easeInOut(duration: phase ? 0.14 : 1.8).delay(Double(index) * 0.11)
+      }
   }
 }
 
@@ -107,17 +177,23 @@ private struct LibraryPracticeFloatingNote: View {
   var body: some View {
     Image(systemName: systemImage)
       .font(.system(.title2, design: .rounded))
-      .foregroundStyle(LibraryDesignTokens.accent)
-      .padding(10)
-      .background(.thinMaterial, in: .circle)
+      .foregroundStyle(LibraryDesignTokens.practiceAccent)
+      .frame(width: 48, height: 48)
+      .background(LibraryDesignTokens.practiceCardStrong, in: .circle)
+      .overlay {
+        Circle()
+          .strokeBorder(.white.opacity(0.66), lineWidth: 1)
+      }
+      .shadow(color: LibraryDesignTokens.practiceAccentDeep.opacity(0.11), radius: 10, y: 6)
       .offset(x: horizontalOffset, y: verticalOffset)
       .phaseAnimator(reduceMotion ? [false] : [false, true]) { content, raised in
         content
           .offset(y: raised ? -lift : lift / 3)
-          .scaleEffect(raised ? 1.06 : 0.94)
+          .rotationEffect(.degrees(raised ? 6 : -6))
+          .scaleEffect(raised ? 1.04 : 0.96)
           .opacity(raised ? 1 : 0.72)
       } animation: { _ in
-        reduceMotion ? nil : .easeInOut(duration: 1.35).delay(delay)
+        reduceMotion ? nil : .easeInOut(duration: 1.55).delay(delay)
       }
   }
 }
