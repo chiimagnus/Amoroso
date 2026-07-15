@@ -107,7 +107,6 @@ struct TakeLibraryView: View {
                     Label("更多录制操作", systemImage: "ellipsis.circle")
                         .labelStyle(.iconOnly)
                 }
-                .buttonBorderShape(.roundedRectangle)
                 .disabled(isRecording)
             }
         }

@@ -130,14 +130,12 @@ struct PracticeStepView: View {
                     onBackToLibrary()
                 }
                 .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
 
                 if isAutoplayEnabled == false {
                     Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
                         viewModel.skipStep()
                     }
                     .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
                     .disabled(viewModel.isAIPerformanceActive || viewModel.hasImportedSteps == false || viewModel
                         .practiceSessionViewModel.state == .completed)
 
@@ -149,7 +147,6 @@ struct PracticeStepView: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
                     .disabled(
                         viewModel.isAIPerformanceActive ||
                             session.state == .ready ||
@@ -160,14 +157,12 @@ struct PracticeStepView: View {
                 Toggle("自动播放", isOn: $isAutoplayEnabled)
                     .toggleStyle(.button)
                     .buttonStyle(.bordered)
-                    .buttonBorderShape(.roundedRectangle)
                 .disabled(viewModel.isAIPerformanceActive)
 
                 Button("设置", systemImage: "gearshape") {
                     isSettingsPresented.toggle()
                 }
                 .buttonStyle(.bordered)
-                .buttonBorderShape(.roundedRectangle)
 
                 Text("进度 \(viewModel.practiceProgressText)")
                     .monospacedDigit()
@@ -180,7 +175,6 @@ struct PracticeStepView: View {
                 }
             }
         }
-        .buttonBorderShape(.roundedRectangle)
         .onAppear {
             isStepVisible = true
             guard hasRequestedImmersiveOpen == false else { return }

@@ -114,7 +114,6 @@ struct SongLibraryView: View {
             viewModel.startPractice(entryID: selectedEntry.id, perform: onStartPractice)
           }
           .buttonStyle(.borderedProminent)
-          .buttonBorderShape(.roundedRectangle)
           .disabled(viewModel.importState.isActive)
           .accessibilityHint(
             viewModel.importState.isActive
