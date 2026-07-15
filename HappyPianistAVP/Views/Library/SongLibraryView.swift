@@ -409,11 +409,10 @@ private struct LibraryImportStatusView: View {
           .buttonStyle(.borderedProminent)
         Button("取消剩余导入", role: .cancel, action: onCancelAll)
           .buttonStyle(.bordered)
-      case .staging, .processing:
+      case .idle, .staging, .processing:
+        // ponytail: the parent only creates this view while an import is active.
         Button("取消导入", role: .cancel, action: onCancelAll)
           .buttonStyle(.bordered)
-      case .idle:
-        EmptyView()
       }
     }
     .padding(12)
