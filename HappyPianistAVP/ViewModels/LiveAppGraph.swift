@@ -175,6 +175,7 @@ struct LiveAppGraph {
       bundledProvider: bundledSongLibraryProvider,
       audioPlayer: songAudioPlayer,
       practiceProgressRepository: progressRepository,
+      practiceProgressRecovery: progressRepository,
       diagnosticsReporter: diagnosticsReporter,
       snapshotBuilder: SongPracticeLibrarySnapshotBuilder(),
       bootstrapLoader: LiveSongLibraryBootstrapLoader(

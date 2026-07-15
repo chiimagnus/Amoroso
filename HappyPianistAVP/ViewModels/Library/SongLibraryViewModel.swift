@@ -13,6 +13,7 @@ final class SongLibraryViewModel {
     private var bundledEntries: [SongLibraryEntry]
     private let audioPlaybackController: SongAudioPlaybackStateController
     private let practiceProgressRepository: any PracticeProgressRepositoryProtocol
+    private let practiceProgressRecovery: (any PracticeProgressRecoveryProtocol)?
     private let diagnosticsReporter: any DiagnosticsReporting
     private let snapshotBuilder: any SongPracticeLibrarySnapshotBuilding
     private let snapshotSleeper: any SleeperProtocol
@@ -61,6 +62,7 @@ final class SongLibraryViewModel {
         bundledProvider: BundledSongLibraryProviderProtocol,
         audioPlayer: SongAudioPlayerProtocol,
         practiceProgressRepository: any PracticeProgressRepositoryProtocol,
+        practiceProgressRecovery: (any PracticeProgressRecoveryProtocol)? = nil,
         diagnosticsReporter: any DiagnosticsReporting,
         snapshotBuilder: any SongPracticeLibrarySnapshotBuilding = SongPracticeLibrarySnapshotBuilder(),
         bootstrapLoader: any SongLibraryBootstrapLoading,
@@ -77,6 +79,7 @@ final class SongLibraryViewModel {
         self.bundledProvider = bundledProvider
         self.bootstrapLoader = bootstrapLoader
         self.practiceProgressRepository = practiceProgressRepository
+        self.practiceProgressRecovery = practiceProgressRecovery
         self.diagnosticsReporter = diagnosticsReporter
         self.snapshotBuilder = snapshotBuilder
         self.snapshotSleeper = snapshotSleeper
@@ -134,6 +137,81 @@ final class SongLibraryViewModel {
 
     func refreshSelectedPracticeSnapshot() {
         scheduleSnapshotLoad()
+    }
+
+    func retrySelectedPracticeSnapshot() {
+        guard case let .unavailable(unavailable) = practiceSnapshotState,
+              isCurrentSnapshot(unavailable.identity)
+        else { return }
+
+        scheduleSnapshotLoad()
+        Task { [diagnosticsReporter] in
+            _ = await diagnosticsReporter.record(Self.snapshotActionEvent(
+                identity: unavailable.identity,
+                action: "retry"
+            ))
+        }
+    }
+
+    func recoverCorruptedSelectedPracticeHistory() async {
+        guard case let .unavailable(unavailable) = practiceSnapshotState,
+              unavailable.reason == .corrupted,
+              unavailable.recoveryOptions == .retryAndConfirmedBackupReset,
+              isCurrentSnapshot(unavailable.identity),
+              let practiceProgressRecovery
+        else { return }
+
+        snapshotLoadTask?.cancel()
+        snapshotGeneration += 1
+        let recoveryGeneration = snapshotGeneration
+        practiceSnapshotState = .loading(unavailable.identity)
+        _ = await diagnosticsReporter.record(Self.snapshotActionEvent(
+            identity: unavailable.identity,
+            action: "confirmedBackupReset"
+        ))
+
+        do {
+            let result = try await practiceProgressRecovery.recoverFromCorruption()
+            guard recoveryGeneration == snapshotGeneration,
+                  isCurrentSnapshot(unavailable.identity)
+            else {
+                await recordDiscardedSnapshot(identity: unavailable.identity, stage: "recovery")
+                return
+            }
+            if case .recovered = result {
+                _ = await diagnosticsReporter.record(DiagnosticEvent(
+                    severity: .warning,
+                    code: .practiceProgressStoreReset,
+                    category: .persistence,
+                    stage: "libraryPracticeHistoryRecovery",
+                    summary: "已备份并重置损坏的练习记录",
+                    reason: "action=confirmedBackupReset; result=recovered",
+                    songID: unavailable.identity.songID,
+                    scoreFileVersionID: unavailable.identity.scoreFileVersionID,
+                    persistence: .exportable
+                ))
+            }
+            scheduleSnapshotLoad()
+        } catch {
+            guard recoveryGeneration == snapshotGeneration,
+                  isCurrentSnapshot(unavailable.identity)
+            else {
+                await recordDiscardedSnapshot(identity: unavailable.identity, stage: "recoveryFailure")
+                return
+            }
+            practiceSnapshotState = .unavailable(unavailable)
+            _ = await diagnosticsReporter.record(DiagnosticEvent(
+                severity: .error,
+                code: .libraryPracticeHistoryLoadFailed,
+                category: .library,
+                stage: "practiceHistoryRecovery",
+                summary: "无法重置损坏的练习记录",
+                reason: PracticePreparationErrorDetails.safeErrorSummary(error),
+                songID: unavailable.identity.songID,
+                scoreFileVersionID: unavailable.identity.scoreFileVersionID,
+                persistence: .exportable
+            ))
+        }
     }
 
     func flushPendingSelectionPersistence() async {
@@ -720,13 +798,16 @@ final class SongLibraryViewModel {
             // ponytail: one JSON decode plus same-song linear filtering is intentional;
             // add an index/cache only after measured selection latency warrants invalidation complexity.
             let historyResult = await practiceProgressRepository.history(for: entry.id)
-            guard Task.isCancelled == false else { return }
+            guard Task.isCancelled == false else {
+                await recordDiscardedSnapshot(identity: identity, stage: "historyRead")
+                return
+            }
             let state = await snapshotBuilder.build(
                 entry: entry,
                 historyResult: historyResult,
                 viewedAt: .now,
                 viewingTimeZone: .autoupdatingCurrent,
-                canResetCorruption: false
+                canResetCorruption: practiceProgressRecovery != nil
             )
             var diagnosticEvent: DiagnosticEvent?
             switch historyResult {
@@ -754,15 +835,51 @@ final class SongLibraryViewModel {
             }
 
             guard generation == snapshotGeneration,
-                  selectedEntryID == identity.songID,
-                  entries.first(where: { $0.id == identity.songID })?.scoreFileVersionID
-                    == identity.scoreFileVersionID
-            else { return }
+                  isCurrentSnapshot(identity)
+            else {
+                await recordDiscardedSnapshot(identity: identity, stage: "presentationBuild")
+                return
+            }
             practiceSnapshotState = state
             snapshotLoadTask = nil
             if let diagnosticEvent {
                 _ = await diagnosticsReporter.record(diagnosticEvent)
             }
         }
+    }
+
+    private func isCurrentSnapshot(_ identity: SongPracticeLibrarySelectionIdentity) -> Bool {
+        selectedEntryID == identity.songID
+            && entries.first(where: { $0.id == identity.songID })?.scoreFileVersionID
+                == identity.scoreFileVersionID
+    }
+
+    private func recordDiscardedSnapshot(
+        identity: SongPracticeLibrarySelectionIdentity,
+        stage: String
+    ) async {
+        _ = await diagnosticsReporter.record(Self.snapshotActionEvent(
+            identity: identity,
+            action: "staleResultDiscarded",
+            stage: stage
+        ))
+    }
+
+    private nonisolated static func snapshotActionEvent(
+        identity: SongPracticeLibrarySelectionIdentity,
+        action: String,
+        stage: String = "practiceHistoryRecovery"
+    ) -> DiagnosticEvent {
+        DiagnosticEvent(
+            severity: .info,
+            code: .libraryPracticeHistoryAction,
+            category: .library,
+            stage: stage,
+            summary: "处理曲目练习历史展示",
+            reason: "action=\(action)",
+            songID: identity.songID,
+            scoreFileVersionID: identity.scoreFileVersionID,
+            persistence: .systemOnly
+        )
     }
 }

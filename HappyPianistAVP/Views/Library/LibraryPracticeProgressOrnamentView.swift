@@ -702,7 +702,7 @@ private struct LibraryPracticeOverviewPresentation {
   let encouragement: LibraryPracticeEncouragementPresentation?
 
   init(overview: SongPracticeLibraryOverview) {
-    let availableProgress = switch overview.measureProgress {
+    let availableProgress: SongPracticeMeasureProgress? = switch overview.measureProgress {
     case let .available(progress): progress
     case .metadataUnavailable: nil
     }
@@ -769,11 +769,7 @@ private struct LibraryPracticeOverviewPresentation {
         LibraryPracticeFocusItem(
           rank: index + 1,
           title: "第 \(focus.sourceMeasureID.libraryMeasureText) 小节",
-          detail: switch focus.reason {
-          case let .recentIssue(issue): "近期\(issue.libraryDisplayName)"
-          case let .failedAttempts(count): "失败 \(count.formatted()) 次"
-          case .learning: "仍在学习"
-          }
+          detail: Self.focusDetail(focus.reason)
         )
       }
 
@@ -797,6 +793,14 @@ private struct LibraryPracticeOverviewPresentation {
       return duration.formatted(.units(allowed: [.seconds], width: .abbreviated))
     }
     return duration.formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
+  }
+
+  private static func focusDetail(_ reason: SongPracticeFocusReason) -> String {
+    switch reason {
+    case let .recentIssue(issue): "近期\(issue.libraryDisplayName)"
+    case let .failedAttempts(count): "失败 \(count.formatted()) 次"
+    case .learning: "仍在学习"
+    }
   }
 
   private init(
