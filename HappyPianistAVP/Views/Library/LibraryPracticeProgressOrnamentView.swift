@@ -154,7 +154,12 @@ private struct LibraryPracticeUnavailableView: View {
     case .temporarilyUnavailable:
       "你仍然可以试听曲目；请稍后重试读取练习记录。"
     case .corrupted:
-      "你仍然可以试听曲目；可以重试，或确认备份损坏文件后重置练习记录。"
+      switch unavailable.recoveryOptions {
+      case .retry:
+        "你仍然可以试听曲目；请重试读取练习记录。"
+      case .retryAndConfirmedBackupReset:
+        "你仍然可以试听曲目；可以重试，或确认备份损坏文件后重置练习记录。"
+      }
     }
   }
 }
