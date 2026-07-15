@@ -629,20 +629,24 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     @discardableResult
-    func leavePracticeStep() async -> PracticeProgressSaveStatus {
-        let saveStatus = await practiceSessionViewModel.flushAndShutdown()
+    func flushPracticeProgressForReturn() async -> PracticeProgressSaveStatus {
+        let saveStatus = await practiceSessionViewModel.suspendAndFlushProgress()
         if case .failed = saveStatus {
+            practiceSessionViewModel.resumeAfterSuspension()
             publishPracticeProgressSaveFailure()
             return saveStatus
         }
         practiceProgressSaveErrorMessage = nil
-        cleanUpPracticePresentation()
         return saveStatus
     }
 
-    func discardUnsavedProgressAndLeavePracticeStep() async {
-        await practiceSessionViewModel.discardPendingProgressAndShutdown()
+    func discardUnsavedPracticeProgressForReturn() async {
+        await practiceSessionViewModel.discardPendingProgress()
         practiceProgressSaveErrorMessage = nil
+    }
+
+    func completePracticeExit() {
+        practiceSessionViewModel.shutdown()
         cleanUpPracticePresentation()
     }
 

@@ -102,10 +102,10 @@ struct PracticeWindowRootView: View {
             leave: {
                 await pendingLifecycle?.value
                 if discardingUnsavedChanges {
-                    await arGuideViewModel.discardUnsavedProgressAndLeavePracticeStep()
+                    await arGuideViewModel.discardUnsavedPracticeProgressForReturn()
                     return .saved
                 }
-                return await arGuideViewModel.leavePracticeStep()
+                return await arGuideViewModel.flushPracticeProgressForReturn()
             },
             closeImmersive: {
                 await closeImmersivePresentationIfNeeded()
@@ -121,8 +121,10 @@ struct PracticeWindowRootView: View {
                 return await launchViewModel.finishReturn(operationID: operationID)
             },
             onFailure: {
+                arGuideViewModel.resumePracticeAfterSuspension()
                 isReturnSaveFailurePresented = true
             },
+            tearDown: arGuideViewModel.completePracticeExit,
             navigate: {
                 windowState.beginTransition(from: .practice, to: .library)
                 openWindow(id: WindowID.library)
@@ -223,6 +225,7 @@ final class PracticeWindowReturnCoordinator {
         abortReturn: @escaping @MainActor (UUID) -> Void,
         finishReturn: @escaping @MainActor (UUID) async -> PracticeProgressSaveStatus,
         onFailure: @escaping @MainActor () -> Void = {},
+        tearDown: @escaping @MainActor () -> Void = {},
         navigate: @escaping @MainActor () -> Void
     ) {
         guard operationTask == nil else { return }
@@ -235,8 +238,6 @@ final class PracticeWindowReturnCoordinator {
                 onFailure()
                 return
             }
-            await closeImmersive()
-            await recoverImmersive()
             let finishStatus = await finishReturn(operationID)
             if case .failed = finishStatus {
                 abortReturn(operationID)
@@ -244,6 +245,9 @@ final class PracticeWindowReturnCoordinator {
                 onFailure()
                 return
             }
+            await closeImmersive()
+            await recoverImmersive()
+            tearDown()
             navigate()
         }
     }

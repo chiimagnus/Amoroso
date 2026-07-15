@@ -55,6 +55,7 @@ func successfulLaunchBindsPreparedRevisionToWindowRecorder() async throws {
 
     await fixture.owner.activateCurrentRequest()
     await recorder.setGuiding(true)
+    _ = await recorder.checkpoint()
 
     let record = try #require(await sessionRepository.records().last)
     #expect(record.id == visitID)
@@ -72,6 +73,7 @@ func failedRecorderFinalizeBlocksReturnUntilUserDiscardsPendingDelta() async thr
     let visitID = try #require(fixture.owner.currentVisitID)
     await fixture.owner.activateCurrentRequest()
     await recorder.setGuiding(true)
+    _ = await recorder.checkpoint()
     let clearCountBeforeReturn = fixture.applicator.clearCount
     await sessionRepository.failNextWrites(1)
 
@@ -1180,7 +1182,6 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
     private(set) var restorePolicies: [PracticeLaunchRestorePolicy] = []
     private(set) var clearCount = 0
     private(set) var suspendCount = 0
-    private(set) var leaveCount = 0
     let applyOutcome: PracticeLaunchApplyOutcome
     var clearStatus: PracticeProgressSaveStatus
 
@@ -1208,10 +1209,6 @@ private final class PracticeLaunchRecordingApplicator: PracticeLaunchApplying {
         return clearStatus
     }
     func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
-    func leavePracticeStep() async -> PracticeProgressSaveStatus {
-        leaveCount += 1
-        return .saved
-    }
 }
 
 @MainActor
@@ -1246,7 +1243,6 @@ private final class ControlledPracticeLaunchApplicator: PracticeLaunchApplying {
 
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
     func suspendPracticeAndFlushProgress() async { suspendCount += 1 }
-    func leavePracticeStep() async -> PracticeProgressSaveStatus { .saved }
 }
 
 @MainActor
@@ -1273,7 +1269,6 @@ private final class AppliedThenSuspendedPracticeLaunchApplicator: PracticeLaunch
 
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
     func suspendPracticeAndFlushProgress() async {}
-    func leavePracticeStep() async -> PracticeProgressSaveStatus { .saved }
 }
 
 @MainActor
@@ -1292,7 +1287,6 @@ private final class RejectOncePracticeLaunchApplicator: PracticeLaunchApplying {
 
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus { .saved }
     func suspendPracticeAndFlushProgress() async {}
-    func leavePracticeStep() async -> PracticeProgressSaveStatus { .saved }
 }
 
 private func makePracticeLaunchPreparedPractice(

@@ -254,14 +254,13 @@ extension PracticeSessionViewModel {
         return await flushProgress()
     }
 
-    func discardPendingProgressAndShutdown() async {
+    func discardPendingProgress() async {
         suspendPracticeWork()
         await waitForSessionRecorderEvents()
         if let progressCoordinator, let generation = self.progressGeneration {
             await progressCoordinator.discardPendingProgress(generation: generation)
         }
         self.progressGeneration = nil
-        shutdown()
     }
 
     private func suspendPracticeWork() {

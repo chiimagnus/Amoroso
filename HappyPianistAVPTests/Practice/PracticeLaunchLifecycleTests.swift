@@ -28,12 +28,13 @@ func duplicatePracticeDisappearAndReturnIntentsRunOneOrderedTeardown() async {
                 calls.append("finish")
                 return .saved
             },
+            tearDown: { calls.append("teardown") },
             navigate: { calls.append("navigate") }
         )
     }
     await coordinator.waitForCompletion()
 
-    #expect(calls == ["begin", "leave", "close", "recover", "finish", "navigate"])
+    #expect(calls == ["begin", "leave", "finish", "close", "recover", "teardown", "navigate"])
 }
 
 @MainActor
@@ -62,6 +63,7 @@ func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() as
                 return .saved
             },
             onFailure: { calls.append("failure") },
+            tearDown: { calls.append("teardown") },
             navigate: { calls.append("navigate") }
         )
     }
@@ -76,8 +78,40 @@ func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() as
     await coordinator.waitForCompletion()
     #expect(calls == [
         "begin", "leave", "abort", "failure",
-        "begin", "leave", "close", "recover", "finish", "navigate",
+        "begin", "leave", "finish", "close", "recover", "teardown", "navigate",
     ])
+}
+
+@MainActor
+@Test
+func failedFinalizationKeepsRuntimeOpenAndSkipsImmersiveClose() async {
+    let coordinator = PracticeWindowReturnCoordinator()
+    var calls: [String] = []
+
+    coordinator.begin(
+        beginReturn: {
+            calls.append("begin")
+            return UUID()
+        },
+        leave: {
+            calls.append("leave")
+            return .saved
+        },
+        closeImmersive: { calls.append("close") },
+        recoverImmersive: { calls.append("recover") },
+        abortReturn: { _ in calls.append("abort") },
+        finishReturn: { _ in
+            calls.append("finish")
+            return .failed(message: "disk full")
+        },
+        onFailure: { calls.append("failure") },
+        tearDown: { calls.append("teardown") },
+        navigate: { calls.append("navigate") }
+    )
+    await coordinator.waitForCompletion()
+
+    #expect(calls == ["begin", "leave", "finish", "abort", "failure"])
+    #expect(coordinator.isReturning == false)
 }
 
 @MainActor

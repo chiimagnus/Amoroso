@@ -10,7 +10,6 @@ protocol PracticeLaunchApplying: AnyObject, Sendable {
     ) async -> PracticeLaunchApplyOutcome?
     func clearPreparedPracticeForLaunch() async -> PracticeProgressSaveStatus
     func suspendPracticeAndFlushProgress() async
-    func leavePracticeStep() async -> PracticeProgressSaveStatus
 }
 
 private struct PracticeLaunchReturnContext {
