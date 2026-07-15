@@ -93,13 +93,6 @@ struct LibraryCrateView: View {
           select(index: selectedIndex - 1)
         }
         .labelStyle(.iconOnly)
-        .font(.title2)
-        .frame(width: 46, height: 46)
-        .background(
-          Color(red: 26 / 255, green: 23 / 255, blue: 22 / 255).opacity(0.44), in: .circle
-        )
-        .overlay { Circle().stroke(LibraryDesignTokens.line, lineWidth: 1) }
-        .buttonStyle(.plain)
         .opacity(selectedIndex > 0 ? 0.95 : 0)
         .disabled(selectedIndex == 0)
 
@@ -109,17 +102,10 @@ struct LibraryCrateView: View {
           select(index: selectedIndex + 1)
         }
         .labelStyle(.iconOnly)
-        .font(.title2)
-        .frame(width: 46, height: 46)
-        .background(
-          Color(red: 26 / 255, green: 23 / 255, blue: 22 / 255).opacity(0.44), in: .circle
-        )
-        .overlay { Circle().stroke(LibraryDesignTokens.line, lineWidth: 1) }
-        .buttonStyle(.plain)
         .opacity(selectedIndex < entries.count - 1 ? 0.95 : 0)
         .disabled(selectedIndex >= entries.count - 1)
       }
-      .padding(.horizontal, 18)
+      .padding()
       .zIndex(50)
 
       VStack {
