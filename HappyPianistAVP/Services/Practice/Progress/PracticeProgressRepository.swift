@@ -37,6 +37,7 @@ protocol PracticeProgressRecoveryProtocol: Sendable {
 
 protocol PracticeSessionRepositoryProtocol: Sendable {
     func upsert(_ session: PracticeSessionRecord) async throws
+    func abandonLiveSession(id: UUID) async
 }
 
 typealias PracticeProgressFileReplacement = @Sendable (
@@ -147,10 +148,22 @@ actor FilePracticeProgressRepository:
     }
 
     func upsert(_ session: PracticeSessionRecord) throws {
-        var document = try loadDocument()
-        if let existing = document.sessions.first(where: { $0.id == session.id }) {
-            try validateReplacement(of: existing, with: session)
+        let startedTracking = session.termination == .open
+            ? liveSessionIDs.insert(session.id).inserted
+            : false
+        let documentBeforeMutation: PracticeProgressDocument
+        do {
+            documentBeforeMutation = try loadDocument()
+            if let existing = documentBeforeMutation.sessions.first(where: { $0.id == session.id }) {
+                try validateReplacement(of: existing, with: session)
+            }
+        } catch {
+            if startedTracking {
+                liveSessionIDs.remove(session.id)
+            }
+            throw error
         }
+        var document = documentBeforeMutation
         document.sessions.removeAll { $0.id == session.id }
         document.sessions.append(session)
         document.sessions = PracticeSessionRecordOrder.sorted(document.sessions)
@@ -160,6 +173,10 @@ actor FilePracticeProgressRepository:
         } else {
             liveSessionIDs.remove(session.id)
         }
+    }
+
+    func abandonLiveSession(id: UUID) {
+        liveSessionIDs.remove(id)
     }
 
     func remove(songID: UUID) throws {
