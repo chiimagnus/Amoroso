@@ -103,7 +103,8 @@ actor PracticeProgressCoordinator {
         } catch {
             guard generation == currentGeneration else { return saveStatus }
             let message = error.localizedDescription
-            saveStatus = .failed(message: message)
+            let failureStatus = PracticeProgressSaveStatus.failed(message: message)
+            saveStatus = failureStatus
             if let diagnosticsReporter {
                 _ = await diagnosticsReporter.record(
                     DiagnosticEvent(
@@ -119,6 +120,7 @@ actor PracticeProgressCoordinator {
                     )
                 )
             }
+            return failureStatus
         }
         return saveStatus
     }

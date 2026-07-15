@@ -145,6 +145,33 @@ func progressCoordinatorReportsStoreFailureWithoutCrashingSession() async throws
 }
 
 @Test
+func progressCoordinatorFailureResultCannotBeOverwrittenWhileReportingDiagnostics() async {
+    let repository = InMemoryPracticeProgressRepository(upsertError: TestProgressError.writeFailed)
+    let reporter = SuspendedProgressDiagnosticsReporter()
+    let coordinator = PracticeProgressCoordinator(
+        repository: repository,
+        checkpointDelay: .seconds(60),
+        diagnosticsReporter: reporter
+    )
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
+    let session = await coordinator.begin(identity: identity)
+    await coordinator.checkpoint(
+        SongPracticeProgress(identity: identity, updatedAt: .now),
+        generation: session.generation
+    )
+
+    async let flushStatus = coordinator.flush(generation: session.generation)
+    await reporter.waitUntilRecording()
+    await coordinator.discardPendingProgress(generation: session.generation)
+    await reporter.resume()
+
+    guard case .failed = await flushStatus else {
+        Issue.record("Expected this flush to preserve its own failure result")
+        return
+    }
+}
+
+@Test
 func discardingPendingProgressCancelsRetryAndKeepsLastPersistedFact() async throws {
     let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "r1")
     let persisted = SongPracticeProgress(
@@ -281,4 +308,24 @@ private actor SuspendedPracticeProgressRepository: PracticeProgressRepositoryPro
     func upsert(_: SongPracticeProgress) {}
     func upsert(_: SongScorePracticeMetadata) {}
     func remove(songID _: UUID) {}
+}
+
+private actor SuspendedProgressDiagnosticsReporter: DiagnosticsReporting {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isRecording = false
+
+    func record(_: DiagnosticEvent) async -> DiagnosticRecordResult {
+        isRecording = true
+        await withCheckedContinuation { continuation = $0 }
+        return DiagnosticRecordResult(persistedForExport: true)
+    }
+
+    func waitUntilRecording() async {
+        while isRecording == false { await Task.yield() }
+    }
+
+    func resume() {
+        continuation?.resume()
+        continuation = nil
+    }
 }
