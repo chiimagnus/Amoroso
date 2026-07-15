@@ -13,6 +13,7 @@ struct SongLibraryView: View {
   @State private var pendingDeletionEntryID: UUID?
   @State private var pendingImportConfirmationID: UUID?
   @State private var isDiagnosticsPresented = false
+  @State private var libraryViewHeight = LibraryDesignTokens.windowIdealHeight
 
   private var audioImporterTypes: [UTType] {
     let types = SongLibraryViewModel.supportedAudioFileExtensions.compactMap {
@@ -132,6 +133,9 @@ struct SongLibraryView: View {
       idealHeight: LibraryDesignTokens.windowIdealHeight,
       maxHeight: LibraryDesignTokens.windowMaximumHeight
     )
+    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+      libraryViewHeight = height
+    }
     .safeAreaInset(edge: .top) {
       if viewModel.importState.isActive {
         LibraryImportStatusView(
@@ -158,8 +162,13 @@ struct SongLibraryView: View {
         .padding(.horizontal)
       }
     }
-    .ornament(attachmentAnchor: .scene(.trailing)) {
+    .ornament(
+      attachmentAnchor: .scene(.trailing),
+      contentAlignment: .leading
+    ) {
       LibraryPracticeProgressOrnamentView(state: viewModel.practiceSnapshotState)
+        .frame(width: 400, height: libraryViewHeight)
+        .glassBackgroundEffect()
     }
     .sheet(isPresented: $isDiagnosticsPresented) {
       DiagnosticsView(viewModel: diagnosticsViewModel)

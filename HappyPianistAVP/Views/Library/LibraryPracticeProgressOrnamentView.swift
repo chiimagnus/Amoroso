@@ -43,8 +43,7 @@ struct LibraryPracticeProgressOrnamentView: View {
             }
         }
         .padding(20)
-        .frame(idealWidth: LibraryDesignTokens.recordDiameter, alignment: .leading)
-        .glassBackgroundEffect()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("当前曲目练习概览")
     }
