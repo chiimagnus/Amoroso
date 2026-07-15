@@ -61,6 +61,7 @@ func overviewUsesSessionsWhenCurrentMetadataIsUnavailable() async throws {
     }
 
     #expect(overview.identity == snapshotIdentity(entry))
+    #expect(overview.status == .pending)
     #expect(overview.sessionSummary.sessionCount == 1)
     #expect(overview.sessionSummary.totalActiveDurationMilliseconds == 45_000)
     #expect(overview.measureProgress == .metadataUnavailable)
@@ -103,6 +104,36 @@ func overviewMergesCurrentRevisionHandsAndCompletesThreeWayTotal() async throws 
         learningSourceMeasureCount: 2,
         unpracticedSourceMeasureCount: 1
     )))
+    #expect(overview.status == .learning)
+}
+
+@Test
+func overviewStatusIsStableOnlyWhenEveryCurrentMeasureIsStable() async throws {
+    let entry = makeSnapshotEntry()
+    let progress = makeSnapshotProgress(
+        songID: entry.id,
+        revision: "current",
+        facts: [
+            snapshotFact(0, hand: .both, state: .stable),
+            snapshotFact(1, hand: .left, state: .stable),
+            snapshotFact(1, hand: .right, state: .stable),
+        ]
+    )
+
+    guard case let .overview(overview) = await buildSnapshot(
+        entry: entry,
+        history: PracticeSongHistory(
+            songID: entry.id,
+            progresses: [progress],
+            scoreMetadata: [makeSnapshotMetadata(entry: entry, revision: "current", total: 2)],
+            sessions: [try makeSnapshotSession(songID: entry.id, revision: "current")]
+        )
+    ) else {
+        Issue.record("Expected overview")
+        return
+    }
+
+    #expect(overview.status == .stable)
 }
 
 @Test

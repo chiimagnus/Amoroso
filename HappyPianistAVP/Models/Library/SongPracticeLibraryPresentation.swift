@@ -48,8 +48,15 @@ struct SongPracticeFocusMeasure: Equatable, Sendable {
     let reason: SongPracticeFocusReason
 }
 
+enum SongPracticeLibraryOverviewStatus: Equatable, Sendable {
+    case learning
+    case stable
+    case pending
+}
+
 struct SongPracticeLibraryOverview: Equatable, Sendable {
     let identity: SongPracticeLibrarySelectionIdentity
+    let status: SongPracticeLibraryOverviewStatus
     let sessionSummary: SongPracticeSessionSummary
     let measureProgress: SongPracticeMeasureProgressState
     let resumeSourceMeasureID: PracticeSourceMeasureID?

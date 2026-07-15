@@ -97,6 +97,7 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
 
         return .overview(SongPracticeLibraryOverview(
             identity: identity,
+            status: overviewStatus(for: measureProgress),
             sessionSummary: SongPracticeSessionSummaryBuilder().build(
                 songID: entry.id,
                 sessions: sessions,
@@ -107,6 +108,21 @@ struct SongPracticeLibrarySnapshotBuilder: SongPracticeLibrarySnapshotBuilding {
             resumeSourceMeasureID: resumeSourceMeasureID,
             focusMeasures: SongPracticeFocusMeasureBuilder().build(from: currentProgress)
         ))
+    }
+
+    private nonisolated func overviewStatus(
+        for measureProgress: SongPracticeMeasureProgressState
+    ) -> SongPracticeLibraryOverviewStatus {
+        switch measureProgress {
+        case .metadataUnavailable:
+            .pending
+        case let .available(progress)
+            where progress.totalSourceMeasureCount > 0
+                && progress.stableSourceMeasureCount == progress.totalSourceMeasureCount:
+            .stable
+        case .available:
+            .learning
+        }
     }
 
     private nonisolated func deduplicatedProgresses(
