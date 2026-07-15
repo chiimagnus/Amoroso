@@ -2,22 +2,38 @@ import Foundation
 @testable import HappyPianistAVP
 import Testing
 
-@Test
-func songLibraryIndexStoreReturnsEmptyOnlyForMissingFile() async throws {
+@Test(arguments: [Data(), Data(" \n\t".utf8)])
+func songLibraryIndexStoreTreatsBlankFilesAsEmpty(data: Data) async throws {
     let fixture = try SongLibraryIndexStoreFixture()
     defer { fixture.remove() }
 
     #expect(try await fixture.store.load() == .empty)
-
     try FileManager.default.createDirectory(
         at: fixture.indexFileURL.deletingLastPathComponent(),
         withIntermediateDirectories: true
     )
-    let indexFileURL = fixture.indexFileURL
-    try Data(" \n\t".utf8).write(to: indexFileURL)
-    await #expect(throws: SongLibraryIndexStoreError.corrupted) {
-        _ = try await fixture.store.load()
-    }
+    try data.write(to: fixture.indexFileURL)
+
+    #expect(try await fixture.store.load() == .empty)
+}
+
+@Test
+func firstMutationReplacesBlankIndexWithValidJSON() async throws {
+    let fixture = try SongLibraryIndexStoreFixture()
+    defer { fixture.remove() }
+    try FileManager.default.createDirectory(
+        at: fixture.indexFileURL.deletingLastPathComponent(),
+        withIntermediateDirectories: true
+    )
+    try Data(" \n\t".utf8).write(to: fixture.indexFileURL)
+    let entry = makeEntry(name: "first")
+
+    let index = try await fixture.store.appendUserEntry(entry)
+    let persisted = try await fixture.store.load()
+
+    #expect(index.entries == [entry])
+    #expect(persisted == index)
+    #expect(try JSONSerialization.jsonObject(with: Data(contentsOf: fixture.indexFileURL)) is [String: Any])
 }
 
 @Test

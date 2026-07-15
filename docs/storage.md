@@ -29,7 +29,7 @@ bundled MusicXML 和 App 资源来自 bundle，不写入 Documents。
 4. 用户确认只回传 operation ID；actor 重新分类最新事实。indexed target 先按指纹备份旧文件再用 CAS 保留 song ID、显示名、音频、顺序和最后选择，missing target 直接修复同一 entry，filesystem orphan 备份同名未索引文件后建立新 entry。歧义目标不提供覆盖动作。
 5. CAS 或 index 保存失败时仅在 staged/backup/target 指纹仍匹配时恢复确认前文件事实；已经提交但 cleanup 失败的 journal 由下次 bootstrap 幂等收尾。
 
-只有 index 文件缺失时视为空库；零字节、空白或无法解码的 JSON 都保留原文件并阻塞读取及所有 mutation，禁止按空库继续写入。
+index 文件缺失、零字节或仅包含空白时视为空库，首次 mutation 会原子写出有效 JSON；非空但无法解码的 JSON 保留原文件并阻塞读取及所有 mutation，禁止按空库继续写入。
 
 每个导入事务目录只允许 UUID operation 目录、`journal.json`、`stage/` 与 `backup/`；`.partial` 只允许出现在 preparing 阶段。journal 只记录相对文件名、operation/song/token 标识、phase 及 staged/backup 指纹；不记录 URL、原始曲谱、错误正文或完整 index。恢复在 bootstrap 读取 index 前运行，删除或覆盖 staged、backup、target 前必须同时核对字节数和 SHA-256；符号链接、未知目录内容、文件身份变化或歧义一律阻塞启动快照发布。
 
