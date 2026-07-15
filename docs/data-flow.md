@@ -178,7 +178,7 @@ flowchart LR
 - occurrence identity 只负责重复结构中的播放位置。
 - launch 先按 song UUID + score revision 查 exact progress；exact 不存在时，历史 resolver 只可继承 hand mode、tempo scale、loop enabled、required successes。passage、resume、measure facts 与任何 source/occurrence identity 不跨 revision。
 - 历史记录损坏时 launch 记录 warning 并使用 `historyUnavailable` policy；无可用配置则使用 `freshDefaults`，两者都不阻止 score preparation。
-- 小节连续成功仍按手别、速度与本轮条件隔离；Library 的连续练习日只按当前 song 的持久化 `PracticeLocalDay` 聚合。
+- 小节连续成功仍按手别、速度与本轮条件隔离；Library 的连续练习天数只按当前 song 的持久化 `PracticeLocalDay` 聚合，“已连续/最近连续”则用最新会话绝对时间在当前查看时区判断。
 - resume point 保存片段、配置与当前 step。
 - 恢复完成后停在 ready/paused，不自动发声。
 - back、background、换 session 与完成时等待 flush。
