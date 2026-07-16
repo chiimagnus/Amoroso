@@ -20,6 +20,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     let appState: AppState
     let practiceSetupState: PracticeSetupState
     let pianoModeRegistry: PianoModeRegistryProtocol
+    let diagnosticsReporter: (any DiagnosticsReporting)?
     private let makePracticeSessionViewModel: @MainActor (String?) -> PracticeSessionViewModel
 
     // MARK: - Child view models
@@ -57,11 +58,13 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         virtualPianoKeyGeometryService: (any VirtualPianoKeyGeometryServiceProtocol)? = nil,
         aiPlaybackServiceFactory: (@MainActor () -> DuetAIPlaybackServiceFactory)? = nil,
         takeLibraryViewModel: TakeLibraryViewModel? = nil,
-        takePlaybackViewModel: TakePlaybackViewModel? = nil
+        takePlaybackViewModel: TakePlaybackViewModel? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         self.appState = appState
         self.practiceSetupState = practiceSetupState
         self.pianoModeRegistry = pianoModeRegistry
+        self.diagnosticsReporter = diagnosticsReporter
         self.makePracticeSessionViewModel = makePracticeSessionViewModel
 
         let initialSession = makePracticeSessionViewModel(practiceSetupState.selectedPianoModeID)
@@ -79,7 +82,8 @@ final class ARGuideViewModel: PracticeLaunchApplying {
             virtualPianoKeyGeometryService: virtualPianoKeyGeometryService
         )
         let ai = ARGuideAIPerformanceViewModel(
-            aiPlaybackServiceFactory: aiPlaybackServiceFactory
+            aiPlaybackServiceFactory: aiPlaybackServiceFactory,
+            diagnosticsReporter: diagnosticsReporter
         )
 
         calibrationGuideViewModel = calibration

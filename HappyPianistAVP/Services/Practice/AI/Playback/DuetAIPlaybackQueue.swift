@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 actor DuetAIPlaybackQueue {
     struct SubmitResult: Equatable, Sendable {
@@ -14,7 +13,7 @@ actor DuetAIPlaybackQueue {
         let routing: PracticeSoundRoutingSettings
     }
 
-    private let logger: Logger
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let nowUptimeSeconds: @Sendable () -> TimeInterval
     private let sleepFor: @Sendable (Duration) async -> Void
     private let buildSequence: @Sendable ([PracticeSequencerMIDIEvent]) async throws -> PracticeSequencerSequence
@@ -26,7 +25,7 @@ actor DuetAIPlaybackQueue {
     private var playbackGeneration = 0
 
     init(
-        logger: Logger,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         nowUptimeSeconds: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         sleepFor: @escaping @Sendable (Duration) async -> Void = { duration in try? await Task.sleep(for: duration) },
         buildSequence: @escaping @Sendable ([PracticeSequencerMIDIEvent]) async throws -> PracticeSequencerSequence = { schedule in
@@ -37,7 +36,7 @@ actor DuetAIPlaybackQueue {
         playbackServiceFactory: @escaping @MainActor () -> DuetAIPlaybackServiceFactory,
         onPlaybackActiveChanged: @escaping @Sendable @MainActor (Bool) -> Void
     ) {
-        self.logger = logger
+        self.diagnosticsReporter = diagnosticsReporter
         self.nowUptimeSeconds = nowUptimeSeconds
         self.sleepFor = sleepFor
         self.buildSequence = buildSequence
@@ -123,13 +122,19 @@ actor DuetAIPlaybackQueue {
         do {
             sequence = try await buildSequence(item.schedule)
         } catch {
-            logger.warning("continuous duet buildSequence failed: \(String(describing: error), privacy: .public)")
+            diagnosticsReporter?.recordSystem(
+                severity: .warning,
+                category: .ai,
+                stage: "continuousDuet.buildSequence",
+                summary: "AI 即兴序列构建失败",
+                reason: String(describing: error)
+            )
             return
         }
 
         guard Task.isCancelled == false, generation == playbackGeneration else { return }
 
-        let playbackTask = Task { @MainActor [logger, playbackServiceFactory, sleepFor] in
+        let playbackTask = Task { @MainActor [diagnosticsReporter, playbackServiceFactory, sleepFor] in
             guard Task.isCancelled == false else { return }
             let service = playbackServiceFactory().playbackService(for: item.routing)
             do {
@@ -137,7 +142,13 @@ actor DuetAIPlaybackQueue {
                 try service.load(sequence: sequence)
                 try service.play(fromSeconds: 0)
             } catch {
-                logger.warning("continuous duet playback start failed: \(String(describing: error), privacy: .public)")
+                diagnosticsReporter?.recordSystem(
+                    severity: .warning,
+                    category: .ai,
+                    stage: "continuousDuet.playbackStart",
+                    summary: "AI 即兴播放启动失败",
+                    reason: String(describing: error)
+                )
                 return
             }
 

@@ -26,6 +26,7 @@ enum DiagnosticPersistence: String, Codable, Sendable {
 }
 
 enum DiagnosticCode: String, Codable, CaseIterable, Sendable {
+    case runtimeEvent = "RUNTIME_EVENT"
     case practicePreparationStarted = "PRACTICE_PREPARATION_STARTED"
     case practicePreparationSucceeded = "PRACTICE_PREPARATION_SUCCEEDED"
     case practiceScoreFileNotFound = "PRACTICE_SCORE_FILE_NOT_FOUND"

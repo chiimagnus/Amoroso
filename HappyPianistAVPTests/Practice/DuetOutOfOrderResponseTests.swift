@@ -1,6 +1,5 @@
 import Foundation
 @testable import HappyPianistAVP
-import os
 import Testing
 
 @MainActor
@@ -106,7 +105,6 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
     )
 
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
@@ -157,7 +155,6 @@ func continuousDuetRequestsGenerationForMIDI2Input() async {
     )
 
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),

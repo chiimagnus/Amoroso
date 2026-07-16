@@ -1,6 +1,5 @@
 import AVFoundation
 import Foundation
-import os
 
 final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProtocol {
     private enum ServiceError: LocalizedError {
@@ -50,15 +49,8 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
     private let spectrumAnalyzer: any AudioSpectrumAnalyzingProtocol
     private let harmonicDetector: any HarmonicTemplateDetectingProtocol
     private let tuningProfile: HarmonicTemplateTuningProfile
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let lock = NSLock()
-    private let recognitionLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "Step3AudioRecognition"
-    )
-    private let performanceLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "Step3AudioPerformance"
-    )
 
     private let eventsStream: AsyncStream<DetectedNoteEvent>
     private let statusStream: AsyncStream<PracticeAudioRecognitionStatus>
@@ -80,12 +72,14 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         audioEngine: AVAudioEngine = AVAudioEngine(),
         spectrumAnalyzer: any AudioSpectrumAnalyzingProtocol = VDSPAudioSpectrumAnalyzer(),
         harmonicDetector: any HarmonicTemplateDetectingProtocol = TargetedHarmonicTemplateDetector(),
-        tuningProfile: HarmonicTemplateTuningProfile = .lowLatencyDefault
+        tuningProfile: HarmonicTemplateTuningProfile = .lowLatencyDefault,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         self.audioEngine = audioEngine
         self.spectrumAnalyzer = spectrumAnalyzer
         self.harmonicDetector = harmonicDetector
         self.tuningProfile = tuningProfile
+        self.diagnosticsReporter = diagnosticsReporter
         (eventsStream, eventsContinuation) = AsyncStream.makeStream()
         (statusStream, statusContinuation) = AsyncStream.makeStream()
         (processingStream, processingContinuation) = AsyncStream.makeStream(
@@ -145,8 +139,6 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
             try audioEngine.start()
             try Task.checkCancellation()
             statusContinuation.yield(.running)
-            recognitionLogger.info(
-                "step3 audio engine running generation=\(generation, privacy: .public)")
         } catch is CancellationError {
             stop()
             throw CancellationError()
@@ -243,7 +235,6 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
         generation: Int,
         suppressing: Bool
     ) -> [DetectedNoteEvent] {
-        let startedAt = Date.now.timeIntervalSinceReferenceDate
         do {
             let spectrum = try spectrumAnalyzer.analyze(
                 samples: samples, sampleRate: sampleRate, timestamp: .now)
@@ -255,14 +246,15 @@ final class PracticeAudioRecognitionService: PracticeAudioRecognitionServiceProt
                 suppressing: suppressing,
                 profile: tuningProfile
             )
-            let elapsed = (Date.now.timeIntervalSinceReferenceDate - startedAt) * 1000
-            if elapsed > tuningProfile.slowProcessingThresholdMs {
-                performanceLogger.debug("harmonic detector slow ms=\(elapsed, privacy: .public)")
-            }
             return events
         } catch {
-            recognitionLogger.error(
-                "harmonic detector failed: \(error.localizedDescription, privacy: .public)")
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .audio,
+                stage: "harmonicDetector.detect",
+                summary: "谐波检测失败",
+                reason: error.localizedDescription
+            )
             return []
         }
     }

@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 @MainActor
 final class MIDIRecordingState {
@@ -8,7 +7,6 @@ final class MIDIRecordingState {
         var recordingStartDate: Date?
     }
 
-    private let logger: Logger
     private let nowUptimeSeconds: () -> TimeInterval
     private let nowDate: () -> Date
     private let onStateChanged: @MainActor (State) -> Void
@@ -27,7 +25,6 @@ final class MIDIRecordingState {
     private var recordingStartDate: Date?
 
     init(
-        logger: Logger,
         nowUptimeSeconds: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         nowDate: @escaping () -> Date = Date.init,
         onStateChanged: @escaping @MainActor (State) -> Void,
@@ -35,7 +32,6 @@ final class MIDIRecordingState {
         onMIDI1Event: (@MainActor (MIDI1InputEvent) -> Void)? = nil,
         onMIDI2Event: (@MainActor (MIDI2InputEvent) -> Void)? = nil
     ) {
-        self.logger = logger
         self.nowUptimeSeconds = nowUptimeSeconds
         self.nowDate = nowDate
         self.onStateChanged = onStateChanged

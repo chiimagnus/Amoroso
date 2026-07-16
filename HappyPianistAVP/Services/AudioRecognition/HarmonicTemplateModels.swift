@@ -84,7 +84,6 @@ struct HarmonicTemplateTuningProfile: Equatable {
     let lowRegisterMIDINoteCutoff: Int
     let lowRegisterWindowSize: Int
     let defaultWindowSize: Int
-    let slowProcessingThresholdMs: Double
 
     static let lowLatencyDefault = HarmonicTemplateTuningProfile(
         partialWeights: [1: 1.0, 2: 0.70, 3: 0.50, 4: 0.35, 5: 0.25],
@@ -96,8 +95,7 @@ struct HarmonicTemplateTuningProfile: Equatable {
         onsetThreshold: 0.28,
         lowRegisterMIDINoteCutoff: 48,
         lowRegisterWindowSize: 4096,
-        defaultWindowSize: 2048,
-        slowProcessingThresholdMs: 30
+        defaultWindowSize: 2048
     )
 
     func weight(for harmonicIndex: Int) -> Double {

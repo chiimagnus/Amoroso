@@ -59,6 +59,19 @@ func reporterKeepsSystemOnlyEventOutOfFileStore() async {
 }
 
 @Test
+func reporterRecordsSynchronousSystemEventWithoutTouchingFileStore() async {
+    let systemSink = RecordingSystemDiagnosticsSink()
+    let store = RecordingDiagnosticsStore()
+    let reporter = AppDiagnosticsReporter(systemSink: systemSink, exportStore: store)
+    let event = testReporterEvent(persistence: .systemOnly)
+
+    reporter.recordSystem(event)
+
+    #expect(systemSink.events == [event])
+    #expect(await store.events.isEmpty)
+}
+
+@Test
 func reporterKeepsAppRunningWhenFileStoreFails() async {
     let systemSink = RecordingSystemDiagnosticsSink()
     let store = RecordingDiagnosticsStore()

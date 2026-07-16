@@ -1,6 +1,5 @@
 import Foundation
 @testable import HappyPianistAVP
-import os
 import Testing
 
 @MainActor
@@ -223,7 +222,6 @@ func enableDisableAreIdempotent() async {
         makeExternalMIDIPlaybackService: { _ in aiPlaybackService }
     )
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: orchestrator,
@@ -276,7 +274,6 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
     let fakeBackend = FakeScheduleBackend(kind: selectedKind, playbackPlan: .schedule(schedule, backendLatencyMS: nil))
 
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: orchestrator,
@@ -356,7 +353,6 @@ func shutdownPreventsFurtherEnable() async {
         makeExternalMIDIPlaybackService: { _ in aiPlaybackService }
     )
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: orchestrator,
@@ -412,7 +408,6 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -484,7 +479,6 @@ func networkBackendRemainsSingleCandidate() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -574,7 +568,6 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -669,7 +662,6 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,

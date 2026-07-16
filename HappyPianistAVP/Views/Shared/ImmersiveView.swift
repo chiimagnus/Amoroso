@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ImmersiveView: View {
     @Bindable var viewModel: ARGuideViewModel
-    @State private var overlayController = PianoGuideOverlayController()
+    @State private var overlayController: PianoGuideOverlayController
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
     @State private var virtualPianoOverlayController: VirtualPianoOverlayController
@@ -17,11 +17,19 @@ struct ImmersiveView: View {
     init(viewModel: ARGuideViewModel) {
         self.viewModel = viewModel
         let keyEntityFactory = PianoKeyEntityFactory()
+        _overlayController = State(
+            initialValue: PianoGuideOverlayController(
+                diagnosticsReporter: viewModel.diagnosticsReporter
+            )
+        )
         _virtualPianoOverlayController = State(
             initialValue: VirtualPianoOverlayController(keyEntityFactory: keyEntityFactory)
         )
         _virtualPerformerOverlayController = State(
-            initialValue: VirtualPerformerOverlayController(keyEntityFactory: keyEntityFactory)
+            initialValue: VirtualPerformerOverlayController(
+                keyEntityFactory: keyEntityFactory,
+                diagnosticsReporter: viewModel.diagnosticsReporter
+            )
         )
     }
 

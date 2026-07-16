@@ -1,13 +1,7 @@
 import Foundation
-import os
 
 @MainActor
 final class PracticeManualReplayService: PracticeSessionLifecycleProtocol {
-    private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "PracticeManualReplayService"
-    )
-
     private let sleeper: SleeperProtocol
     private let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let playbackSequenceBuilder: any PlaybackSequenceBuildingProtocol
@@ -126,10 +120,6 @@ final class PracticeManualReplayService: PracticeSessionLifecycleProtocol {
                 stateStore.recordPlaybackError(error)
                 return
             }
-
-            logger.debug(
-                "manual replay sequencer started leadIn=\(leadInSeconds, privacy: .public)s now=\(self.sequencerPlaybackService.currentSeconds(), privacy: .public)s"
-            )
 
             var cursor = ManualReplayTimeCursor(
                 steps: stepsSnapshot,

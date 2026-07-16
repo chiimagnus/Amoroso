@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import os
 
 @dynamicMemberLookup
 @MainActor
@@ -31,6 +30,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
     let roundConfigurationController: PracticeRoundConfigurationController
     let progressCoordinator: PracticeProgressCoordinator?
     let sessionRecorder: PracticeSessionRecorder?
+    let diagnosticsReporter: (any DiagnosticsReporting)?
     let feedbackPolicy = PracticeFeedbackPolicy()
 
     var practiceMIDIInputService: PracticeMIDIInputService?
@@ -76,7 +76,8 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         settingsProvider: (any PracticeSessionSettingsProviderProtocol)? = nil,
         roundDefaultsStore: (any PracticeRoundDefaultsStoreProtocol)? = nil,
         progressCoordinator: PracticeProgressCoordinator? = nil,
-        sessionRecorder: PracticeSessionRecorder? = nil
+        sessionRecorder: PracticeSessionRecorder? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         stateStore = PracticeSessionStateStore()
         stepNavigator = PracticeStepNavigator()
@@ -97,6 +98,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
         self.settingsProvider = resolvedSettingsProvider
         self.progressCoordinator = progressCoordinator
         self.sessionRecorder = sessionRecorder
+        self.diagnosticsReporter = diagnosticsReporter
         roundConfigurationController = PracticeRoundConfigurationController(
             stateStore: stateStore,
             settingsProvider: resolvedSettingsProvider,
@@ -108,6 +110,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
             matcher: self.midiPracticeStepMatcher,
             stateStore: stateStore,
             effectHandler: self,
+            diagnosticsReporter: diagnosticsReporter,
             consumeEvents: true
         )
         audioRecognitionInputService = PracticeAudioRecognitionInputService(
@@ -115,6 +118,7 @@ final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, Practice
             accumulator: audioStepAttemptAccumulator,
             stateStore: stateStore,
             effectHandler: self,
+            diagnosticsReporter: diagnosticsReporter,
             consumeStreams: true
         )
 

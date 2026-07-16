@@ -1,6 +1,5 @@
 import Foundation
 @testable import HappyPianistAVP
-import os
 import Testing
 
 @MainActor
@@ -83,7 +82,6 @@ func duetAIPlaybackQueueSubmitWindowShiftsLeadInForQueuedWindows() async {
     }
 
     let queue = DuetAIPlaybackQueue(
-        logger: Logger(subsystem: "test", category: "continuous-duet-queue"),
         nowUptimeSeconds: { 100 },
         sleepFor: { _ in },
         buildSequence: { schedule in
@@ -129,7 +127,6 @@ func duetAIPlaybackQueueClearPendingWindowDropsQueuedReplacement() async {
 
     let gate = SequenceBuildGate()
     let queue = DuetAIPlaybackQueue(
-        logger: Logger(subsystem: "test", category: "continuous-duet-queue"),
         nowUptimeSeconds: { 50 },
         sleepFor: { _ in },
         buildSequence: { schedule in try await gate.build(schedule) },
@@ -172,7 +169,6 @@ func duetAIPlaybackQueueStopAllPreventsLateBuildFromStartingPlayback() async {
     }
     let gate = SequenceBuildGate()
     let queue = DuetAIPlaybackQueue(
-        logger: Logger(subsystem: "test", category: "continuous-duet-queue"),
         nowUptimeSeconds: { 50 },
         sleepFor: { _ in },
         buildSequence: { schedule in try await gate.build(schedule) },
