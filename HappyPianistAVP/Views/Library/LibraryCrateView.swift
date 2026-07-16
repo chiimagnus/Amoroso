@@ -10,7 +10,6 @@ struct LibraryCrateView: View {
     let onSelectEntry: (UUID) -> Void
     let onTogglePlayback: (UUID) -> Void
     let onImportMusicXML: () -> Void
-    let onBindAudio: (UUID) -> Void
     let onImmediateDelete: (UUID) -> Void
 
     @State private var horizontalDragOffset: CGFloat = 0
@@ -66,13 +65,6 @@ struct LibraryCrateView: View {
                     }
                     .buttonStyle(.plain)
                     .hoverEffect()
-                    .contextMenu {
-                        if entry.isBundled != true {
-                            Button("导入或替换音频", systemImage: "waveform") {
-                                onBindAudio(entry.id)
-                            }
-                        }
-                    }
                     // ponytail: visionOS clips rotated record layers; horizontal compression keeps the depth cue.
                     .scaleEffect(x: pose.scale * pose.horizontalScale, y: pose.scale)
                     .opacity(pose.opacity)
@@ -319,7 +311,6 @@ private struct LibraryPageIndicatorView: View {
         onSelectEntry: { _ in },
         onTogglePlayback: { _ in },
         onImportMusicXML: {},
-        onBindAudio: { _ in },
         onImmediateDelete: { _ in }
     )
     .frame(width: 1_140, height: 500)

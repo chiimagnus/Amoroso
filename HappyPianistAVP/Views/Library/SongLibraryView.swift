@@ -61,7 +61,6 @@ struct SongLibraryView: View {
                             onSelectEntry: viewModel.selectEntry,
                             onTogglePlayback: togglePlayback,
                             onImportMusicXML: viewModel.didTapImportMusicXML,
-                            onBindAudio: presentAudioImporter,
                             onImmediateDelete: deleteWithoutConfirmation
                         )
 
