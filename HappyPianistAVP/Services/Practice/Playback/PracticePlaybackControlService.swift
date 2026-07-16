@@ -1,13 +1,7 @@
 import Foundation
-import os
 
 @MainActor
-final class PracticePlaybackControlService: PracticePlaybackControlServiceProtocol, PracticeSessionLifecycleProtocol {
-    private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "PracticePlaybackControlService"
-    )
-
+final class PracticePlaybackControlService {
     private let sleeper: SleeperProtocol
     private let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let playbackSequenceBuilder: any PlaybackSequenceBuildingProtocol
@@ -298,10 +292,6 @@ final class PracticePlaybackControlService: PracticePlaybackControlServiceProtoc
         }
 
         guard Task.isCancelled == false, autoplayTaskGeneration == generation else { return }
-
-        logger.debug(
-            "autoplay sequencer started leadIn=\(self.leadInSeconds, privacy: .public)s now=\(self.sequencerPlaybackService.currentSeconds(), privacy: .public)s"
-        )
 
         var cursor = AutoplayTimelineTimeCursor(
             timeline: timeline,

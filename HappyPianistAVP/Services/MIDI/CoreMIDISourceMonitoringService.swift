@@ -1,6 +1,5 @@
 import CoreMIDI
 import Foundation
-import OSLog
 
 enum CoreMIDISourceMonitoringServiceError: LocalizedError {
     case clientCreate(OSStatus)
@@ -25,7 +24,6 @@ final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol
     var onSourceNamesChange: (([String]) -> Void)?
     var onLastErrorMessageChange: ((String?) -> Void)?
 
-    private let logger = Logger(subsystem: "com.chiimagnus.HappyPianist", category: "CoreMIDI-AVP-Sources")
     private let refreshScheduler = DebouncedActionScheduler(debounce: .milliseconds(200))
 
     private var clientRef: MIDIClientRef = 0
@@ -103,7 +101,6 @@ final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol
                 connectedSources.append(ConnectedSource(portRef: targetPortRef, endpoint: source))
             } else {
                 failedStatus = status
-                logger.error("Failed to connect source \(index, privacy: .public): \(status, privacy: .public)")
             }
         }
 
@@ -180,7 +177,6 @@ final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol
                 do {
                     try self.refreshSources()
                 } catch {
-                    self.logger.error("Auto refresh MIDI sources failed: \(error.localizedDescription, privacy: .public)")
                     self.onLastErrorMessageChange?(error.localizedDescription)
                     self.onConnectionStateChange?(.connected(sourceCount: self.connectedSources.count))
                 }

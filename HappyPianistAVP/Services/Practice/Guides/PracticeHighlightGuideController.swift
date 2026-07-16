@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class PracticeHighlightGuideController: PracticeSessionLifecycleProtocol {
+final class PracticeHighlightGuideController {
     private let sleeper: SleeperProtocol
     private let stateStore: PracticeSessionStateStore
 

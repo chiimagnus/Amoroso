@@ -152,6 +152,7 @@ func bootstrapRepairsInvalidSelectionAndAcceptsBundledSelection() async throws {
         id: UUID(),
         displayName: "Bundled",
         musicXMLFileName: "bundled.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil,
         isBundled: true
@@ -190,6 +191,7 @@ private func makeSelectionEntries() -> [SongLibraryEntry] {
             id: UUID(),
             displayName: name,
             musicXMLFileName: "\(name).musicxml",
+            scoreFileVersionID: UUID(),
             importedAt: .distantPast,
             audioFileName: nil
         )

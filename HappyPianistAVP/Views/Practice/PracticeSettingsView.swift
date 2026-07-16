@@ -1,13 +1,9 @@
 import SwiftUI
 
 struct PracticeSettingsView: View {
-    private enum SettingsTab: String, CaseIterable, Identifiable {
+    private enum SettingsTab: String, CaseIterable {
         case practice
         case improvDuet
-
-        var id: Self {
-            self
-        }
 
         var title: String {
             switch self {
@@ -53,7 +49,7 @@ struct PracticeSettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 Picker("设置分类", selection: $selectedTab) {
-                    ForEach(SettingsTab.allCases) { tab in
+                    ForEach(SettingsTab.allCases, id: \.rawValue) { tab in
                         Text(tab.title).tag(tab)
                     }
                 }
@@ -87,7 +83,6 @@ struct PracticeSettingsView: View {
                                 Button("刷新输出", systemImage: "arrow.clockwise") {
                                     destinationConnectionViewModel.refreshDestinations()
                                 }
-                                .buttonStyle(.bordered)
                             }
 
                             Toggle("Local Control Off（可选）", isOn: $roundConfigurationController.pendingSendLocalControlOff)
@@ -195,7 +190,6 @@ struct PracticeSettingsView: View {
                                 Button("打开录制库", systemImage: "list.bullet") {
                                     onOpenTakeLibrary()
                                 }
-                                .buttonStyle(.bordered)
                             }
                             .disabled(isAIPerformanceActive)
 
@@ -253,7 +247,6 @@ struct PracticeSettingsView: View {
                                 Button("调试：注入测试短句（跨键盘）", systemImage: "hammer") {
                                     onDebugInjectAIImprovPhrase()
                                 }
-                                .buttonStyle(.bordered)
 
                                 Text("用于 simulator：不依赖 Hand Tracking，直接触发 AI 生成/回放。")
                                     .font(.footnote)
@@ -266,7 +259,6 @@ struct PracticeSettingsView: View {
             }
             .padding(16)
         }
-        .scrollIndicators(.automatic)
         .onAppear {
             if isBluetoothMIDIMode {
                 destinationConnectionViewModel.start()

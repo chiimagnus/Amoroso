@@ -58,7 +58,10 @@ func worldAnchorCalibrationStoreCanSaveAndLoadRoundTrip() throws {
 
 private func makeTemporaryDocumentsDirectory() throws -> URL {
     let tempDirectory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("WorldAnchorCalibrationStoreTests-\(UUID().uuidString)", isDirectory: true)
+        .appending(
+            path: "WorldAnchorCalibrationStoreTests-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
     try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
     return tempDirectory
 }

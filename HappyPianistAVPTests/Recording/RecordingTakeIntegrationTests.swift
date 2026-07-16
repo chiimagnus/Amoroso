@@ -66,7 +66,7 @@ func emptyTakeProducesEmptySequence() throws {
 
 private func makeTemporaryDirectory(prefix: String) throws -> URL {
     let directoryURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
+        .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     return directoryURL
 }

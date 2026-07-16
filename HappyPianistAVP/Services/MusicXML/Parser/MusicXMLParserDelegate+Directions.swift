@@ -1,10 +1,4 @@
 import Foundation
-import os
-
-private let musicXMLParserLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-    category: "MusicXMLParser"
-)
 
 extension MusicXMLParserDelegate {
     func parseMIDIVelocity(_ raw: String?) -> UInt8? {
@@ -267,11 +261,7 @@ extension MusicXMLParserDelegate {
                 )
             )
         default:
-            #if DEBUG
-                musicXMLParserLogger.debug(
-                    "MusicXMLParser: ignored pedal type '\(rawType)' at \(base.partID) measure \(base.measureNumber) tick \(base.tick)"
-                )
-            #endif
+            break
         }
     }
 
@@ -504,9 +494,6 @@ extension MusicXMLParserDelegate {
         }
 
         guard let beatUnitInQuarters else {
-            #if DEBUG
-                musicXMLParserLogger.debug("MusicXMLParser: ignoring metronome beatUnit=\(beatUnit)")
-            #endif
             return
         }
 

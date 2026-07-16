@@ -414,7 +414,7 @@ func progressRepositoryDoesNotLetLateOlderMetadataRegressSameIdentity() async th
 
 private func makeMetadata(
     songID: UUID,
-    token: UUID? = nil,
+    token: UUID = UUID(),
     revision: String = "r1"
 ) -> SongScorePracticeMetadata {
     SongScorePracticeMetadata(

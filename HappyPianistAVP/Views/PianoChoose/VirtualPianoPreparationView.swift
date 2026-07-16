@@ -14,12 +14,12 @@ struct VirtualPianoPreparationView: View {
                     viewModel.setPracticeVirtualPianoEnabled(false)
                     navigationActions.backToTypePicker()
                 }
-                .buttonStyle(.bordered)
 
                 Spacer()
 
                 Text("虚拟钢琴准备")
-                    .font(.largeTitle.weight(.bold))
+                    .font(.largeTitle)
+                    .bold()
 
                 Spacer()
 

@@ -37,7 +37,7 @@ func firstMutationReplacesBlankIndexWithValidJSON() async throws {
 }
 
 @Test
-func songLibraryIndexStoreDecodesLegacyEntryWithoutVersionToken() async throws {
+func songLibraryIndexStoreRejectsEntryWithoutVersionToken() async throws {
     let fixture = try SongLibraryIndexStoreFixture()
     defer { fixture.remove() }
     try FileManager.default.createDirectory(
@@ -59,10 +59,10 @@ func songLibraryIndexStoreDecodesLegacyEntryWithoutVersionToken() async throws {
     """
     try Data(json.utf8).write(to: fixture.indexFileURL)
 
-    let index = try await fixture.store.load()
-
-    #expect(index.entries.first?.scoreFileVersionID == nil)
-    #expect(index.lastSelectedEntryID == id)
+    await #expect(throws: SongLibraryIndexStoreError.corrupted) {
+        try await fixture.store.load()
+    }
+    #expect(try Data(contentsOf: fixture.indexFileURL) == Data(json.utf8))
 }
 
 @Test
@@ -330,7 +330,7 @@ func corruptedSongLibraryIndexIsPreservedAndBlocksEveryMutation() async throws {
     await #expect(throws: SongLibraryIndexStoreError.corrupted) {
         _ = try await fixture.store.replaceUserScore(
             expectedSongID: entry.id,
-            expectedScoreFileVersionID: nil,
+            expectedScoreFileVersionID: UUID(),
             expectedMusicXMLFileName: entry.musicXMLFileName,
             with: SongLibraryScoreReplacement(
                 musicXMLFileName: "blocked.musicxml",
@@ -393,6 +393,7 @@ private func makeEntry(name: String) -> SongLibraryEntry {
         id: UUID(),
         displayName: name,
         musicXMLFileName: "\(name).musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: Date(timeIntervalSince1970: 1_700_000_000),
         audioFileName: nil
     )

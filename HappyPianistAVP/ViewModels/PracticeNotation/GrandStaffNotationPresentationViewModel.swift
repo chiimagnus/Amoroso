@@ -1,12 +1,12 @@
 import CoreGraphics
 
-struct GrandStaffNotationPresentationViewModel: GrandStaffNotationPresentationViewModelProtocol {
-    private let layoutService: any GrandStaffNotationLayoutServiceProtocol
-    private let viewportLayoutService: any GrandStaffNotationViewportLayoutServiceProtocol
+struct GrandStaffNotationPresentationViewModel {
+    private let layoutService: GrandStaffNotationLayoutService
+    private let viewportLayoutService: GrandStaffNotationViewportLayoutService
 
     init(
-        layoutService: any GrandStaffNotationLayoutServiceProtocol = GrandStaffNotationLayoutService(),
-        viewportLayoutService: any GrandStaffNotationViewportLayoutServiceProtocol = GrandStaffNotationViewportLayoutService()
+        layoutService: GrandStaffNotationLayoutService = GrandStaffNotationLayoutService(),
+        viewportLayoutService: GrandStaffNotationViewportLayoutService = GrandStaffNotationViewportLayoutService()
     ) {
         self.layoutService = layoutService
         self.viewportLayoutService = viewportLayoutService

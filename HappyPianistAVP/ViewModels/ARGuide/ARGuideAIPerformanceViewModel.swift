@@ -1,16 +1,14 @@
 import Foundation
 import Observation
-import os
 
 @MainActor
 @Observable
 final class ARGuideAIPerformanceViewModel {
-    private let debugLogger = Logger(subsystem: "HappyPianistAVP", category: "AIPerformanceDebug")
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     let ariaDiscoveryService: BonjourBackendDiscoveryService
     let ariaWebSocketDiscoveryService: BonjourBackendDiscoveryService
     private let backendSelection = ImprovBackendSelection()
     private let aiPlaybackServiceFactory: @MainActor () -> DuetAIPlaybackServiceFactory
-    @ObservationIgnored
     private let localCoreMLModelLoader = PerformanceRNNCoreMLModelLoader()
 
     var localCoreMLDuetAvailability: LocalCoreMLDuetAvailability = .idle
@@ -24,10 +22,7 @@ final class ARGuideAIPerformanceViewModel {
 
     @ObservationIgnored
     private lazy var aiPerformanceService: AIPerformanceService = .init(
-        logger: Logger(
-            subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-            category: "AIPerformanceService"
-        ),
+        diagnosticsReporter: diagnosticsReporter,
         discoveryOrchestrator: ImprovBackendDiscoveryOrchestrator(
             servicesByKind: [
                 .networkBonjourHTTPAriaV2: ariaDiscoveryService,
@@ -54,8 +49,10 @@ final class ARGuideAIPerformanceViewModel {
     init(
         ariaDiscoveryService: BonjourBackendDiscoveryService? = nil,
         ariaWebSocketDiscoveryService: BonjourBackendDiscoveryService? = nil,
-        aiPlaybackServiceFactory: (@MainActor () -> DuetAIPlaybackServiceFactory)? = nil
+        aiPlaybackServiceFactory: (@MainActor () -> DuetAIPlaybackServiceFactory)? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
+        self.diagnosticsReporter = diagnosticsReporter
         self.ariaDiscoveryService = ariaDiscoveryService ?? BonjourBackendDiscoveryService(
             serviceType: "_lpduet._tcp",
             requiredTXTRecord: [
@@ -88,7 +85,11 @@ final class ARGuideAIPerformanceViewModel {
                     let service: any PracticeSequencerPlaybackServiceProtocol =
                         isRunningUnitTests
                             ? NoopPracticeSequencerPlaybackService()
-                            : CoreMIDIPracticePlaybackService(destinationUniqueID: destinationUniqueID, channel: 1)
+                            : CoreMIDIPracticePlaybackService(
+                                destinationUniqueID: destinationUniqueID,
+                                diagnosticsReporter: diagnosticsReporter,
+                                channel: 1
+                            )
                     return service
                 }
             )
@@ -133,11 +134,17 @@ final class ARGuideAIPerformanceViewModel {
         func debugInjectImprovTestPhraseIfPossible() {
             guard isVirtualPerformerEnabled else { return }
 
-            debugLogger.info("debug inject improv phrase requested")
+            diagnosticsReporter?.recordSystem(
+                severity: .debug,
+                category: .ai,
+                stage: "debugInjectImprovPhrase",
+                summary: "请求注入调试即兴片段",
+                reason: "simulator debug action"
+            )
 
             let baseUptime = ProcessInfo.processInfo.systemUptime
             let baseDate = Date.now
-            let source = MIDI1InputEvent.Source(
+            let source = MIDIInputSource(
                 identifier: .sourceIndex(-1),
                 endpointName: "DEBUG"
             )
@@ -152,7 +159,7 @@ final class ARGuideAIPerformanceViewModel {
                 (81, 92, 0.24),
             ]
 
-            for (_, item) in notes.enumerated() {
+            for item in notes {
                 recordMIDI1EventForPhraseRecordingIfNeeded(
                     MIDI1InputEvent(
                         kind: .noteOn(note: item.note, velocity: item.velocity),
@@ -165,7 +172,7 @@ final class ARGuideAIPerformanceViewModel {
                 )
             }
 
-            for (_, item) in notes.enumerated() {
+            for item in notes {
                 recordMIDI1EventForPhraseRecordingIfNeeded(
                     MIDI1InputEvent(
                         kind: .noteOff(note: item.note, velocity: 0),

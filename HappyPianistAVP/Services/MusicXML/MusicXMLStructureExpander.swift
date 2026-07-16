@@ -1,10 +1,4 @@
 import Foundation
-import os
-
-private let musicXMLStructureLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-    category: "MusicXMLStructureExpander"
-)
 
 struct MusicXMLStructureExpander {
     func expandStructureIfPossible(score: MusicXMLScore, primaryPartID: String = "P1") -> MusicXMLScore {
@@ -524,11 +518,6 @@ extension MusicXMLStructureExpander {
         }
 
         if didHitLimit {
-            #if DEBUG
-                musicXMLStructureLogger.debug(
-                    "MusicXMLStructureExpander: jump expansion hit limit (measures=\(outputSequence.count), jumps=\(jumpCount)); falling back to linear score"
-                )
-            #endif
             return score
         }
 

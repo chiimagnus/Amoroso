@@ -1,8 +1,7 @@
 import Foundation
-import os
 
 @MainActor
-final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, PracticeSessionLifecycleProtocol {
+final class PracticeMIDIInputService {
     struct Snapshot: Equatable {
         var practiceState: PracticeSessionState
         var autoplayState: PracticeSessionAutoplayState
@@ -11,11 +10,7 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
         var expectedNotes: [PracticeStepNote]
     }
 
-    private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "PracticeMIDIInputService"
-    )
-
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let practiceInputEventSource: PracticeInputEventSourceProtocol?
     private let matcher: any MIDIPracticeStepMatchingProtocol
     private let stateStore: PracticeSessionStateStore
@@ -30,12 +25,14 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
         matcher: any MIDIPracticeStepMatchingProtocol,
         stateStore: PracticeSessionStateStore,
         effectHandler: any PracticeSessionEffectHandlerProtocol,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         consumeEvents: Bool
     ) {
         self.practiceInputEventSource = practiceInputEventSource
         self.matcher = matcher
         self.stateStore = stateStore
         self.effectHandler = effectHandler
+        self.diagnosticsReporter = diagnosticsReporter
         if consumeEvents { bindStreamsIfNeeded() }
     }
 
@@ -97,7 +94,13 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
         } catch {
             stateStore.isPracticeInputRunning = false
             resetMatchingStateIfNeeded()
-            logger.error("practice input start failed: \(error.localizedDescription, privacy: .public)")
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .midi,
+                stage: "practiceInput.start",
+                summary: "练习 MIDI 输入启动失败",
+                reason: error.localizedDescription
+            )
         }
     }
 
@@ -208,6 +211,12 @@ final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, Practice
         )
         stateStore.practiceInputGeneration += 1
         stateStore.practiceInputActiveSinceUptimeSeconds = ProcessInfo.processInfo.systemUptime
-        logger.warning("MIDI input discontinuity recovered with matcher reset")
+        diagnosticsReporter?.recordSystem(
+            severity: .warning,
+            category: .midi,
+            stage: "practiceInput.discontinuity",
+            summary: "MIDI 输入中断后已重置匹配器",
+            reason: "stream buffer overflow"
+        )
     }
 }

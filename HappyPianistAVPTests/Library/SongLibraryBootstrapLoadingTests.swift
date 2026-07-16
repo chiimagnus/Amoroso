@@ -9,6 +9,7 @@ func songLibraryBootstrapLoadsOnceWithoutBlockingViewModelConstruction() async {
         id: UUID(),
         displayName: "Bundled",
         musicXMLFileName: "Bundled.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil,
         isBundled: true
@@ -39,6 +40,7 @@ func blockedBootstrapPreservesMemoryAndCanRetry() async {
         id: UUID(),
         displayName: "Existing",
         musicXMLFileName: "existing.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil
     )
@@ -46,6 +48,7 @@ func blockedBootstrapPreservesMemoryAndCanRetry() async {
         id: UUID(),
         displayName: "Recovered",
         musicXMLFileName: "recovered.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )
@@ -83,6 +86,7 @@ func liveBootstrapUsesInjectedStoreAndProvider() async {
         id: UUID(),
         displayName: "Stored",
         musicXMLFileName: "stored.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil
     )
@@ -90,6 +94,7 @@ func liveBootstrapUsesInjectedStoreAndProvider() async {
         id: UUID(),
         displayName: "Bundled",
         musicXMLFileName: "bundled.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil,
         isBundled: true

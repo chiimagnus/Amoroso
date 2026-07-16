@@ -8,6 +8,7 @@ func importConflictPresentationsUseDistinctActionsAndDestructiveRolesOnlyForOver
         id: UUID(),
         displayName: "Existing",
         musicXMLFileName: "same.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil
     )

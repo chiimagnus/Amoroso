@@ -1,6 +1,5 @@
 import Foundation
 @testable import HappyPianistAVP
-import os
 import Testing
 
 @MainActor
@@ -122,7 +121,6 @@ func disablingServiceDropsLateBackendResponses() async {
 
     var didEnqueueAnySchedule = false
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
@@ -182,7 +180,6 @@ func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
     )
     var enqueuedSchedule = false
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
@@ -231,7 +228,6 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
         makeExternalMIDIPlaybackService: { _ in playbackService }
     )
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
@@ -278,7 +274,6 @@ func replacingPracticeSessionInvalidatesOldResponse() async {
     )
     var enqueuedSchedule = false
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
@@ -323,7 +318,6 @@ func silentContextDropsLateContinuousResponse() async {
     )
     var enqueuedSchedule = false
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
@@ -366,7 +360,6 @@ func disablingAndReenablingKeepsNewRequestTracked() async {
         makeExternalMIDIPlaybackService: { _ in playbackService }
     )
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),

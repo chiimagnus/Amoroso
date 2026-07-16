@@ -845,7 +845,7 @@ final class SongLibraryViewModel {
                     category: .library,
                     stage: "practiceHistoryLoad",
                     summary: "无法读取曲目练习历史",
-                    reason: "token=\(identity.scoreFileVersionID?.uuidString ?? "absent"); repository=\(repositoryState)",
+                    reason: "token=\(identity.scoreFileVersionID.uuidString); repository=\(repositoryState)",
                     songID: identity.songID,
                     persistence: .exportable
                 )
@@ -867,8 +867,9 @@ final class SongLibraryViewModel {
 
     private func isCurrentSnapshot(_ identity: SongPracticeLibrarySelectionIdentity) -> Bool {
         selectedEntryID == identity.songID
-            && entries.first(where: { $0.id == identity.songID })?.scoreFileVersionID
-                == identity.scoreFileVersionID
+            && entries.contains {
+                $0.id == identity.songID && $0.scoreFileVersionID == identity.scoreFileVersionID
+            }
     }
 
     private func recordDiscardedSnapshot(

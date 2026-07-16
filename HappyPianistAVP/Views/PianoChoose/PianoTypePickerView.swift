@@ -6,7 +6,8 @@ struct PianoTypePickerView: View {
     var body: some View {
         VStack(spacing: 32) {
             Text("选择钢琴类型")
-                .font(.largeTitle.weight(.bold))
+                .font(.largeTitle)
+                .bold()
 
             HStack(spacing: 24) {
                 let modes = windowState.pianoModeRegistry.modes
@@ -17,7 +18,6 @@ struct PianoTypePickerView: View {
             }
         }
         .padding(32)
-        // .frame(minWidth: 860, idealWidth: 860, minHeight: 420)
     }
 
     private func typeCard(mode: any PianoModeProtocol) -> some View {
@@ -38,7 +38,6 @@ struct PianoTypePickerView: View {
             }
             .frame(width: 220, height: 220)
         }
-        // .buttonStyle(.bordered)
         .buttonBorderShape(.roundedRectangle(radius: 20))
     }
 }

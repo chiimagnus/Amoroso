@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 enum Step3AudioRecognitionMode: String, CaseIterable {
     case lowLatency
@@ -48,10 +47,6 @@ struct AudioStepAttemptAccumulatorConfiguration: Equatable {
 }
 
 final class AudioStepAttemptAccumulator {
-    private static let decisionLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "Step3AudioDecision"
-    )
     private(set) var configuration: AudioStepAttemptAccumulatorConfiguration
 
     private var recentEvents: [DetectedNoteEvent] = []
@@ -75,7 +70,6 @@ final class AudioStepAttemptAccumulator {
     func setMode(_ mode: Step3AudioRecognitionMode) {
         recognitionMode = mode
         configuration = .configuration(for: mode)
-        Self.decisionLogger.debug("accumulator mode changed to \(mode.rawValue, privacy: .public)")
     }
 
     func evaluate(

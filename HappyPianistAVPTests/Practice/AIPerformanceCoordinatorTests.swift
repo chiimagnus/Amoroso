@@ -1,6 +1,5 @@
 import Foundation
 @testable import HappyPianistAVP
-import os
 import Testing
 
 @MainActor
@@ -223,7 +222,6 @@ func enableDisableAreIdempotent() async {
         makeExternalMIDIPlaybackService: { _ in aiPlaybackService }
     )
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: orchestrator,
@@ -276,7 +274,6 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
     let fakeBackend = FakeScheduleBackend(kind: selectedKind, playbackPlan: .schedule(schedule, backendLatencyMS: nil))
 
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: orchestrator,
@@ -300,7 +297,7 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
             kind: .noteOn(note: 60, velocity: 90),
             channel: 1,
             group: 0,
-            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+            source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
             receivedAt: Date(timeIntervalSince1970: 0),
             receivedAtUptimeSeconds: 0
         )
@@ -310,7 +307,7 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
             kind: .noteOff(note: 60, velocity: 0),
             channel: 1,
             group: 0,
-            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+            source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
             receivedAt: Date(timeIntervalSince1970: 0),
             receivedAtUptimeSeconds: 0.1
         )
@@ -356,7 +353,6 @@ func shutdownPreventsFurtherEnable() async {
         makeExternalMIDIPlaybackService: { _ in aiPlaybackService }
     )
     let service = AIPerformanceService(
-        logger: Logger(subsystem: "test", category: "ai-perf"),
         nowUptimeSeconds: { nowUptime },
         sleepFor: { _ in },
         discoveryOrchestrator: orchestrator,
@@ -412,7 +408,6 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -433,7 +428,7 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -443,7 +438,7 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)
@@ -484,7 +479,6 @@ func networkBackendRemainsSingleCandidate() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -505,7 +499,7 @@ func networkBackendRemainsSingleCandidate() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -515,7 +509,7 @@ func networkBackendRemainsSingleCandidate() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)
@@ -574,7 +568,6 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -595,7 +588,7 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -605,7 +598,7 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)
@@ -669,7 +662,6 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
 		makeExternalMIDIPlaybackService: { _ in playbackService }
 	)
 	let service = AIPerformanceService(
-		logger: Logger(subsystem: "test", category: "ai-perf"),
 		nowUptimeSeconds: { nowUptime },
 		sleepFor: { _ in },
 		discoveryOrchestrator: orchestrator,
@@ -690,7 +682,7 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -700,7 +692,7 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)

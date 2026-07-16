@@ -1,10 +1,7 @@
 import Foundation
-import os
 
 @MainActor
-final class PracticeAudioRecognitionInputService: PracticeAudioRecognitionInputServiceProtocol,
-    PracticeSessionLifecycleProtocol
-{
+final class PracticeAudioRecognitionInputService {
     struct Snapshot: Equatable {
         var practiceState: PracticeSessionState
         var autoplayState: PracticeSessionAutoplayState
@@ -17,11 +14,7 @@ final class PracticeAudioRecognitionInputService: PracticeAudioRecognitionInputS
         var suppressUntil: Date?
     }
 
-    private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "PracticeAudioRecognitionInputService"
-    )
-
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let service: PracticeAudioRecognitionServiceProtocol?
     private let accumulator: AudioStepAttemptAccumulator
     private let stateStore: PracticeSessionStateStore
@@ -37,12 +30,14 @@ final class PracticeAudioRecognitionInputService: PracticeAudioRecognitionInputS
         accumulator: AudioStepAttemptAccumulator,
         stateStore: PracticeSessionStateStore,
         effectHandler: any PracticeSessionEffectHandlerProtocol,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         consumeStreams: Bool
     ) {
         self.service = service
         self.accumulator = accumulator
         self.stateStore = stateStore
         self.effectHandler = effectHandler
+        self.diagnosticsReporter = diagnosticsReporter
         if consumeStreams { bindStreamsIfNeeded() }
     }
 
@@ -137,8 +132,13 @@ final class PracticeAudioRecognitionInputService: PracticeAudioRecognitionInputS
                 else { return }
                 stateStore.isAudioRecognitionRunning = false
                 recordError(error)
-                logger.error(
-                    "audio recognition start failed: \(error.localizedDescription, privacy: .public)")
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .audio,
+                    stage: "practiceRecognition.start",
+                    summary: "练习音频识别启动失败",
+                    reason: error.localizedDescription
+                )
             }
         }
     }

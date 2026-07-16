@@ -21,12 +21,13 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
 
     init(
         destinationUniqueID: Int32,
-        outputService: any MIDIOutputSendingProtocol = CoreMIDIOutputService(),
+        outputService: (any MIDIOutputSendingProtocol)? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         velocity: UInt8 = 96,
         channel: UInt8 = 0
     ) {
         self.destinationUniqueID = destinationUniqueID
-        self.outputService = outputService
+        self.outputService = outputService ?? CoreMIDIOutputService(diagnosticsReporter: diagnosticsReporter)
         self.velocity = velocity
         self.channel = channel
     }

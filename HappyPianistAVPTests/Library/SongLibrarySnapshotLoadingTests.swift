@@ -417,7 +417,7 @@ private func waitForDiagnostic(
 private func makeLoadingEntry(
     id: UUID = UUID(),
     name: String = "Song",
-    token: UUID? = UUID()
+    token: UUID = UUID()
 ) -> SongLibraryEntry {
     SongLibraryEntry(
         id: id,

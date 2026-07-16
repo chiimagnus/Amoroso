@@ -11,12 +11,16 @@ struct LiveAppGraph {
   let diagnosticsViewModel: DiagnosticsViewModel
 
   static func make() -> LiveAppGraph {
+    let diagnosticsStore: any DiagnosticsStoreProtocol = FileDiagnosticsStore()
+    let diagnosticsReporter: any DiagnosticsReporting = AppDiagnosticsReporter(
+      exportStore: diagnosticsStore)
     let worldAnchorCalibrationStore = WorldAnchorCalibrationStore()
     let appState = AppState(
       arTrackingService: ARTrackingService(),
       calibrationCaptureService: CalibrationPointCaptureService(),
       calibrationRepository: CalibrationRepository(
-        worldAnchorCalibrationStore: worldAnchorCalibrationStore
+        worldAnchorCalibrationStore: worldAnchorCalibrationStore,
+        diagnosticsReporter: diagnosticsReporter
       ),
       keyGeometryService: PianoKeyGeometryService()
     )
@@ -36,9 +40,6 @@ struct LiveAppGraph {
     )
     let songAudioPlayer: SongAudioPlayerProtocol = SongAudioPlayer()
     let progressRepository = FilePracticeProgressRepository()
-    let diagnosticsStore: any DiagnosticsStoreProtocol = FileDiagnosticsStore()
-    let diagnosticsReporter: any DiagnosticsReporting = AppDiagnosticsReporter(
-      exportStore: diagnosticsStore)
     let progressCoordinator = PracticeProgressCoordinator(
       repository: progressRepository,
       diagnosticsReporter: diagnosticsReporter
@@ -71,7 +72,11 @@ struct LiveAppGraph {
         AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2", channel: 1)
       },
       makeExternalMIDIPlaybackService: { destinationUniqueID in
-        CoreMIDIPracticePlaybackService(destinationUniqueID: destinationUniqueID, channel: 1)
+        CoreMIDIPracticePlaybackService(
+          destinationUniqueID: destinationUniqueID,
+          diagnosticsReporter: diagnosticsReporter,
+          channel: 1
+        )
       }
     )
     let makeAIPlaybackServiceFactory: @MainActor () -> DuetAIPlaybackServiceFactory = {
@@ -87,11 +92,11 @@ struct LiveAppGraph {
       #if targetEnvironment(simulator)
         nil
       #else
-        PracticeAudioRecognitionService()
+        PracticeAudioRecognitionService(diagnosticsReporter: diagnosticsReporter)
       #endif
     }
     let makeBluetoothMIDIEventSource: () -> PracticeInputEventSourceProtocol = {
-      BluetoothMIDIInputEventSourceService()
+      BluetoothMIDIInputEventSourceService(diagnosticsReporter: diagnosticsReporter)
     }
 
     let registry: PianoModeRegistryProtocol = PianoModeRegistryService(
@@ -109,7 +114,10 @@ struct LiveAppGraph {
             makeLocalSamplerPlaybackService()
           case .externalMIDIDestination:
             if let destinationUniqueID = routing.midiDestinationUniqueID {
-              CoreMIDIPracticePlaybackService(destinationUniqueID: destinationUniqueID)
+              CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                diagnosticsReporter: diagnosticsReporter
+              )
             } else {
               makeLocalSamplerPlaybackService()
             }
@@ -126,7 +134,8 @@ struct LiveAppGraph {
           handPianoActivityGate: makeHandPianoActivityGate(),
           settingsProvider: settingsProvider,
           progressCoordinator: progressCoordinator,
-          sessionRecorder: practiceSessionRecorder
+          sessionRecorder: practiceSessionRecorder,
+          diagnosticsReporter: diagnosticsReporter
         )
 
       case .virtualPiano:
@@ -140,7 +149,8 @@ struct LiveAppGraph {
           audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
           handPianoActivityGate: makeHandPianoActivityGate(),
           progressCoordinator: progressCoordinator,
-          sessionRecorder: practiceSessionRecorder
+          sessionRecorder: practiceSessionRecorder,
+          diagnosticsReporter: diagnosticsReporter
         )
 
       default:
@@ -154,7 +164,8 @@ struct LiveAppGraph {
           audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
           handPianoActivityGate: makeHandPianoActivityGate(),
           progressCoordinator: progressCoordinator,
-          sessionRecorder: practiceSessionRecorder
+          sessionRecorder: practiceSessionRecorder,
+          diagnosticsReporter: diagnosticsReporter
         )
       }
     }
@@ -165,7 +176,8 @@ struct LiveAppGraph {
       practiceSetupState: appState.practiceSetupState,
       pianoModeRegistry: registry,
       makePracticeSessionViewModel: makePracticeSessionViewModel,
-      aiPlaybackServiceFactory: makeAIPlaybackServiceFactory
+      aiPlaybackServiceFactory: makeAIPlaybackServiceFactory,
+      diagnosticsReporter: diagnosticsReporter
     )
     let songLibraryViewModel = SongLibraryViewModel(
       indexStore: songLibraryIndexStore,

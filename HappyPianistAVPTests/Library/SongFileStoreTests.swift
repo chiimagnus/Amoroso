@@ -14,8 +14,8 @@ func songFileStoreDeleteRemovesScoreAndAudioFiles() async throws {
     let scoreFileName = "to-delete.musicxml"
     let audioFileName = "to-delete.m4a"
 
-    let scoreURL = try paths.scoresDirectoryURL().appendingPathComponent(scoreFileName)
-    let audioURL = try paths.audioDirectoryURL().appendingPathComponent(audioFileName)
+    let scoreURL = try paths.scoresDirectoryURL().appending(path: scoreFileName)
+    let audioURL = try paths.audioDirectoryURL().appending(path: audioFileName)
 
     try Data("score".utf8).write(to: scoreURL)
     try Data("audio".utf8).write(to: audioURL)
@@ -46,7 +46,7 @@ func songFileStoreRejectsUnsafeIndexFileNames(fileName: String) async throws {
 
 private func makeTemporaryDirectory(prefix: String) throws -> URL {
     let directoryURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
+        .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     return directoryURL
 }

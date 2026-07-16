@@ -1,5 +1,4 @@
 import Foundation
-import os
 import RealityKit
 import RealityKitContent
 import simd
@@ -9,8 +8,7 @@ import UIKit
 @MainActor
 final class VirtualPerformerOverlayController {
     private let keyEntityFactory: PianoKeyEntityFactory
-    private let logger = Logger(subsystem: "HappyPianistAVP", category: "VirtualPerformer")
-    private let debugLogger = Logger(subsystem: "HappyPianistAVP", category: "VirtualPerformerDebug")
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private var rootEntity = Entity()
     private var hasAttachedRoot = false
     private var performerRootEntity: Entity?
@@ -41,8 +39,6 @@ final class VirtualPerformerOverlayController {
     private var currentLateralSpeedMetersPerSecond: Float = 0
     private var lastLateralUpdateUptime: TimeInterval?
     private var gaitPhaseRadians: Float = 0
-    private var lastDebugLogUptime: TimeInterval?
-    private var didLogMissingLegJoints = false
     private var cachedKeyboardLayoutID: UUID?
     private var cachedKeyboardLayout: VirtualPerformerKeyboardLayout?
 
@@ -50,8 +46,12 @@ final class VirtualPerformerOverlayController {
     private let gaitResolver: any VirtualPerformerGaitResolving = DefaultVirtualPerformerGaitResolver()
     private var reduceMotionEnabled = false
 
-    init(keyEntityFactory: PianoKeyEntityFactory = PianoKeyEntityFactory()) {
+    init(
+        keyEntityFactory: PianoKeyEntityFactory = PianoKeyEntityFactory(),
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
+    ) {
         self.keyEntityFactory = keyEntityFactory
+        self.diagnosticsReporter = diagnosticsReporter
     }
 
     var hasActiveRuntimeResources: Bool {
@@ -193,14 +193,6 @@ final class VirtualPerformerOverlayController {
         }
 
         showPerformer(geometry: keyboardGeometry)
-
-        // Log after `showPerformer` so x/vx reflect the latest lateral update in this frame.
-        logDebugStatusIfNeeded(
-            isEnabled: isEnabled,
-            isPerforming: isPerforming,
-            keyboardGeometry: keyboardGeometry,
-            performanceSchedule: performanceSchedule
-        )
 
         if didEnableReduceMotion {
             headNodTask?.cancel()
@@ -352,8 +344,6 @@ final class VirtualPerformerOverlayController {
         currentLateralSpeedMetersPerSecond = 0
         lastLateralUpdateUptime = nil
         gaitPhaseRadians = 0
-        lastDebugLogUptime = nil
-        didLogMissingLegJoints = false
         cachedKeyboardLayoutID = nil
         cachedKeyboardLayout = nil
     }
@@ -487,46 +477,6 @@ final class VirtualPerformerOverlayController {
         abs(currentLateralSpeedMetersPerSecond) > 0.02
     }
 
-    private func logDebugStatusIfNeeded(
-        isEnabled: Bool,
-        isPerforming: Bool,
-        keyboardGeometry: PianoKeyboardGeometry,
-        performanceSchedule: [PracticeSequencerMIDIEvent]
-    ) {
-        let now = ProcessInfo.processInfo.systemUptime
-        let interval: TimeInterval = 1.0
-        if let last = lastDebugLogUptime, now - last < interval {
-            return
-        }
-        lastDebugLogUptime = now
-
-        let scheduleNoteOnCount = performanceSchedule.reduce(into: 0) { partialResult, event in
-            if case .noteOn = event.kind { partialResult += 1 }
-        }
-        let scheduleSeconds: (min: TimeInterval, max: TimeInterval)? = {
-            guard performanceSchedule.isEmpty == false else { return nil }
-            let times = performanceSchedule.map(\.timeSeconds)
-            guard let min = times.min(), let max = times.max() else { return nil }
-            return (min, max)
-        }()
-
-        let rigSummary: String = if let xiaochengRig {
-            "rig=Y arms(L=\(xiaochengRig.leftArmJointIndices.count) R=\(xiaochengRig.rightArmJointIndices.count)) legs(L=\(xiaochengRig.leftLegJointIndices.count) R=\(xiaochengRig.rightLegJointIndices.count))"
-        } else {
-            "rig=N"
-        }
-
-        let scheduleSummary: String = if let scheduleSeconds {
-            "schedule=\(performanceSchedule.count) noteOn=\(scheduleNoteOnCount) t=[\(scheduleSeconds.min),\(scheduleSeconds.max)]"
-        } else {
-            "schedule=0"
-        }
-
-        debugLogger.info(
-            "update enabled=\(isEnabled, privacy: .public) performing=\(isPerforming, privacy: .public) keys=\(keyboardGeometry.keys.count, privacy: .public) \(scheduleSummary, privacy: .public) activeMidi=\(String(describing: self.latestActiveMIDINote), privacy: .public) lateralMidi=\(String(describing: self.latestLateralTargetMIDINote), privacy: .public) x=\(self.currentLateralOffsetMeters, privacy: .public) vx=\(self.currentLateralSpeedMetersPerSecond, privacy: .public) \(rigSummary, privacy: .public)"
-        )
-    }
-
     private func loadXiaochengIfNeeded(into placeholder: Entity) {
         guard performerLoadTask == nil, xiaochengRig == nil else { return }
 
@@ -549,13 +499,13 @@ final class VirtualPerformerOverlayController {
                 placeholder.children.removeAll(preservingWorldTransforms: false)
                 placeholder.addChild(entity)
                 xiaochengRig = rig
-
-                debugLogger.info(
-                    "xiaocheng loaded arms(L=\(rig.leftArmJointIndices.count, privacy: .public) R=\(rig.rightArmJointIndices.count, privacy: .public)) legs(L=\(rig.leftLegJointIndices.count, privacy: .public) R=\(rig.rightLegJointIndices.count, privacy: .public)) neck=\(rig.neckJointIndex != nil, privacy: .public) head=\(rig.headJointIndex != nil, privacy: .public)"
-                )
             } catch {
-                logger.error(
-                    "Failed to load xiaocheng performer asset: \(String(describing: error), privacy: .private(mask: .hash))"
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .immersiveSpace,
+                    stage: "virtualPerformer.loadAsset",
+                    summary: "虚拟演奏者资源加载失败",
+                    reason: String(describing: error)
                 )
             }
         }
@@ -612,18 +562,6 @@ final class VirtualPerformerOverlayController {
 
     private func updateHandAnimationIfNeeded(schedule: [PracticeSequencerMIDIEvent]) {
         guard schedule != latestSchedule else { return }
-        if schedule.isEmpty {
-            debugLogger.info("schedule updated: empty")
-        } else {
-            let noteOnCount = schedule.reduce(into: 0) { partialResult, event in
-                if case .noteOn = event.kind { partialResult += 1 }
-            }
-            let minT = schedule.map(\.timeSeconds).min() ?? 0
-            let maxT = schedule.map(\.timeSeconds).max() ?? 0
-            debugLogger.info(
-                "schedule updated: count=\(schedule.count, privacy: .public) noteOn=\(noteOnCount, privacy: .public) t=[\(minT, privacy: .public),\(maxT, privacy: .public)]"
-            )
-        }
         latestSchedule = schedule
         lateralScheduleStartUptime = schedule.isEmpty ? nil : ProcessInfo.processInfo.systemUptime
         rebuildLateralTargetTimeline(schedule: schedule)
@@ -749,30 +687,11 @@ final class VirtualPerformerOverlayController {
             if midi < medianMidi { leftCount += 1 } else { rightCount += 1 }
         }
 
-        let isOneSided = leftCount == 0 || rightCount == 0
-        if isOneSided {
-            logger
-                .info(
-                    "Arm split median=\(medianMidi, privacy: .public) one-sided (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public)); using alternating arms."
-                )
-        } else {
-            logger
-                .info(
-                    "Arm split median=\(medianMidi, privacy: .public) (L=\(leftCount, privacy: .public) R=\(rightCount, privacy: .public))."
-                )
-        }
-        return (medianMidi, isOneSided)
+        return (medianMidi, leftCount == 0 || rightCount == 0)
     }
 
     private func startArmMixerIfNeeded(rig: XiaochengRig) {
         guard armMixerTask == nil else { return }
-
-        if didLogMissingLegJoints == false {
-            didLogMissingLegJoints = true
-            if rig.leftLegJointIndices.isEmpty && rig.rightLegJointIndices.isEmpty {
-                debugLogger.info("gait: leg joints not found in rig; leg animation will be skipped")
-            }
-        }
 
         armMixerTask = Task { @MainActor [weak self] in
             guard let self else { return }

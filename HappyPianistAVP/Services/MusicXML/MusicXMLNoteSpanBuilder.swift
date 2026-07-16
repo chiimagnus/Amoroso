@@ -1,10 +1,4 @@
 import Foundation
-import os
-
-private let musicXMLNoteSpanLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-    category: "MusicXMLNoteSpanBuilder"
-)
 
 struct MusicXMLNoteSpanBuilder {
     private struct Key: Hashable {
@@ -60,11 +54,6 @@ struct MusicXMLNoteSpanBuilder {
             switch category {
             case .start:
                 if activeSpanIndexByKey[key] != nil {
-                    #if DEBUG
-                        musicXMLNoteSpanLogger.debug(
-                            "MusicXMLNoteSpanBuilder: duplicate tie-start; replacing active span for \(key.partID) midi=\(midiNote) staff=\(staff) voice=\(voice)"
-                        )
-                    #endif
                     activeSpanIndexByKey[key] = nil
                 }
 
@@ -92,11 +81,6 @@ struct MusicXMLNoteSpanBuilder {
                         offTick: existing.offTick + max(0, note.durationTicks)
                     )
                 } else {
-                    #if DEBUG
-                        musicXMLNoteSpanLogger.debug(
-                            "MusicXMLNoteSpanBuilder: tie-middle without active; starting new active span for \(key.partID) midi=\(midiNote) staff=\(staff) voice=\(voice)"
-                        )
-                    #endif
                     let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteID[note.id] ?? 0)
                     let baseTick = note.tick + max(0, arpeggiateOffset)
                     let onTick = baseTick + (performanceTimingEnabled ? (note.attackTicks ?? 0) : 0)
@@ -127,11 +111,6 @@ struct MusicXMLNoteSpanBuilder {
                     )
                     activeSpanIndexByKey[key] = nil
                 } else {
-                    #if DEBUG
-                        musicXMLNoteSpanLogger.debug(
-                            "MusicXMLNoteSpanBuilder: tie-end without active; creating standalone span for \(key.partID) midi=\(midiNote) staff=\(staff) voice=\(voice)"
-                        )
-                    #endif
                     let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteID[note.id] ?? 0)
                     let baseTick = note.tick + max(0, arpeggiateOffset)
                     let onTick = baseTick + (performanceTimingEnabled ? (note.attackTicks ?? 0) : 0)

@@ -45,6 +45,7 @@ func entryResolverReadsLatestUserEntryWithoutCaching() async throws {
         id: songID,
         displayName: "Same Song",
         musicXMLFileName: firstFileName,
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )
@@ -52,6 +53,7 @@ func entryResolverReadsLatestUserEntryWithoutCaching() async throws {
         id: songID,
         displayName: "Same Song Replaced",
         musicXMLFileName: secondFileName,
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )
@@ -215,6 +217,7 @@ private func resolverEntry(
         id: UUID(),
         displayName: name,
         musicXMLFileName: fileName,
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil,
         isBundled: isBundled

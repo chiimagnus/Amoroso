@@ -6,8 +6,36 @@ struct DiagnosticRecordResult: Equatable, Sendable {
 }
 
 protocol DiagnosticsReporting: Sendable {
+    func recordSystem(_ event: DiagnosticEvent)
+
     @discardableResult
     func record(_ event: DiagnosticEvent) async -> DiagnosticRecordResult
+}
+
+extension DiagnosticsReporting {
+    func recordSystem(_ event: DiagnosticEvent) {
+        Task { _ = await record(event) }
+    }
+
+    func recordSystem(
+        severity: DiagnosticSeverity,
+        category: DiagnosticCategory,
+        stage: String,
+        summary: String,
+        reason: String
+    ) {
+        recordSystem(
+            DiagnosticEvent(
+                severity: severity,
+                code: .runtimeEvent,
+                category: category,
+                stage: stage,
+                summary: summary,
+                reason: reason,
+                persistence: .systemOnly
+            )
+        )
+    }
 }
 
 protocol SystemDiagnosticsSinkProtocol: Sendable {
@@ -54,6 +82,10 @@ actor AppDiagnosticsReporter: DiagnosticsReporting {
     ) {
         self.systemSink = systemSink
         self.exportStore = exportStore
+    }
+
+    nonisolated func recordSystem(_ event: DiagnosticEvent) {
+        systemSink.record(event)
     }
 
     func record(_ event: DiagnosticEvent) async -> DiagnosticRecordResult {

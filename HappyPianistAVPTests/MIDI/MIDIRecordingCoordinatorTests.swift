@@ -1,6 +1,5 @@
 import Foundation
 @testable import HappyPianistAVP
-import os
 import Testing
 
 @Test
@@ -10,7 +9,6 @@ func shutdownIsIdempotentAndEmitsAtMostOneTake() {
     var states: [MIDIRecordingState.State] = []
 
     let service = MIDIRecordingState(
-        logger: Logger(subsystem: "test", category: "midi-recording"),
         nowUptimeSeconds: { 100 },
         nowDate: { Date(timeIntervalSince1970: 0) },
         onStateChanged: { states.append($0) },
@@ -34,7 +32,6 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() {
     var recordedTakes: [RecordingTake] = []
 
     let service = MIDIRecordingState(
-        logger: Logger(subsystem: "test", category: "midi-recording"),
         nowUptimeSeconds: { 0 },
         nowDate: { Date(timeIntervalSince1970: 0) },
         onStateChanged: { _ in },

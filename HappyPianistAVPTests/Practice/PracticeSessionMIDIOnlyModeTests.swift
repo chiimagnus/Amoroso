@@ -56,7 +56,7 @@ func midiOnlyPracticeInputNoteOnAdvancesStep() async {
         kind: .noteOn(note: 60, velocity: 100),
         channel: 1,
         group: 0,
-        source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
+        source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: "fake"),
         receivedAt: Date(),
         receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
     ))
@@ -99,7 +99,7 @@ func midiOnlyPracticeInputMIDI2NoteOnAdvancesStepEvenWithZeroVelocity() async {
         kind: .noteOn(note: 60, velocity16: 0),
         channel: 1,
         group: 0,
-        source: MIDI2InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
+        source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: "fake"),
         receivedAt: Date(),
         receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
     ))
@@ -146,7 +146,7 @@ func midiOnlyPracticeExitStopsInputAndDoesNotAdvanceStepAfterTeardown() async {
         kind: .noteOn(note: 60, velocity: 100),
         channel: 1,
         group: 0,
-        source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
+        source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: "fake"),
         receivedAt: Date(),
         receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
     ))
@@ -194,7 +194,7 @@ func midiOnlyPracticeInputStartFailureThenReplacingSameIndexStepResetsMatcherExp
         kind: .noteOn(note: 60, velocity: 100),
         channel: 1,
         group: 0,
-        source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
+        source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: "fake"),
         receivedAt: Date(),
         receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
     ))
@@ -208,7 +208,7 @@ func midiOnlyPracticeInputStartFailureThenReplacingSameIndexStepResetsMatcherExp
         kind: .noteOn(note: 61, velocity: 100),
         channel: 1,
         group: 0,
-        source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: "fake"),
+        source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: "fake"),
         receivedAt: Date(),
         receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
     ))
@@ -235,20 +235,4 @@ private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     }
 
     func reset() {}
-}
-
-@MainActor
-private final class NoopPracticeSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
-    func warmUp() throws {}
-    func stop() {}
-    func load(sequence _: PracticeSequencerSequence) throws {}
-    func play(fromSeconds _: TimeInterval) throws {}
-    func currentSeconds() -> TimeInterval {
-        0
-    }
-
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
-    func stopAllLiveNotes() {}
 }

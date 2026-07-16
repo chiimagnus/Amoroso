@@ -62,7 +62,7 @@ Library View -> SongLibraryViewModel -> SongLibraryImportTransactionService -> S
 
 ## 诊断
 
-曲库顶部“诊断”入口打开全局诊断管理界面，可查看日志覆盖范围、清除日志并导出7 天的诊断 ZIP。业务代码只写 `DiagnosticEvent`；`AppDiagnosticsReporter` 同时负责 `os.Logger` 与受隐私规则约束的 JSONL 存储。
+曲库顶部“诊断”入口打开全局诊断管理界面，可查看日志覆盖范围、清除日志并导出7 天的诊断 ZIP。业务代码只写 `DiagnosticEvent`；`AppDiagnosticsReporter` 同时负责 `os.Logger` 与受隐私规则约束的 JSONL 存储。实时 MIDI、音频和空间渲染路径使用同步 `recordSystem`，只进入系统日志，避免为每条事件创建并发任务。
 
 曲谱准备失败在练习窗口中显示具体标题、解释、错误代码、阶段、文件名、App 内相对路径和可用的行列。技术详情可通过系统文本选择菜单复制。
 

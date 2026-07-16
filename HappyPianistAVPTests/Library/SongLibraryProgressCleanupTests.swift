@@ -79,6 +79,7 @@ func deletingSongBestEffortRemovesPracticeProgress() async {
         id: songID,
         displayName: "User Song",
         musicXMLFileName: "user.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )
@@ -102,6 +103,7 @@ func deletingSongUsesEntryReturnedByIndexActor() async {
         id: songID,
         displayName: "Cached",
         musicXMLFileName: "cached.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: "cached.mp3"
     )
@@ -109,6 +111,7 @@ func deletingSongUsesEntryReturnedByIndexActor() async {
         id: songID,
         displayName: "Persisted",
         musicXMLFileName: "persisted.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: "persisted.mp3"
     )
@@ -136,6 +139,7 @@ func practiceCleanupFailureKeepsTheIndexDeletionAndReportsTheFailure() async {
         id: songID,
         displayName: "User Song",
         musicXMLFileName: "user.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )

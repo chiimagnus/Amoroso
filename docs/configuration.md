@@ -16,7 +16,7 @@
 
 ## 依赖边界
 
-- `RealityKitContent` 是仓库内 SwiftPM 内容包。
+- `RealityKitContent` 是仓库内仅支持 visionOS 26 的 SwiftPM 内容包。
 - `ZIPFoundation` 0.9.20 用于解包 `.mxl`；普通 MusicXML 不依赖它。
 - SwiftPM 锁定版本见 `HappyPianist.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`。
 - 正常练习不依赖 Python 服务；本地规则 AI 也不依赖 CoreML 模型或 Python。

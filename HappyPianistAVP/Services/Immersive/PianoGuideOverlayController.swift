@@ -1,12 +1,11 @@
 import Foundation
-import os
 import RealityKit
 import SwiftUI
 import UIKit
 
 @MainActor
 final class PianoGuideOverlayController {
-    private let logger = Logger(subsystem: "HappyPianistAVP", category: "PianoGuideOverlay")
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private var rootEntity = Entity()
     private var keyboardRootEntity = Entity()
     private var hasAttachedRoot = false
@@ -17,6 +16,10 @@ final class PianoGuideOverlayController {
     private var decalTextureLoadTask: Task<Void, Never>?
     private var decalTexture: TextureResource?
     private let restorationRenderer = PracticeRestorationEffectRenderer()
+
+    init(diagnosticsReporter: (any DiagnosticsReporting)? = nil) {
+        self.diagnosticsReporter = diagnosticsReporter
+    }
 
     func updateHighlights(
         highlightGuide: PianoHighlightGuide?,
@@ -168,8 +171,12 @@ final class PianoGuideOverlayController {
                 didAttemptDecalTextureLoad = false
             } catch {
                 decalTexture = nil
-                logger.error(
-                    "Failed to load KeyDecalSoftRect texture: \(String(describing: error), privacy: .private(mask: .hash))"
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .immersiveSpace,
+                    stage: "pianoGuide.loadTexture",
+                    summary: "钢琴引导贴图加载失败",
+                    reason: String(describing: error)
                 )
             }
         }

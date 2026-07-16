@@ -1,7 +1,6 @@
 import CoreMIDI
 import Foundation
 import os
-import OSLog
 
 enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
     case clientCreate(OSStatus)
@@ -32,10 +31,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         midi2EventsBroadcaster.makeStream(bufferingPolicy: .bufferingNewest(Self.streamBufferCapacity))
     }
 
-    private let lifecycleLogger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "BluetoothMIDI"
-    )
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let refreshScheduler = DebouncedActionScheduler(debounce: .milliseconds(200))
     private let lifecycleLock = OSAllocatedUnfairLock(initialState: BluetoothMIDILifecycleState())
     private let stateLock = OSAllocatedUnfairLock(initialState: BluetoothMIDIInputEventSourceState())
@@ -46,7 +42,9 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private let midi1Decoder = MIDI1MessageDecoder()
     private let midi2Decoder = MIDI2MessageDecoder()
 
-    init() {}
+    init(diagnosticsReporter: (any DiagnosticsReporting)? = nil) {
+        self.diagnosticsReporter = diagnosticsReporter
+    }
 
     func start() throws {
         let shouldStart = stateLock.withLock { state in
@@ -93,7 +91,6 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         disconnectAllSources(state: &state)
 
         var failedStatus: OSStatus?
-        var sourceDescriptions: [String] = []
         let sourceCount = MIDIGetNumberOfSources()
 
         for index in 0 ..< sourceCount {
@@ -113,7 +110,13 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let endpointProtocolID = MIDIEndpointPropertyReader.int32Property(source, kMIDIPropertyProtocolID)
                 .flatMap(MIDIProtocolID.init(rawValue:))
             if endpointProtocolID == ._2_0, state.midi2InputPortRef == 0 {
-                lifecycleLogger.warning("Endpoint reports MIDI 2.0 but MIDI 2.0 port is unavailable; subscribing via MIDI 1.0 port: \(self.describeEndpoint(source) ?? "unknown", privacy: .public)")
+                diagnosticsReporter?.recordSystem(
+                    severity: .warning,
+                    category: .midi,
+                    stage: "bluetoothMIDI.subscribe",
+                    summary: "MIDI 2.0 端点改用 MIDI 1.0 端口",
+                    reason: describeEndpoint(source) ?? "unknown endpoint"
+                )
             }
             let targetProtocol = MIDIEndpointConnectionPolicy.subscribedProtocol(
                 endpointProtocolID: endpointProtocolID,
@@ -128,18 +131,18 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                     endpoint: source,
                     connectionContext: connectionContext
                 ))
-                let subscribed = targetProtocol == ._2_0 ? "midi2" : "midi1"
-                let description = (describeEndpoint(source) ?? "sourceIndex=\(index)") + ",subscribed=\(subscribed)"
-                sourceDescriptions.append(description)
             } else {
                 failedStatus = status
-                lifecycleLogger.error("Failed to connect source \(index, privacy: .public): \(status, privacy: .public)")
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "bluetoothMIDI.connectSource",
+                    summary: "连接 MIDI 输入源失败",
+                    reason: "sourceIndex=\(index), status=\(status)"
+                )
             }
         }
 
-        if sourceDescriptions.isEmpty == false {
-            lifecycleLogger.info("Connected MIDI sources: \(sourceDescriptions.joined(separator: " | "), privacy: .public)")
-        }
         if state.connectedSources.isEmpty, let failedStatus {
             throw BluetoothMIDIInputEventSourceServiceError.sourceRefresh(failedStatus)
         }
@@ -192,7 +195,13 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         }
 
         if status != noErr {
-            lifecycleLogger.warning("Failed to create MIDI 2.0 input port, falling back to MIDI 1.0 only: \(status, privacy: .public)")
+            diagnosticsReporter?.recordSystem(
+                severity: .warning,
+                category: .midi,
+                stage: "bluetoothMIDI.createMIDI2Port",
+                summary: "MIDI 2.0 端口创建失败，将只使用 MIDI 1.0",
+                reason: "status=\(status)"
+            )
             state.midi2InputPortRef = 0
         }
     }
@@ -209,7 +218,13 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             do {
                 try self.refreshSources()
             } catch {
-                self.lifecycleLogger.error("Auto refresh MIDI sources failed: \(error.localizedDescription, privacy: .public)")
+                self.diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "bluetoothMIDI.refreshSources",
+                    summary: "自动刷新 MIDI 输入源失败",
+                    reason: error.localizedDescription
+                )
             }
         }
     }
@@ -309,12 +324,11 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let channel = Int(voice.channel) + 1
             guard let kind = midi2Decoder.decode(message) else { return }
 
-            let midi2Source = midi2Source(from: source)
             let event = MIDI2InputEvent(
                 kind: kind,
                 channel: channel,
                 group: group,
-                source: midi2Source,
+                source: source,
                 receivedAt: receivedAt,
                 receivedAtUptimeSeconds: receivedAtUptimeSeconds
             )
@@ -322,7 +336,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                 recoverMIDI2StreamAfterOverflow(
                     channel: channel,
                     group: group,
-                    source: midi2Source,
+                    source: source,
                     receivedAt: receivedAt,
                     uptimeSeconds: receivedAtUptimeSeconds
                 )
@@ -336,7 +350,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private func recoverMIDI1StreamAfterOverflow(
         channel: Int,
         group: Int,
-        source: MIDI1InputEvent.Source,
+        source: MIDIInputSource,
         receivedAt: Date,
         uptimeSeconds: TimeInterval
     ) {
@@ -356,7 +370,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private func recoverMIDI2StreamAfterOverflow(
         channel: Int,
         group: Int,
-        source: MIDI2InputEvent.Source,
+        source: MIDIInputSource,
         receivedAt: Date,
         uptimeSeconds: TimeInterval
     ) {
@@ -383,8 +397,12 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             return true
         }
         guard shouldRecover else { return false }
-        lifecycleLogger.error(
-            "\(inputProtocol.logName, privacy: .public) input stream overflowed; published channel-wide all-notes-off recovery"
+        diagnosticsReporter?.recordSystem(
+            severity: .error,
+            category: .midi,
+            stage: "bluetoothMIDI.streamOverflow",
+            summary: "MIDI 输入流溢出，已发送全通道复位",
+            reason: "protocol=\(inputProtocol.logName)"
         )
         return true
     }
@@ -404,36 +422,25 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         return parts.joined(separator: ",")
     }
 
-    private func sourceIdentity(from srcConnRefCon: UnsafeMutableRawPointer?) -> MIDI1InputEvent.Source {
+    private func sourceIdentity(from srcConnRefCon: UnsafeMutableRawPointer?) -> MIDIInputSource {
         guard let srcConnRefCon else {
-            return MIDI1InputEvent.Source(identifier: .sourceIndex(-1), endpointName: nil)
+            return MIDIInputSource(identifier: .sourceIndex(-1), endpointName: nil)
         }
 
         let context = Unmanaged<EndpointConnectionContext>
             .fromOpaque(srcConnRefCon)
             .takeUnretainedValue()
         if let uniqueID = context.endpointUniqueID {
-            return MIDI1InputEvent.Source(
+            return MIDIInputSource(
                 identifier: .endpointUniqueID(uniqueID),
                 endpointName: context.endpointName
             )
         }
-        return MIDI1InputEvent.Source(
+        return MIDIInputSource(
             identifier: .sourceIndex(context.sourceIndex),
             endpointName: context.endpointName
         )
     }
-
-    private func midi2Source(from source: MIDI1InputEvent.Source) -> MIDI2InputEvent.Source {
-        let identifier: MIDI2InputEvent.Source.Identifier = switch source.identifier {
-        case let .endpointUniqueID(uniqueID):
-            .endpointUniqueID(uniqueID)
-        case let .sourceIndex(index):
-            .sourceIndex(index)
-        }
-        return MIDI2InputEvent.Source(identifier: identifier, endpointName: source.endpointName)
-    }
-
 
     private func logProtocolMismatchIfNeeded(
         uptimeSeconds: TimeInterval,
@@ -450,8 +457,12 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         }
         guard shouldLog else { return }
 
-        lifecycleLogger.warning(
-            "Observed protocol mismatch for \(messageType, privacy: .public): expected=\(expected.rawValue, privacy: .public) actual=\(actual.rawValue, privacy: .public)"
+        diagnosticsReporter?.recordSystem(
+            severity: .warning,
+            category: .midi,
+            stage: "bluetoothMIDI.protocolMismatch",
+            summary: "检测到 MIDI 协议不匹配",
+            reason: "messageType=\(messageType), expected=\(expected.rawValue), actual=\(actual.rawValue)"
         )
     }
 

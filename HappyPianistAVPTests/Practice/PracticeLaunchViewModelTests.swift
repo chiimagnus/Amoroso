@@ -546,33 +546,6 @@ func practiceLaunchReportsRepairPersistenceFailureWithoutClaimingSuccess() async
 
 @MainActor
 @Test
-func practiceLaunchWritesAbsentVersionTokenMetadataAfterSuccessfulApply() async {
-    let songID = UUID()
-    let repository = RecordingPracticeLaunchProgressRepository()
-    let owner = PracticeLaunchViewModel(
-        resolver: PracticeLaunchResolver(songIDs: [songID], includeVersionToken: false),
-        preparationService: PracticeLaunchPreparationService(
-            delays: [:],
-            errors: [:],
-            includeMeasureSpans: true
-        ),
-        applicator: PracticeLaunchRecordingApplicator(applyOutcome: .applied),
-        diagnosticsReporter: InMemoryDiagnosticsReporter(),
-        progressRepository: repository,
-        now: { Date(timeIntervalSince1970: 123) }
-    )
-    owner.request(songID: songID)
-
-    await owner.activateCurrentRequest()
-    await repository.waitForMetadataCount(1)
-
-    let metadata = await repository.metadata.first
-    #expect(metadata?.scoreFileVersionID == nil)
-    #expect(metadata?.preparedAt == Date(timeIntervalSince1970: 123))
-}
-
-@MainActor
-@Test
 func metadataWriteFailureKeepsReadyAndRecordsPrivateSafeWarning() async throws {
     let songID = UUID()
     let repository = RecordingPracticeLaunchProgressRepository(
@@ -1209,13 +1182,13 @@ private func waitForLaunchDiagnostic(
 private actor PracticeLaunchResolver: SongLibraryEntryResolving {
     let entries: [UUID: SongLibraryEntry]
 
-    init(songIDs: [UUID], includeVersionToken: Bool = true) {
+    init(songIDs: [UUID]) {
         entries = Dictionary(uniqueKeysWithValues: songIDs.map { songID in
             (songID, SongLibraryEntry(
                 id: songID,
                 displayName: songID.uuidString,
                 musicXMLFileName: "\(songID).musicxml",
-                scoreFileVersionID: includeVersionToken ? songID : nil,
+                scoreFileVersionID: songID,
                 importedAt: .now,
                 audioFileName: nil,
                 isBundled: true
@@ -1243,13 +1216,13 @@ private actor ControlledPracticeLaunchResolver: SongLibraryEntryResolving {
     private var continuations: [UUID: CheckedContinuation<ResolvedSongLibraryEntry, Error>] = [:]
     private var requestedSongIDs: Set<UUID> = []
 
-    init(songIDs: [UUID], includeVersionToken: Bool = true) {
+    init(songIDs: [UUID]) {
         entries = Dictionary(uniqueKeysWithValues: songIDs.map { songID in
             (songID, SongLibraryEntry(
                 id: songID,
                 displayName: songID.uuidString,
                 musicXMLFileName: "\(songID).musicxml",
-                scoreFileVersionID: includeVersionToken ? songID : nil,
+                scoreFileVersionID: songID,
                 importedAt: .now,
                 audioFileName: nil,
                 isBundled: true

@@ -3,7 +3,7 @@ import SwiftUI
 
 struct ImmersiveView: View {
     @Bindable var viewModel: ARGuideViewModel
-    @State private var overlayController = PianoGuideOverlayController()
+    @State private var overlayController: PianoGuideOverlayController
     @State private var calibrationOverlayController = CalibrationOverlayController()
     @State private var keyboardAxesDebugOverlayController = KeyboardAxesDebugOverlayController()
     @State private var virtualPianoOverlayController: VirtualPianoOverlayController
@@ -17,11 +17,19 @@ struct ImmersiveView: View {
     init(viewModel: ARGuideViewModel) {
         self.viewModel = viewModel
         let keyEntityFactory = PianoKeyEntityFactory()
+        _overlayController = State(
+            initialValue: PianoGuideOverlayController(
+                diagnosticsReporter: viewModel.diagnosticsReporter
+            )
+        )
         _virtualPianoOverlayController = State(
             initialValue: VirtualPianoOverlayController(keyEntityFactory: keyEntityFactory)
         )
         _virtualPerformerOverlayController = State(
-            initialValue: VirtualPerformerOverlayController(keyEntityFactory: keyEntityFactory)
+            initialValue: VirtualPerformerOverlayController(
+                keyEntityFactory: keyEntityFactory,
+                diagnosticsReporter: viewModel.diagnosticsReporter
+            )
         )
     }
 
@@ -36,95 +44,10 @@ struct ImmersiveView: View {
     }
 
     var body: some View {
-        let session = viewModel.practiceSessionViewModel
-        let highlightGuide = session.currentPianoHighlightGuide
-        let keyboardGeometry = session.keyboardGeometry
-        let keyboardFrame = session.calibration?.keyboardFrame
-
         RealityView { content in
-            calibrationOverlayController.update(
-                showsReticle: shouldShowCalibrationReticle,
-                reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
-                isReticleReadyToConfirm: viewModel.calibrationCaptureService.isReticleReadyToConfirm,
-                a0TrackedAnchorPoint: viewModel.a0OverlayPoint,
-                c8TrackedAnchorPoint: viewModel.c8OverlayPoint,
-                content: content
-            )
-            keyboardAxesDebugOverlayController.update(
-                isEnabled: debugKeyboardAxesOverlayEnabled,
-                keyboardFrame: keyboardFrame,
-                content: content
-            )
-            overlayController.updateHighlights(
-                highlightGuide: highlightGuide,
-                keyboardGeometry: keyboardGeometry,
-                differentiateWithoutColor: differentiateWithoutColor,
-                content: content
-            )
-            overlayController.updateRestorationEffect(event: session.latestFeedbackEvent, reduceMotion: reduceMotion)
-            gazePlaneDiskOverlayController.update(
-                isVisible: viewModel.isGazePlaneDiskVisible,
-                diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
-                statusText: viewModel.gazePlaneDiskOverlayText,
-                cameraWorldPosition: viewModel.gazePlaneDiskCameraWorldPosition,
-                content: content
-            )
-            virtualPianoOverlayController.update(
-                isEnabled: viewModel.shouldShowVirtualPiano,
-                keyboardGeometry: keyboardGeometry,
-                reduceMotion: reduceMotion,
-                content: content
-            )
-            virtualPerformerOverlayController.update(
-                isEnabled: viewModel.isVirtualPerformerEnabled,
-                isPerforming: viewModel.isAIPerformanceActive,
-                keyboardGeometry: keyboardGeometry,
-                reduceMotion: reduceMotion,
-                performanceSchedule: viewModel.latestAIPerformanceSchedule,
-                content: content
-            )
+            updateOverlays(content: content)
         } update: { content in
-            calibrationOverlayController.update(
-                showsReticle: shouldShowCalibrationReticle,
-                reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
-                isReticleReadyToConfirm: viewModel.calibrationCaptureService.isReticleReadyToConfirm,
-                a0TrackedAnchorPoint: viewModel.a0OverlayPoint,
-                c8TrackedAnchorPoint: viewModel.c8OverlayPoint,
-                content: content
-            )
-            keyboardAxesDebugOverlayController.update(
-                isEnabled: debugKeyboardAxesOverlayEnabled,
-                keyboardFrame: keyboardFrame,
-                content: content
-            )
-            overlayController.updateHighlights(
-                highlightGuide: highlightGuide,
-                keyboardGeometry: keyboardGeometry,
-                differentiateWithoutColor: differentiateWithoutColor,
-                content: content
-            )
-            overlayController.updateRestorationEffect(event: session.latestFeedbackEvent, reduceMotion: reduceMotion)
-            gazePlaneDiskOverlayController.update(
-                isVisible: viewModel.isGazePlaneDiskVisible,
-                diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
-                statusText: viewModel.gazePlaneDiskOverlayText,
-                cameraWorldPosition: viewModel.gazePlaneDiskCameraWorldPosition,
-                content: content
-            )
-            virtualPianoOverlayController.update(
-                isEnabled: viewModel.shouldShowVirtualPiano,
-                keyboardGeometry: keyboardGeometry,
-                reduceMotion: reduceMotion,
-                content: content
-            )
-            virtualPerformerOverlayController.update(
-                isEnabled: viewModel.isVirtualPerformerEnabled,
-                isPerforming: viewModel.isAIPerformanceActive,
-                keyboardGeometry: keyboardGeometry,
-                reduceMotion: reduceMotion,
-                performanceSchedule: viewModel.latestAIPerformanceSchedule,
-                content: content
-            )
+            updateOverlays(content: content)
         }
         .onAppear {
             viewModel.onImmersiveAppear()
@@ -145,6 +68,53 @@ struct ImmersiveView: View {
                 viewModel.suspendImmersiveRuntime()
             }
         }
+    }
+
+    private func updateOverlays(content: RealityViewContent) {
+        let session = viewModel.practiceSessionViewModel
+        let keyboardGeometry = session.keyboardGeometry
+
+        calibrationOverlayController.update(
+            showsReticle: shouldShowCalibrationReticle,
+            reticlePoint: viewModel.calibrationCaptureService.reticlePoint,
+            isReticleReadyToConfirm: viewModel.calibrationCaptureService.isReticleReadyToConfirm,
+            a0TrackedAnchorPoint: viewModel.a0OverlayPoint,
+            c8TrackedAnchorPoint: viewModel.c8OverlayPoint,
+            content: content
+        )
+        keyboardAxesDebugOverlayController.update(
+            isEnabled: debugKeyboardAxesOverlayEnabled,
+            keyboardFrame: session.calibration?.keyboardFrame,
+            content: content
+        )
+        overlayController.updateHighlights(
+            highlightGuide: session.currentPianoHighlightGuide,
+            keyboardGeometry: keyboardGeometry,
+            differentiateWithoutColor: differentiateWithoutColor,
+            content: content
+        )
+        overlayController.updateRestorationEffect(event: session.latestFeedbackEvent, reduceMotion: reduceMotion)
+        gazePlaneDiskOverlayController.update(
+            isVisible: viewModel.isGazePlaneDiskVisible,
+            diskWorldTransform: viewModel.gazePlaneDiskWorldTransform,
+            statusText: viewModel.gazePlaneDiskOverlayText,
+            cameraWorldPosition: viewModel.gazePlaneDiskCameraWorldPosition,
+            content: content
+        )
+        virtualPianoOverlayController.update(
+            isEnabled: viewModel.shouldShowVirtualPiano,
+            keyboardGeometry: keyboardGeometry,
+            reduceMotion: reduceMotion,
+            content: content
+        )
+        virtualPerformerOverlayController.update(
+            isEnabled: viewModel.isVirtualPerformerEnabled,
+            isPerforming: viewModel.isAIPerformanceActive,
+            keyboardGeometry: keyboardGeometry,
+            reduceMotion: reduceMotion,
+            performanceSchedule: viewModel.latestAIPerformanceSchedule,
+            content: content
+        )
     }
 
     private func resetOverlayControllers() {

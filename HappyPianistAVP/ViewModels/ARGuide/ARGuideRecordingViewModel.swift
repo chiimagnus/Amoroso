@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import os
 
 @MainActor
 @Observable
@@ -11,13 +10,11 @@ final class ARGuideRecordingViewModel {
     var isRecording = false
     var recordingStartDate: Date?
 
-    private let logger: Logger
     private let onMIDI1Event: @MainActor (MIDI1InputEvent) -> Void
     private let onMIDI2Event: @MainActor (MIDI2InputEvent) -> Void
 
     @ObservationIgnored
     private lazy var midiRecordingState: MIDIRecordingState = .init(
-        logger: logger,
         onStateChanged: { [weak self] state in
             guard let self else { return }
             isRecording = state.isRecording
@@ -35,16 +32,11 @@ final class ARGuideRecordingViewModel {
     )
 
     init(
-        logger: Logger = Logger(
-            subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-            category: "PracticeInput-Recording"
-        ),
         takeLibraryViewModel: TakeLibraryViewModel? = nil,
         takePlaybackViewModel: TakePlaybackViewModel? = nil,
         onMIDI1Event: @escaping @MainActor (MIDI1InputEvent) -> Void = { _ in },
         onMIDI2Event: @escaping @MainActor (MIDI2InputEvent) -> Void = { _ in }
     ) {
-        self.logger = logger
         self.takeLibraryViewModel = takeLibraryViewModel ?? TakeLibraryViewModel()
         if let takePlaybackViewModel {
             self.takePlaybackViewModel = takePlaybackViewModel

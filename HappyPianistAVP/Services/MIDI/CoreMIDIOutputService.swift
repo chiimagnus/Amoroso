@@ -1,7 +1,6 @@
 import CoreMIDI
 import Foundation
 import os
-import OSLog
 
 protocol MIDIOutputSendingProtocol: AnyObject, Sendable {
     func start() throws
@@ -53,12 +52,13 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         set { stateLock.withLock { $0.onLastErrorMessageChange = newValue } }
     }
 
-    private let logger = Logger(
-        subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-        category: "CoreMIDI-AVP-Output"
-    )
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let refreshScheduler = DebouncedActionScheduler(debounce: .milliseconds(200))
     private let stateLock = OSAllocatedUnfairLock(initialState: OutputState())
+
+    init(diagnosticsReporter: (any DiagnosticsReporting)? = nil) {
+        self.diagnosticsReporter = diagnosticsReporter
+    }
 
     func start() throws {
         try ensureClientAndPort()
@@ -202,7 +202,13 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
             )
         }
         guard result.0 == noErr else {
-            logger.error("MIDISend failed: \(result.0, privacy: .public)")
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .midi,
+                stage: "coreMIDI.send",
+                summary: "发送 MIDI 消息失败",
+                reason: "status=\(result.0)"
+            )
             result.1?("MIDISend failed: \(result.0)")
             throw CoreMIDIOutputServiceError.send(result.0)
         }

@@ -50,4 +50,4 @@
 
 ## Shared
 
-- `shared/`：通用模块（协议模型、Bonjour/调试产物工具等），用于支撑 Python 侧工具或服务复用。
+- `shared/`：通用模块（协议模型、Bonjour 等），用于支撑 Python 侧工具或服务复用。

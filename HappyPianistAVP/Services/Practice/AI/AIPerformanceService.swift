@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 @MainActor
 protocol AIPerformancePracticeSessionProtocol: AnyObject {
@@ -35,7 +34,7 @@ final class AIPerformanceService {
 		let topRejectReason: DuetPhrasePolicy.QualityAssessment.Reason?
 	}
 
-    private let logger: Logger
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let nowUptimeSeconds: () -> TimeInterval
     private let sleepFor: @Sendable (Duration) async -> Void
     private let improvSessionID: String
@@ -71,7 +70,7 @@ final class AIPerformanceService {
     @MainActor
     private lazy var aiPlaybackQueue: DuetAIPlaybackQueue = {
         DuetAIPlaybackQueue(
-            logger: logger,
+            diagnosticsReporter: diagnosticsReporter,
             playbackServiceFactory: aiPlaybackServiceFactory,
             onPlaybackActiveChanged: { [weak self] isActive in
                 guard let self else { return }
@@ -82,7 +81,7 @@ final class AIPerformanceService {
     }()
 
     init(
-        logger: Logger,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         nowUptimeSeconds: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
         sleepFor: @escaping @Sendable (Duration) async -> Void = { duration in try? await Task.sleep(for: duration) },
         discoveryOrchestrator: any ImprovBackendDiscoveryOrchestrating,
@@ -92,7 +91,7 @@ final class AIPerformanceService {
         backendTimeout: Duration = .seconds(12),
         onStateChanged: @escaping @MainActor (State) -> Void
     ) {
-        self.logger = logger
+        self.diagnosticsReporter = diagnosticsReporter
         self.nowUptimeSeconds = nowUptimeSeconds
         self.sleepFor = sleepFor
         improvSessionID = UUID().uuidString
@@ -440,7 +439,13 @@ final class AIPerformanceService {
 			)
         } catch {
 			guard isEnabled, activationAtRequest == activationID, kind == selectedBackendKind() else { return }
-            logger.warning("continuous duet backend failed: \(String(describing: error), privacy: .public)")
+            diagnosticsReporter?.recordSystem(
+                severity: .warning,
+                category: .ai,
+                stage: "continuousDuet.generate",
+                summary: "AI 即兴生成失败",
+                reason: String(describing: error)
+            )
             lastImprovStatusText = "AI 即兴：生成失败（\(kind.rawValue)）"
             notifyStateChanged()
             return

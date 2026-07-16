@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct GrandStaffNotationRenderer: GrandStaffNotationRendererProtocol {
+struct GrandStaffNotationRenderer {
     private let displayScale: CGFloat
 
     init(displayScale: CGFloat = 1) {

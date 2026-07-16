@@ -1,12 +1,6 @@
 import ARKit
 import Foundation
-import os
 import simd
-
-private let calibrationRepositoryLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "HappyPianistAVP",
-    category: "CalibrationRepository"
-)
 
 protocol CalibrationRepositoryProtocol {
     func loadStoredCalibration() throws -> StoredWorldAnchorCalibration?
@@ -30,9 +24,14 @@ protocol CalibrationRepositoryProtocol {
 
 struct CalibrationRepository: CalibrationRepositoryProtocol {
     private let worldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
 
-    init(worldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol? = nil) {
+    init(
+        worldAnchorCalibrationStore: WorldAnchorCalibrationStoreProtocol? = nil,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
+    ) {
         self.worldAnchorCalibrationStore = worldAnchorCalibrationStore ?? WorldAnchorCalibrationStore()
+        self.diagnosticsReporter = diagnosticsReporter
     }
 
     func loadStoredCalibration() throws -> StoredWorldAnchorCalibration? {
@@ -66,8 +65,12 @@ struct CalibrationRepository: CalibrationRepositoryProtocol {
             do {
                 try await arTrackingService.removeWorldAnchor(id: oldID)
             } catch {
-                calibrationRepositoryLogger.error(
-                    "删除旧锚点失败（UUID=\(oldID.uuidString, privacy: .public)）：\(error.localizedDescription, privacy: .public)"
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .immersiveSpace,
+                    stage: "calibration.removeOldAnchor",
+                    summary: "删除旧校准锚点失败",
+                    reason: "anchorID=\(oldID.uuidString), error=\(error.localizedDescription)"
                 )
             }
         }
@@ -82,8 +85,12 @@ struct CalibrationRepository: CalibrationRepositoryProtocol {
             do {
                 try await arTrackingService.removeWorldAnchor(id: anchorID)
             } catch {
-                calibrationRepositoryLogger.error(
-                    "删除临时校准锚点失败（UUID=\(anchorID.uuidString, privacy: .public)）：\(error.localizedDescription, privacy: .public)"
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .immersiveSpace,
+                    stage: "calibration.removeCapturedAnchor",
+                    summary: "删除临时校准锚点失败",
+                    reason: "anchorID=\(anchorID.uuidString), error=\(error.localizedDescription)"
                 )
             }
         }

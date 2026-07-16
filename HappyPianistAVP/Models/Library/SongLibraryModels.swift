@@ -4,7 +4,7 @@ struct SongLibraryEntry: Codable, Equatable, Identifiable, Sendable {
     let id: UUID
     var displayName: String
     var musicXMLFileName: String
-    var scoreFileVersionID: UUID?
+    var scoreFileVersionID: UUID
     var importedAt: Date
     var audioFileName: String?
     var isBundled: Bool?
@@ -13,7 +13,7 @@ struct SongLibraryEntry: Codable, Equatable, Identifiable, Sendable {
         id: UUID,
         displayName: String,
         musicXMLFileName: String,
-        scoreFileVersionID: UUID? = nil,
+        scoreFileVersionID: UUID,
         importedAt: Date,
         audioFileName: String?,
         isBundled: Bool? = nil
