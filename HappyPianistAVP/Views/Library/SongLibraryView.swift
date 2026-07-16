@@ -509,6 +509,11 @@ private struct SongLibraryEmptyView: View {
     }
 }
 
+#Preview("空乐曲库") {
+    SongLibraryEmptyView(onImport: {})
+        .frame(width: 1140, height: LibraryDesignTokens.windowIdealHeight)
+}
+
 private struct LibraryTrackInfoView: View {
     let presentation: SongLibraryTrackPresentation
     let progress: Double
