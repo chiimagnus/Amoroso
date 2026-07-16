@@ -130,3 +130,7 @@ struct VinylRecordView: View {
         }
     }
 }
+
+#Preview("黑胶唱片") {
+    VinylRecordView(labelColor: LibraryDesignTokens.accent, isPlaying: false, reduceMotion: false)
+}

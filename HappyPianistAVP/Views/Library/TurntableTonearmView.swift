@@ -112,3 +112,7 @@ struct TurntableTonearmView: View {
         .accessibilityHidden(true)
     }
 }
+
+#Preview("播放中的唱臂") {
+    TurntableTonearmView(isPlaying: true, reduceMotion: false)
+}
