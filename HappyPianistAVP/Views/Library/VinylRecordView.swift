@@ -17,6 +17,11 @@ struct VinylRecordView: View {
             ZStack {
                 Circle()
                     .fill(Color(red: 14 / 255, green: 13 / 255, blue: 13 / 255))
+                    .shadow(
+                        color: .black.opacity(0.44),
+                        radius: 24 * LibraryDesignTokens.recordScale,
+                        y: 18 * LibraryDesignTokens.recordScale
+                    )
 
                 Canvas { context, size in
                     let diameter = min(size.width, size.height)
@@ -92,11 +97,6 @@ struct VinylRecordView: View {
             .rotationEffect(.degrees(angle))
         }
         .frame(width: LibraryDesignTokens.recordDiameter, height: LibraryDesignTokens.recordDiameter)
-        .shadow(
-            color: .black.opacity(0.44),
-            radius: 24 * LibraryDesignTokens.recordScale,
-            y: 18 * LibraryDesignTokens.recordScale
-        )
         .onAppear(perform: updateRotationState)
         .onChange(of: isPlaying) {
             updateRotationState()
