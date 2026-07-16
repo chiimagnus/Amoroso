@@ -344,13 +344,7 @@ actor FilePracticeProgressRepository:
                 return lhs.songID.uuidString < rhs.songID.uuidString
             }
             if lhs.scoreFileVersionID != rhs.scoreFileVersionID {
-                switch (lhs.scoreFileVersionID, rhs.scoreFileVersionID) {
-                case (nil, .some): return true
-                case (.some, nil): return false
-                case let (.some(lhsToken), .some(rhsToken)):
-                    return lhsToken.uuidString < rhsToken.uuidString
-                case (nil, nil): break
-                }
+                return lhs.scoreFileVersionID.uuidString < rhs.scoreFileVersionID.uuidString
             }
             if lhs.scoreRevision != rhs.scoreRevision {
                 return lhs.scoreRevision < rhs.scoreRevision

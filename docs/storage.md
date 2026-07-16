@@ -19,7 +19,7 @@ bundled MusicXML 和 App 资源来自 bundle，不写入 Documents。
 
 ## 曲库
 
-`SongLibraryIndex` 只保存用户导入 entry 与最后选择项。entry 的可选 `scoreFileVersionID` 标识文件版本；旧 index 缺少该字段时按 `nil` 解码。bundled entries 由 `BundledSongLibraryProvider` 在启动时扫描后合并，并用 bundle identifier、short version、build version 与资源文件名生成确定性版本 token；缺失的 bundle 字段使用固定 sentinel，App 构建变化会保守地使旧 metadata 失配。
+`SongLibraryIndex` 只保存用户导入 entry 与最后选择项。entry 的必填 `scoreFileVersionID` 标识文件版本；非空 index 缺少该字段时按 corruption 处理。bundled entries 由 `BundledSongLibraryProvider` 在启动时扫描后合并，并用 bundle identifier、short version、build version 与资源文件名生成确定性版本 token；缺失的 bundle 字段使用固定 sentinel，App 构建变化会保守地使旧 metadata 失配。
 
 导入流程：
 

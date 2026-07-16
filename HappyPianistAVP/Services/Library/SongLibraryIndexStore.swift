@@ -42,7 +42,7 @@ protocol SongLibraryIndexStoreProtocol: Actor {
 protocol SongLibraryImportIndexStoreProtocol: SongLibraryIndexStoreProtocol {
     func replaceUserScore(
         expectedSongID: UUID,
-        expectedScoreFileVersionID: UUID?,
+        expectedScoreFileVersionID: UUID,
         expectedMusicXMLFileName: String,
         with replacement: SongLibraryScoreReplacement
     ) throws -> SongLibraryScoreReplacementResult
@@ -77,7 +77,7 @@ actor SongLibraryIndexStore: SongLibraryImportIndexStoreProtocol {
 
     func replaceUserScore(
         expectedSongID: UUID,
-        expectedScoreFileVersionID: UUID?,
+        expectedScoreFileVersionID: UUID,
         expectedMusicXMLFileName: String,
         with replacement: SongLibraryScoreReplacement
     ) throws -> SongLibraryScoreReplacementResult {

@@ -75,6 +75,7 @@ private func makeListeningEntry(name: String) -> SongLibraryEntry {
         id: UUID(),
         displayName: name,
         musicXMLFileName: "\(name).musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: "\(name).mp3"
     )

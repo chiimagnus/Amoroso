@@ -256,7 +256,7 @@ func overviewKeepsCurrentRevisionResumeBeforeTheDestinationMeasureHasFacts() asy
 
 @Test
 func replacementKeepsStableSongSessionsWithoutLeakingOldRevisionFacts() async throws {
-    let entry = makeSnapshotEntry(token: UUID())
+    let entry = makeSnapshotEntry()
     let oldToken = UUID()
     let oldSource = snapshotSource(7)
     let oldProgress = SongPracticeProgress(
@@ -326,7 +326,7 @@ func unavailableCapabilitiesDistinguishIOFailureAndConfirmedCorruption() async {
 
 @Test
 func snapshotBuildIsOrderIndependentForDuplicateProgressAndMetadata() async throws {
-    let entry = makeSnapshotEntry(token: nil)
+    let entry = makeSnapshotEntry()
     let session = try makeSnapshotSession(songID: entry.id, revision: "b")
     let first = makeSnapshotProgress(
         songID: entry.id,
@@ -387,12 +387,12 @@ private func buildSnapshot(
     )
 }
 
-private func makeSnapshotEntry(token: UUID? = UUID()) -> SongLibraryEntry {
+private func makeSnapshotEntry() -> SongLibraryEntry {
     SongLibraryEntry(
         id: UUID(),
         displayName: "Song",
         musicXMLFileName: "song.musicxml",
-        scoreFileVersionID: token,
+        scoreFileVersionID: UUID(),
         importedAt: Date(timeIntervalSince1970: 0),
         audioFileName: nil
     )

@@ -551,7 +551,7 @@ final class PracticeLaunchViewModel {
                         category: .persistence,
                         stage: "practiceScoreMetadataWrite",
                         summary: "无法保存曲谱练习元数据",
-                        reason: "token=\(metadata.scoreFileVersionID?.uuidString ?? "absent"); measureCount=\(metadata.totalSourceMeasureCount); \(PracticePreparationErrorDetails.safeErrorSummary(error))",
+                        reason: "token=\(metadata.scoreFileVersionID.uuidString); measureCount=\(metadata.totalSourceMeasureCount); \(PracticePreparationErrorDetails.safeErrorSummary(error))",
                         songID: metadata.songID,
                         scoreRevision: metadata.scoreRevision,
                         persistence: .exportable

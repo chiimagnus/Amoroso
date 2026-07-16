@@ -57,7 +57,7 @@ struct TransactionFileFingerprint: Codable, Equatable, Sendable {
 
 struct SongLibraryExpectedEntryIdentity: Codable, Equatable, Sendable {
     let songID: UUID
-    let scoreFileVersionID: UUID?
+    let scoreFileVersionID: UUID
     let musicXMLFileName: String
 }
 

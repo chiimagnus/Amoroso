@@ -338,14 +338,14 @@ struct SongPracticeProgress: Codable, Equatable, Sendable {
 
 struct SongScorePracticeMetadata: Codable, Equatable, Sendable {
     let songID: UUID
-    let scoreFileVersionID: UUID?
+    let scoreFileVersionID: UUID
     let scoreRevision: String
     let totalSourceMeasureCount: Int
     let preparedAt: Date
 
     init(
         songID: UUID,
-        scoreFileVersionID: UUID?,
+        scoreFileVersionID: UUID,
         scoreRevision: String,
         totalSourceMeasureCount: Int,
         preparedAt: Date
@@ -369,7 +369,7 @@ struct SongScorePracticeMetadata: Codable, Equatable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
             songID: try container.decode(UUID.self, forKey: .songID),
-            scoreFileVersionID: try container.decodeIfPresent(
+            scoreFileVersionID: try container.decode(
                 UUID.self,
                 forKey: .scoreFileVersionID
             ),
@@ -406,7 +406,7 @@ enum SongScorePracticeMetadataOrder {
     }
 
     private static func canonicalKey(_ metadata: SongScorePracticeMetadata) -> String {
-        "\(metadata.songID.uuidString)|\(metadata.scoreFileVersionID?.uuidString ?? "<nil>")|\(metadata.scoreRevision)"
+        "\(metadata.songID.uuidString)|\(metadata.scoreFileVersionID.uuidString)|\(metadata.scoreRevision)"
     }
 }
 

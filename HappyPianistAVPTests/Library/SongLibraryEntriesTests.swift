@@ -10,6 +10,7 @@ func libraryKeepsUserEntryThatSharesBundledDisplayName() {
         id: UUID(),
         displayName: sharedName,
         musicXMLFileName: "bundled.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil,
         isBundled: true
@@ -18,6 +19,7 @@ func libraryKeepsUserEntryThatSharesBundledDisplayName() {
         id: UUID(),
         displayName: sharedName,
         musicXMLFileName: "imported.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )
@@ -37,6 +39,7 @@ func libraryDeduplicatesOnlyIdenticalEntryIDs() {
         id: id,
         displayName: "Bundled",
         musicXMLFileName: "bundled.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .distantPast,
         audioFileName: nil,
         isBundled: true
@@ -45,6 +48,7 @@ func libraryDeduplicatesOnlyIdenticalEntryIDs() {
         id: id,
         displayName: "Imported",
         musicXMLFileName: "imported.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )

@@ -2,7 +2,7 @@ import Foundation
 
 struct SongPracticeLibrarySelectionIdentity: Equatable, Sendable {
     let songID: UUID
-    let scoreFileVersionID: UUID?
+    let scoreFileVersionID: UUID
 }
 
 struct SongPracticeStreak: Equatable, Sendable {

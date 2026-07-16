@@ -105,7 +105,6 @@ func noConflictImportCommitsOriginalNameAndCleansTransaction() async throws {
     #expect(entry.displayName == "Original Name")
     #expect(entry.musicXMLFileName == "Original Name.musicxml")
     #expect(entry.importedAt == importedAt)
-    #expect(entry.scoreFileVersionID != nil)
     #expect(index.entries == [entry])
     #expect(
         FileManager.default.fileExists(
@@ -265,7 +264,6 @@ func confirmedFilesystemOrphanReplacesOldBytesAndCreatesNewEntry() async throws 
     #expect(index.entries == [entry])
     #expect(entry.displayName == "orphan")
     #expect(entry.musicXMLFileName == "orphan.musicxml")
-    #expect(entry.scoreFileVersionID != nil)
     #expect(try Data(contentsOf: target) == Data("adopted-new".utf8))
 }
 
@@ -1080,7 +1078,7 @@ private actor FailingImportIndexStore: SongLibraryImportIndexStoreProtocol {
     }
     func replaceUserScore(
         expectedSongID _: UUID,
-        expectedScoreFileVersionID _: UUID?,
+        expectedScoreFileVersionID _: UUID,
         expectedMusicXMLFileName _: String,
         with _: SongLibraryScoreReplacement
     ) -> SongLibraryScoreReplacementResult {
@@ -1124,7 +1122,7 @@ private actor PersistThenThrowImportIndexStore: SongLibraryImportIndexStoreProto
 
     func replaceUserScore(
         expectedSongID: UUID,
-        expectedScoreFileVersionID: UUID?,
+        expectedScoreFileVersionID: UUID,
         expectedMusicXMLFileName: String,
         with replacement: SongLibraryScoreReplacement
     ) throws -> SongLibraryScoreReplacementResult {
@@ -1190,7 +1188,7 @@ private actor RacingImportIndexStore: SongLibraryImportIndexStoreProtocol {
 
     func replaceUserScore(
         expectedSongID: UUID,
-        expectedScoreFileVersionID _: UUID?,
+        expectedScoreFileVersionID _: UUID,
         expectedMusicXMLFileName _: String,
         with _: SongLibraryScoreReplacement
     ) -> SongLibraryScoreReplacementResult {

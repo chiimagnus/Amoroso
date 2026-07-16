@@ -68,6 +68,7 @@ func importConflictClassifierDistinguishesMissingOrphanAndAmbiguousTargets() {
         id: UUID(),
         displayName: "Bundled",
         musicXMLFileName: "same.musicxml",
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil,
         isBundled: true
@@ -122,6 +123,7 @@ private func conflictEntry(fileName: String) -> SongLibraryEntry {
         id: UUID(),
         displayName: fileName,
         musicXMLFileName: fileName,
+        scoreFileVersionID: UUID(),
         importedAt: .now,
         audioFileName: nil
     )

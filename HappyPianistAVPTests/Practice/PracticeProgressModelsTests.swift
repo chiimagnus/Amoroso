@@ -195,44 +195,36 @@ func practiceSessionStrictDecodeRejectsInvalidLocalDayAndTermination() throws {
 }
 
 @Test
-func scoreMetadataRoundTripsLegitimateOptionalFileVersion() throws {
-    let songID = UUID()
-    let document = PracticeProgressDocument(
-        scoreMetadata: [
-            SongScorePracticeMetadata(
-                songID: songID,
-                scoreFileVersionID: nil,
-                scoreRevision: "legacy",
-                totalSourceMeasureCount: 0,
-                preparedAt: Date(timeIntervalSince1970: 10)
-            ),
-            SongScorePracticeMetadata(
-                songID: songID,
-                scoreFileVersionID: UUID(),
-                scoreRevision: "current",
-                totalSourceMeasureCount: 12,
-                preparedAt: Date(timeIntervalSince1970: 20)
-            ),
-        ]
-    )
-
-    let decoded = try JSONDecoder().decode(
-        PracticeProgressDocument.self,
-        from: JSONEncoder().encode(document)
-    )
-
-    #expect(decoded == document)
-    #expect(decoded.scoreMetadata.first?.scoreFileVersionID == nil)
-}
-
-@Test
-func scoreMetadataDecodeNormalizesNegativeMeasureTotal() throws {
+func scoreMetadataDecodeRejectsMissingFileVersion() {
     let songID = UUID()
     let json = """
     {
       "songs": [],
       "scoreMetadata": [{
         "songID": "\(songID.uuidString)",
+        "scoreRevision": "legacy",
+        "totalSourceMeasureCount": 0,
+        "preparedAt": 10
+      }],
+      "sessions": []
+    }
+    """
+
+    #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(PracticeProgressDocument.self, from: Data(json.utf8))
+    }
+}
+
+@Test
+func scoreMetadataDecodeNormalizesNegativeMeasureTotal() throws {
+    let songID = UUID()
+    let scoreFileVersionID = UUID()
+    let json = """
+    {
+      "songs": [],
+      "scoreMetadata": [{
+        "songID": "\(songID.uuidString)",
+        "scoreFileVersionID": "\(scoreFileVersionID.uuidString)",
         "scoreRevision": "r1",
         "totalSourceMeasureCount": -3,
         "preparedAt": "1970-01-01T00:00:10Z"
@@ -245,7 +237,7 @@ func scoreMetadataDecodeNormalizesNegativeMeasureTotal() throws {
 
     let document = try decoder.decode(PracticeProgressDocument.self, from: Data(json.utf8))
 
-    #expect(document.scoreMetadata.first?.scoreFileVersionID == nil)
+    #expect(document.scoreMetadata.first?.scoreFileVersionID == scoreFileVersionID)
     #expect(document.scoreMetadata.first?.totalSourceMeasureCount == 0)
 }
 
