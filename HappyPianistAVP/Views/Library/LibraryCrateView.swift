@@ -67,8 +67,7 @@ struct LibraryCrateView: View {
                     .saturation(pose.saturation)
                     .rotation3DEffect(
                         reduceMotion ? .zero : .degrees(pose.rotationY),
-                        axis: (x: 0, y: 1, z: 0),
-                        perspective: 1
+                        axis: (x: 0, y: 1, z: 0)
                     )
                     .offset(
                         x: pose.horizontalOffset,
@@ -77,6 +76,7 @@ struct LibraryCrateView: View {
                     .zIndex(pose.zIndex)
                     .animation(reduceMotion ? nil : LibraryDesignTokens.easeOut, value: selectedEntryID)
                     .allowsHitTesting(distance <= 2)
+                    .accessibilityHidden(distance > 2)
                     .accessibilityLabel(presentation.title)
                     .accessibilityHint(isActive ? "播放或暂停当前曲目" : "切换到这首曲目")
                     .accessibilityAddTraits(isActive ? .isSelected : [])
@@ -168,10 +168,15 @@ struct LibraryCrateView: View {
                 let selectedIndex = entries.firstIndex(where: { $0.id == selectedEntryID }) ?? 0
 
                 if dragIsHorizontal == true {
-                    if value.translation.width <= -LibraryDesignTokens.carouselSelectionThreshold {
+                    switch LibraryCarouselSelectionDirection.from(
+                        horizontalDragTranslation: value.translation.width
+                    ) {
+                    case .next:
                         select(index: selectedIndex + 1)
-                    } else if value.translation.width >= LibraryDesignTokens.carouselSelectionThreshold {
+                    case .previous:
                         select(index: selectedIndex - 1)
+                    case nil:
+                        break
                     }
                 } else if liftOffset >= LibraryDesignTokens.liftTrigger {
                     onImportMusicXML()

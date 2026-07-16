@@ -4,22 +4,29 @@ import Testing
 
 @Test
 func carouselPoseUsesFiveLayeredPositions() {
-    let center = LibraryCarouselPose(relativePosition: 0)
-    let neighbor = LibraryCarouselPose(relativePosition: 1)
-    let outer = LibraryCarouselPose(relativePosition: -2)
+    let expectations: [(
+        position: CGFloat,
+        horizontalOffset: CGFloat,
+        scale: CGFloat,
+        opacity: Double,
+        saturation: Double,
+        rotationY: Double
+    )] = [
+        (-2, -LibraryDesignTokens.carouselOuterOffset, 0.66, 0.42, 0.70, 14),
+        (-1, -LibraryDesignTokens.carouselNeighborOffset, 0.82, 0.82, 0.88, 7),
+        (0, 0, 1, 1, 1, 0),
+        (1, LibraryDesignTokens.carouselNeighborOffset, 0.82, 0.82, 0.88, -7),
+        (2, LibraryDesignTokens.carouselOuterOffset, 0.66, 0.42, 0.70, -14),
+    ]
 
-    #expect(center.horizontalOffset == 0)
-    #expect(center.scale == 1)
-    #expect(center.opacity == 1)
-    #expect(center.rotationY == 0)
-    #expect(neighbor.horizontalOffset == LibraryDesignTokens.carouselNeighborOffset)
-    #expect(neighbor.scale == 0.82)
-    #expect(neighbor.opacity == 0.82)
-    #expect(neighbor.rotationY == -7)
-    #expect(outer.horizontalOffset == -LibraryDesignTokens.carouselOuterOffset)
-    #expect(outer.scale == 0.66)
-    #expect(outer.opacity == 0.42)
-    #expect(outer.rotationY == 14)
+    for expectation in expectations {
+        let pose = LibraryCarouselPose(relativePosition: expectation.position)
+        #expect(pose.horizontalOffset == expectation.horizontalOffset)
+        #expect(pose.scale == expectation.scale)
+        #expect(pose.opacity == expectation.opacity)
+        #expect(pose.saturation == expectation.saturation)
+        #expect(pose.rotationY == expectation.rotationY)
+    }
 }
 
 @Test
@@ -34,4 +41,12 @@ func carouselPoseInterpolatesDuringDragAndClampsHiddenRecords() {
     #expect(hidden.horizontalOffset == LibraryDesignTokens.carouselHiddenOffset)
     #expect(hidden.opacity == 0)
     #expect(hidden.zIndex == 0)
+}
+
+@Test
+func carouselSelectionDirectionHonorsTheReleaseThreshold() {
+    #expect(LibraryCarouselSelectionDirection.from(horizontalDragTranslation: -59) == nil)
+    #expect(LibraryCarouselSelectionDirection.from(horizontalDragTranslation: 59) == nil)
+    #expect(LibraryCarouselSelectionDirection.from(horizontalDragTranslation: -60) == .next)
+    #expect(LibraryCarouselSelectionDirection.from(horizontalDragTranslation: 60) == .previous)
 }

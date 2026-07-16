@@ -70,6 +70,18 @@ struct LibraryCarouselPose: Equatable {
     }
 }
 
+enum LibraryCarouselSelectionDirection: Equatable {
+    case previous
+    case next
+
+    static func from(horizontalDragTranslation: CGFloat) -> Self? {
+        guard abs(horizontalDragTranslation) >= LibraryDesignTokens.carouselSelectionThreshold else {
+            return nil
+        }
+        return horizontalDragTranslation < 0 ? .next : .previous
+    }
+}
+
 struct SongLibraryTrackPresentation {
     let title: String
     let subtitle: String
