@@ -518,7 +518,6 @@ private struct TurntableTonearmView: View {
         onDelete: { _ in }
     )
     .frame(width: 1_140, height: 500)
-    .background(.black)
 }
 
 private enum LibraryCratePreviewFixture {
