@@ -11,13 +11,13 @@ func carouselPoseUsesFiveLayeredPositions() {
         scale: CGFloat,
         opacity: Double,
         saturation: Double,
-        rotationY: Double
+        horizontalScale: CGFloat
     )] = [
-        (-2, -LibraryDesignTokens.carouselOuterOffset, 0.66, 0.42, 0.70, 14),
-        (-1, -LibraryDesignTokens.carouselNeighborOffset, 0.82, 0.82, 0.88, 7),
-        (0, 0, 1, 1, 1, 0),
-        (1, LibraryDesignTokens.carouselNeighborOffset, 0.82, 0.82, 0.88, -7),
-        (2, LibraryDesignTokens.carouselOuterOffset, 0.66, 0.42, 0.70, -14),
+        (-2, -LibraryDesignTokens.carouselOuterOffset, 0.66, 0.42, 0.70, 0.86),
+        (-1, -LibraryDesignTokens.carouselNeighborOffset, 0.82, 0.82, 0.88, 0.92),
+        (0, 0, 1, 1, 1, 1),
+        (1, LibraryDesignTokens.carouselNeighborOffset, 0.82, 0.82, 0.88, 0.92),
+        (2, LibraryDesignTokens.carouselOuterOffset, 0.66, 0.42, 0.70, 0.86),
     ]
 
     for expectation in expectations {
@@ -26,7 +26,7 @@ func carouselPoseUsesFiveLayeredPositions() {
         #expect(pose.scale == expectation.scale)
         #expect(pose.opacity == expectation.opacity)
         #expect(pose.saturation == expectation.saturation)
-        #expect(pose.rotationY == expectation.rotationY)
+        #expect(pose.horizontalScale == expectation.horizontalScale)
     }
 }
 
@@ -38,7 +38,7 @@ func carouselPoseInterpolatesDuringDragAndClampsHiddenRecords() {
     #expect(midway.horizontalOffset == LibraryDesignTokens.carouselNeighborOffset / 2)
     #expect(midway.scale == 0.91)
     #expect(midway.opacity == 0.91)
-    #expect(midway.rotationY == -3.5)
+    #expect(midway.horizontalScale == 0.96)
     #expect(hidden.horizontalOffset == LibraryDesignTokens.carouselHiddenOffset)
     #expect(hidden.opacity == 0)
     #expect(hidden.zIndex == 0)

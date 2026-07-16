@@ -39,7 +39,7 @@ struct LibraryCarouselPose: Equatable {
     let scale: CGFloat
     let opacity: Double
     let saturation: Double
-    let rotationY: Double
+    let horizontalScale: CGFloat
     let zIndex: Double
 
     init(relativePosition: CGFloat) {
@@ -58,7 +58,7 @@ struct LibraryCarouselPose: Equatable {
         scale = Self.interpolate(distance, samples: [1, 0.82, 0.66, 0.58])
         opacity = Double(Self.interpolate(distance, samples: [1, 0.82, 0.42, 0]))
         saturation = Double(Self.interpolate(distance, samples: [1, 0.88, 0.70, 0.70]))
-        rotationY = -Double(direction) * Double(Self.interpolate(distance, samples: [0, 7, 14, 14]))
+        horizontalScale = Self.interpolate(distance, samples: [1, 0.92, 0.86, 0.86])
         zIndex = Double(3 - distance)
     }
 

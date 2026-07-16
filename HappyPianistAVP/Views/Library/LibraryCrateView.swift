@@ -62,13 +62,10 @@ struct LibraryCrateView: View {
                             )
                         }
                     }
-                    .scaleEffect(pose.scale)
+                    // ponytail: visionOS clips rotated record layers; horizontal compression keeps the depth cue.
+                    .scaleEffect(x: pose.scale * pose.horizontalScale, y: pose.scale)
                     .opacity(pose.opacity)
                     .saturation(pose.saturation)
-                    .rotation3DEffect(
-                        reduceMotion ? .zero : .degrees(pose.rotationY),
-                        axis: (x: 0, y: 1, z: 0)
-                    )
                     .offset(
                         x: pose.horizontalOffset,
                         y: isActive ? -liftOffset : 0
