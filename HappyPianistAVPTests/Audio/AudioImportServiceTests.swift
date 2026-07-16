@@ -11,7 +11,7 @@ func audioImportServiceCopiesFileIntoAudioDirectory() async throws {
         try? FileManager.default.removeItem(at: externalURL)
     }
 
-    let sourceURL = externalURL.appendingPathComponent("sample.mp3")
+    let sourceURL = externalURL.appending(path: "sample.mp3")
     try Data("audio".utf8).write(to: sourceURL)
 
     let fileManager: FileManager = TestDocumentsFileManager(documentsURL: documentsURL)
@@ -34,7 +34,7 @@ func audioImportServiceCopiesFileIntoAudioDirectory() async throws {
 
 private func makeTemporaryDirectory(prefix: String) throws -> URL {
     let directoryURL = FileManager.default.temporaryDirectory
-        .appendingPathComponent("\(prefix)-\(UUID().uuidString)", isDirectory: true)
+        .appending(path: "\(prefix)-\(UUID().uuidString)", directoryHint: .isDirectory)
     try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
     return directoryURL
 }

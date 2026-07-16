@@ -119,11 +119,11 @@ private actor InMemorySongLibraryIndexStore: SongLibraryIndexStoreProtocol {
 
 private actor InMemorySongFileStore: SongFileStoreProtocol {
     func scoreFileURL(fileName: String) async throws -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        FileManager.default.temporaryDirectory.appending(path: fileName)
     }
 
     func audioFileURL(fileName: String) async throws -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        FileManager.default.temporaryDirectory.appending(path: fileName)
     }
 
     func deleteScoreFile(named _: String) async throws {}

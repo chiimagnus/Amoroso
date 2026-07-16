@@ -21,9 +21,9 @@ enum PerformanceRNNCoreMLModelLoaderError: Error, LocalizedError, Equatable, Sen
         var sanitized = message
         let home = NSHomeDirectory()
         if home.isEmpty == false {
-            sanitized = sanitized.replacingOccurrences(of: home, with: "~")
+            sanitized = sanitized.replacing(home, with: "~")
         }
-        sanitized = sanitized.replacingOccurrences(of: "file://", with: "")
+        sanitized = sanitized.replacing("file://", with: "")
         return sanitized
     }
 }
