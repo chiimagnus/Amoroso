@@ -192,8 +192,6 @@ private struct LibraryPracticeFloatingNote: View {
     }
 }
 
-#Preview("首次练习动画") {
+#Preview("无练习数据时的动画") {
     LibraryPracticeEmptyAnimationView()
-        .frame(width: 360, height: 300)
-        .background(.regularMaterial)
 }
