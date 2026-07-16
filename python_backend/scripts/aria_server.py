@@ -1,13 +1,4 @@
 #!/usr/bin/env python3
-# /// script
-# requires-python = ">=3.11"
-# dependencies = [
-#   "pydantic>=2",
-#   "zeroconf",
-#   "mido",
-#   "safetensors",
-# ]
-# ///
 from __future__ import annotations
 
 import sys
