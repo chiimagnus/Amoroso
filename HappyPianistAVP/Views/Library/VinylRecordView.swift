@@ -97,10 +97,6 @@ struct VinylRecordView: View {
             .rotationEffect(.degrees(angle))
         }
         .frame(width: LibraryDesignTokens.recordDiameter, height: LibraryDesignTokens.recordDiameter)
-        .overlay {
-            Circle()
-                .stroke(.white.opacity(0.08), lineWidth: 1)
-        }
         .shadow(
             color: .black.opacity(0.44),
             radius: 24 * LibraryDesignTokens.recordScale,
