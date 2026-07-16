@@ -47,26 +47,7 @@ struct SongLibraryView: View {
                 onDiagnostics: { isDiagnosticsPresented = true }
             )
 
-            if viewModel.isLibraryLoading
-                || (viewModel.hasLoadedLibrary == false && viewModel.bootstrapFailureMessage == nil)
-            {
-                ProgressView("正在加载乐曲库…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if let bootstrapFailureMessage = viewModel.bootstrapFailureMessage {
-                ContentUnavailableView {
-                    Label("无法加载乐曲库", systemImage: "exclamationmark.triangle")
-                } description: {
-                    Text(bootstrapFailureMessage)
-                } actions: {
-                    Button("重试", systemImage: "arrow.clockwise") {
-                        Task { @MainActor in
-                            await viewModel.loadLibraryIfNeeded()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if entries.isEmpty {
+            if entries.isEmpty {
                 SongLibraryEmptyView(onImport: viewModel.didTapImportMusicXML)
             } else if let selectedEntry, let selectedPresentation {
                 ZStack(alignment: .bottomTrailing) {
@@ -190,7 +171,7 @@ struct SongLibraryView: View {
             onCompletion: handleAudioImport
         )
         .task {
-            await viewModel.loadLibraryIfNeeded()
+            await viewModel.loadLibrary()
         }
         .onDisappear {
             viewModel.stopListening()
