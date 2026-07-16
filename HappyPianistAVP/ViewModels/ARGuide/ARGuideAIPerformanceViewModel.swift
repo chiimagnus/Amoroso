@@ -145,7 +145,7 @@ final class ARGuideAIPerformanceViewModel {
 
             let baseUptime = ProcessInfo.processInfo.systemUptime
             let baseDate = Date.now
-            let source = MIDI1InputEvent.Source(
+            let source = MIDIInputSource(
                 identifier: .sourceIndex(-1),
                 endpointName: "DEBUG"
             )

@@ -324,12 +324,11 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
             let channel = Int(voice.channel) + 1
             guard let kind = midi2Decoder.decode(message) else { return }
 
-            let midi2Source = midi2Source(from: source)
             let event = MIDI2InputEvent(
                 kind: kind,
                 channel: channel,
                 group: group,
-                source: midi2Source,
+                source: source,
                 receivedAt: receivedAt,
                 receivedAtUptimeSeconds: receivedAtUptimeSeconds
             )
@@ -337,7 +336,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                 recoverMIDI2StreamAfterOverflow(
                     channel: channel,
                     group: group,
-                    source: midi2Source,
+                    source: source,
                     receivedAt: receivedAt,
                     uptimeSeconds: receivedAtUptimeSeconds
                 )
@@ -351,7 +350,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private func recoverMIDI1StreamAfterOverflow(
         channel: Int,
         group: Int,
-        source: MIDI1InputEvent.Source,
+        source: MIDIInputSource,
         receivedAt: Date,
         uptimeSeconds: TimeInterval
     ) {
@@ -371,7 +370,7 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
     private func recoverMIDI2StreamAfterOverflow(
         channel: Int,
         group: Int,
-        source: MIDI2InputEvent.Source,
+        source: MIDIInputSource,
         receivedAt: Date,
         uptimeSeconds: TimeInterval
     ) {
@@ -423,36 +422,25 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
         return parts.joined(separator: ",")
     }
 
-    private func sourceIdentity(from srcConnRefCon: UnsafeMutableRawPointer?) -> MIDI1InputEvent.Source {
+    private func sourceIdentity(from srcConnRefCon: UnsafeMutableRawPointer?) -> MIDIInputSource {
         guard let srcConnRefCon else {
-            return MIDI1InputEvent.Source(identifier: .sourceIndex(-1), endpointName: nil)
+            return MIDIInputSource(identifier: .sourceIndex(-1), endpointName: nil)
         }
 
         let context = Unmanaged<EndpointConnectionContext>
             .fromOpaque(srcConnRefCon)
             .takeUnretainedValue()
         if let uniqueID = context.endpointUniqueID {
-            return MIDI1InputEvent.Source(
+            return MIDIInputSource(
                 identifier: .endpointUniqueID(uniqueID),
                 endpointName: context.endpointName
             )
         }
-        return MIDI1InputEvent.Source(
+        return MIDIInputSource(
             identifier: .sourceIndex(context.sourceIndex),
             endpointName: context.endpointName
         )
     }
-
-    private func midi2Source(from source: MIDI1InputEvent.Source) -> MIDI2InputEvent.Source {
-        let identifier: MIDI2InputEvent.Source.Identifier = switch source.identifier {
-        case let .endpointUniqueID(uniqueID):
-            .endpointUniqueID(uniqueID)
-        case let .sourceIndex(index):
-            .sourceIndex(index)
-        }
-        return MIDI2InputEvent.Source(identifier: identifier, endpointName: source.endpointName)
-    }
-
 
     private func logProtocolMismatchIfNeeded(
         uptimeSeconds: TimeInterval,

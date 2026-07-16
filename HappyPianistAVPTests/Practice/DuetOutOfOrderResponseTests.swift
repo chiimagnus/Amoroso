@@ -176,7 +176,7 @@ func continuousDuetRequestsGenerationForMIDI2Input() async {
         kind: .noteOn(note: 60, velocity16: .max),
         channel: 1,
         group: 0,
-        source: MIDI2InputEvent.Source(identifier: .sourceIndex(0), endpointName: "test"),
+        source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: "test"),
         receivedAt: Date(timeIntervalSince1970: 0),
         receivedAtUptimeSeconds: nowUptime
     ))

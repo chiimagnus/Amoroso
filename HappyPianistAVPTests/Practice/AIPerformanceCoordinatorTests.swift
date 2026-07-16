@@ -297,7 +297,7 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
             kind: .noteOn(note: 60, velocity: 90),
             channel: 1,
             group: 0,
-            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+            source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
             receivedAt: Date(timeIntervalSince1970: 0),
             receivedAtUptimeSeconds: 0
         )
@@ -307,7 +307,7 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
             kind: .noteOff(note: 60, velocity: 0),
             channel: 1,
             group: 0,
-            source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+            source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
             receivedAt: Date(timeIntervalSince1970: 0),
             receivedAtUptimeSeconds: 0.1
         )
@@ -428,7 +428,7 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -438,7 +438,7 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)
@@ -499,7 +499,7 @@ func networkBackendRemainsSingleCandidate() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -509,7 +509,7 @@ func networkBackendRemainsSingleCandidate() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)
@@ -588,7 +588,7 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -598,7 +598,7 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)
@@ -682,7 +682,7 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
 			kind: .noteOn(note: 60, velocity: 90),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 0.0
 		)
@@ -692,7 +692,7 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
 			kind: .noteOff(note: 60, velocity: 0),
 			channel: 1,
 			group: 0,
-			source: MIDI1InputEvent.Source(identifier: .sourceIndex(0), endpointName: nil),
+			source: MIDIInputSource(identifier: .sourceIndex(0), endpointName: nil),
 			receivedAt: Date(timeIntervalSince1970: 0),
 			receivedAtUptimeSeconds: 3.2
 		)

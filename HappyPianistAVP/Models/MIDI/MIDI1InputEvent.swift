@@ -1,16 +1,6 @@
 import Foundation
 
 struct MIDI1InputEvent: Equatable, Sendable {
-    struct Source: Equatable, Hashable, Sendable {
-        enum Identifier: Equatable, Hashable, Sendable {
-            case endpointUniqueID(Int32)
-            case sourceIndex(Int)
-        }
-
-        let identifier: Identifier
-        let endpointName: String?
-    }
-
     enum Kind: Equatable, Sendable {
         case noteOn(note: Int, velocity: Int)
         case noteOff(note: Int, velocity: Int)
@@ -24,7 +14,7 @@ struct MIDI1InputEvent: Equatable, Sendable {
     let kind: Kind
     let channel: Int
     let group: Int
-    let source: Source
+    let source: MIDIInputSource
     let receivedAt: Date
     let receivedAtUptimeSeconds: TimeInterval
 
@@ -32,7 +22,7 @@ struct MIDI1InputEvent: Equatable, Sendable {
         kind: Kind,
         channel: Int,
         group: Int,
-        source: Source,
+        source: MIDIInputSource,
         receivedAt: Date,
         receivedAtUptimeSeconds: TimeInterval
     ) {
