@@ -23,6 +23,7 @@ enum LibraryDesignTokens {
 
     static let liftMaximum: CGFloat = 72
     static let liftTrigger: CGFloat = 44
+    static let deletionHoldDuration: Duration = .seconds(2)
 
     static let tonearmLength: CGFloat = 184
     static let tonearmPivotX: CGFloat = 264
@@ -79,6 +80,22 @@ enum LibraryCarouselSelectionDirection: Equatable {
             return nil
         }
         return horizontalDragTranslation < 0 ? .next : .previous
+    }
+}
+
+enum LibraryDeletionHoldPolicy {
+    static func progress(for downwardDragTranslation: CGFloat) -> CGFloat {
+        min(max(downwardDragTranslation / LibraryDesignTokens.liftMaximum, 0), 1)
+    }
+
+    static func isArmed(
+        downwardDragTranslation: CGFloat,
+        isBundled: Bool,
+        allowsDestructiveActions: Bool
+    ) -> Bool {
+        isBundled == false
+            && allowsDestructiveActions
+            && downwardDragTranslation >= LibraryDesignTokens.liftTrigger
     }
 }
 

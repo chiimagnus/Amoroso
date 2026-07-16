@@ -50,3 +50,37 @@ func carouselSelectionDirectionHonorsTheReleaseThreshold() {
     #expect(LibraryCarouselSelectionDirection.from(horizontalDragTranslation: -60) == .next)
     #expect(LibraryCarouselSelectionDirection.from(horizontalDragTranslation: 60) == .previous)
 }
+
+@Test
+func deletionHoldRequiresThresholdAndAnEligibleEntry() {
+    #expect(LibraryDeletionHoldPolicy.progress(for: -1) == 0)
+    #expect(LibraryDeletionHoldPolicy.progress(for: LibraryDesignTokens.liftMaximum * 2) == 1)
+    #expect(
+        LibraryDeletionHoldPolicy.isArmed(
+            downwardDragTranslation: LibraryDesignTokens.liftTrigger - 1,
+            isBundled: false,
+            allowsDestructiveActions: true
+        ) == false
+    )
+    #expect(
+        LibraryDeletionHoldPolicy.isArmed(
+            downwardDragTranslation: LibraryDesignTokens.liftTrigger,
+            isBundled: false,
+            allowsDestructiveActions: true
+        )
+    )
+    #expect(
+        LibraryDeletionHoldPolicy.isArmed(
+            downwardDragTranslation: LibraryDesignTokens.liftTrigger,
+            isBundled: true,
+            allowsDestructiveActions: true
+        ) == false
+    )
+    #expect(
+        LibraryDeletionHoldPolicy.isArmed(
+            downwardDragTranslation: LibraryDesignTokens.liftTrigger,
+            isBundled: false,
+            allowsDestructiveActions: false
+        ) == false
+    )
+}
