@@ -14,7 +14,7 @@ extension KeyContactDetectionService: KeyContactDetectingProtocol {}
 extension RealPianoContactDetectionService: KeyContactDetectingProtocol {}
 
 @MainActor
-final class VirtualPianoInputController: PracticeSessionLifecycleProtocol {
+final class VirtualPianoInputController {
     private let detector: any KeyContactDetectingProtocol
     private let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let stateStore: PracticeSessionStateStore

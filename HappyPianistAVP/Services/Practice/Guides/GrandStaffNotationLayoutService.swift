@@ -1,20 +1,6 @@
 import Foundation
 
-protocol GrandStaffNotationLayoutServiceProtocol {
-    func makeLayout(
-        guides: [PianoHighlightGuide],
-        currentGuide: PianoHighlightGuide?,
-        measureSpans: [MusicXMLMeasureSpan],
-        context: GrandStaffNotationContext?,
-        halfWindowTicks: Int,
-        scrollTick: Double?
-    ) -> GrandStaffNotationLayout
-
-    func staffStep(for midiNote: Int, staffNumber: Int) -> Int
-    func ledgerStaffSteps(for staffStep: Int) -> [Int]
-}
-
-struct GrandStaffNotationLayoutService: GrandStaffNotationLayoutServiceProtocol {
+struct GrandStaffNotationLayoutService {
     private struct ChordKey: Hashable {
         let tick: Int
         let staffNumber: Int

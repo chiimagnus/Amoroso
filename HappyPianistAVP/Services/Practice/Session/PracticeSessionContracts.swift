@@ -1,32 +1,6 @@
 import Foundation
 
 @MainActor
-protocol PracticeSessionLifecycleProtocol: AnyObject {
-    func shutdown()
-}
-
-@MainActor
-protocol PracticeAudioRecognitionInputServiceProtocol: AnyObject {
-    func refreshForCurrentState()
-    func stop()
-    func shutdown()
-}
-
-@MainActor
-protocol PracticeMIDIInputServiceProtocol: AnyObject {
-    func refreshForCurrentState()
-    func stop()
-    func shutdown()
-}
-
-@MainActor
-protocol PracticePlaybackControlServiceProtocol: AnyObject {
-    func startAutoplayTaskIfNeeded()
-    func stopAutoplayTask()
-    func stopAutoplayAudio()
-}
-
-@MainActor
 protocol PracticeSessionEffectHandlerProtocol: AnyObject {
     func handle(effect: PracticeSessionEffect)
 }

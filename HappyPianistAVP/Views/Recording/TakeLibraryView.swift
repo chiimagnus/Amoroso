@@ -12,7 +12,7 @@ struct TakeLibraryView: View {
     let onClearAll: () -> Void
     let makeMIDIExport: (RecordingTake) throws -> RecordingMIDIExport
 
-    private let presentationViewModel: any TakeLibraryPresentationViewModelProtocol
+    private let presentationViewModel: TakeLibraryPresentationViewModel
 
     @State private var renameTarget: RecordingTake?
     @State private var renameText = ""
@@ -34,7 +34,7 @@ struct TakeLibraryView: View {
         onDelete: @escaping (UUID) -> Void,
         onClearAll: @escaping () -> Void,
         makeMIDIExport: @escaping (RecordingTake) throws -> RecordingMIDIExport,
-        presentationViewModel: any TakeLibraryPresentationViewModelProtocol = TakeLibraryPresentationViewModel()
+        presentationViewModel: TakeLibraryPresentationViewModel = TakeLibraryPresentationViewModel()
     ) {
         self.takes = takes
         self.playbackViewModel = playbackViewModel

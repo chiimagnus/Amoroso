@@ -1,9 +1,7 @@
 import Foundation
 
 @MainActor
-final class PracticeAudioRecognitionInputService: PracticeAudioRecognitionInputServiceProtocol,
-    PracticeSessionLifecycleProtocol
-{
+final class PracticeAudioRecognitionInputService {
     struct Snapshot: Equatable {
         var practiceState: PracticeSessionState
         var autoplayState: PracticeSessionAutoplayState

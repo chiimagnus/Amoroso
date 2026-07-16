@@ -1,6 +1,6 @@
 import Foundation
 
-struct TakeLibraryPresentationViewModel: TakeLibraryPresentationViewModelProtocol {
+struct TakeLibraryPresentationViewModel {
     func metadataText(for take: RecordingTake) -> String {
         "\(formattedDuration(take.durationSeconds)) · \(formattedDate(take.createdAt))"
     }

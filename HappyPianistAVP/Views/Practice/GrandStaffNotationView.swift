@@ -9,8 +9,8 @@ struct GrandStaffNotationView: View {
     var scrollTickProvider: (() -> Double?)?
 
     private let fixedLineSpacing: CGFloat = 14
-    private let presentationViewModel: any GrandStaffNotationPresentationViewModelProtocol
-    private let renderer: any GrandStaffNotationRendererProtocol
+    private let presentationViewModel: GrandStaffNotationPresentationViewModel
+    private let renderer: GrandStaffNotationRenderer
 
     @Environment(\.displayScale) private var displayScale
     @State private var centeredForFirstGuideID: Int?
@@ -22,9 +22,9 @@ struct GrandStaffNotationView: View {
         context: GrandStaffNotationContext?,
         practiceHandMode: PracticeHandMode = .both,
         scrollTickProvider: (() -> Double?)? = nil,
-        layoutService: any GrandStaffNotationLayoutServiceProtocol = GrandStaffNotationLayoutService(),
-        viewportLayoutService: any GrandStaffNotationViewportLayoutServiceProtocol = GrandStaffNotationViewportLayoutService(),
-        renderer: any GrandStaffNotationRendererProtocol = GrandStaffNotationRenderer()
+        layoutService: GrandStaffNotationLayoutService = GrandStaffNotationLayoutService(),
+        viewportLayoutService: GrandStaffNotationViewportLayoutService = GrandStaffNotationViewportLayoutService(),
+        renderer: GrandStaffNotationRenderer = GrandStaffNotationRenderer()
     ) {
         self.guides = guides
         self.currentGuide = currentGuide

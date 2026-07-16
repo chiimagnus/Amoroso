@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class PracticeMIDIInputService: PracticeMIDIInputServiceProtocol, PracticeSessionLifecycleProtocol {
+final class PracticeMIDIInputService {
     struct Snapshot: Equatable {
         var practiceState: PracticeSessionState
         var autoplayState: PracticeSessionAutoplayState

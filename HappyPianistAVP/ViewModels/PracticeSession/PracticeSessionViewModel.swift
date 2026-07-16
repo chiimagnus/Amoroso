@@ -4,7 +4,7 @@ import Observation
 @dynamicMemberLookup
 @MainActor
 @Observable
-final class PracticeSessionViewModel: PracticeSessionLifecycleProtocol, PracticeSessionEffectHandlerProtocol {
+final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     enum SessionRecorderEvent: Sendable {
         case guiding(Bool)
         case settingsPresented(Bool)

@@ -4,7 +4,7 @@ struct TakeNowPlayingBarView: View {
     @Bindable var playbackViewModel: TakePlaybackViewModel
     let isRecording: Bool
     let totalDuration: TimeInterval
-    let presentationViewModel: any TakeLibraryPresentationViewModelProtocol
+    let presentationViewModel: TakeLibraryPresentationViewModel
     let onTogglePlayback: () -> Void
     let onStopPlayback: () -> Void
     let onCommitScrubbing: () -> Void

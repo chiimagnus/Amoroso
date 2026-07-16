@@ -2,7 +2,7 @@ import Foundation
 import simd
 
 @MainActor
-final class PracticeHandGateController: PracticeSessionLifecycleProtocol {
+final class PracticeHandGateController {
     private let activityGate: HandPianoActivityGate
     private let chordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     private let stateStore: PracticeSessionStateStore

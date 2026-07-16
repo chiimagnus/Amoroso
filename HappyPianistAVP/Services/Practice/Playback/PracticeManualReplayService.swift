@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class PracticeManualReplayService: PracticeSessionLifecycleProtocol {
+final class PracticeManualReplayService {
     private let sleeper: SleeperProtocol
     private let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let playbackSequenceBuilder: any PlaybackSequenceBuildingProtocol
