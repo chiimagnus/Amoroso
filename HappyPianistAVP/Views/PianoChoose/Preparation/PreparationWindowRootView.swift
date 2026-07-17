@@ -22,7 +22,7 @@ struct PreparationWindowRootView: View {
         )
 
         Group {
-            if let selectedMode = pianoSetupCoordinator.pianoModeRegistry.mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID) {
+            if let selectedMode = pianoSetupCoordinator.selectedMode {
                 PianoModePreparationRouterView(
                     route: selectedMode.preparationRoute,
                     arGuideViewModel: arGuideViewModel

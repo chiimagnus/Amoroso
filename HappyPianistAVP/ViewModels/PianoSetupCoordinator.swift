@@ -4,7 +4,21 @@ import Observation
 @Observable
 final class PianoSetupCoordinator {
     let practiceSetupState: PracticeSetupState
-    let pianoModeRegistry: PianoModeRegistryProtocol
+    private let pianoModeRegistry: PianoModeRegistryProtocol
+
+    var modes: [any PianoModeProtocol] {
+        pianoModeRegistry.modes
+    }
+
+    var selectedMode: (any PianoModeProtocol)? {
+        pianoModeRegistry.mode(for: practiceSetupState.selectedPianoModeID)
+    }
+
+    var isSetupReady: Bool {
+        selectedMode?.isSetupReady(
+            context: PianoModeReadinessContext(practiceSetupState: practiceSetupState)
+        ) ?? false
+    }
 
     init(practiceSetupState: PracticeSetupState, pianoModeRegistry: PianoModeRegistryProtocol) {
         self.practiceSetupState = practiceSetupState

@@ -51,3 +51,32 @@ func resetPianoSetupClearsPracticeSetupState() {
     #expect(practiceSetupState.importedFile == nil)
     #expect(practiceSetupState.importErrorMessage == nil)
 }
+
+@Test
+@MainActor
+func setupReadinessUsesOnlySelectedModeRequirements() {
+    let state = PracticeSetupState()
+    let coordinator = PianoSetupCoordinator(
+        practiceSetupState: state,
+        pianoModeRegistry: PianoModeRegistryService(
+            modes: PianoModeCatalogService.makeDefaultModes()
+        )
+    )
+
+    #expect(coordinator.isSetupReady == false)
+
+    state.selectedPianoModeID = PianoModeID.realAudio.rawValue
+    #expect(coordinator.isSetupReady == false)
+    state.isCalibrationCompleted = true
+    #expect(coordinator.isSetupReady)
+
+    state.selectedPianoModeID = PianoModeID.bluetoothMIDI.rawValue
+    #expect(coordinator.isSetupReady == false)
+    state.bluetoothMIDISourceCount = 1
+    #expect(coordinator.isSetupReady)
+
+    state.selectedPianoModeID = PianoModeID.virtualPiano.rawValue
+    #expect(coordinator.isSetupReady == false)
+    state.isVirtualPianoPlaced = true
+    #expect(coordinator.isSetupReady)
+}

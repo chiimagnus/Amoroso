@@ -28,7 +28,7 @@ struct VirtualPianoPreparationView: View {
                     navigationActions.finishSetup()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canProceedToLibrary)
+                .disabled(!pianoSetupCoordinator.isSetupReady)
             }
 
             Text("放置虚拟钢琴到空间中")
@@ -55,11 +55,5 @@ struct VirtualPianoPreparationView: View {
         .onDisappear {
             viewModel.hideVirtualPiano()
         }
-    }
-
-    private var canProceedToLibrary: Bool {
-        pianoSetupCoordinator.pianoModeRegistry
-            .mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID)?
-            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: pianoSetupCoordinator.practiceSetupState)) ?? false
     }
 }

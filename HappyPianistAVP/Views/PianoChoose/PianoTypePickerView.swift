@@ -10,7 +10,7 @@ struct PianoTypePickerView: View {
                 .bold()
 
             HStack(spacing: 24) {
-                let modes = pianoSetupCoordinator.pianoModeRegistry.modes
+                let modes = pianoSetupCoordinator.modes
                 ForEach(modes.indices, id: \.self) { index in
                     let mode = modes[index]
                     typeCard(mode: mode)

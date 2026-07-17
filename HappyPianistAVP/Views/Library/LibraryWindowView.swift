@@ -27,13 +27,13 @@ struct LibraryWindowRootView: View {
         LibraryContentView(
             songLibraryViewModel: songLibraryViewModel,
             diagnosticsViewModel: diagnosticsViewModel,
-            isPracticeSetupReady: isPracticeSetupReady,
+            isPracticeSetupReady: pianoSetupCoordinator.isSetupReady,
             onChoosePiano: {
                 pianoSetupCoordinator.reset()
                 pushWindow(id: WindowID.preparation)
             },
             onStartPractice: { songID in
-                guard isPracticeSetupReady else { return }
+                guard pianoSetupCoordinator.isSetupReady else { return }
                 practiceLaunchViewModel.request(songID: songID)
                 pushWindow(id: WindowID.practice)
             }
@@ -45,16 +45,6 @@ struct LibraryWindowRootView: View {
         .onAppear {
             songLibraryViewModel.refreshSelectedPracticeSnapshot()
         }
-    }
-
-    private var isPracticeSetupReady: Bool {
-        pianoSetupCoordinator.pianoModeRegistry
-            .mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID)?
-            .canProceedToLibrary(
-                context: PianoModeReadinessContext(
-                    practiceSetupState: pianoSetupCoordinator.practiceSetupState
-                )
-            ) ?? false
     }
 }
 

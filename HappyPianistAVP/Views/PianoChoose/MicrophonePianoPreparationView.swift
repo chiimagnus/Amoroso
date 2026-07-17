@@ -24,7 +24,7 @@ struct RealPianoPreparationView: View {
                     navigationActions.finishSetup()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canProceedToLibrary)
+                .disabled(!pianoSetupCoordinator.isSetupReady)
             }
 
             CalibrationStepView(
@@ -37,11 +37,5 @@ struct RealPianoPreparationView: View {
         .onChange(of: viewModel.calibrationPhase) {
             pianoSetupCoordinator.practiceSetupState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
         }
-    }
-
-    private var canProceedToLibrary: Bool {
-        pianoSetupCoordinator.pianoModeRegistry
-            .mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID)?
-            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: pianoSetupCoordinator.practiceSetupState)) ?? false
     }
 }

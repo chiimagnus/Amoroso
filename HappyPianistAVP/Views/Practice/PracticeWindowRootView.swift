@@ -96,7 +96,6 @@ struct PracticeWindowRootView: View {
             closeImmersive: {
                 await closeImmersivePresentationIfNeeded()
             },
-            recoverImmersive: {},
             abortReturn: launchViewModel.abortReturn,
             finishReturn: { operationID in
                 if discardingUnsavedChanges {
@@ -111,7 +110,7 @@ struct PracticeWindowRootView: View {
                 isReturnSaveFailurePresented = true
             },
             tearDown: arGuideViewModel.completePracticeExit,
-            navigate: {
+            dismissPracticeWindow: {
                 dismissWindow(id: WindowID.practice)
             }
         )
@@ -208,12 +207,11 @@ final class PracticeWindowReturnCoordinator {
         beginReturn: @escaping @MainActor () -> UUID,
         leave: @escaping @MainActor () async -> PracticeProgressSaveStatus,
         closeImmersive: @escaping @MainActor () async -> Void,
-        recoverImmersive: @escaping @MainActor () async -> Void,
         abortReturn: @escaping @MainActor (UUID) -> Void,
         finishReturn: @escaping @MainActor (UUID) async -> PracticeProgressSaveStatus,
         onFailure: @escaping @MainActor () -> Void = {},
         tearDown: @escaping @MainActor () -> Void = {},
-        navigate: @escaping @MainActor () -> Void
+        dismissPracticeWindow: @escaping @MainActor () -> Void
     ) {
         guard operationTask == nil else { return }
         let operationID = beginReturn()
@@ -233,9 +231,8 @@ final class PracticeWindowReturnCoordinator {
                 return
             }
             await closeImmersive()
-            await recoverImmersive()
             tearDown()
-            navigate()
+            dismissPracticeWindow()
         }
     }
 
