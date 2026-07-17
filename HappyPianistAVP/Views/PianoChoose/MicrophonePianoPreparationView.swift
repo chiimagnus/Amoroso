@@ -20,8 +20,8 @@ struct RealPianoPreparationView: View {
 
                 Spacer()
 
-                Button("下一步：去选曲") {
-                    navigationActions.nextToLibrary()
+                Button("完成设置") {
+                    navigationActions.finishSetup()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canProceedToLibrary)

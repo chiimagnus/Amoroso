@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct LibraryWindowRootView: View {
     @Environment(WindowTransitionState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.pushWindow) private var pushWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.scenePhase) private var scenePhase
 
@@ -28,12 +29,13 @@ struct LibraryWindowRootView: View {
         LibraryContentView(
             songLibraryViewModel: songLibraryViewModel,
             diagnosticsViewModel: diagnosticsViewModel,
-            onBackToPreparation: {
-                windowState.resetToPreparation(reason: "user tapped back from library window")
-                windowState.beginTransition(from: .library, to: .preparation)
-                openWindow(id: WindowID.preparation)
+            isPracticeSetupReady: isPracticeSetupReady,
+            onChoosePiano: {
+                windowState.resetToPreparation(reason: "user opened piano preparation from library")
+                pushWindow(id: WindowID.preparation)
             },
             onStartPractice: { songID in
+                guard isPracticeSetupReady else { return }
                 practiceLaunchViewModel.request(songID: songID)
                 windowState.beginTransition(from: .library, to: .practice)
                 openWindow(id: WindowID.practice)
@@ -56,19 +58,31 @@ struct LibraryWindowRootView: View {
             dismissWindow(id: transition.fromWindowID)
         }
     }
+
+    private var isPracticeSetupReady: Bool {
+        windowState.pianoModeRegistry
+            .mode(for: windowState.practiceSetupState.selectedPianoModeID)?
+            .canProceedToLibrary(
+                context: PianoModeReadinessContext(
+                    practiceSetupState: windowState.practiceSetupState
+                )
+            ) ?? false
+    }
 }
 
 struct LibraryContentView: View {
     @Bindable var songLibraryViewModel: SongLibraryViewModel
     @Bindable var diagnosticsViewModel: DiagnosticsViewModel
-    let onBackToPreparation: @MainActor () -> Void
+    let isPracticeSetupReady: Bool
+    let onChoosePiano: @MainActor () -> Void
     let onStartPractice: @MainActor (UUID) -> Void
 
     var body: some View {
         SongLibraryView(
             viewModel: songLibraryViewModel,
             diagnosticsViewModel: diagnosticsViewModel,
-            onBackToPreparation: onBackToPreparation,
+            isPracticeSetupReady: isPracticeSetupReady,
+            onChoosePiano: onChoosePiano,
             onStartPractice: onStartPractice
         )
         .fileImporter(

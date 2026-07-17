@@ -4,14 +4,11 @@ import Observation
 @Observable
 final class WindowTransitionState {
     enum Window: Hashable {
-        case preparation
         case library
         case practice
 
         var id: String {
             switch self {
-            case .preparation:
-                WindowID.preparation
             case .library:
                 WindowID.library
             case .practice:

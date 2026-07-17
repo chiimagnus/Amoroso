@@ -23,9 +23,9 @@ struct VirtualPianoPreparationView: View {
 
                 Spacer()
 
-                Button("下一步：去选曲") {
+                Button("完成设置") {
                     viewModel.hideVirtualPiano()
-                    navigationActions.nextToLibrary()
+                    navigationActions.finishSetup()
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(!canProceedToLibrary)

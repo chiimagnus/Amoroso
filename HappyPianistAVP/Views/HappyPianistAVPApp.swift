@@ -59,20 +59,15 @@ struct HappyPianistAVPApp: App {
     }
 
     var body: some Scene {
-        Window("Preparation", id: WindowID.preparation) {
-            initialWindowRoot
+        Window("Library", id: WindowID.library) {
+            mainWindowRoot
                 .environment(graph.windowState)
         }
         .windowResizability(.contentSize)
 
-        Window("Library", id: WindowID.library) {
-            LibraryWindowRootView(
-                appState: appState,
-                songLibraryViewModel: graph.songLibraryViewModel,
-                practiceLaunchViewModel: graph.practiceLaunchViewModel,
-                diagnosticsViewModel: graph.diagnosticsViewModel
-            )
-            .environment(graph.windowState)
+        Window("Preparation", id: WindowID.preparation) {
+            PreparationWindowRootView(arGuideViewModel: graph.arGuideViewModel)
+                .environment(graph.windowState)
         }
         .windowResizability(.contentSize)
 
@@ -98,16 +93,25 @@ struct HappyPianistAVPApp: App {
     }
 
     @ViewBuilder
-    private var initialWindowRoot: some View {
+    private var mainWindowRoot: some View {
         #if DEBUG
             if let uiCaptureRoute {
                 uiCaptureRoot(for: uiCaptureRoute)
             } else {
-                PreparationWindowRootView(arGuideViewModel: graph.arGuideViewModel)
+                libraryWindowRoot
             }
         #else
-            PreparationWindowRootView(arGuideViewModel: graph.arGuideViewModel)
+            libraryWindowRoot
         #endif
+    }
+
+    private var libraryWindowRoot: some View {
+        LibraryWindowRootView(
+            appState: appState,
+            songLibraryViewModel: graph.songLibraryViewModel,
+            practiceLaunchViewModel: graph.practiceLaunchViewModel,
+            diagnosticsViewModel: graph.diagnosticsViewModel
+        )
     }
 
     #if DEBUG

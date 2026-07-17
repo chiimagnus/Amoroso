@@ -18,23 +18,24 @@
 
 ```mermaid
 flowchart TD
-  A[preparation window] --> B[PianoTypePickerView]
-  B --> C{PianoModeProtocol}
-  C --> D[RealAudioPianoMode]
-  C --> E[BluetoothMIDIPianoMode]
-  C --> F[VirtualPianoMode]
-  D --> G[Calibration]
-  E --> H[Calibration + MIDI Source]
-  F --> I[Virtual Piano Placement]
-  G --> J[PracticeSetupState Ready]
-  H --> J
-  I --> J
-  J --> K[library window]
-  K --> L[practice window]
+  A[library window] -->|左上角选择钢琴 / pushWindow| B[preparation window]
+  B --> C[PianoTypePickerView]
+  C --> D{PianoModeProtocol}
+  D --> E[RealAudioPianoMode]
+  D --> F[BluetoothMIDIPianoMode]
+  D --> G[VirtualPianoMode]
+  E --> H[Calibration]
+  F --> I[Calibration + MIDI Source]
+  G --> J[Virtual Piano Placement]
+  H --> K[PracticeSetupState Ready]
+  I --> K
+  J --> K
+  K -->|dismissWindow| A
+  A --> L[practice window]
   L --> M[mixed ImmersiveSpace]
 ```
 
-`WindowTransitionState` 维护 preparation、library、practice 三个窗口的显式切换事务；目标窗口出现后关闭来源窗口。ARKit provider 只在沉浸空间内启动，并由 `ARTrackingRequirements` 按校准、练习模式和虚拟琴摆放阶段选择 hand、world 与 horizontal-plane provider。练习窗口 scenePhase 进入非 active 时取消正在进行的 preparation 并 flush session，但保留 request；恢复 active 后重新激活同一 request。
+App 启动时直接显示 Library。钢琴准备由 Library 左上角按钮以 `pushWindow` 单层压入；完成后关闭 pushed window 并恢复 Library。`WindowTransitionState` 只维护 library、practice 两个窗口的显式切换事务；目标窗口出现后关闭来源窗口。未满足所选钢琴模式 readiness 时，Library 禁用“开始练习”。ARKit provider 只在沉浸空间内启动，并由 `ARTrackingRequirements` 按校准、练习模式和虚拟琴摆放阶段选择 hand、world 与 horizontal-plane provider。练习窗口 scenePhase 进入非 active 时取消正在进行的 preparation 并 flush session，但保留 request；恢复 active 后重新激活同一 request。
 
 ## MusicXML 导入与准备
 

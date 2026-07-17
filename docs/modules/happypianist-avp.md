@@ -1,6 +1,6 @@
 # Module: HappyPianistAVP
 
-`HappyPianistAVP/` 是 Apple Vision Pro App target，围绕准备、曲库、练习三个窗口和一个 mixed immersive space 组织。
+`HappyPianistAVP/` 是 Apple Vision Pro App target，围绕 Library 主窗口、pushed 钢琴准备窗口、Practice 窗口和一个 mixed immersive space 组织。
 
 ## App 与窗口
 
@@ -10,11 +10,11 @@
 | `HappyPianistAVP/Models/WindowID.swift` | `preparation`、`library`、`practice` window ID。 |
 | `HappyPianistAVP/ViewModels/LiveAppGraph.swift` | live composition root 与共享依赖。 |
 | `HappyPianistAVP/ViewModels/PracticeSetupState.swift` | 准备阶段 readiness 状态。 |
-| `HappyPianistAVP/ViewModels/WindowTransitionState.swift` | 窗口替换 transition。 |
+| `HappyPianistAVP/ViewModels/WindowTransitionState.swift` | Library 与 Practice 的窗口替换 transition。 |
 | `HappyPianistAVP/ViewModels/ARGuide/ARGuideViewModel.swift` | 练习、追踪、沉浸空间、录制与 AI 的总协调器。 |
 | `HappyPianistAVP/ViewModels/PracticeLaunch/PracticeLaunchViewModel.swift` | 唯一的练习启动 request、激活、失败、scene suspend 与 prepared-song 清理 owner。 |
 
-窗口使用系统背景；切换时由 `WindowTransitionState` 记录事务，目标根视图显式关闭来源窗口。曲库主窗口保留唱片浏览、曲名/作曲家、试听控件和唯一“开始练习”按钮，trailing Ornament 只读展示当前曲目的练习事实。
+窗口使用系统背景；App 启动直接进入 Library。曲库左上角按钮通过 `pushWindow` 打开钢琴准备窗口，完成后关闭 pushed window 回到曲库。Library 与 Practice 切换时由 `WindowTransitionState` 记录事务，目标根视图显式关闭来源窗口。曲库主窗口保留唱片浏览、曲名/作曲家、试听控件和唯一“开始练习”按钮，trailing Ornament 只读展示当前曲目的练习事实。
 
 ## 钢琴模式
 
@@ -26,7 +26,7 @@
 | 真实钢琴（蓝牙 MIDI） | 校准完成且至少一个 MIDI source | CoreMIDI MIDI 1.0/2.0。 |
 | 虚拟钢琴 | 虚拟键盘放置完成 | 手部接触虚拟琴键。 |
 
-准备 UI 位于 `HappyPianistAVP/Views/PianoChoose/`。模式差异通过 `PianoModeProtocol` 表达，不在 View 中维护平行的 mode switch。
+准备 UI 位于 `HappyPianistAVP/Views/PianoChoose/`，由曲库左上角入口以单层 `pushWindow` 打开。模式差异通过 `PianoModeProtocol` 表达，不在 View 中维护平行的 mode switch。未完成 readiness 时曲库仍可浏览和导入，但不能进入 Practice。
 
 ## 曲库
 
