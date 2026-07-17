@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct PracticeWindowRootView: View {
-    @Environment(WindowTransitionState.self) private var windowState
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.scenePhase) private var scenePhase
@@ -32,14 +30,10 @@ struct PracticeWindowRootView: View {
         )
         .task(id: launchViewModel.activationIdentity) {
             guard scenePhase == .active else { return }
-            dismissPendingSourceIfNeeded()
             await activateCurrentRequest()
         }
         .onChange(of: scenePhase) {
             handleScenePhaseChange()
-        }
-        .onAppear {
-            dismissPendingSourceIfNeeded()
         }
         .onDisappear {
             closeForSystemDisappear()
@@ -67,19 +61,11 @@ struct PracticeWindowRootView: View {
         }
     }
 
-    private func dismissPendingSourceIfNeeded() {
-        guard let transition = windowState.consumePendingTransition(to: .practice) else { return }
-        withTransaction(\.dismissBehavior, .destructive) {
-            dismissWindow(id: transition.fromWindowID)
-        }
-    }
-
     private func handleScenePhaseChange() {
         let phase = scenePhase
         sceneLifecycleCoordinator.schedule { @MainActor in
             guard returnCoordinator.isReturning == false else { return }
             if phase == .active {
-                dismissPendingSourceIfNeeded()
                 await activateCurrentRequest()
             } else {
                 await launchViewModel.suspendForInactiveScene()
@@ -126,8 +112,7 @@ struct PracticeWindowRootView: View {
             },
             tearDown: arGuideViewModel.completePracticeExit,
             navigate: {
-                windowState.beginTransition(from: .practice, to: .library)
-                openWindow(id: WindowID.library)
+                dismissWindow(id: WindowID.practice)
             }
         )
     }

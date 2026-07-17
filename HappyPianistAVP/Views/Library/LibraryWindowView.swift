@@ -2,10 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LibraryWindowRootView: View {
-    @Environment(WindowTransitionState.self) private var windowState
-    @Environment(\.openWindow) private var openWindow
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
     @Environment(\.pushWindow) private var pushWindow
-    @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.scenePhase) private var scenePhase
 
     @Bindable var appState: AppState
@@ -31,40 +29,30 @@ struct LibraryWindowRootView: View {
             diagnosticsViewModel: diagnosticsViewModel,
             isPracticeSetupReady: isPracticeSetupReady,
             onChoosePiano: {
-                windowState.resetToPreparation(reason: "user opened piano preparation from library")
+                pianoSetupCoordinator.reset()
                 pushWindow(id: WindowID.preparation)
             },
             onStartPractice: { songID in
                 guard isPracticeSetupReady else { return }
                 practiceLaunchViewModel.request(songID: songID)
-                windowState.beginTransition(from: .library, to: .practice)
-                openWindow(id: WindowID.practice)
+                pushWindow(id: WindowID.practice)
             }
         )
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
             songLibraryViewModel.refreshSelectedPracticeSnapshot()
-            dismissPendingSourceIfNeeded()
         }
         .onAppear {
             songLibraryViewModel.refreshSelectedPracticeSnapshot()
-            dismissPendingSourceIfNeeded()
-        }
-    }
-
-    private func dismissPendingSourceIfNeeded() {
-        guard let transition = windowState.consumePendingTransition(to: .library) else { return }
-        withTransaction(\.dismissBehavior, .destructive) {
-            dismissWindow(id: transition.fromWindowID)
         }
     }
 
     private var isPracticeSetupReady: Bool {
-        windowState.pianoModeRegistry
-            .mode(for: windowState.practiceSetupState.selectedPianoModeID)?
+        pianoSetupCoordinator.pianoModeRegistry
+            .mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID)?
             .canProceedToLibrary(
                 context: PianoModeReadinessContext(
-                    practiceSetupState: windowState.practiceSetupState
+                    practiceSetupState: pianoSetupCoordinator.practiceSetupState
                 )
             ) ?? false
     }
@@ -111,5 +99,5 @@ struct LibraryContentView: View {
         practiceLaunchViewModel: graph.practiceLaunchViewModel,
         diagnosticsViewModel: graph.diagnosticsViewModel
     )
-    .environment(graph.windowState)
+    .environment(graph.pianoSetupCoordinator)
 }

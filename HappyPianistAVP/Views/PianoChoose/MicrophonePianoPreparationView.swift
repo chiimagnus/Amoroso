@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct RealPianoPreparationView: View {
-    @Environment(WindowTransitionState.self) private var windowState
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
     @Environment(\.preparationNavigationActions) private var navigationActions
     @Bindable var viewModel: ARGuideViewModel
 
@@ -29,19 +29,19 @@ struct RealPianoPreparationView: View {
 
             CalibrationStepView(
                 viewModel: viewModel,
-                onExit: { windowState.resetToPreparation(reason: "user exited from real preparation") }
+                onExit: { pianoSetupCoordinator.reset() }
             )
         }
         .padding(24)
         .frame(minWidth: 600, idealWidth: 700)
         .onChange(of: viewModel.calibrationPhase) {
-            windowState.practiceSetupState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
+            pianoSetupCoordinator.practiceSetupState.isCalibrationCompleted = (viewModel.calibrationPhase == .completed)
         }
     }
 
     private var canProceedToLibrary: Bool {
-        windowState.pianoModeRegistry
-            .mode(for: windowState.practiceSetupState.selectedPianoModeID)?
-            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: windowState.practiceSetupState)) ?? false
+        pianoSetupCoordinator.pianoModeRegistry
+            .mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID)?
+            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: pianoSetupCoordinator.practiceSetupState)) ?? false
     }
 }

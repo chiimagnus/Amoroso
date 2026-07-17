@@ -61,13 +61,13 @@ struct HappyPianistAVPApp: App {
     var body: some Scene {
         Window("Library", id: WindowID.library) {
             mainWindowRoot
-                .environment(graph.windowState)
+                .environment(graph.pianoSetupCoordinator)
         }
         .windowResizability(.contentSize)
 
         Window("Preparation", id: WindowID.preparation) {
             PreparationWindowRootView(arGuideViewModel: graph.arGuideViewModel)
-                .environment(graph.windowState)
+                .environment(graph.pianoSetupCoordinator)
         }
         .windowResizability(.contentSize)
 
@@ -76,7 +76,6 @@ struct HappyPianistAVPApp: App {
                 arGuideViewModel: graph.arGuideViewModel,
                 launchViewModel: graph.practiceLaunchViewModel
             )
-            .environment(graph.windowState)
         }
         .windowResizability(.contentSize)
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VirtualPianoPreparationView: View {
-    @Environment(WindowTransitionState.self) private var windowState
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
     @Environment(\.preparationNavigationActions) private var navigationActions
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
@@ -50,7 +50,7 @@ struct VirtualPianoPreparationView: View {
             await viewModel.enterVirtualPianoPlacement(openImmersiveSpace: openHandler)
         }
         .onChange(of: viewModel.isVirtualPianoPlaced) {
-            windowState.practiceSetupState.isVirtualPianoPlaced = viewModel.isVirtualPianoPlaced
+            pianoSetupCoordinator.practiceSetupState.isVirtualPianoPlaced = viewModel.isVirtualPianoPlaced
         }
         .onDisappear {
             viewModel.hideVirtualPiano()
@@ -58,8 +58,8 @@ struct VirtualPianoPreparationView: View {
     }
 
     private var canProceedToLibrary: Bool {
-        windowState.pianoModeRegistry
-            .mode(for: windowState.practiceSetupState.selectedPianoModeID)?
-            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: windowState.practiceSetupState)) ?? false
+        pianoSetupCoordinator.pianoModeRegistry
+            .mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID)?
+            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: pianoSetupCoordinator.practiceSetupState)) ?? false
     }
 }

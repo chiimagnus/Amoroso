@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PreparationWindowRootView: View {
     @Bindable var arGuideViewModel: ARGuideViewModel
-    @Environment(WindowTransitionState.self) private var windowState
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @State private var isFinishingSetup = false
@@ -16,13 +16,13 @@ struct PreparationWindowRootView: View {
     var body: some View {
         let actions = PreparationNavigationActions(
             backToTypePicker: {
-                windowState.resetToPreparation(reason: "user tapped back from preparation")
+                pianoSetupCoordinator.reset()
             },
             finishSetup: finishSetup
         )
 
         Group {
-            if let selectedMode = windowState.pianoModeRegistry.mode(for: windowState.practiceSetupState.selectedPianoModeID) {
+            if let selectedMode = pianoSetupCoordinator.pianoModeRegistry.mode(for: pianoSetupCoordinator.practiceSetupState.selectedPianoModeID) {
                 PianoModePreparationRouterView(
                     route: selectedMode.preparationRoute,
                     arGuideViewModel: arGuideViewModel
