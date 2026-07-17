@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VirtualPianoPreparationView: View {
-    @Environment(WindowTransitionState.self) private var windowState
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
     @Environment(\.preparationNavigationActions) private var navigationActions
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
@@ -23,12 +23,12 @@ struct VirtualPianoPreparationView: View {
 
                 Spacer()
 
-                Button("下一步：去选曲") {
+                Button("完成设置") {
                     viewModel.hideVirtualPiano()
-                    navigationActions.nextToLibrary()
+                    navigationActions.finishSetup()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!canProceedToLibrary)
+                .disabled(!pianoSetupCoordinator.isSetupReady)
             }
 
             Text("放置虚拟钢琴到空间中")
@@ -50,16 +50,10 @@ struct VirtualPianoPreparationView: View {
             await viewModel.enterVirtualPianoPlacement(openImmersiveSpace: openHandler)
         }
         .onChange(of: viewModel.isVirtualPianoPlaced) {
-            windowState.practiceSetupState.isVirtualPianoPlaced = viewModel.isVirtualPianoPlaced
+            pianoSetupCoordinator.practiceSetupState.isVirtualPianoPlaced = viewModel.isVirtualPianoPlaced
         }
         .onDisappear {
             viewModel.hideVirtualPiano()
         }
-    }
-
-    private var canProceedToLibrary: Bool {
-        windowState.pianoModeRegistry
-            .mode(for: windowState.practiceSetupState.selectedPianoModeID)?
-            .canProceedToLibrary(context: PianoModeReadinessContext(practiceSetupState: windowState.practiceSetupState)) ?? false
     }
 }

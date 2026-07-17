@@ -2,7 +2,7 @@ import SwiftUI
 
 struct PracticeStepView: View {
     @Bindable var viewModel: ARGuideViewModel
-    let onBackToLibrary: () -> Void
+    let onPracticeFinished: () -> Void
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
 
@@ -53,9 +53,9 @@ struct PracticeStepView: View {
                 PracticeRoundSummaryView(
                     summary: summary,
                     onPrimaryAction: {
-                        if session.perform(summary.nextAction) == false { onBackToLibrary() }
+                        if session.perform(summary.nextAction) == false { onPracticeFinished() }
                     },
-                    onContinue: { onBackToLibrary() }
+                    onContinue: { onPracticeFinished() }
                 )
             }
         }
@@ -126,10 +126,6 @@ struct PracticeStepView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .bottomOrnament) {
-                Button("返回选曲库", systemImage: "chevron.backward") {
-                    onBackToLibrary()
-                }
-
                 if isAutoplayEnabled == false {
                     Button(manualAdvanceMode.nextButtonTitle, systemImage: "forward.fill") {
                         viewModel.skipStep()
@@ -318,6 +314,6 @@ struct PracticeStepView: View {
     )
     PracticeStepView(
         viewModel: viewModel,
-        onBackToLibrary: {}
+        onPracticeFinished: {}
     )
 }

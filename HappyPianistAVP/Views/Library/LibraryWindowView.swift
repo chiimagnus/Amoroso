@@ -2,9 +2,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct LibraryWindowRootView: View {
-    @Environment(WindowTransitionState.self) private var windowState
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
+    @Environment(\.pushWindow) private var pushWindow
     @Environment(\.scenePhase) private var scenePhase
 
     @Bindable var appState: AppState
@@ -28,32 +27,23 @@ struct LibraryWindowRootView: View {
         LibraryContentView(
             songLibraryViewModel: songLibraryViewModel,
             diagnosticsViewModel: diagnosticsViewModel,
-            onBackToPreparation: {
-                windowState.resetToPreparation(reason: "user tapped back from library window")
-                windowState.beginTransition(from: .library, to: .preparation)
-                openWindow(id: WindowID.preparation)
+            isPracticeSetupReady: pianoSetupCoordinator.isSetupReady,
+            onChoosePiano: {
+                pianoSetupCoordinator.reset()
+                pushWindow(id: WindowID.preparation)
             },
             onStartPractice: { songID in
+                guard pianoSetupCoordinator.isSetupReady else { return }
                 practiceLaunchViewModel.request(songID: songID)
-                windowState.beginTransition(from: .library, to: .practice)
-                openWindow(id: WindowID.practice)
+                pushWindow(id: WindowID.practice)
             }
         )
         .onChange(of: scenePhase) {
             guard scenePhase == .active else { return }
             songLibraryViewModel.refreshSelectedPracticeSnapshot()
-            dismissPendingSourceIfNeeded()
         }
         .onAppear {
             songLibraryViewModel.refreshSelectedPracticeSnapshot()
-            dismissPendingSourceIfNeeded()
-        }
-    }
-
-    private func dismissPendingSourceIfNeeded() {
-        guard let transition = windowState.consumePendingTransition(to: .library) else { return }
-        withTransaction(\.dismissBehavior, .destructive) {
-            dismissWindow(id: transition.fromWindowID)
         }
     }
 }
@@ -61,14 +51,16 @@ struct LibraryWindowRootView: View {
 struct LibraryContentView: View {
     @Bindable var songLibraryViewModel: SongLibraryViewModel
     @Bindable var diagnosticsViewModel: DiagnosticsViewModel
-    let onBackToPreparation: @MainActor () -> Void
+    let isPracticeSetupReady: Bool
+    let onChoosePiano: @MainActor () -> Void
     let onStartPractice: @MainActor (UUID) -> Void
 
     var body: some View {
         SongLibraryView(
             viewModel: songLibraryViewModel,
             diagnosticsViewModel: diagnosticsViewModel,
-            onBackToPreparation: onBackToPreparation,
+            isPracticeSetupReady: isPracticeSetupReady,
+            onChoosePiano: onChoosePiano,
             onStartPractice: onStartPractice
         )
         .fileImporter(
@@ -97,5 +89,5 @@ struct LibraryContentView: View {
         practiceLaunchViewModel: graph.practiceLaunchViewModel,
         diagnosticsViewModel: graph.diagnosticsViewModel
     )
-    .environment(graph.windowState)
+    .environment(graph.pianoSetupCoordinator)
 }

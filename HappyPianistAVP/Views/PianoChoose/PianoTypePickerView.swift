@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PianoTypePickerView: View {
-    @Environment(WindowTransitionState.self) private var windowState
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
 
     var body: some View {
         VStack(spacing: 32) {
@@ -10,7 +10,7 @@ struct PianoTypePickerView: View {
                 .bold()
 
             HStack(spacing: 24) {
-                let modes = windowState.pianoModeRegistry.modes
+                let modes = pianoSetupCoordinator.modes
                 ForEach(modes.indices, id: \.self) { index in
                     let mode = modes[index]
                     typeCard(mode: mode)
@@ -22,7 +22,7 @@ struct PianoTypePickerView: View {
 
     private func typeCard(mode: any PianoModeProtocol) -> some View {
         Button {
-            windowState.practiceSetupState.selectedPianoModeID = mode.id
+            pianoSetupCoordinator.practiceSetupState.selectedPianoModeID = mode.id
         } label: {
             let card = mode.pickerCard
             VStack(spacing: 16) {
@@ -45,8 +45,8 @@ struct PianoTypePickerView: View {
 #Preview("Piano Type Picker") {
     let pianoModeRegistry: PianoModeRegistryProtocol = PianoModeRegistryService(modes: [])
     let practiceSetupState = PracticeSetupState()
-    let windowState = WindowTransitionState(practiceSetupState: practiceSetupState, pianoModeRegistry: pianoModeRegistry)
+    let pianoSetupCoordinator = PianoSetupCoordinator(practiceSetupState: practiceSetupState, pianoModeRegistry: pianoModeRegistry)
 
     return PianoTypePickerView()
-        .environment(windowState)
+        .environment(pianoSetupCoordinator)
 }

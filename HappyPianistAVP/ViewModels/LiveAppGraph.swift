@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 struct LiveAppGraph {
     let appState: AppState
-    let windowState: WindowTransitionState
+    let pianoSetupCoordinator: PianoSetupCoordinator
     let arGuideViewModel: ARGuideViewModel
     let songLibraryViewModel: SongLibraryViewModel
     let practiceLaunchViewModel: PracticeLaunchViewModel
@@ -207,7 +207,7 @@ struct LiveAppGraph {
             progressRecovery: progressRepository,
             sessionRecorder: practiceSessionRecorder
         )
-        let windowState = WindowTransitionState(
+        let pianoSetupCoordinator = PianoSetupCoordinator(
             practiceSetupState: appState.practiceSetupState,
             pianoModeRegistry: registry
         )
@@ -232,7 +232,7 @@ struct LiveAppGraph {
 
         return LiveAppGraph(
             appState: appState,
-            windowState: windowState,
+            pianoSetupCoordinator: pianoSetupCoordinator,
             arGuideViewModel: arGuideViewModel,
             songLibraryViewModel: songLibraryViewModel,
             practiceLaunchViewModel: practiceLaunchViewModel,

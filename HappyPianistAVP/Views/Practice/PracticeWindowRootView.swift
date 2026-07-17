@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct PracticeWindowRootView: View {
-    @Environment(WindowTransitionState.self) private var windowState
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.scenePhase) private var scenePhase
@@ -32,14 +30,10 @@ struct PracticeWindowRootView: View {
         )
         .task(id: launchViewModel.activationIdentity) {
             guard scenePhase == .active else { return }
-            dismissPendingSourceIfNeeded()
             await activateCurrentRequest()
         }
         .onChange(of: scenePhase) {
             handleScenePhaseChange()
-        }
-        .onAppear {
-            dismissPendingSourceIfNeeded()
         }
         .onDisappear {
             closeForSystemDisappear()
@@ -67,19 +61,11 @@ struct PracticeWindowRootView: View {
         }
     }
 
-    private func dismissPendingSourceIfNeeded() {
-        guard let transition = windowState.consumePendingTransition(to: .practice) else { return }
-        withTransaction(\.dismissBehavior, .destructive) {
-            dismissWindow(id: transition.fromWindowID)
-        }
-    }
-
     private func handleScenePhaseChange() {
         let phase = scenePhase
         sceneLifecycleCoordinator.schedule { @MainActor in
             guard returnCoordinator.isReturning == false else { return }
             if phase == .active {
-                dismissPendingSourceIfNeeded()
                 await activateCurrentRequest()
             } else {
                 await launchViewModel.suspendForInactiveScene()
@@ -110,7 +96,6 @@ struct PracticeWindowRootView: View {
             closeImmersive: {
                 await closeImmersivePresentationIfNeeded()
             },
-            recoverImmersive: {},
             abortReturn: launchViewModel.abortReturn,
             finishReturn: { operationID in
                 if discardingUnsavedChanges {
@@ -125,9 +110,8 @@ struct PracticeWindowRootView: View {
                 isReturnSaveFailurePresented = true
             },
             tearDown: arGuideViewModel.completePracticeExit,
-            navigate: {
-                windowState.beginTransition(from: .practice, to: .library)
-                openWindow(id: WindowID.library)
+            dismissPracticeWindow: {
+                dismissWindow(id: WindowID.practice)
             }
         )
     }
@@ -223,12 +207,11 @@ final class PracticeWindowReturnCoordinator {
         beginReturn: @escaping @MainActor () -> UUID,
         leave: @escaping @MainActor () async -> PracticeProgressSaveStatus,
         closeImmersive: @escaping @MainActor () async -> Void,
-        recoverImmersive: @escaping @MainActor () async -> Void,
         abortReturn: @escaping @MainActor (UUID) -> Void,
         finishReturn: @escaping @MainActor (UUID) async -> PracticeProgressSaveStatus,
         onFailure: @escaping @MainActor () -> Void = {},
         tearDown: @escaping @MainActor () -> Void = {},
-        navigate: @escaping @MainActor () -> Void
+        dismissPracticeWindow: @escaping @MainActor () -> Void
     ) {
         guard operationTask == nil else { return }
         let operationID = beginReturn()
@@ -248,9 +231,8 @@ final class PracticeWindowReturnCoordinator {
                 return
             }
             await closeImmersive()
-            await recoverImmersive()
             tearDown()
-            navigate()
+            dismissPracticeWindow()
         }
     }
 

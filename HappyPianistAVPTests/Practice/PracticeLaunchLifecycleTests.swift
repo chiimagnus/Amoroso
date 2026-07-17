@@ -21,7 +21,6 @@ func duplicatePracticeDisappearAndReturnIntentsRunOneOrderedTeardown() async {
                 return .saved
             },
             closeImmersive: { calls.append("close") },
-            recoverImmersive: { calls.append("recover") },
             abortReturn: { _ in calls.append("abort") },
             finishReturn: { receivedID in
                 #expect(receivedID == operationID)
@@ -29,17 +28,17 @@ func duplicatePracticeDisappearAndReturnIntentsRunOneOrderedTeardown() async {
                 return .saved
             },
             tearDown: { calls.append("teardown") },
-            navigate: { calls.append("navigate") }
+            dismissPracticeWindow: { calls.append("dismiss") }
         )
     }
     await coordinator.waitForCompletion()
 
-    #expect(calls == ["begin", "leave", "finish", "close", "recover", "teardown", "navigate"])
+    #expect(calls == ["begin", "leave", "finish", "close", "teardown", "dismiss"])
 }
 
 @MainActor
 @Test
-func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() async {
+func failedProgressSaveAbortsReturnWithoutClosingOrDismissingAndAllowsRetry() async {
     let coordinator = PracticeWindowReturnCoordinator()
     var calls: [String] = []
     var shouldFail = true
@@ -56,7 +55,6 @@ func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() as
                 return .saved
             },
             closeImmersive: { calls.append("close") },
-            recoverImmersive: { calls.append("recover") },
             abortReturn: { _ in calls.append("abort") },
             finishReturn: { _ in
                 calls.append("finish")
@@ -64,7 +62,7 @@ func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() as
             },
             onFailure: { calls.append("failure") },
             tearDown: { calls.append("teardown") },
-            navigate: { calls.append("navigate") }
+            dismissPracticeWindow: { calls.append("dismiss") }
         )
     }
 
@@ -78,7 +76,7 @@ func failedProgressSaveAbortsReturnWithoutClosingOrNavigatingAndAllowsRetry() as
     await coordinator.waitForCompletion()
     #expect(calls == [
         "begin", "leave", "abort", "failure",
-        "begin", "leave", "finish", "close", "recover", "teardown", "navigate",
+        "begin", "leave", "finish", "close", "teardown", "dismiss",
     ])
 }
 
@@ -98,7 +96,6 @@ func failedFinalizationKeepsRuntimeOpenAndSkipsImmersiveClose() async {
             return .saved
         },
         closeImmersive: { calls.append("close") },
-        recoverImmersive: { calls.append("recover") },
         abortReturn: { _ in calls.append("abort") },
         finishReturn: { _ in
             calls.append("finish")
@@ -106,7 +103,7 @@ func failedFinalizationKeepsRuntimeOpenAndSkipsImmersiveClose() async {
         },
         onFailure: { calls.append("failure") },
         tearDown: { calls.append("teardown") },
-        navigate: { calls.append("navigate") }
+        dismissPracticeWindow: { calls.append("dismiss") }
     )
     await coordinator.waitForCompletion()
 
@@ -116,7 +113,7 @@ func failedFinalizationKeepsRuntimeOpenAndSkipsImmersiveClose() async {
 
 @MainActor
 @Test
-func systemDisappearRunsBestEffortCloseOnceWithoutReturnNavigation() async {
+func systemDisappearRunsBestEffortCloseOnceWithoutReturnDismissal() async {
     let coordinator = PracticeSystemCloseCoordinator()
     var calls: [String] = []
 

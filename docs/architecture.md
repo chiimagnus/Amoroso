@@ -26,7 +26,7 @@ flowchart LR
 
 | 单元 | 位置 | 核心职责 |
 | --- | --- | --- |
-| visionOS App | `HappyPianistAVP/` | 三窗口流程、沉浸空间、曲库、练习、录制与 AI 对弹。 |
+| visionOS App | `HappyPianistAVP/` | Library 主窗口、由 Library 单层 push 的钢琴准备 / Practice 窗口、沉浸空间、录制与 AI 对弹。 |
 | visionOS Tests | `HappyPianistAVPTests/` | 业务逻辑和 Apple target 集成测试。 |
 | RealityKit 内容包 | `Packages/RealityKitContent/` | Reality Composer Pro 资产和 bundle。 |
 | Python 服务（可选） | `python_backend/` | Aria v2 推理、Bonjour、HTTP/WS 与 smoketest。 |
@@ -37,7 +37,7 @@ flowchart LR
 flowchart TD
   APP[HappyPianistAVPApp] --> STATE[AppState]
   STATE --> SETUP[PracticeSetupState]
-  STATE --> WINDOW[WindowTransitionState]
+  STATE --> SETUPCOORD[PianoSetupCoordinator]
   STATE --> LIBRARY[SongLibraryViewModel]
   STATE --> LAUNCH[PracticeLaunchViewModel]
   STATE --> ARGUIDE[ARGuideViewModel]
@@ -88,12 +88,12 @@ flowchart TD
 
 `HappyPianistAVPApp` 声明：
 
-- `preparation` window
 - `library` window
+- `preparation` window
 - `practice` window
 - mixed `ImmersiveSpace`
 
-`WindowTransitionState` 记录显式窗口切换事务，由目标根视图消费并关闭来源窗口。`PracticeLaunchViewModel` 是曲谱准备 request、激活、失败、恢复与 prepared-song 清理的唯一 owner；`PracticeWindowRootView` 是练习 leave、immersive close/recover 与返回曲库的唯一 owner。`ARGuideViewModel` 协调沉浸空间、追踪、练习 session、录制与 AI 服务。`ARTrackingRequirements` 从当前流程推导最小 provider 集合；后台或退出沉浸空间时统一暂停追踪、输入消费者和 RealityKit 长生命周期任务，恢复 active 后按当前 request 重建。
+`library` 是启动时主窗口。左上角“选择钢琴”使用 `pushWindow` 打开 `preparation`，“开始练习”使用 `pushWindow` 打开 `practice`；两个 pushed window 都通过 `dismissWindow` 恢复原 Library，因此无需维护来源、目标或待处理窗口切换状态。`PianoSetupCoordinator` 只持有钢琴模式 registry、readiness 状态与重置行为。`PracticeLaunchViewModel` 是曲谱准备 request、激活、失败、恢复与 prepared-song 清理的唯一 owner；`PracticeWindowRootView` 是练习 leave、immersive close/recover 与返回曲库的唯一 owner。`ARGuideViewModel` 协调沉浸空间、追踪、练习 session、录制与 AI 服务。`ARTrackingRequirements` 从当前流程推导最小 provider 集合；后台或退出沉浸空间时统一暂停追踪、输入消费者和 RealityKit 长生命周期任务，恢复 active 后按当前 request 重建。
 
 ## 主要领域边界
 

@@ -35,7 +35,7 @@ struct PianoModeDescriptor: Equatable {
 
 protocol PianoModeProtocol {
     var descriptor: PianoModeDescriptor { get }
-    func canProceedToLibrary(context: PianoModeReadinessContext) -> Bool
+    func isSetupReady(context: PianoModeReadinessContext) -> Bool
 }
 
 extension PianoModeProtocol {

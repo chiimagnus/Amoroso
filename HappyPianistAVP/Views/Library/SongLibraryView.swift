@@ -4,7 +4,8 @@ import UniformTypeIdentifiers
 struct SongLibraryView: View {
     @Bindable var viewModel: SongLibraryViewModel
     @Bindable var diagnosticsViewModel: DiagnosticsViewModel
-    let onBackToPreparation: @MainActor () -> Void
+    let isPracticeSetupReady: Bool
+    let onChoosePiano: @MainActor () -> Void
     let onStartPractice: @MainActor (UUID) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -42,7 +43,7 @@ struct SongLibraryView: View {
 
         VStack(spacing: 0) {
             LibraryTopBarView(
-                onBack: onBackToPreparation,
+                onChoosePiano: onChoosePiano,
                 onDiagnostics: { isDiagnosticsPresented = true }
             )
 
@@ -93,12 +94,8 @@ struct SongLibraryView: View {
                         viewModel.startPractice(entryID: selectedEntry.id, perform: onStartPractice)
                     }
                     .buttonStyle(.borderedProminent)
-                    .disabled(viewModel.importState.isActive)
-                    .accessibilityHint(
-                        viewModel.importState.isActive
-                            ? "曲谱导入完成或取消后才能开始练习"
-                            : "在练习窗口中准备并打开当前曲目"
-                    )
+                    .disabled(viewModel.importState.isActive || !isPracticeSetupReady)
+                    .accessibilityHint(startPracticeAccessibilityHint)
                     .padding()
                 }
             }
@@ -234,6 +231,16 @@ struct SongLibraryView: View {
         } message: {
             Text(importConflictPresentation?.message ?? "曲谱冲突状态已变化。")
         }
+    }
+
+    private var startPracticeAccessibilityHint: String {
+        if viewModel.importState.isActive {
+            return "曲谱导入完成或取消后才能开始练习"
+        }
+        if isPracticeSetupReady == false {
+            return "请先使用左上角的选择钢琴按钮完成设置"
+        }
+        return "在练习窗口中准备并打开当前曲目"
     }
 
     private func resolvedDuration(
@@ -415,7 +422,8 @@ private struct LibraryImportStatusView: View {
     SongLibraryView(
         viewModel: graph.songLibraryViewModel,
         diagnosticsViewModel: graph.diagnosticsViewModel,
-        onBackToPreparation: {},
+        isPracticeSetupReady: true,
+        onChoosePiano: {},
         onStartPractice: { _ in }
     )
 }
@@ -452,12 +460,12 @@ struct SongLibraryImportConflictPresentation {
 }
 
 private struct LibraryTopBarView: View {
-    let onBack: () -> Void
+    let onChoosePiano: () -> Void
     let onDiagnostics: () -> Void
 
     var body: some View {
         HStack {
-            Button("重新选择钢琴", action: onBack)
+            Button("选择钢琴", systemImage: "pianokeys", action: onChoosePiano)
 
             Spacer()
 

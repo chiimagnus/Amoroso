@@ -31,7 +31,7 @@ struct PracticeLaunchContainerView: View {
                 case .ready:
                     PracticeStepView(
                         viewModel: arGuideViewModel,
-                        onBackToLibrary: onReturn
+                        onPracticeFinished: onReturn
                     )
                     .overlay(alignment: .top) {
                         if let failure = launchViewModel.progressAccessFailure {

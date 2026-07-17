@@ -35,7 +35,7 @@ struct BluetoothMIDIPianoMode: PianoModeProtocol {
         recordingSourceText: "录制来源：Bluetooth MIDI（弹奏琴键即可录制）"
     )
 
-    func canProceedToLibrary(context: PianoModeReadinessContext) -> Bool {
+    func isSetupReady(context: PianoModeReadinessContext) -> Bool {
         context.isCalibrationCompleted && context.bluetoothMIDISourceCount > 0
     }
 }
@@ -54,7 +54,7 @@ struct RealAudioPianoMode: PianoModeProtocol {
         recordingSourceText: "录制来源：手势触键（用于推断按键接触）"
     )
 
-    func canProceedToLibrary(context: PianoModeReadinessContext) -> Bool {
+    func isSetupReady(context: PianoModeReadinessContext) -> Bool {
         context.isCalibrationCompleted
     }
 }
@@ -73,7 +73,7 @@ struct VirtualPianoMode: PianoModeProtocol {
         recordingSourceText: "录制来源：虚拟钢琴触键"
     )
 
-    func canProceedToLibrary(context: PianoModeReadinessContext) -> Bool {
+    func isSetupReady(context: PianoModeReadinessContext) -> Bool {
         context.isVirtualPianoPlaced
     }
 }

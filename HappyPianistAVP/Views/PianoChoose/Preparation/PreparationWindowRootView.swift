@@ -2,11 +2,10 @@ import SwiftUI
 
 struct PreparationWindowRootView: View {
     @Bindable var arGuideViewModel: ARGuideViewModel
-    @Environment(WindowTransitionState.self) private var windowState
-    @Environment(\.openWindow) private var openWindow
+    @Environment(PianoSetupCoordinator.self) private var pianoSetupCoordinator
     @Environment(\.dismissWindow) private var dismissWindow
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
-    @Environment(\.scenePhase) private var scenePhase
+    @State private var isFinishingSetup = false
 
     init(
         arGuideViewModel: ARGuideViewModel
@@ -17,24 +16,13 @@ struct PreparationWindowRootView: View {
     var body: some View {
         let actions = PreparationNavigationActions(
             backToTypePicker: {
-                windowState.resetToPreparation(reason: "user tapped back from preparation")
+                pianoSetupCoordinator.reset()
             },
-            nextToLibrary: {
-                guard windowState.pendingTransition == nil else { return }
-                windowState.beginTransition(from: .preparation, to: .library)
-                Task { @MainActor in
-                    let dismissHandler = makePracticeImmersiveDismissHandler(dismissImmersiveSpace)
-                    await arGuideViewModel.closeImmersiveForStep(
-                        dismissImmersiveSpace: dismissHandler
-                    )
-                    await arGuideViewModel.recoverImmersiveStateIfStuck()
-                    openWindow(id: WindowID.library)
-                }
-            }
+            finishSetup: finishSetup
         )
 
         Group {
-            if let selectedMode = windowState.pianoModeRegistry.mode(for: windowState.practiceSetupState.selectedPianoModeID) {
+            if let selectedMode = pianoSetupCoordinator.selectedMode {
                 PianoModePreparationRouterView(
                     route: selectedMode.preparationRoute,
                     arGuideViewModel: arGuideViewModel
@@ -44,19 +32,20 @@ struct PreparationWindowRootView: View {
             }
         }
         .environment(\.preparationNavigationActions, actions)
-        .onChange(of: scenePhase) {
-            guard scenePhase == .active else { return }
-            dismissPendingSourceIfNeeded()
-        }
-        .onAppear {
-            dismissPendingSourceIfNeeded()
-        }
+        .disabled(isFinishingSetup)
     }
 
-    private func dismissPendingSourceIfNeeded() {
-        guard let transition = windowState.consumePendingTransition(to: .preparation) else { return }
-        withTransaction(\.dismissBehavior, .destructive) {
-            dismissWindow(id: transition.fromWindowID)
+    private func finishSetup() {
+        guard isFinishingSetup == false else { return }
+        isFinishingSetup = true
+
+        Task { @MainActor in
+            let dismissHandler = makePracticeImmersiveDismissHandler(dismissImmersiveSpace)
+            await arGuideViewModel.closeImmersiveForStep(
+                dismissImmersiveSpace: dismissHandler
+            )
+            await arGuideViewModel.recoverImmersiveStateIfStuck()
+            dismissWindow(id: WindowID.preparation)
         }
     }
 }
