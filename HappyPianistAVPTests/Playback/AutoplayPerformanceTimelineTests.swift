@@ -269,3 +269,20 @@ private func makeTimelineNote(midi: Int, velocity: UInt8, onTick: Int, offTick: 
         fingeringText: nil
     )
 }
+
+@Test
+func autoplayPerformanceSnapshotPreservesSortedEventPositions() {
+    let timeline = AutoplayPerformanceTimeline(events: [
+        .init(id: 0, tick: 0, kind: .noteOn(midi: 60, velocity: 72)),
+        .init(id: 1, tick: 480, kind: .noteOff(midi: 60)),
+    ])
+
+    let snapshot = PerformanceEventSnapshot().encode(timeline)
+    expectSnapshot(
+        snapshot,
+        equals: """
+        position=0|eventID=0|sourceEventID=unresolved|tick=0|kind=noteOn:60:72
+        position=1|eventID=1|sourceEventID=unresolved|tick=480|kind=noteOff:60
+        """
+    )
+}
