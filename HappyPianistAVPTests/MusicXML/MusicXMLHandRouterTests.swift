@@ -104,3 +104,19 @@ private func note(sourceOrdinal: Int, midiNote: Int, staff: Int = 1) -> MusicXML
         dotCount: 0
     )
 }
+
+@Test
+func crossStaffGoldenFixtureKeepsStaffAndVoiceFactsWithoutInventingHands() throws {
+    let fixture = try PianoPerformanceFixtureLoader().fixture(id: "cross-staff-hand-assignment")
+    let score = try MusicXMLParser().parse(fileURL: fixture.url)
+    let before = score.notes.map { ($0.sourceID, $0.staff, $0.voice, $0.midiNote) }
+
+    let result = MusicXMLHandRouter().assignments(for: score)
+
+    #expect(result.assignmentsBySourceNoteID.isEmpty)
+    #expect(score.notes.map { ($0.sourceID, $0.staff, $0.voice, $0.midiNote) }.elementsEqual(before, by: ==))
+    #expect(score.notes.map(\.staff) == [1, 2, 1, 2])
+    #expect(score.notes.map(\.voice) == [1, 2, 3, 4])
+    #expect(score.notes.compactMap(\.sourceID).count == 4)
+    #expect(Set(score.notes.compactMap(\.sourceID)).count == 4)
+}

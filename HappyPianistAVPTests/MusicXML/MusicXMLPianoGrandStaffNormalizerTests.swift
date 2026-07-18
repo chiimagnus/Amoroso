@@ -77,3 +77,49 @@ func normalizerDoesNotMergeIndependentTrebleAndBassInstruments() throws {
 private extension Collection {
     var only: Element? { count == 1 ? first : nil }
 }
+
+@Test
+func goldenFixtureDoesNotClassifyIndependentInstrumentsAsOnePiano() throws {
+    let fixture = try PianoPerformanceFixtureLoader().fixture(id: "two-instrument-not-piano")
+    let parsed = try MusicXMLParser().parse(fileURL: fixture.url)
+    let normalized = MusicXMLPianoGrandStaffNormalizer().normalize(score: parsed)
+
+    #expect(normalized.logicalInstruments.count == 2)
+    #expect(Set(normalized.logicalInstruments.flatMap(\.memberPartIDs)) == ["FL", "VC"])
+    #expect(normalized.logicalInstruments.allSatisfy { $0.classification == .other })
+    #expect(Set(normalized.notes.map(\.partID)) == ["FL", "VC"])
+    #expect(Set(normalized.measures.map(\.partID)) == ["FL", "VC"])
+}
+
+@Test
+func splitPianoGoldenFixturePreservesAllPartsAndPerformedOccurrences() throws {
+    let fixture = try PianoPerformanceFixtureLoader().fixture(id: "split-part-grand-staff-piano")
+    let parsed = try MusicXMLParser().parse(fileURL: fixture.url)
+    let normalized = MusicXMLPianoGrandStaffNormalizer().normalize(score: parsed)
+    let piano = try #require(normalized.logicalInstruments.only)
+    let source = normalized.filtering(toLogicalInstrument: piano)
+
+    #expect(piano.classification == .piano)
+    #expect(piano.memberPartIDs == ["LH", "RH"])
+    #expect(Set(source.notes.map(\.partID)) == ["LH", "RH"])
+    #expect(Set(source.measures.map(\.partID)) == ["LH", "RH"])
+    #expect(source.dynamicEvents.map(\.scope.partID) == ["LH"])
+    #expect(Set(source.pedalEvents.map(\.partID)) == ["LH"])
+    #expect(source.tempoEvents.map(\.scope.partID) == ["RH"])
+    #expect(source.repeatDirectives.map(\.partID) == ["RH", "RH"])
+
+    let performed = MusicXMLStructureExpander().expandStructureIfPossible(
+        score: source,
+        primaryPartID: "RH",
+        includedPartIDs: Set(piano.memberPartIDs)
+    )
+
+    #expect(performed.notes.compactMap(\.midiNote) == [48, 72, 43, 74, 48, 72, 43, 74])
+    #expect(Set(performed.notes.map(\.partID)) == ["LH", "RH"])
+    #expect(Set(performed.notes.compactMap(\.performedID)).count == performed.notes.count)
+    #expect(Set(performed.notes.compactMap(\.sourceID)).count == 4)
+    #expect(performed.dynamicEvents.count == 2)
+    #expect(performed.pedalEvents.count == 4)
+    #expect(performed.tempoEvents.count == 2)
+    #expect(performed.measures.map(\.occurrenceIndex) == [0, 1, 2, 3])
+}
