@@ -195,7 +195,7 @@ extension MusicXMLParserDelegate {
             state.noteAttackTicks = parseNotePerformanceOffsetTicks(attributeDict["attack"])
             state.noteReleaseTicks = parseNotePerformanceOffsetTicks(attributeDict["release"])
             state.noteDynamicsOverrideVelocity = nil
-            state.noteDynamicsOverrideVelocity = parseMIDIVelocity(attributeDict["dynamics"])
+            state.noteDynamicsOverrideVelocity = parseMusicXMLDynamicsVelocity(attributeDict["dynamics"])
             state.isInNoteArticulations = false
             state.noteArticulations = []
             state.noteHasFermata = false

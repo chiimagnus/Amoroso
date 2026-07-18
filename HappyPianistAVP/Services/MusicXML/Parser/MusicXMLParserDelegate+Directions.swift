@@ -1,15 +1,16 @@
 import Foundation
 
 extension MusicXMLParserDelegate {
-    func parseMIDIVelocity(_ raw: String?) -> UInt8? {
+    func parseMusicXMLDynamicsVelocity(_ raw: String?) -> UInt8? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
               raw.isEmpty == false,
-              let value = Int(raw)
+              let percent = Double(raw),
+              percent.isFinite
         else {
             return nil
         }
-        let clamped = min(127, max(0, value))
-        return UInt8(clamped)
+        let velocity = (percent * 90 / 100).rounded(.toNearestOrAwayFromZero)
+        return UInt8(min(127, max(0, Int(velocity))))
     }
 
     func velocityForDynamicsMark(_ markElementName: String) -> UInt8? {
@@ -55,7 +56,7 @@ extension MusicXMLParserDelegate {
     }
 
     func recordSoundDynamicsAttributeIfPresent(attributes: [String: String]) {
-        guard let velocity = parseMIDIVelocity(attributes["dynamics"]) else { return }
+        guard let velocity = parseMusicXMLDynamicsVelocity(attributes["dynamics"]) else { return }
 
         let tick: Int = if state.isInDirection {
             currentDirectionEventTick()
