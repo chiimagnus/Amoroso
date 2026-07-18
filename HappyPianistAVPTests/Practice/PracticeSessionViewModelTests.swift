@@ -659,6 +659,17 @@ func autoplayInsertsFermataHoldBeforeAdvancingWhenTimelineProvided() {
             ),
         ]
     )
+    let highlightedNote = PianoHighlightNote(
+        occurrenceID: "fermata-60-0-480",
+        midiNote: 60,
+        staff: 1,
+        voice: 1,
+        velocity: 96,
+        onTick: 0,
+        offTick: 480,
+        fingeringText: nil,
+        handAssignment: .unknown
+    )
     let guides = [
         PianoHighlightGuide(
             id: 1,
@@ -666,8 +677,8 @@ func autoplayInsertsFermataHoldBeforeAdvancingWhenTimelineProvided() {
             tick: 0,
             durationTicks: nil,
             practiceStepIndex: 0,
-            activeNotes: [],
-            triggeredNotes: [],
+            activeNotes: [highlightedNote],
+            triggeredNotes: [highlightedNote],
             releasedMIDINotes: []
         ),
         PianoHighlightGuide(
