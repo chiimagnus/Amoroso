@@ -139,7 +139,6 @@ func makeTestScorePerformancePlan(
         tempoMap: tempoMap,
         pedalTimeline: pedalTimeline,
         tempoAnnotations: wordsSemantics?.tempoAnnotations ?? [],
-        fermataEvents: score.fermataEvents,
         fermataTimeline: fermataTimeline
     )
 }

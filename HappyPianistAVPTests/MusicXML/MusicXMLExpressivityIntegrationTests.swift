@@ -187,7 +187,6 @@ func performancePlanKeepsTempoControllersAndAnnotationsInCanonicalTickDomain() t
         tempoMap: tempoMap,
         pedalTimeline: pedalTimeline,
         tempoAnnotations: words.tempoAnnotations,
-        fermataEvents: score.fermataEvents,
         fermataTimeline: fermataTimeline
     )
 
@@ -203,6 +202,78 @@ func performancePlanKeepsTempoControllersAndAnnotationsInCanonicalTickDomain() t
     #expect(plan.annotations.contains {
         $0.kind == .tempoWord && $0.tick == 480 && $0.performedOccurrenceIndex == 2
     })
+}
+
+@Test
+func fermataAcrossVoicesAndStaffsAddsOneTotalHold() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions><staves>2</staves></attributes>
+        <note>
+          <pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff>
+          <notations><fermata/></notations>
+        </note>
+        <note>
+          <chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>2</voice><staff>2</staff>
+          <notations><fermata/></notations>
+        </note>
+        <note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff></note>
+      </measure></part>
+    </score-partwise>
+    """
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let expressivity = MusicXMLExpressivityOptions(
+        fermataEnabled: true,
+        arpeggiateEnabled: false,
+        wordsSemanticsEnabled: false
+    )
+    let schedule = ScoreTimingScheduleBuilder().build(notes: score.notes)
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let fermataAnnotations = plan.annotations.filter { $0.kind == .pause && $0.text == "fermata" }
+
+    #expect(schedule.entries.prefix(2).map(\.performedOffTick) == [480, 480])
+    #expect(fermataAnnotations.count == 1)
+    #expect(fermataAnnotations.first?.tick == 480)
+    #expect(fermataAnnotations.first?.durationTicks == 240)
+    #expect(fermataAnnotations.first?.provenance.count == 2)
+
+    let tempoMap = MusicXMLTempoMap(tempoEvents: [
+        MusicXMLTempoEvent(
+            tick: 0,
+            quarterBPM: 120,
+            scope: MusicXMLEventScope(partID: "P1", staff: nil, voice: nil)
+        ),
+    ])
+    let timeline = AutoplayPerformanceTimeline.build(
+        plan: plan,
+        guideProjection: [],
+        stepProjection: [],
+        tempoMap: tempoMap,
+        practiceHandMode: .both
+    )
+    let pauseEvents = timeline.events.filter {
+        if case .pauseSeconds = $0.kind { return true }
+        return false
+    }
+    let playbackEvents = PracticeSequencerSequenceBuilder().buildPerformanceEventSchedule(
+        timeline: timeline,
+        tempoMap: tempoMap,
+        startTick: 0
+    )
+    let chordNoteOffTimes = playbackEvents.compactMap { event -> TimeInterval? in
+        switch event.kind {
+        case .noteOff(midi: 60), .noteOff(midi: 64):
+            event.timeSeconds
+        default:
+            nil
+        }
+    }
+
+    #expect(pauseEvents.count == 1)
+    #expect(chordNoteOffTimes.count == 2)
+    #expect(chordNoteOffTimes.allSatisfy { abs($0 - 0.75) < 0.000_001 })
 }
 
 @Test

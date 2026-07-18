@@ -422,9 +422,9 @@ focused range 可以注入初始 sustain 状态，但没有统一恢复在范围
 
 #### PERF-004：fermata 可能同时延长 note-off 又插入 pause
 
-**严重度：P1｜证据：代码确认，需事件 fixture 验证最终效果**
+**状态：已修复｜证据：事件 fixture + 代码确认**
 
-plan note event 会保留延长后的 `performedOffTick`，同时 plan annotation 可携带全局 pause。当前需要用 event dump 确认两者表达的是保持发声与全局时间延长，而不是对同一 fermata 重复计时。
+fermata 由 `MusicXMLFermataTimeline.Hold` 统一生成一个 plan pause；plan note 的 `performedOffTick` 不再额外延长。timeline 让 pause 先于同 tick note-off 生效，因此保持发声与全局时间延长共享同一次时长影响。不同 voice / staff 的同一时点 fermata 会按 performed occurrence 合并一次。
 
 验收：fermata 的“保持发声”和“全局时间延长”由一个统一规则生成；每个 fermata 只产生一次总时长影响。
 

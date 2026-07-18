@@ -232,7 +232,6 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             tempoMap: tempoMap,
             pedalTimeline: pedalTimeline,
             tempoAnnotations: wordsSemantics?.tempoAnnotations ?? [],
-            fermataEvents: practiceScore.fermataEvents,
             fermataTimeline: fermataTimeline
         )
         let planBuildDuration = planBuildStarted.duration(to: planBuildClock.now)
