@@ -58,12 +58,15 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
     private let parser: MusicXMLParserProtocol
     private let stepBuilder: PracticeStepBuilderProtocol
     private let structureExpander: MusicXMLStructureExpander
+    private let diagnosticsReporter: any DiagnosticsReporting
 
     init(
+        diagnosticsReporter: any DiagnosticsReporting,
         parser: MusicXMLParserProtocol? = nil,
         stepBuilder: PracticeStepBuilderProtocol? = nil,
         structureExpander: MusicXMLStructureExpander = MusicXMLStructureExpander()
     ) {
+        self.diagnosticsReporter = diagnosticsReporter
         self.parser = parser ?? MusicXMLParser()
         self.stepBuilder = stepBuilder ?? PracticeStepBuilder()
         self.structureExpander = structureExpander
@@ -211,6 +214,8 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             wedgeEnabled: expressivityOptions.wedgeEnabled
         )
         let identity = PracticeSongIdentity(songID: songID, scoreRevision: revision)
+        let planBuildClock = ContinuousClock()
+        let planBuildStarted = planBuildClock.now
         let performancePlan = ScorePerformancePlanBuilder().build(
             sourceIdentity: ScorePerformanceSourceIdentity(
                 songID: songID,
@@ -230,6 +235,7 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             fermataEvents: practiceScore.fermataEvents,
             fermataTimeline: fermataTimeline
         )
+        let planBuildDuration = planBuildStarted.duration(to: planBuildClock.now)
         let buildResult = stepBuilder.buildSteps(from: performancePlan)
         let notationProjection = ScoreNotationProjection(
             plan: performancePlan,
@@ -244,6 +250,29 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
 
         let measureSpans = practiceScore.measures.filter { $0.partID == structuralPartID }
 
+        try Task.checkCancellation()
+        let mismatchCounts = Self.projectionMismatchCounts(
+            plan: performancePlan,
+            steps: buildResult.steps,
+            highlightGuides: highlightGuides,
+            notationProjection: notationProjection
+        )
+        _ = await diagnosticsReporter.record(
+            PianoPerformancePlanBuildDiagnosticSample(
+                songID: songID,
+                scoreRevision: revision,
+                durationBucket: PianoPerformanceDurationBucket(duration: planBuildDuration),
+                noteEventCount: performancePlan.noteEvents.count,
+                tempoEventCount: performancePlan.tempoEvents.count,
+                controllerEventCount: performancePlan.controllerEvents.count,
+                annotationCount: performancePlan.annotations.count,
+                unsupportedNoteCount: buildResult.unsupportedNoteCount,
+                approximationCount: performancePlan.approximations.count,
+                stepMismatchCount: mismatchCounts.steps,
+                highlightMismatchCount: mismatchCounts.highlights,
+                notationMismatchCount: mismatchCounts.notation
+            ).diagnosticEvent
+        )
         try Task.checkCancellation()
         guard buildResult.steps.isEmpty == false else {
             throw PracticePreparationError.noPlayableNotes
@@ -270,6 +299,72 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
                 handAssignments: handRouting.assignmentsBySourceNoteID
             )
         )
+    }
+
+    private struct StepProjectionIdentity: Hashable {
+        let tick: Int
+        let midiNote: Int
+        let staff: Int?
+        let voice: Int?
+    }
+
+    private struct ProjectionMismatchCounts {
+        let steps: Int
+        let highlights: Int
+        let notation: Int
+    }
+
+    private static func projectionMismatchCounts(
+        plan: ScorePerformancePlan,
+        steps: [PracticeStep],
+        highlightGuides: [PianoHighlightGuide],
+        notationProjection: ScoreNotationProjection
+    ) -> ProjectionMismatchCounts {
+        let playableEvents = plan.noteEvents.filter { (21 ... 108).contains($0.midiNote) }
+        let expectedSteps = Set(playableEvents.map {
+            StepProjectionIdentity(
+                tick: $0.performedOnTick,
+                midiNote: $0.midiNote,
+                staff: $0.staff,
+                voice: $0.voice
+            )
+        })
+        let projectedSteps = Set(steps.flatMap { step in
+            step.notes.map {
+                StepProjectionIdentity(
+                    tick: step.tick,
+                    midiNote: $0.midiNote,
+                    staff: $0.staff,
+                    voice: $0.voice
+                )
+            }
+        })
+        let expectedHighlightIDs = playableEvents.map { $0.id.description }
+        let projectedHighlightIDs = highlightGuides.flatMap(\.triggeredNotes).map(\.occurrenceID)
+        let expectedNotationIDs = Set(plan.noteEvents.map(\.id))
+        let projectedNotationIDs = Set(
+            notationProjection.performedOccurrences.flatMap(\.performanceEventIDs)
+        )
+
+        return ProjectionMismatchCounts(
+            steps: expectedSteps.symmetricDifference(projectedSteps).count,
+            highlights: cardinalityMismatchCount(
+                expected: expectedHighlightIDs,
+                projected: projectedHighlightIDs
+            ),
+            notation: expectedNotationIDs.symmetricDifference(projectedNotationIDs).count
+        )
+    }
+
+    private static func cardinalityMismatchCount<Value: Hashable>(
+        expected: [Value],
+        projected: [Value]
+    ) -> Int {
+        let expectedCounts = Dictionary(expected.map { ($0, 1) }, uniquingKeysWith: +)
+        let projectedCounts = Dictionary(projected.map { ($0, 1) }, uniquingKeysWith: +)
+        return Set(expectedCounts.keys).union(projectedCounts.keys).reduce(into: 0) { count, key in
+            count += abs(expectedCounts[key, default: 0] - projectedCounts[key, default: 0])
+        }
     }
 
     private static func fileAccessError(from error: Error) -> PracticePreparationError {

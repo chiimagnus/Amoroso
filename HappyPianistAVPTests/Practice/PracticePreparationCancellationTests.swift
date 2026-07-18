@@ -12,7 +12,7 @@ func cancelledPreparationDoesNotProducePreparedPractice() async throws {
     try Data(xml.utf8).write(to: url)
     defer { try? FileManager.default.removeItem(at: url) }
 
-    let service = PracticePreparationService()
+    let service = PracticePreparationService(diagnosticsReporter: InMemoryDiagnosticsReporter())
     let task = Task {
         try await service.prepare(
             songID: UUID(),

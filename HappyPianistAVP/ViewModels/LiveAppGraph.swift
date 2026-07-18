@@ -28,7 +28,11 @@ struct LiveAppGraph {
         let parser: MusicXMLParserProtocol = MusicXMLParser()
         let stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
         let practicePreparationService: PracticePreparationServiceProtocol =
-            PracticePreparationService(parser: parser, stepBuilder: stepBuilder)
+            PracticePreparationService(
+                diagnosticsReporter: diagnosticsReporter,
+                parser: parser,
+                stepBuilder: stepBuilder
+            )
         let songLibraryIndexStore = SongLibraryIndexStore()
         let songFileStore: SongFileStoreProtocol = SongFileStore()
         let audioImportService: AudioImportServiceProtocol = AudioImportService()

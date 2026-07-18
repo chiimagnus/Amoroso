@@ -50,6 +50,14 @@ enum PianoPerformanceDurationBucket: String, Codable, CaseIterable, Sendable {
             self = .oneSecondOrMore
         }
     }
+
+    init(duration: Duration) {
+        let components = duration.components
+        self.init(
+            seconds: TimeInterval(components.seconds) +
+                TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
+        )
+    }
 }
 
 struct PianoPerformanceDiagnosticSample: Equatable, Sendable {
@@ -103,5 +111,57 @@ struct PianoPerformanceDiagnosticSample: Equatable, Sendable {
         case .failed:
             .error
         }
+    }
+}
+
+struct PianoPerformancePlanBuildDiagnosticSample: Equatable, Sendable {
+    let songID: UUID
+    let scoreRevision: String
+    let durationBucket: PianoPerformanceDurationBucket
+    let noteEventCount: Int
+    let tempoEventCount: Int
+    let controllerEventCount: Int
+    let annotationCount: Int
+    let unsupportedNoteCount: Int
+    let approximationCount: Int
+    let stepMismatchCount: Int
+    let highlightMismatchCount: Int
+    let notationMismatchCount: Int
+
+    var diagnosticEvent: DiagnosticEvent {
+        let fields = [
+            "outcome=\(outcome.rawValue)",
+            "duration=\(durationBucket.rawValue)",
+            "noteEvents=\(max(0, noteEventCount))",
+            "tempoEvents=\(max(0, tempoEventCount))",
+            "controllerEvents=\(max(0, controllerEventCount))",
+            "annotations=\(max(0, annotationCount))",
+            "unsupportedNotes=\(max(0, unsupportedNoteCount))",
+            "approximations=\(max(0, approximationCount))",
+            "stepMismatches=\(max(0, stepMismatchCount))",
+            "highlightMismatches=\(max(0, highlightMismatchCount))",
+            "notationMismatches=\(max(0, notationMismatchCount))",
+        ]
+        return DiagnosticEvent(
+            severity: outcome == .succeeded ? .info : .warning,
+            code: .pianoPerformancePipeline,
+            category: .pianoPerformance,
+            stage: PianoPerformanceDiagnosticStage.plan.rawValue,
+            summary: "钢琴演奏计划构建结果",
+            reason: fields.joined(separator: ";"),
+            songID: songID,
+            scoreRevision: scoreRevision,
+            persistence: .systemOnly
+        )
+    }
+
+    private var outcome: PianoPerformanceDiagnosticOutcome {
+        if stepMismatchCount > 0 || highlightMismatchCount > 0 || notationMismatchCount > 0 {
+            return .mismatch
+        }
+        if unsupportedNoteCount > 0 {
+            return .unsupported
+        }
+        return .succeeded
     }
 }
