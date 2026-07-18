@@ -128,10 +128,10 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             throw PracticePreparationError.noPlayableNotes
         }
         let primaryPartIDForExpansion = selectedInstrument.memberPartIDs[0]
-        let shouldExpandStructure = MusicXMLRealisticPlaybackDefaults.shouldExpandStructure
+        let scoreOrder = PracticePreparationOptions.practice.scoreOrder
 
         try Task.checkCancellation()
-        let effectiveScore = shouldExpandStructure
+        let effectiveScore = scoreOrder == .performed
             ? structureExpander.expandStructureIfPossible(score: score, primaryPartID: primaryPartIDForExpansion)
             : score
         let practiceScore = effectiveScore.filtering(toLogicalInstrument: selectedInstrument)

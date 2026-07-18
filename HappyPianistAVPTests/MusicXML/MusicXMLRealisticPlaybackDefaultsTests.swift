@@ -5,7 +5,10 @@ import Testing
 func musicXMLRealisticPlaybackDefaultsAreHardcodedForNoSettingsSwitches() {
     let expressivity = MusicXMLRealisticPlaybackDefaults.expressivityOptions
 
-    #expect(MusicXMLRealisticPlaybackDefaults.shouldExpandStructure == false)
+    #expect(MusicXMLRealisticPlaybackDefaults.practiceScoreOrder == .written)
+    #expect(MusicXMLRealisticPlaybackDefaults.referencePlaybackScoreOrder == .performed)
+    #expect(PracticePreparationOptions.practice.scoreOrder == .written)
+    #expect(PracticePreparationOptions.referencePlayback.scoreOrder == .performed)
     #expect(MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled == true)
     #expect(expressivity.wedgeEnabled == true)
     #expect(expressivity.graceEnabled == true)
