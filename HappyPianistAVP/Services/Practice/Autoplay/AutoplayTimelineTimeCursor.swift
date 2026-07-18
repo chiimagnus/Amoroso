@@ -50,7 +50,7 @@ struct AutoplayTimelineTimeCursor: Equatable {
                     )
                 )
 
-            case .noteOn, .noteOff, .pedalDown, .pedalUp:
+            case .noteOn, .noteOff, .controlChange, .tempo:
                 continue
             }
         }

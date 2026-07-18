@@ -20,19 +20,16 @@ extension PracticeSessionViewModel {
     func rebuildAutoplayTimeline() {
         guard
             self.stateStore.isActiveRangeInvalid == false,
-            let pedalTimeline = self.pedalTimeline,
-            let fermataTimeline = self.fermataTimeline,
-            self.highlightGuides.isEmpty == false
+            let performancePlan = self.performancePlan
         else {
             self.autoplayTimeline = .empty
             return
         }
 
         self.autoplayTimeline = AutoplayPerformanceTimeline.build(
-            guides: self.highlightGuides,
-            steps: self.steps,
-            pedalTimeline: pedalTimeline,
-            fermataTimeline: fermataTimeline,
+            plan: performancePlan,
+            guideProjection: self.highlightGuides,
+            stepProjection: self.steps,
             tempoMap: self.tempoMap,
             practiceHandMode: self.practiceHandMode,
             activeRange: self.activeRange

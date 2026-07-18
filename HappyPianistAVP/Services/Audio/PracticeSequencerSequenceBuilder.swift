@@ -63,7 +63,12 @@ struct PracticeSequencerSequenceBuilder {
         var schedule: [PracticeSequencerMIDIEvent] = []
         schedule.reserveCapacity(128)
 
-        if initialSustainPedalDown {
+        let timelineDefinesInitialSustain = timeline.events[startIndex...].contains { event in
+            guard event.tick == baseTick else { return false }
+            if case .controlChange(controller: 64, value: _) = event.kind { return true }
+            return false
+        }
+        if initialSustainPedalDown && timelineDefinesInitialSustain == false {
             schedule.append(
                 PracticeSequencerMIDIEvent(
                     timeSeconds: max(0, leadInSeconds),
@@ -88,21 +93,12 @@ struct PracticeSequencerSequenceBuilder {
                     )
                 )
 
-            case .pedalDown:
+            case let .controlChange(controller, value):
                 schedule.append(
                     PracticeSequencerMIDIEvent(
                         timeSeconds: tempoMap
                             .timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
-                        kind: .controlChange(controller: 64, value: 127)
-                    )
-                )
-
-            case .pedalUp:
-                schedule.append(
-                    PracticeSequencerMIDIEvent(
-                        timeSeconds: tempoMap
-                            .timeSeconds(atTick: event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
-                        kind: .controlChange(controller: 64, value: 0)
+                        kind: .controlChange(controller: controller, value: value)
                     )
                 )
 
@@ -115,7 +111,7 @@ struct PracticeSequencerSequenceBuilder {
                     )
                 )
 
-            case .advanceStep, .advanceGuide:
+            case .tempo, .advanceStep, .advanceGuide:
                 continue
             }
         }

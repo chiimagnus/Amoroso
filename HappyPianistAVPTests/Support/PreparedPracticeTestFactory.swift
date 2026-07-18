@@ -164,3 +164,91 @@ func makeTestScorePerformancePlan(
         handAssignments: handAssignments
     )
 }
+
+struct TestScorePerformanceNote {
+    let midiNote: Int
+    let velocity: UInt8
+    let onTick: Int
+    let offTick: Int
+    let staff: Int
+    let voice: Int
+    let handAssignment: ScoreHandAssignment
+
+    init(
+        midiNote: Int,
+        velocity: UInt8 = 96,
+        onTick: Int,
+        offTick: Int,
+        staff: Int = 1,
+        voice: Int = 1,
+        handAssignment: ScoreHandAssignment = .unknown
+    ) {
+        self.midiNote = midiNote
+        self.velocity = velocity
+        self.onTick = onTick
+        self.offTick = offTick
+        self.staff = staff
+        self.voice = voice
+        self.handAssignment = handAssignment
+    }
+}
+
+func makeTestScorePerformancePlan(
+    notes: [TestScorePerformanceNote],
+    tempoEvents: [ScorePerformanceTempoEvent] = [],
+    controllerEvents: [ScorePerformanceControllerEvent] = [],
+    annotations: [ScorePerformanceAnnotation] = []
+) -> ScorePerformancePlan {
+    let noteEvents = notes.enumerated().map { ordinal, note in
+        let sourceID = MusicXMLSourceNoteID(
+            partID: "P1",
+            sourceMeasureIndex: 0,
+            sourceMeasureNumberToken: "1",
+            staff: note.staff,
+            voice: note.voice,
+            sourceOrdinal: ordinal
+        )
+        let performedID = MusicXMLPerformedNoteID(sourceID: sourceID, occurrenceIndex: 0)
+        return ScorePerformanceNoteEvent(
+            id: ScorePerformanceNoteEventID(performedNoteID: performedID, generatedOrdinal: nil),
+            sourceNoteID: sourceID,
+            performedNoteID: performedID,
+            contributingSourceNoteIDs: [sourceID],
+            contributingPerformedNoteIDs: [performedID],
+            purpose: .source,
+            writtenOnTick: note.onTick,
+            writtenOffTick: note.offTick,
+            performedOnTick: note.onTick,
+            performedOffTick: note.offTick,
+            writtenPitch: nil,
+            midiNote: note.midiNote,
+            velocityResolution: ScorePerformanceVelocityResolution(
+                baseVelocity: Int(note.velocity),
+                curveVelocity: nil,
+                articulationDelta: 0,
+                unclampedVelocity: Int(note.velocity),
+                velocity: note.velocity
+            ),
+            staff: note.staff,
+            voice: note.voice,
+            handAssignment: note.handAssignment,
+            fingeringText: nil,
+            timingProvenance: []
+        )
+    }
+    return ScorePerformancePlan(
+        id: ScorePerformancePlanID(rawValue: "test-plan"),
+        sourceScoreIdentity: ScorePerformanceSourceIdentity(
+            songID: UUID(),
+            scoreRevision: "test",
+            logicalInstrumentID: "test-piano"
+        ),
+        order: MusicXMLOrderSelection(requested: .written, applied: .written),
+        resolution: ScorePerformanceTickResolution(ticksPerQuarter: MusicXMLTempoMap.ticksPerQuarter),
+        noteEvents: noteEvents,
+        tempoEvents: tempoEvents,
+        controllerEvents: controllerEvents,
+        annotations: annotations,
+        approximations: []
+    )
+}

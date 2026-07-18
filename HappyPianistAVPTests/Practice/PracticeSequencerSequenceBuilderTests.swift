@@ -14,8 +14,8 @@ func sequenceBuilderAppliesPauseBeforeSameTickAudioEvents() {
             AutoplayPerformanceTimeline.Event(id: 0, tick: 0, kind: .noteOn(midi: 60, velocity: 96)),
             AutoplayPerformanceTimeline.Event(id: 1, tick: 480, kind: .pauseSeconds(1.0)),
             AutoplayPerformanceTimeline.Event(id: 2, tick: 480, kind: .noteOff(midi: 60)),
-            AutoplayPerformanceTimeline.Event(id: 3, tick: 480, kind: .pedalUp),
-            AutoplayPerformanceTimeline.Event(id: 4, tick: 480, kind: .pedalDown),
+            AutoplayPerformanceTimeline.Event(id: 3, tick: 480, kind: .controlChange(controller: 64, value: 0)),
+            AutoplayPerformanceTimeline.Event(id: 4, tick: 480, kind: .controlChange(controller: 64, value: 127)),
             AutoplayPerformanceTimeline.Event(id: 5, tick: 480, kind: .noteOn(midi: 62, velocity: 96)),
             AutoplayPerformanceTimeline.Event(id: 6, tick: 960, kind: .noteOff(midi: 62)),
         ]
@@ -70,7 +70,7 @@ func sequenceBuilderInjectsInitialSustainPedalStateWhenStartingMidSong() {
     )
     let timeline = AutoplayPerformanceTimeline(
         events: [
-            AutoplayPerformanceTimeline.Event(id: 0, tick: 0, kind: .pedalDown),
+            AutoplayPerformanceTimeline.Event(id: 0, tick: 0, kind: .controlChange(controller: 64, value: 127)),
             AutoplayPerformanceTimeline.Event(id: 1, tick: 480, kind: .noteOn(midi: 60, velocity: 96)),
             AutoplayPerformanceTimeline.Event(id: 2, tick: 960, kind: .noteOff(midi: 60)),
         ]
@@ -86,6 +86,26 @@ func sequenceBuilderInjectsInitialSustainPedalStateWhenStartingMidSong() {
 
     #expect(schedule.first?.kind == .controlChange(controller: 64, value: 127))
     #expect(abs((schedule.first?.timeSeconds ?? -1) - 0.0) < 1e-9)
+}
+
+@Test
+func sequenceBuilderDoesNotDuplicateInitialSustainAlreadyProjectedAtStartTick() {
+    let tempoMap = MusicXMLTempoMap(
+        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: defaultTempoScope)]
+    )
+    let timeline = AutoplayPerformanceTimeline(events: [
+        .init(id: 0, tick: 480, kind: .controlChange(controller: 64, value: 127)),
+        .init(id: 1, tick: 480, kind: .noteOn(midi: 60, velocity: 96)),
+    ])
+
+    let schedule = PracticeSequencerSequenceBuilder().buildAudioEventSchedule(
+        timeline: timeline,
+        tempoMap: tempoMap,
+        startTick: 480,
+        initialSustainPedalDown: true
+    )
+
+    #expect(schedule.filter { $0.kind == .controlChange(controller: 64, value: 127) }.count == 1)
 }
 
 @Test

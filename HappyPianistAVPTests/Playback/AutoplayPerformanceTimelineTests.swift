@@ -1,137 +1,84 @@
+import Foundation
 @testable import HappyPianistAVP
 import Testing
 
 @Test
-@MainActor
-func autoplayTimelineUsesGuidesForNoteOnOffAndGuideAdvance() {
-    let guide = makeTimelineGuide(
-        id: 1,
+func autoplayTimelineUsesPlanForSoundAndProjectionsOnlyForNavigation() throws {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 120, offTick: 360),
+    ])
+    let guide = makeTimelineGuide(id: 1, tick: 120)
+    let step = PracticeStep(
         tick: 120,
-        notes: [
-            makeTimelineNote(midi: 60, velocity: 80, onTick: 120, offTick: 360),
-        ]
+        notes: [PracticeStepNote(midiNote: 99, staff: 1, handAssignment: .unknown)]
     )
 
     let timeline = AutoplayPerformanceTimeline.build(
-        guides: [guide],
-        steps: [PracticeStep(tick: 120, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        pedalTimeline: MusicXMLPedalTimeline(events: []),
-        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
+        plan: plan,
+        guideProjection: [guide],
+        stepProjection: [step],
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         practiceHandMode: .both
     )
 
+    let eventID = try #require(plan.noteEvents.first?.id.description)
     #expect(timeline.events.map(\.tick) == [120, 120, 120, 360])
     #expect(timeline.events.contains { event in
-        if case .noteOn(midi: 60, velocity: 80) = event.kind { return true }
-        return false
+        event.sourceEventID == eventID && event.kind == .noteOn(midi: 60, velocity: 80)
     })
     #expect(timeline.events.contains { event in
-        if case .noteOff(midi: 60) = event.kind { return true }
-        return false
+        event.sourceEventID == eventID && event.kind == .noteOff(midi: 60)
     })
-    #expect(timeline.events.contains { event in
-        if case .advanceGuide(index: 0, guideID: 1) = event.kind { return true }
-        return false
-    })
+    #expect(timeline.events.contains { $0.kind == .advanceGuide(index: 0, guideID: 1) })
+    #expect(timeline.events.contains { if case .noteOn(midi: 99, _) = $0.kind { true } else { false } } == false)
 }
 
 @Test
-@MainActor
-func autoplayTimelineDeduplicatesSameTickMIDINotesWithMaxVelocityAndOffTick() {
-    let guide = makeTimelineGuide(
-        id: 1,
-        tick: 0,
-        notes: [
-            makeTimelineNote(midi: 60, velocity: 70, onTick: 0, offTick: 120),
-            makeTimelineNote(midi: 60, velocity: 96, onTick: 0, offTick: 240),
-        ]
-    )
+func autoplayTimelinePreservesSamePitchPlanEventsAndIdentities() {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, velocity: 70, onTick: 0, offTick: 120),
+        TestScorePerformanceNote(midiNote: 60, velocity: 96, onTick: 0, offTick: 240),
+    ])
 
-    let timeline = AutoplayPerformanceTimeline.build(
-        guides: [guide],
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        pedalTimeline: MusicXMLPedalTimeline(events: []),
-        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        practiceHandMode: .both
-    )
+    let timeline = makeTimeline(plan: plan)
+    let noteOns = timeline.events.filter { if case .noteOn = $0.kind { true } else { false } }
+    let noteOffs = timeline.events.filter { if case .noteOff = $0.kind { true } else { false } }
 
-    let noteOns = timeline.events.compactMap { event -> (Int, UInt8)? in
-        if case let .noteOn(midi, velocity) = event.kind { return (midi, velocity) }
-        return nil
-    }
-    let noteOffTicks = timeline.events.compactMap { event -> Int? in
-        if case .noteOff(midi: 60) = event.kind { return event.tick }
-        return nil
-    }
-
-    #expect(noteOns.count == 1)
-    #expect(noteOns.first?.0 == 60)
-    #expect(noteOns.first?.1 == 96)
-    #expect(noteOffTicks == [240])
+    #expect(noteOns.count == 2)
+    #expect(noteOffs.map(\.tick) == [120, 240])
+    #expect(Set(noteOns.compactMap(\.sourceEventID)).count == 2)
+    #expect(Set(noteOffs.compactMap(\.sourceEventID)) == Set(noteOns.compactMap(\.sourceEventID)))
 }
 
 @Test
-@MainActor
-func autoplayTimelineRearticulatesOverlappingSameMIDINoteAtNextOnTick() {
-    let first = makeTimelineGuide(
-        id: 1,
-        tick: 0,
-        notes: [makeTimelineNote(midi: 60, velocity: 80, onTick: 0, offTick: 480)]
-    )
-    let second = makeTimelineGuide(
-        id: 2,
-        tick: 240,
-        notes: [makeTimelineNote(midi: 60, velocity: 88, onTick: 240, offTick: 720)]
-    )
+func autoplayTimelineDoesNotRewriteOverlappingSamePitchPlanTiming() {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 480),
+        TestScorePerformanceNote(midiNote: 60, velocity: 88, onTick: 240, offTick: 720),
+    ])
 
-    let timeline = AutoplayPerformanceTimeline.build(
-        guides: [first, second],
-        steps: [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        ],
-        pedalTimeline: MusicXMLPedalTimeline(events: []),
-        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        practiceHandMode: .both
-    )
-
-    let midiEvents = timeline.events.compactMap { event -> String? in
+    let midiEvents = makeTimeline(plan: plan).events.compactMap { event -> String? in
         switch event.kind {
-        case let .noteOn(midi, _): return "on:\(midi)@\(event.tick)"
-        case let .noteOff(midi): return "off:\(midi)@\(event.tick)"
-        default: return nil
+        case let .noteOn(midi, _): "on:\(midi)@\(event.tick)"
+        case let .noteOff(midi): "off:\(midi)@\(event.tick)"
+        default: nil
         }
     }
 
-    #expect(midiEvents == ["on:60@0", "off:60@240", "on:60@240", "off:60@720"])
+    #expect(midiEvents == ["on:60@0", "on:60@240", "off:60@480", "off:60@720"])
 }
 
 @Test
-@MainActor
-func autoplayTimelineKeepsZeroDurationGuideNotesReleasable() {
-    let guide = makeTimelineGuide(
-        id: 1,
-        tick: 0,
-        notes: [makeTimelineNote(midi: 60, velocity: 80, onTick: 0, offTick: 0)]
-    )
+func autoplayTimelineKeepsZeroDurationPlanNotesReleasable() {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 0),
+    ])
 
-    let timeline = AutoplayPerformanceTimeline.build(
-        guides: [guide],
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        pedalTimeline: MusicXMLPedalTimeline(events: []),
-        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        practiceHandMode: .both
-    )
-
-    let midiEvents = timeline.events.compactMap { event -> String? in
+    let midiEvents = makeTimeline(plan: plan).events.compactMap { event -> String? in
         switch event.kind {
-        case let .noteOn(midi, _): return "on:\(midi)@\(event.tick)"
-        case let .noteOff(midi): return "off:\(midi)@\(event.tick)"
-        default: return nil
+        case let .noteOn(midi, _): "on:\(midi)@\(event.tick)"
+        case let .noteOff(midi): "off:\(midi)@\(event.tick)"
+        default: nil
         }
     }
 
@@ -139,200 +86,276 @@ func autoplayTimelineKeepsZeroDurationGuideNotesReleasable() {
 }
 
 @Test
-@MainActor
-func autoplayTimelineEmitsReleaseAndRedownForSameTickPedalChange() {
-    let guide = makeTimelineGuide(
-        id: 1,
-        tick: 0,
-        notes: [makeTimelineNote(midi: 60, velocity: 80, onTick: 0, offTick: 480)]
-    )
-    let pedalTimeline = MusicXMLPedalTimeline(
-        events: [
-            MusicXMLPedalEvent(
-                partID: "P1",
-                measureNumber: 1,
-                tick: 0,
-                kind: .start,
-                isDown: true,
-                timeOnlyPasses: nil
-            ),
-            MusicXMLPedalEvent(
-                partID: "P1",
-                measureNumber: 1,
-                tick: 480,
-                kind: .change,
-                isDown: false,
-                timeOnlyPasses: nil
-            ),
-            MusicXMLPedalEvent(
-                partID: "P1",
-                measureNumber: 1,
-                tick: 480,
-                kind: .change,
-                isDown: true,
-                timeOnlyPasses: nil
-            ),
+func autoplayTimelinePreservesControllerReleaseAndRedownIdentity() {
+    let upID = directionID(ordinal: 1)
+    let downID = directionID(ordinal: 2)
+    let plan = makeTimelinePlan(
+        notes: [TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 480)],
+        controllerEvents: [
+            timelineController(sourceID: upID, tick: 480, value: 0),
+            timelineController(sourceID: downID, tick: 480, value: 127),
         ]
     )
 
-    let timeline = AutoplayPerformanceTimeline.build(
-        guides: [guide],
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        pedalTimeline: pedalTimeline,
-        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        practiceHandMode: .both
-    )
-
-    let pedalEventsAtReleaseTick = timeline.events.compactMap { event -> String? in
-        guard event.tick == 480 else { return nil }
-        switch event.kind {
-        case .pedalUp: return "up"
-        case .pedalDown: return "down"
-        default: return nil
-        }
+    let controllers = makeTimeline(plan: plan).events.filter {
+        if case .controlChange = $0.kind { true } else { false }
     }
 
-    #expect(pedalEventsAtReleaseTick == ["up", "down"])
+    #expect(controllers.map(\.kind) == [
+        .controlChange(controller: 64, value: 0),
+        .controlChange(controller: 64, value: 127),
+    ])
+    #expect(controllers.map(\.sourceEventID) == [upID.description, downID.description])
 }
 
 @Test
-@MainActor
-func autoplayTimelineExcludesPedalEventsAtActiveRangeUpperBound() throws {
-    let span = MusicXMLMeasureSpan(
-        partID: "P1",
-        measureNumber: 1,
-        sourceMeasureIndex: 0,
-        sourceMeasureNumberToken: "1",
-        occurrenceIndex: 0,
-        startTick: 0,
-        endTick: 480
-    )
-    let passage = try #require(PracticePassage(start: span.occurrenceID, end: span.occurrenceID))
-    let activeRange = PracticeActiveRange(
-        passage: passage,
-        occurrenceRange: 0 ..< 1,
-        stepRange: 0 ..< 1,
-        tickRange: 0 ..< 480,
-        measureSpans: [span]
-    )
-    let timeline = AutoplayPerformanceTimeline.build(
-        guides: [makeTimelineGuide(
-            id: 1,
+func autoplayTimelineCarriesTempoIdentity() {
+    let sourceID = directionID(ordinal: 3)
+    let plan = makeTimelinePlan(
+        notes: [],
+        tempoEvents: [ScorePerformanceTempoEvent(
+            sourceDirectionID: sourceID,
+            performedOccurrenceIndex: 0,
             tick: 0,
-            notes: [makeTimelineNote(midi: 60, velocity: 80, onTick: 0, offTick: 480)]
-        )],
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        pedalTimeline: MusicXMLPedalTimeline(events: [
-            MusicXMLPedalEvent(
-                partID: "P1",
-                measureNumber: 2,
-                tick: 480,
-                kind: .start,
-                isDown: true,
-                timeOnlyPasses: nil
-            ),
-        ]),
-        fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        practiceHandMode: .both,
-        activeRange: activeRange
+            quarterBPM: 96,
+            endTick: 480,
+            endQuarterBPM: 72
+        )]
     )
 
+    let event = makeTimeline(plan: plan).events.first
+    #expect(event?.sourceEventID == sourceID.description)
+    #expect(event?.kind == .tempo(quarterBPM: 96, endTick: 480, endQuarterBPM: 72))
+}
+
+@Test
+func autoplayTimelineFiltersPlanEventsByHand() {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(
+            midiNote: 48,
+            velocity: 80,
+            onTick: 0,
+            offTick: 240,
+            handAssignment: ScoreHandAssignment(hand: .left, provenance: .score)
+        ),
+        TestScorePerformanceNote(
+            midiNote: 72,
+            velocity: 80,
+            onTick: 0,
+            offTick: 240,
+            handAssignment: ScoreHandAssignment(hand: .right, provenance: .score)
+        ),
+    ])
+
+    let timeline = makeTimeline(plan: plan, practiceHandMode: .right)
+    let soundingMIDIs = timeline.events.compactMap { event -> Int? in
+        if case let .noteOn(midi, _) = event.kind { midi } else { nil }
+    }
+
+    #expect(soundingMIDIs == [72])
+}
+
+@Test
+func autoplayTimelineExcludesControllerAtActiveRangeUpperBound() throws {
+    let activeRange = try timelineActiveRange()
+    let plan = makeTimelinePlan(
+        notes: [TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 480)],
+        controllerEvents: [timelineController(sourceID: directionID(ordinal: 4), tick: 480, value: 127)]
+    )
+
+    let timeline = makeTimeline(plan: plan, activeRange: activeRange)
+
     #expect(timeline.events.contains { event in
-        event.tick == 480 && (event.kind == .pedalDown || event.kind == .pedalUp)
+        guard event.tick == 480 else { return false }
+        if case .controlChange = event.kind { return true }
+        return false
     } == false)
 }
 
 @Test
-@MainActor
-func autoplayTimelineHoldsFinalFermataAtItsNoteOffBoundary() {
-    let note = MusicXMLNoteEvent(
-        partID: "P1",
-        measureNumber: 1,
-        tick: 0,
-        durationTicks: 240,
-        midiNote: 60,
-        isRest: false,
-        isChord: false,
-        tieStart: false,
-        tieStop: false,
-        staff: 1,
-        voice: 1
-    )
-    let timeline = AutoplayPerformanceTimeline.build(
-        guides: [makeTimelineGuide(
-            id: 1,
-            tick: 0,
-            notes: [makeTimelineNote(midi: 60, velocity: 80, onTick: 0, offTick: 240)]
-        )],
-        steps: [PracticeStep(
-            tick: 0,
-            notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]
-        )],
-        pedalTimeline: MusicXMLPedalTimeline(events: []),
-        fermataTimeline: MusicXMLFermataTimeline(
-            fermataEvents: [MusicXMLFermataEvent(
-                tick: 0,
-                scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: 1),
-                source: .noteNotations
-            )],
-            notes: [note]
-        ),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        practiceHandMode: .both
+func autoplayTimelineRestoresControllerStateAtActiveRangeStartWithoutDuplicatingAnExplicitEvent() throws {
+    let activeRange = try timelineActiveRange(startTick: 480, endTick: 960)
+    let carriedID = directionID(ordinal: 5)
+    let explicitID = directionID(ordinal: 6)
+    let plan = makeTimelinePlan(
+        notes: [],
+        controllerEvents: [
+            timelineController(sourceID: carriedID, tick: 0, value: 127),
+            timelineController(sourceID: explicitID, tick: 480, value: 0),
+        ]
     )
 
-    let eventsAtRelease = timeline.events.filter { $0.tick == 240 }.map(\.kind)
-    #expect(eventsAtRelease.count == 2)
-    if case let .pauseSeconds(seconds) = eventsAtRelease[0] {
-        #expect(abs(seconds - 0.125) < 0.000_001)
-    } else {
-        Issue.record("fermata pause must precede final note-off")
+    let controllers = makeTimeline(plan: plan, activeRange: activeRange).events.filter {
+        if case .controlChange = $0.kind { true } else { false }
     }
-    #expect(eventsAtRelease[1] == .noteOff(midi: 60))
-}
 
-private func makeTimelineGuide(id: Int, tick: Int, notes: [PianoHighlightNote]) -> PianoHighlightGuide {
-    PianoHighlightGuide(
-        id: id,
-        kind: .trigger,
-        tick: tick,
-        durationTicks: nil,
-        practiceStepIndex: id - 1,
-        activeNotes: notes,
-        triggeredNotes: notes,
-        releasedMIDINotes: []
-    )
-}
-
-private func makeTimelineNote(midi: Int, velocity: UInt8, onTick: Int, offTick: Int) -> PianoHighlightNote {
-    PianoHighlightNote(
-        occurrenceID: "timeline-\(midi)-\(onTick)-\(offTick)-\(velocity)",
-        midiNote: midi,
-        staff: 1,
-        voice: 1,
-        velocity: velocity,
-        onTick: onTick,
-        offTick: offTick,
-        fingeringText: nil,
-        handAssignment: .unknown
-    )
+    #expect(controllers.count == 1)
+    #expect(controllers.first?.sourceEventID == explicitID.description)
+    #expect(controllers.first?.kind == .controlChange(controller: 64, value: 0))
 }
 
 @Test
-func autoplayPerformanceSnapshotPreservesSortedEventPositions() {
+func autoplayTimelineInterpolatesTempoRampAtActiveRangeStart() throws {
+    let activeRange = try timelineActiveRange(startTick: 480, endTick: 960)
+    let sourceID = directionID(ordinal: 7)
+    let plan = makeTimelinePlan(
+        notes: [],
+        tempoEvents: [ScorePerformanceTempoEvent(
+            sourceDirectionID: sourceID,
+            performedOccurrenceIndex: 0,
+            tick: 0,
+            quarterBPM: 120,
+            endTick: 960,
+            endQuarterBPM: 60
+        )]
+    )
+
+    let tempo = makeTimeline(plan: plan, activeRange: activeRange).events.first
+
+    #expect(tempo?.sourceEventID == sourceID.description)
+    #expect(tempo?.kind == .tempo(quarterBPM: 90, endTick: 960, endQuarterBPM: 60))
+}
+
+@Test
+func autoplayTimelineHoldsPlanPauseAtNoteOffBoundary() throws {
+    let plan = makeTimelinePlan(
+        notes: [TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 240)],
+        annotations: [ScorePerformanceAnnotation(
+            sourceDirectionID: directionID(ordinal: 5),
+            performedOccurrenceIndex: 0,
+            tick: 240,
+            durationTicks: 120,
+            kind: .pause,
+            text: "fermata",
+            provenance: []
+        )]
+    )
+    let tempoMap = MusicXMLTempoMap(tempoEvents: [
+        MusicXMLTempoEvent(
+            tick: 0,
+            quarterBPM: 120,
+            scope: MusicXMLEventScope(partID: "P1", staff: nil, voice: nil)
+        ),
+    ])
+
+    let timeline = AutoplayPerformanceTimeline.build(
+        plan: plan,
+        guideProjection: [],
+        stepProjection: [],
+        tempoMap: tempoMap,
+        practiceHandMode: .both
+    )
+    let eventsAtRelease = timeline.events.filter { $0.tick == 240 }
+
+    #expect(eventsAtRelease.count == 2)
+    if case let .pauseSeconds(seconds) = eventsAtRelease[0].kind {
+        #expect(abs(seconds - 0.125) < 0.000_001)
+    } else {
+        Issue.record("plan pause must precede final note-off")
+    }
+    #expect(eventsAtRelease[1].kind == .noteOff(midi: 60))
+    #expect(eventsAtRelease[0].sourceEventID == directionID(ordinal: 5).description)
+}
+
+@Test
+func autoplayPerformanceSnapshotPreservesSourceIdentityAndSortedPositions() {
     let timeline = AutoplayPerformanceTimeline(events: [
-        .init(id: 0, tick: 0, kind: .noteOn(midi: 60, velocity: 72)),
-        .init(id: 1, tick: 480, kind: .noteOff(midi: 60)),
+        .init(id: 0, sourceEventID: "note-1", tick: 0, kind: .noteOn(midi: 60, velocity: 72)),
+        .init(id: 1, sourceEventID: "note-1", tick: 480, kind: .noteOff(midi: 60)),
     ])
 
     let snapshot = PerformanceEventSnapshot().encode(timeline)
     expectSnapshot(
         snapshot,
         equals: """
-        position=0|eventID=0|sourceEventID=unresolved|tick=0|kind=noteOn:60:72
-        position=1|eventID=1|sourceEventID=unresolved|tick=480|kind=noteOff:60
+        position=0|eventID=0|sourceEventID=note-1|tick=0|kind=noteOn:60:72
+        position=1|eventID=1|sourceEventID=note-1|tick=480|kind=noteOff:60
         """
+    )
+}
+
+private func makeTimelinePlan(
+    notes: [TestScorePerformanceNote],
+    tempoEvents: [ScorePerformanceTempoEvent] = [],
+    controllerEvents: [ScorePerformanceControllerEvent] = [],
+    annotations: [ScorePerformanceAnnotation] = []
+) -> ScorePerformancePlan {
+    makeTestScorePerformancePlan(
+        notes: notes,
+        tempoEvents: tempoEvents,
+        controllerEvents: controllerEvents,
+        annotations: annotations
+    )
+}
+
+private func makeTimeline(
+    plan: ScorePerformancePlan,
+    practiceHandMode: PracticeHandMode = .both,
+    activeRange: PracticeActiveRange? = nil
+) -> AutoplayPerformanceTimeline {
+    AutoplayPerformanceTimeline.build(
+        plan: plan,
+        guideProjection: [],
+        stepProjection: [],
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        practiceHandMode: practiceHandMode,
+        activeRange: activeRange
+    )
+}
+
+private func makeTimelineGuide(id: Int, tick: Int) -> PianoHighlightGuide {
+    PianoHighlightGuide(
+        id: id,
+        kind: .trigger,
+        tick: tick,
+        durationTicks: nil,
+        practiceStepIndex: id - 1,
+        activeNotes: [],
+        triggeredNotes: [],
+        releasedMIDINotes: []
+    )
+}
+
+private func directionID(ordinal: Int) -> MusicXMLDirectionSourceID {
+    MusicXMLDirectionSourceID(
+        partID: "P1",
+        sourceMeasureIndex: 0,
+        sourceMeasureNumberToken: "1",
+        sourceOrdinal: ordinal
+    )
+}
+
+private func timelineController(
+    sourceID: MusicXMLDirectionSourceID,
+    tick: Int,
+    value: UInt8
+) -> ScorePerformanceControllerEvent {
+    ScorePerformanceControllerEvent(
+        sourceDirectionID: sourceID,
+        performedOccurrenceIndex: 0,
+        tick: tick,
+        controllerNumber: 64,
+        value: value,
+        outputCapabilityRequirement: .continuousControlChange
+    )
+}
+
+private func timelineActiveRange(startTick: Int = 0, endTick: Int = 480) throws -> PracticeActiveRange {
+    let span = MusicXMLMeasureSpan(
+        partID: "P1",
+        measureNumber: 1,
+        sourceMeasureIndex: 0,
+        sourceMeasureNumberToken: "1",
+        occurrenceIndex: 0,
+        startTick: startTick,
+        endTick: endTick
+    )
+    let passage = try #require(PracticePassage(start: span.occurrenceID, end: span.occurrenceID))
+    return PracticeActiveRange(
+        passage: passage,
+        occurrenceRange: 0 ..< 1,
+        stepRange: 0 ..< 1,
+        tickRange: startTick ..< endTick,
+        measureSpans: [span]
     )
 }

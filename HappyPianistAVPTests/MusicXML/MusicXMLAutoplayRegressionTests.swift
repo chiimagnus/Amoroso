@@ -125,10 +125,9 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
         )
     )
     let timeline = AutoplayPerformanceTimeline.build(
-        guides: guides,
-        steps: buildResult.steps,
-        pedalTimeline: pedalTimeline,
-        fermataTimeline: fermataTimeline,
+        plan: plan,
+        guideProjection: guides,
+        stepProjection: buildResult.steps,
         tempoMap: tempoMap,
         practiceHandMode: .both
     )

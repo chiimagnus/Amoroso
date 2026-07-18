@@ -64,7 +64,7 @@ final class PracticePlaybackControlService {
             stateStore.autoplayErrorMessage = nil
 
             let tick = currentStep?.tick ?? 0
-            stateStore.isSustainPedalDown = stateStore.pedalTimeline?.isDown(atTick: tick) ?? false
+            stateStore.isSustainPedalDown = sustainPedalIsDown(atTick: tick)
             startAutoplayTaskIfNeeded()
         } else {
             stateStore.autoplayState = .off
@@ -211,11 +211,8 @@ final class PracticePlaybackControlService {
     }
 
     private func autoplayStartErrorMessage() -> String? {
-        guard stateStore.pedalTimeline != nil else {
-            return "无法自动播放：缺少踏板信息。请重新导入这份 MusicXML。"
-        }
-        guard stateStore.fermataTimeline != nil else {
-            return "无法自动播放：缺少延长停顿（fermata）信息。请重新导入这份 MusicXML。"
+        guard stateStore.performancePlan != nil else {
+            return "无法自动播放：缺少演奏计划。请重新导入这份 MusicXML。"
         }
         guard stateStore.highlightGuides.isEmpty == false else {
             return "无法自动播放：缺少键盘高亮引导数据。请重新导入这份 MusicXML。"
@@ -224,6 +221,12 @@ final class PracticePlaybackControlService {
             return "无法自动播放：引导数据不一致（找不到当前步骤的触发点）。请重新导入这份 MusicXML。"
         }
         return nil
+    }
+
+    private func sustainPedalIsDown(atTick tick: Int) -> Bool {
+        stateStore.performancePlan?.controllerEvents.last {
+            $0.controllerNumber == 64 && $0.tick <= tick
+        }.map { $0.value >= 64 } ?? false
     }
 
     private func stopAutoplayWithError(_ message: String) {
@@ -251,8 +254,7 @@ final class PracticePlaybackControlService {
         tempoMap: MusicXMLTempoMap,
         timingBaseTick: Int
     ) async throws {
-        guard let pedalTimeline = stateStore.pedalTimeline else { return }
-        let initialSustainPedalDown = pedalTimeline.isDown(atTick: timingBaseTick)
+        let initialSustainPedalDown = sustainPedalIsDown(atTick: timingBaseTick)
         stateStore.isSustainPedalDown = initialSustainPedalDown
 
         do {
@@ -382,7 +384,7 @@ final class PracticePlaybackControlService {
                     )
                 )
 
-            case .noteOn, .noteOff, .pedalDown, .pedalUp, .advanceStep:
+            case .noteOn, .noteOff, .controlChange, .tempo, .advanceStep:
                 continue
             }
         }
@@ -426,23 +428,15 @@ private struct AutoplayTimelinePedalTimeCursor: Equatable {
             case let .pauseSeconds(seconds):
                 pausePrefixSeconds += seconds
 
-            case .pedalDown:
+            case let .controlChange(controller, value) where controller == 64:
                 scheduled.append(
                     TimedPedal(
                         timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
-                        isDown: true
+                        isDown: value >= 64
                     )
                 )
 
-            case .pedalUp:
-                scheduled.append(
-                    TimedPedal(
-                        timeSeconds: tickToSeconds(event.tick) - baseSeconds + pausePrefixSeconds + leadInSeconds,
-                        isDown: false
-                    )
-                )
-
-            case .noteOn, .noteOff, .advanceStep, .advanceGuide:
+            case .noteOn, .noteOff, .controlChange, .tempo, .advanceStep, .advanceGuide:
                 continue
             }
         }

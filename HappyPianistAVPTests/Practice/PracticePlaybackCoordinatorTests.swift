@@ -115,12 +115,15 @@ func autoplayStartsAndAdvancesStep() async throws {
             releasedMIDINotes: []
         ),
     ]
+    stateStore.performancePlan = makeTestScorePerformancePlan(
+        identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "autoplay-start"),
+        steps: stateStore.steps
+    )
 
     stateStore.autoplayTimeline = try AutoplayPerformanceTimeline.build(
-        guides: stateStore.highlightGuides,
-        steps: stateStore.steps,
-        pedalTimeline: #require(stateStore.pedalTimeline),
-        fermataTimeline: #require(stateStore.fermataTimeline),
+        plan: #require(stateStore.performancePlan),
+        guideProjection: stateStore.highlightGuides,
+        stepProjection: stateStore.steps,
         tempoMap: stateStore.tempoMap,
         practiceHandMode: .both
     )
@@ -203,12 +206,15 @@ func shutdownCancelsAutoplayAndPreventsFurtherAdvance() async throws {
             releasedMIDINotes: []
         ),
     ]
+    stateStore.performancePlan = makeTestScorePerformancePlan(
+        identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "autoplay-shutdown"),
+        steps: stateStore.steps
+    )
 
     stateStore.autoplayTimeline = try AutoplayPerformanceTimeline.build(
-        guides: stateStore.highlightGuides,
-        steps: stateStore.steps,
-        pedalTimeline: #require(stateStore.pedalTimeline),
-        fermataTimeline: #require(stateStore.fermataTimeline),
+        plan: #require(stateStore.performancePlan),
+        guideProjection: stateStore.highlightGuides,
+        stepProjection: stateStore.steps,
         tempoMap: stateStore.tempoMap,
         practiceHandMode: .both
     )

@@ -1,3 +1,4 @@
+import Foundation
 @testable import HappyPianistAVP
 import Testing
 
@@ -60,10 +61,19 @@ struct PracticeActiveRangeTests {
             )
         }
         let timeline = AutoplayPerformanceTimeline.build(
-            guides: guides,
-            steps: steps,
-            pedalTimeline: MusicXMLPedalTimeline(events: []),
-            fermataTimeline: MusicXMLFermataTimeline(fermataEvents: [], notes: []),
+            plan: makeTestScorePerformancePlan(
+                notes: steps.enumerated().map { index, step in
+                    TestScorePerformanceNote(
+                        midiNote: 60 + index,
+                        velocity: 80,
+                        onTick: step.tick,
+                        offTick: step.tick + 240,
+                        handAssignment: ScoreHandAssignment(hand: .right, provenance: .score)
+                    )
+                }
+            ),
+            guideProjection: guides,
+            stepProjection: steps,
             tempoMap: MusicXMLTempoMap(tempoEvents: []),
             practiceHandMode: .both,
             activeRange: activeRange
