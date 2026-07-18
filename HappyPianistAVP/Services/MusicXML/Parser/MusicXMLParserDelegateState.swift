@@ -4,6 +4,7 @@ struct MusicXMLParserDelegateState {
     let normalizedTicksPerQuarter = 480
 
     var scoreVersion: String?
+    var partMetadataByID: [String: MusicXMLPartMetadata] = [:]
 
     var notes: [MusicXMLNoteEvent] = []
     var tempoEvents: [MusicXMLTempoEvent] = []

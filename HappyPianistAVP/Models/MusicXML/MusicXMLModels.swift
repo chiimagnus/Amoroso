@@ -2,6 +2,7 @@ import Foundation
 
 struct MusicXMLScore: Equatable {
     var scoreVersion: String?
+    var partMetadata: [MusicXMLPartMetadata] = []
     var notes: [MusicXMLNoteEvent]
     var tempoEvents: [MusicXMLTempoEvent] = []
     var soundDirectives: [MusicXMLSoundDirective] = []
