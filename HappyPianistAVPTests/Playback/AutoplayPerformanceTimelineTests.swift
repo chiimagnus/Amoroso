@@ -36,14 +36,20 @@ func autoplayTimelineUsesPlanForSoundAndProjectionsOnlyForNavigation() throws {
 @Test
 func autoplayTimelinePreservesSamePitchPlanEventsAndIdentities() {
     let plan = makeTimelinePlan(notes: [
-        TestScorePerformanceNote(midiNote: 60, velocity: 70, onTick: 0, offTick: 120),
-        TestScorePerformanceNote(midiNote: 60, velocity: 96, onTick: 0, offTick: 240),
+        TestScorePerformanceNote(midiNote: 60, velocity: 70, onTick: 0, offTick: 120, voice: 1),
+        TestScorePerformanceNote(midiNote: 60, velocity: 96, onTick: 0, offTick: 240, voice: 2),
     ])
 
     let timeline = makeTimeline(plan: plan)
     let noteOns = timeline.events.filter { if case .noteOn = $0.kind { true } else { false } }
     let noteOffs = timeline.events.filter { if case .noteOff = $0.kind { true } else { false } }
 
+    #expect(plan.noteEvents.map(\.voice) == [1, 2])
+    #expect(Set(plan.noteEvents.map(\.sourceNoteID)).count == 2)
+    #expect(noteOns.map(\.kind) == [
+        .noteOn(midi: 60, velocity: 70),
+        .noteOn(midi: 60, velocity: 96),
+    ])
     #expect(noteOns.count == 2)
     #expect(noteOffs.map(\.tick) == [120, 240])
     #expect(Set(noteOns.compactMap(\.sourceEventID)).count == 2)
