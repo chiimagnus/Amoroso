@@ -52,7 +52,7 @@ struct PerformanceInputReplayCursor<Payload> {
     }
 }
 
-final class DeterministicPerformanceClock: @unchecked Sendable {
+final class DeterministicPerformanceClock {
     private var instant: TestMonotonicInstant
 
     init(start: TestMonotonicInstant = TestMonotonicInstant(seconds: 0)) {
