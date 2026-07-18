@@ -468,7 +468,17 @@ func autoplaySchedulesAndAdvancesStepsUsingTempoMap() async {
             durationTicks: nil,
             practiceStepIndex: 0,
             activeNotes: [],
-            triggeredNotes: [],
+            triggeredNotes: [PianoHighlightNote(
+                occurrenceID: "fermata-60",
+                midiNote: 60,
+                staff: 1,
+                voice: 1,
+                velocity: 80,
+                onTick: 0,
+                offTick: 480,
+                fingeringText: nil,
+                handAssignment: .unknown
+            )],
             releasedMIDINotes: []
         ),
         PianoHighlightGuide(
@@ -478,7 +488,17 @@ func autoplaySchedulesAndAdvancesStepsUsingTempoMap() async {
             durationTicks: nil,
             practiceStepIndex: 1,
             activeNotes: [],
-            triggeredNotes: [],
+            triggeredNotes: [PianoHighlightNote(
+                occurrenceID: "next-62",
+                midiNote: 62,
+                staff: 1,
+                voice: 1,
+                velocity: 80,
+                onTick: 480,
+                offTick: 960,
+                fingeringText: nil,
+                handAssignment: .unknown
+            )],
             releasedMIDINotes: []
         ),
         PianoHighlightGuide(

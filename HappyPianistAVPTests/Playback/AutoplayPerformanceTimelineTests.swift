@@ -244,6 +244,55 @@ func autoplayTimelineExcludesPedalEventsAtActiveRangeUpperBound() throws {
     } == false)
 }
 
+@Test
+@MainActor
+func autoplayTimelineHoldsFinalFermataAtItsNoteOffBoundary() {
+    let note = MusicXMLNoteEvent(
+        partID: "P1",
+        measureNumber: 1,
+        tick: 0,
+        durationTicks: 240,
+        midiNote: 60,
+        isRest: false,
+        isChord: false,
+        tieStart: false,
+        tieStop: false,
+        staff: 1,
+        voice: 1
+    )
+    let timeline = AutoplayPerformanceTimeline.build(
+        guides: [makeTimelineGuide(
+            id: 1,
+            tick: 0,
+            notes: [makeTimelineNote(midi: 60, velocity: 80, onTick: 0, offTick: 240)]
+        )],
+        steps: [PracticeStep(
+            tick: 0,
+            notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]
+        )],
+        pedalTimeline: MusicXMLPedalTimeline(events: []),
+        fermataTimeline: MusicXMLFermataTimeline(
+            fermataEvents: [MusicXMLFermataEvent(
+                tick: 0,
+                scope: MusicXMLEventScope(partID: "P1", staff: 1, voice: 1),
+                source: .noteNotations
+            )],
+            notes: [note]
+        ),
+        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        practiceHandMode: .both
+    )
+
+    let eventsAtRelease = timeline.events.filter { $0.tick == 240 }.map(\.kind)
+    #expect(eventsAtRelease.count == 2)
+    if case let .pauseSeconds(seconds) = eventsAtRelease[0] {
+        #expect(abs(seconds - 0.125) < 0.000_001)
+    } else {
+        Issue.record("fermata pause must precede final note-off")
+    }
+    #expect(eventsAtRelease[1] == .noteOff(midi: 60))
+}
+
 private func makeTimelineGuide(id: Int, tick: Int, notes: [PianoHighlightNote]) -> PianoHighlightGuide {
     PianoHighlightGuide(
         id: id,
