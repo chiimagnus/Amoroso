@@ -76,14 +76,33 @@ struct MusicXMLArpeggiate: Equatable, Hashable {
 }
 
 struct MusicXMLTimeSignatureEvent: Equatable, Identifiable {
-    var id: String {
-        "\(tick)-\(beats)-\(beatType)-\(scope.partID)"
-    }
+    var id: String { "\(tick)-\(meter.displayText)-\(scope.partID)" }
 
     let tick: Int
-    let beats: Int
-    let beatType: Int
+    let meter: MusicXMLMeter
     let scope: MusicXMLEventScope
+
+    var beats: Int { meter.totalBeats }
+    var beatType: Int { meter.primaryBeatType }
+
+    init(tick: Int, meter: MusicXMLMeter, scope: MusicXMLEventScope) {
+        self.tick = tick
+        self.meter = meter
+        self.scope = scope
+    }
+
+    init(tick: Int, beats: Int, beatType: Int, scope: MusicXMLEventScope) {
+        self.init(
+            tick: tick,
+            meter: MusicXMLMeter(
+                components: [.init(beatGroups: [beats], beatType: beatType)],
+                symbolToken: nil,
+                isSenzaMisura: false,
+                approximation: nil
+            ),
+            scope: scope
+        )
+    }
 }
 
 struct MusicXMLKeySignatureEvent: Equatable, Identifiable {

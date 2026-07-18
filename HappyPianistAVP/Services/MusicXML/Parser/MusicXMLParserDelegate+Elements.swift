@@ -64,8 +64,10 @@ extension MusicXMLParserDelegate {
         case "time":
             if state.isInAttributes {
                 state.isInTime = true
-                state.timeBeats = nil
-                state.timeBeatType = nil
+                state.timeBeatGroups = []
+                state.timeBeatTypes = []
+                state.timeSymbolToken = normalizedMetadataToken(attributeDict["symbol"])
+                state.timeIsSenzaMisura = false
             }
         case "key":
             if state.isInAttributes {
@@ -311,17 +313,22 @@ extension MusicXMLParserDelegate {
                 state.partDivisions[state.currentPartID] = value
             }
         case "beats" where state.isInTime:
-            state.timeBeats = Int(text)
+            if let groups = parseMeterBeatGroups(text) {
+                state.timeBeatGroups.append(groups)
+            }
         case "beat-type" where state.isInTime:
-            state.timeBeatType = Int(text)
+            if let beatType = Int(text), beatType > 0 {
+                state.timeBeatTypes.append(beatType)
+            }
+        case "senza-misura" where state.isInTime:
+            state.timeIsSenzaMisura = true
         case "time" where state.isInTime:
-            if let beats = state.timeBeats, let beatType = state.timeBeatType, beats > 0, beatType > 0 {
-                let tick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
+            let tick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
+            if let meter = makeCurrentMeter() {
                 state.timeSignatureEvents.append(
                     MusicXMLTimeSignatureEvent(
                         tick: tick,
-                        beats: beats,
-                        beatType: beatType,
+                        meter: meter,
                         scope: MusicXMLEventScope(partID: state.currentPartID, staff: nil, voice: nil)
                     )
                 )

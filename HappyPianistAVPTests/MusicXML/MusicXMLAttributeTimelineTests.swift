@@ -56,3 +56,25 @@ func attributeTimelineResolvesLastEventsAtOrBeforeTick() {
     #expect(timeline.clef(atTick: 0, staffNumber: 1)?.signToken == "G")
     #expect(timeline.clef(atTick: 0, staffNumber: 2)?.signToken == "F")
 }
+
+@Test
+func parserAndAttributeTimelinePreserveAdditiveMeterFacts() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1"><attributes><divisions>8</divisions><time symbol="normal"><beats>3+2+3</beats><beat-type>8</beat-type></time></attributes></measure></part>
+    </score-partwise>
+    """
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let event = try #require(score.timeSignatureEvents.first)
+    let timeline = MusicXMLAttributeTimeline(
+        timeSignatureEvents: score.timeSignatureEvents,
+        keySignatureEvents: [],
+        clefEvents: []
+    )
+
+    #expect(event.meter.components == [.init(beatGroups: [3, 2, 3], beatType: 8)])
+    #expect(event.meter.displayText == "3+2+3/8")
+    #expect(event.beats == 8)
+    #expect(timeline.meter(atTick: 0) == event.meter)
+}

@@ -61,8 +61,10 @@ struct MusicXMLParserDelegateState {
 
     var isInAttributes = false
     var isInTime = false
-    var timeBeats: Int?
-    var timeBeatType: Int?
+    var timeBeatGroups: [[Int]] = []
+    var timeBeatTypes: [Int] = []
+    var timeSymbolToken: String?
+    var timeIsSenzaMisura = false
     var isInKey = false
     var keyFifths: Int?
     var keyModeToken: String?

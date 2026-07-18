@@ -288,8 +288,7 @@ struct MusicXMLStructureExpander {
             {
                 outputTimeSignatureEvents.append(MusicXMLTimeSignatureEvent(
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
-                    beats: event.beats,
-                    beatType: event.beatType,
+                    meter: event.meter,
                     scope: shiftedScope(event.scope, primaryPartID: primaryPartID)
                 ))
             }

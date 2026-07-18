@@ -90,6 +90,17 @@ struct MusicXMLScoreSnapshot {
                 ("dacapo", event.dacapo),
             ])
         })
+        lines.append(contentsOf: score.timeSignatureEvents.enumerated().map { index, event in
+            encoder.encode(fields: [
+                ("kind", "meter"),
+                ("sourceIndex", String(index)),
+                ("part", event.scope.partID),
+                ("tick", String(event.tick)),
+                ("value", event.meter.displayText),
+                ("symbol", event.meter.symbolToken),
+                ("approximation", event.meter.approximation),
+            ])
+        })
         lines.append(contentsOf: score.measures.sorted(by: measureOrdering).map { measure in
             encoder.encode(fields: [
                 ("kind", "measure"),
