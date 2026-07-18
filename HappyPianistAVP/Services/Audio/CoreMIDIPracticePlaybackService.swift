@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 @MainActor
 final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServiceProtocol {
@@ -46,9 +47,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
         playbackStartedAtUptimeSeconds = nil
 
-        Task { [scheduler] in
-            await scheduler?.stop()
-        }
+        scheduler?.stop()
         scheduler = nil
 
         stopAllLiveNotes()
@@ -83,9 +82,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         )
         self.scheduler = scheduler
 
-        Task.detached(priority: .userInitiated) {
-            await scheduler.play(events: events, fromSeconds: startSeconds)
-        }
+        scheduler.play(events: events, fromSeconds: startSeconds)
     }
 
     func currentSeconds() -> TimeInterval {
@@ -202,12 +199,16 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
     }
 }
 
-actor MIDIEventScheduler {
+private final class MIDIEventScheduler: Sendable {
+    private struct State {
+        var generation = 0
+        var playTask: Task<Void, Never>?
+    }
+
     private let outputService: any MIDIOutputSendingProtocol
     private let destinationUniqueID: Int32
     private let channel: UInt8
-
-    private var playTask: Task<Void, Never>?
+    private let state = OSAllocatedUnfairLock(initialState: State())
 
     init(outputService: any MIDIOutputSendingProtocol, destinationUniqueID: Int32, channel: UInt8) {
         self.outputService = outputService
@@ -216,10 +217,14 @@ actor MIDIEventScheduler {
     }
 
     func play(events: [PracticeSequencerMIDIEvent], fromSeconds startSeconds: TimeInterval) {
-        stopInternal()
-
         let eventsToPlay = events.filter { $0.timeSeconds >= startSeconds }
-        playTask = Task.detached(priority: .userInitiated) { [outputService, destinationUniqueID, channel] in
+        let generation = state.withLock { state in
+            state.playTask?.cancel()
+            state.generation += 1
+            return state.generation
+        }
+        let task = Task.detached(priority: .userInitiated) { [weak self] in
+            guard let self else { return }
             let startedAt = ProcessInfo.processInfo.systemUptime
             var index = 0
 
@@ -233,23 +238,43 @@ actor MIDIEventScheduler {
                     guard Task.isCancelled == false else { break }
                 }
 
-                do {
-                    try Self.send(event: event, outputService: outputService, destinationUniqueID: destinationUniqueID, channel: channel)
-                } catch {
-                    // best-effort: ignore individual send failures
-                }
+                guard sendIfCurrent(event, generation: generation) else { break }
                 index += 1
             }
+        }
+        state.withLock { state in
+            guard state.generation == generation else {
+                task.cancel()
+                return
+            }
+            state.playTask = task
         }
     }
 
     func stop() {
-        stopInternal()
+        let task = state.withLock { state in
+            state.generation += 1
+            defer { state.playTask = nil }
+            return state.playTask
+        }
+        task?.cancel()
     }
 
-    private func stopInternal() {
-        playTask?.cancel()
-        playTask = nil
+    private func sendIfCurrent(_ event: PracticeSequencerMIDIEvent, generation: Int) -> Bool {
+        state.withLock { state in
+            guard state.generation == generation else { return false }
+            do {
+                try Self.send(
+                    event: event,
+                    outputService: outputService,
+                    destinationUniqueID: destinationUniqueID,
+                    channel: channel
+                )
+            } catch {
+                // best-effort: ignore individual send failures
+            }
+            return true
+        }
     }
 
     private static func send(

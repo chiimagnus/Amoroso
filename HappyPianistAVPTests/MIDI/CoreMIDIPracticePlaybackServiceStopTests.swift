@@ -82,6 +82,41 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
         let musicalCalls = output.callsSnapshot().filter(expected.contains)
         #expect(musicalCalls == expected)
     }
+
+    @Test func stopPreventsDelayedEventsFromEscapingAfterReset() async throws {
+        let output = FakeMIDIOutputService()
+        let destinationUniqueID: Int32 = 9012
+        let playback = await MainActor.run {
+            CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                outputService: output,
+                velocity: 96,
+                channel: 0
+            )
+        }
+        let delayedNote = PracticeSequencerMIDIEvent(
+            sourceEventID: "delayed-note",
+            timeSeconds: 0.2,
+            kind: .noteOn(midi: 72, velocity: 80)
+        )
+
+        try await MainActor.run {
+            try playback.load(sequence: PracticeSequencerSequence(
+                midiData: Data(),
+                durationSeconds: 0.2,
+                events: [delayedNote]
+            ))
+            try playback.play(fromSeconds: 0)
+            playback.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+        }
+        let callsAfterStop = output.callsSnapshot()
+        try await Task.sleep(for: .milliseconds(300))
+
+        #expect(output.callsSnapshot() == callsAfterStop)
+        #expect(output.callsSnapshot().contains(
+            .noteOn(note: 72, velocity: 80, channel: 0, destination: destinationUniqueID)
+        ) == false)
+    }
 }
 
 private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked Sendable {
