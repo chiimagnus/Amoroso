@@ -612,7 +612,7 @@ private final class CapturingResumePlaybackService: PracticeSequencerPlaybackSer
     private(set) var oneShotCount = 0
     private(set) var playCount = 0
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {
         playCount += 1

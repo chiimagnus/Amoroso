@@ -6,8 +6,12 @@ import Testing
 @MainActor
 func sequencerPlaybackServiceProtocolSupportsDependencyInjection() {
     final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+        private(set) var resetCommands: [PerformanceTransportCommand] = []
+
         func warmUp() throws {}
-        func stop() {}
+        func stop(resetCommands: [PerformanceTransportCommand]) {
+            self.resetCommands = resetCommands
+        }
         func load(sequence _: PracticeSequencerSequence) throws {}
         func play(fromSeconds _: TimeInterval) throws {}
         func currentSeconds() -> TimeInterval {
@@ -24,6 +28,8 @@ func sequencerPlaybackServiceProtocolSupportsDependencyInjection() {
         _ = service
     }
 
-    accept(FakeSequencerPlaybackService())
-    #expect(true)
+    let service = FakeSequencerPlaybackService()
+    accept(service)
+    service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+    #expect(service.resetCommands == PerformanceTransportReducer.fullResetCommands)
 }

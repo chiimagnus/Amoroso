@@ -135,7 +135,7 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
         warmUpCallCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCallCount += 1
     }
 

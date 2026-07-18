@@ -196,7 +196,7 @@ final class PracticePlaybackControlService {
     }
 
     func stopAutoplayAudio() {
-        sequencerPlaybackService.stop()
+        sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
     }
 
     func smoothNotationScrollTick() -> Double? {
@@ -319,13 +319,11 @@ final class PracticePlaybackControlService {
     }
 
     private func executeResetIfNeeded(_ transition: PerformanceTransportReducer.Transition) {
-        guard transition.commands.contains(where: { command in
-            if case .reset = command { return true }
-            return false
-        }) else {
-            return
-        }
-        sequencerPlaybackService.stop()
+        guard let resetCommands = transition.commands.compactMap({ command -> [PerformanceTransportCommand]? in
+            if case let .reset(_, transportCommands, _, _) = command { return transportCommands }
+            return nil
+        }).first else { return }
+        sequencerPlaybackService.stop(resetCommands: resetCommands)
     }
 
     private func stopAutoplayWithError(_ message: String) {

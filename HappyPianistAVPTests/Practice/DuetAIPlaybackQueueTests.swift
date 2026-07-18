@@ -16,7 +16,7 @@ private final class FakeImmediatePlaybackService: PracticeSequencerPlaybackServi
         warmUpCallCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCallCount += 1
         isPlaying = false
     }

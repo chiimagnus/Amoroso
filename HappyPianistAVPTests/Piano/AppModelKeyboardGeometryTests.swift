@@ -119,7 +119,7 @@ private struct EmptyPianoModeRegistry: PianoModeRegistryProtocol {
 @MainActor
 private final class NoopSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {

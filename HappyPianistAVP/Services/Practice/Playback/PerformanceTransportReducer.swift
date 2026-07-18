@@ -35,6 +35,7 @@ struct PerformanceTransportReducer {
     enum LifecycleCommand: Equatable, Sendable {
         case reset(
             eventIDs: [ScorePerformanceNoteEventID],
+            transportCommands: [PerformanceTransportCommand],
             reason: ResetReason,
             generation: Int
         )
@@ -112,6 +113,23 @@ struct PerformanceTransportReducer {
         case .stop:
             return stopping(from: state, reason: .stop)
         }
+    }
+
+    static let fullResetCommands = resetCommands(eventIDs: [])
+
+    static func resetCommands(
+        eventIDs: [ScorePerformanceNoteEventID]
+    ) -> [PerformanceTransportCommand] {
+        eventIDs
+            .sorted { $0.description < $1.description }
+            .map(PerformanceTransportCommand.noteOff)
+            + [
+                .controlChange(controller: 64, value: 0),
+                .controlChange(controller: 66, value: 0),
+                .controlChange(controller: 67, value: 0),
+                .allNotesOff,
+                .allSoundOff,
+            ]
     }
 
     func reduce(notes: [Note]) -> Reduction {
@@ -195,6 +213,7 @@ private extension PerformanceTransportReducer {
         if let resetReason {
             commands.append(.reset(
                 eventIDs: sorted(state.activeEventIDs),
+                transportCommands: Self.resetCommands(eventIDs: sorted(state.activeEventIDs)),
                 reason: resetReason,
                 generation: generation
             ))
@@ -228,6 +247,7 @@ private extension PerformanceTransportReducer {
             commands: [
                 .reset(
                     eventIDs: sorted(state.activeEventIDs),
+                    transportCommands: Self.resetCommands(eventIDs: sorted(state.activeEventIDs)),
                     reason: reason,
                     generation: generation
                 ),

@@ -202,7 +202,7 @@ private final class ManualReplaySequencerPlaybackService: PracticeSequencerPlayb
         warmUpCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCount += 1
     }
 

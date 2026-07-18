@@ -31,7 +31,7 @@ final class TakePlaybackController {
     func pause() {
         guard isPlaying else { return }
         pausePositionSeconds = playbackService.currentSeconds()
-        playbackService.stop()
+        playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         isPlaying = false
     }
 
@@ -43,7 +43,7 @@ final class TakePlaybackController {
     }
 
     func stop() {
-        playbackService.stop()
+        playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         isPlaying = false
         currentTakeID = nil
         pausePositionSeconds = nil
@@ -52,7 +52,7 @@ final class TakePlaybackController {
     func seek(toSeconds seconds: TimeInterval) throws {
         guard let takeID = currentTakeID, let sequence = cachedSequence, cachedTakeID == takeID
         else { return }
-        playbackService.stop()
+        playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         try playbackService.load(sequence: sequence)
         try playbackService.play(fromSeconds: max(0, seconds))
         isPlaying = true

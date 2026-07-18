@@ -158,7 +158,7 @@ actor DuetAIPlaybackQueue {
                 await sleepFor(.milliseconds(16))
                 await Task.yield()
             }
-            service.stop()
+            service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         }
 
         await withTaskCancellationHandler {

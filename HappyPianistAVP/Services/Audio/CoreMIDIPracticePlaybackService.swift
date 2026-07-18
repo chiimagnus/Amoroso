@@ -37,7 +37,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         try ensureReady()
     }
 
-    func stop() {
+    func stop(resetCommands: [PerformanceTransportCommand]) {
         oneShotStopTask?.cancel()
         oneShotStopTask = nil
 
@@ -54,12 +54,12 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         stopAllLiveNotes()
         stopOneShotNotes()
 
-        sendAllNotesOffBestEffort()
+        execute(resetCommands)
     }
 
     func load(sequence: PracticeSequencerSequence) throws {
         try ensureReady()
-        stop()
+        stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         loadedDurationSeconds = sequence.durationSeconds
         loadedEvents = sequence.events
         lastKnownSeconds = 0
@@ -69,7 +69,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         try ensureReady()
         guard let events = loadedEvents else { return }
 
-        stop()
+        stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
 
         let startSeconds = max(0, start)
         lastKnownSeconds = startSeconds
@@ -167,9 +167,34 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         playingOneShotNotes.removeAll()
     }
 
-    private func sendAllNotesOffBestEffort() {
-        try? outputService.sendAllNotesOff(channel: channel, destinationUniqueID: destinationUniqueID)
-        try? outputService.sendAllSoundOff(channel: channel, destinationUniqueID: destinationUniqueID)
+    private func execute(_ commands: [PerformanceTransportCommand]) {
+        for command in commands {
+            switch command {
+            case let .noteOff(eventID):
+                guard let note = loadedEvents?.lazy.compactMap({ event -> UInt8? in
+                    guard event.sourceEventID == eventID.description,
+                          case let .noteOn(midi, _) = event.kind
+                    else { return nil }
+                    return UInt8(exactly: midi)
+                }).first else { continue }
+                try? outputService.sendNoteOff(
+                    note: note,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .controlChange(controller, value):
+                try? outputService.sendControlChange(
+                    controller: controller,
+                    value: value,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+            case .allNotesOff:
+                try? outputService.sendAllNotesOff(channel: channel, destinationUniqueID: destinationUniqueID)
+            case .allSoundOff:
+                try? outputService.sendAllSoundOff(channel: channel, destinationUniqueID: destinationUniqueID)
+            }
+        }
     }
 
     private func ensureReady() throws {

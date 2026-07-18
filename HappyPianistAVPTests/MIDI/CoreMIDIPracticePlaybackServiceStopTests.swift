@@ -4,22 +4,41 @@ import os
 import Testing
 
 struct CoreMIDIPracticePlaybackServiceStopTests {
-    @Test func stopSendsAllNotesOffAndAllSoundOff() async throws {
+    @Test func stopExecutesReducerResetCommandsInOrder() async throws {
         let output = FakeMIDIOutputService()
         let destinationUniqueID: Int32 = 1234
+        let plan = makeTestScorePerformancePlan(notes: [
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        ])
+        let eventID = plan.noteEvents[0].id
         let playback = await MainActor.run {
             CoreMIDIPracticePlaybackService(destinationUniqueID: destinationUniqueID, outputService: output, velocity: 96, channel: 0)
         }
 
         try await MainActor.run {
-            try playback.warmUp()
-            try playback.playOneShot(noteOns: [PracticeOneShotNoteOn(midiNote: 60, velocity: 96)], durationSeconds: 10)
-            playback.stop()
+            try playback.load(sequence: PracticeSequencerSequence(
+                midiData: Data(),
+                durationSeconds: 1,
+                events: [PracticeSequencerMIDIEvent(
+                    sourceEventID: eventID.description,
+                    timeSeconds: 0,
+                    kind: .noteOn(midi: 60, velocity: 96)
+                )]
+            ))
+        }
+        let callCountBeforeStop = output.callsSnapshot().count
+        await MainActor.run {
+            playback.stop(resetCommands: PerformanceTransportReducer.resetCommands(eventIDs: [eventID]))
         }
 
-        let calls = output.callsSnapshot()
-        #expect(calls.contains(.controlChange(controller: 123, value: 0, channel: 0, destination: destinationUniqueID)))
-        #expect(calls.contains(.controlChange(controller: 120, value: 0, channel: 0, destination: destinationUniqueID)))
+        #expect(Array(output.callsSnapshot().dropFirst(callCountBeforeStop)) == [
+            .noteOff(note: 60, channel: 0, destination: destinationUniqueID),
+            .controlChange(controller: 64, value: 0, channel: 0, destination: destinationUniqueID),
+            .controlChange(controller: 66, value: 0, channel: 0, destination: destinationUniqueID),
+            .controlChange(controller: 67, value: 0, channel: 0, destination: destinationUniqueID),
+            .controlChange(controller: 123, value: 0, channel: 0, destination: destinationUniqueID),
+            .controlChange(controller: 120, value: 0, channel: 0, destination: destinationUniqueID),
+        ])
     }
 
     @Test func playbackSendsCanonicalSequenceEventsIncludingControllers() async throws {

@@ -379,7 +379,7 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
     private(set) var oneShots: [[Int]] = []
 
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {

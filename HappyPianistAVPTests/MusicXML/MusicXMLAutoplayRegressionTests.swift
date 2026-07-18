@@ -65,7 +65,7 @@ private final class RegressionCapturingSequencerPlaybackService: PracticeSequenc
     private(set) var stopCount = 0
 
     func warmUp() throws {}
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCount += 1
     }
 

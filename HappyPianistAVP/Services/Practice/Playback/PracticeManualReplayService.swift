@@ -125,7 +125,7 @@ final class PracticeManualReplayService {
             guard Task.isCancelled == false, stateStore.manualReplayGeneration == generation else { return }
 
             do {
-                sequencerPlaybackService.stop()
+                sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
                 try sequencerPlaybackService.load(sequence: sequence)
                 try sequencerPlaybackService.play(fromSeconds: 0)
             } catch {
@@ -159,7 +159,7 @@ final class PracticeManualReplayService {
             }
 
             if Task.isCancelled == false, stateStore.manualReplayGeneration == generation {
-                sequencerPlaybackService.stop()
+                sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
             }
 
             completedReplay = true
@@ -173,7 +173,7 @@ final class PracticeManualReplayService {
 
         if stateStore.isManualReplayPlaying {
             stateStore.isManualReplayPlaying = false
-            sequencerPlaybackService.stop()
+            sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
             if restoreAudioRecognition, stateStore.shouldResumeAudioRecognitionAfterManualReplay {
                 effectHandler?.handle(effect: .refreshAudioRecognition)
             }

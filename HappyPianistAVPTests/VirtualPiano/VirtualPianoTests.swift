@@ -335,7 +335,7 @@ private final class LiveNoteCapturingPlaybackService: PracticeSequencerPlaybackS
     private(set) var stoppedLiveNotes: Set<Int> = []
 
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {

@@ -27,7 +27,7 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
         warmUpCallCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCallCount += 1
     }
 
@@ -237,7 +237,12 @@ func transportBoundariesResetBeforeApplyingAndAreIdempotent() {
         at: .seek(tick: 480, activeEventIDs: [firstID, secondID])
     )
     #expect(seek.commands == [
-        .reset(eventIDs: [firstID], reason: .seek, generation: 2),
+        .reset(
+            eventIDs: [firstID],
+            transportCommands: PerformanceTransportReducer.resetCommands(eventIDs: [firstID]),
+            reason: .seek,
+            generation: 2
+        ),
         .apply(tick: 480, eventIDs: [firstID, secondID], generation: 2),
     ])
 
@@ -246,13 +251,23 @@ func transportBoundariesResetBeforeApplyingAndAreIdempotent() {
         at: .loop(tick: 0, activeEventIDs: [firstID])
     )
     #expect(loop.commands == [
-        .reset(eventIDs: [firstID, secondID], reason: .loop, generation: 3),
+        .reset(
+            eventIDs: [firstID, secondID],
+            transportCommands: PerformanceTransportReducer.resetCommands(eventIDs: [firstID, secondID]),
+            reason: .loop,
+            generation: 3
+        ),
         .apply(tick: 0, eventIDs: [firstID], generation: 3),
     ])
 
     let end = reducer.transition(from: loop.state, at: .end)
     #expect(end.commands == [
-        .reset(eventIDs: [firstID], reason: .end, generation: 4),
+        .reset(
+            eventIDs: [firstID],
+            transportCommands: PerformanceTransportReducer.resetCommands(eventIDs: [firstID]),
+            reason: .end,
+            generation: 4
+        ),
     ])
     #expect(reducer.transition(from: end.state, at: .end).commands.isEmpty)
 
@@ -262,7 +277,12 @@ func transportBoundariesResetBeforeApplyingAndAreIdempotent() {
     )
     let stop = reducer.transition(from: restarted.state, at: .stop)
     #expect(stop.commands == [
-        .reset(eventIDs: [secondID], reason: .stop, generation: 6),
+        .reset(
+            eventIDs: [secondID],
+            transportCommands: PerformanceTransportReducer.resetCommands(eventIDs: [secondID]),
+            reason: .stop,
+            generation: 6
+        ),
     ])
     #expect(reducer.transition(from: stop.state, at: .stop).commands.isEmpty)
 }

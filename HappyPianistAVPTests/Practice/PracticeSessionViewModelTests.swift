@@ -1703,7 +1703,7 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
         warmUpCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCount += 1
     }
 
@@ -1734,7 +1734,7 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
 
 private final class ThrowingSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {
