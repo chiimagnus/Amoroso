@@ -113,11 +113,19 @@ extension MusicXMLParserDelegate {
             state.partTick[state.currentPartID] = currentTick + duration
         }
 
-        let midiNote: Int? = if state.noteIsRest {
+        let writtenPitch: MusicXMLWrittenPitch? = if state.noteIsRest {
             nil
+        } else if let step = state.noteStep, let octave = state.noteOctave {
+            MusicXMLWrittenPitch(
+                step: step,
+                octave: octave,
+                alter: state.noteAlter ?? 0,
+                accidentalToken: state.noteAccidentalToken
+            )
         } else {
-            Self.makeMIDINote(step: state.noteStep, alter: state.noteAlter ?? 0, octave: state.noteOctave)
+            nil
         }
+        let midiNote = writtenPitch.flatMap(Self.makeMIDINote)
 
         state.notes.append(
             MusicXMLNoteEvent(
@@ -125,6 +133,7 @@ extension MusicXMLParserDelegate {
                 measureNumber: state.currentMeasureNumber,
                 tick: startTick,
                 durationTicks: duration,
+                writtenPitch: writtenPitch,
                 midiNote: midiNote,
                 isRest: state.noteIsRest,
                 isChord: state.noteIsChord,
@@ -169,12 +178,14 @@ extension MusicXMLParserDelegate {
         )
     }
 
-    static func makeMIDINote(step: String?, alter: Int, octave: Int?) -> Int? {
-        guard let step, let octave else { return nil }
+    static func makeMIDINote(_ pitch: MusicXMLWrittenPitch) -> Int? {
+        let roundedAlter = pitch.alter.rounded()
+        guard abs(pitch.alter - roundedAlter) < 0.000_001 else { return nil }
         let stepBase: [String: Int] = [
             "C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11,
         ]
-        guard let base = stepBase[step] else { return nil }
-        return (octave + 1) * 12 + base + alter
+        guard let base = stepBase[pitch.step] else { return nil }
+        let value = (pitch.octave + 1) * 12 + base + Int(roundedAlter)
+        return (0...127).contains(value) ? value : nil
     }
 }

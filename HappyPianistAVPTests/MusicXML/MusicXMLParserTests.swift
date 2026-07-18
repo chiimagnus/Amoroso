@@ -864,3 +864,31 @@ func parserRejectsDuplicateScorePartIdentifiers() {
         try MusicXMLParser().parse(data: Data(xml.utf8))
     }
 }
+
+@Test
+func parserPreservesWrittenPitchSpellingAndDecimalAlter() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1"><attributes><divisions>1</divisions></attributes>
+        <note><pitch><step>C</step><alter>1</alter><octave>4</octave></pitch><accidental>sharp</accidental><duration>1</duration></note>
+        <note><pitch><step>D</step><alter>-1</alter><octave>4</octave></pitch><accidental>flat</accidental><duration>1</duration></note>
+        <note><pitch><step>F</step><alter>2</alter><octave>4</octave></pitch><accidental>double-sharp</accidental><duration>1</duration></note>
+        <note><pitch><step>G</step><alter>0.5</alter><octave>4</octave></pitch><accidental>quarter-sharp</accidental><duration>1</duration></note>
+        <note><rest/><duration>1</duration></note>
+      </measure></part>
+    </score-partwise>
+    """
+
+    let notes = try MusicXMLParser().parse(data: Data(xml.utf8)).notes
+
+    #expect(notes[0].writtenPitch == MusicXMLWrittenPitch(step: "C", octave: 4, alter: 1, accidentalToken: "sharp"))
+    #expect(notes[0].midiNote == 61)
+    #expect(notes[1].writtenPitch == MusicXMLWrittenPitch(step: "D", octave: 4, alter: -1, accidentalToken: "flat"))
+    #expect(notes[1].midiNote == 61)
+    #expect(notes[2].writtenPitch?.alter == 2)
+    #expect(notes[2].midiNote == 67)
+    #expect(notes[3].writtenPitch?.alter == 0.5)
+    #expect(notes[3].midiNote == nil)
+    #expect(notes[4].writtenPitch == nil)
+}

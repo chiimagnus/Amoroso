@@ -77,7 +77,8 @@ struct MusicXMLParserDelegateState {
     var noteIsRest = false
     var noteIsChord = false
     var noteStep: String?
-    var noteAlter: Int?
+    var noteAlter: Double?
+    var noteAccidentalToken: String?
     var noteOctave: Int?
     var noteDuration: Int?
     var noteStaff: Int?

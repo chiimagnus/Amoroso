@@ -173,6 +173,7 @@ extension MusicXMLParserDelegate {
             state.noteGraceStealTimeFollowing = nil
             state.noteStep = nil
             state.noteAlter = nil
+            state.noteAccidentalToken = nil
             state.noteOctave = nil
             state.noteDuration = nil
             state.noteType = nil
@@ -430,7 +431,10 @@ extension MusicXMLParserDelegate {
         case "step" where state.isInNote:
             state.noteStep = text
         case "alter" where state.isInNote:
-            state.noteAlter = Int(text)
+            state.noteAlter = Double(text)
+        case "accidental" where state.isInNote:
+            let token = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            state.noteAccidentalToken = token.isEmpty ? nil : token
         case "octave" where state.isInNote:
             state.noteOctave = Int(text)
         case "staff" where state.isInNote:
