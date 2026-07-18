@@ -115,8 +115,7 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
     let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
         from: score.notes,
         performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
-        expressivity: expressivity,
-        fermataTimeline: fermataTimeline
+        expressivity: expressivity
     )
     let guides = PianoHighlightGuideBuilderService().buildGuides(
         input: PianoHighlightGuideBuildInput(

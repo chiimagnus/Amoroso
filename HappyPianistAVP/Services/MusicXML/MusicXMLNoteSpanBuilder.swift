@@ -12,11 +12,12 @@ struct MusicXMLNoteSpanBuilder {
         from notes: [MusicXMLNoteEvent],
         performanceTimingEnabled: Bool = false,
         expressivity: MusicXMLExpressivityOptions = MusicXMLExpressivityOptions(),
-        fermataTimeline: MusicXMLFermataTimeline? = nil
+        interpretationProfile: MusicXMLInterpretationProfile = .generic
     ) -> [MusicXMLNoteSpan] {
         let timingSchedule = ScoreTimingScheduleBuilder().build(
             notes: notes,
-            performanceTimingEnabled: performanceTimingEnabled
+            performanceTimingEnabled: performanceTimingEnabled,
+            interpretationProfile: interpretationProfile
         )
         let orderedNoteIndices = notes.indices.sorted { lhsIndex, rhsIndex in
             let lhs = notes[lhsIndex]
@@ -43,12 +44,6 @@ struct MusicXMLNoteSpanBuilder {
             let staff = note.staff ?? 1
             let voice = note.voice ?? 1
             let key = Key(partID: note.partID, midiNote: midiNote, staff: staff, voice: voice)
-            let fermataExtraTicks = if expressivity.fermataEnabled, note.isGrace == false {
-                fermataTimeline?.extraTicksForNote(atTick: note.tick, staff: staff) ?? 0
-            } else {
-                0
-            }
-
             let category: Category = if note.tieStart, note.tieStop {
                 .middle
             } else if note.tieStart {
@@ -65,7 +60,7 @@ struct MusicXMLNoteSpanBuilder {
                     activeSpanIndexByKey[key] = nil
                 }
 
-                let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteID[note.id] ?? 0)
+                let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteIndex[noteIndex] ?? 0)
                 let baseTick = note.tick + max(0, arpeggiateOffset)
                 let onTick = baseTick + timing.onsetOffsetTicks
                 let offTick = max(onTick, baseTick + max(0, note.durationTicks))
@@ -89,7 +84,7 @@ struct MusicXMLNoteSpanBuilder {
                         offTick: existing.offTick + max(0, note.durationTicks)
                     )
                 } else {
-                    let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteID[note.id] ?? 0)
+                    let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteIndex[noteIndex] ?? 0)
                     let baseTick = note.tick + max(0, arpeggiateOffset)
                     let onTick = baseTick + timing.onsetOffsetTicks
                     let offTick = max(onTick, baseTick + max(0, note.durationTicks))
@@ -114,12 +109,12 @@ struct MusicXMLNoteSpanBuilder {
                         onTick: existing.onTick,
                         offTick: max(
                             existing.onTick,
-                            existing.offTick + max(0, note.durationTicks) + releaseTicks + fermataExtraTicks
+                            existing.offTick + max(0, note.durationTicks) + releaseTicks
                         )
                     )
                     activeSpanIndexByKey[key] = nil
                 } else {
-                    let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteID[note.id] ?? 0)
+                    let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteIndex[noteIndex] ?? 0)
                     let baseTick = note.tick + max(0, arpeggiateOffset)
                     let onTick = baseTick + timing.onsetOffsetTicks
                     output.append(
@@ -130,15 +125,14 @@ struct MusicXMLNoteSpanBuilder {
                             onTick: onTick,
                             offTick: max(
                                 onTick,
-                                baseTick + max(0, note.durationTicks) + releaseTicks + fermataExtraTicks
+                                baseTick + max(0, note.durationTicks) + releaseTicks
                             )
                         )
                     )
                 }
             case .normal:
-                let releaseTicks = timing.releaseOffsetTicks
-                let plannedGrace = note.isGrace ? gracePlan?.scheduleByNoteID[note.id] : nil
-                let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteID[note.id] ?? 0)
+                let plannedGrace = note.isGrace ? gracePlan?.scheduleByNoteIndex[noteIndex] : nil
+                let arpeggiateOffset = note.isGrace ? 0 : (arpeggiatePlan?.offsetTicksByNoteIndex[noteIndex] ?? 0)
                 let baseTick = (plannedGrace?.onTick ?? note.tick) + max(0, arpeggiateOffset)
                 let rawDurationTicks = if let plannedGrace {
                     plannedGrace.durationTicks
@@ -154,10 +148,12 @@ struct MusicXMLNoteSpanBuilder {
                 }
 
                 let onTick = baseTick + timing.onsetOffsetTicks
-                let effectiveDurationTicks = articulatedDurationTicks(for: note, rawDurationTicks: rawDurationTicks)
+                let effectiveDurationTicks = note.isGrace
+                    ? rawDurationTicks
+                    : max(0, timing.performedOffTick - timing.performedOnTick)
                 let offTick = max(
                     onTick,
-                    baseTick + max(0, effectiveDurationTicks) + releaseTicks + fermataExtraTicks
+                    onTick + max(0, effectiveDurationTicks)
                 )
                 output.append(
                     MusicXMLNoteSpan(
@@ -178,26 +174,6 @@ struct MusicXMLNoteSpanBuilder {
         }
     }
 
-    private func articulatedDurationTicks(for note: MusicXMLNoteEvent, rawDurationTicks: Int) -> Int {
-        let raw = max(0, rawDurationTicks)
-        guard raw > 0 else { return raw }
-
-        let articulationMultiplier = if note.articulations.contains(.staccatissimo) {
-            0.25
-        } else if note.articulations.contains(.staccato) {
-            0.5
-        } else if note.articulations.contains(.detachedLegato) {
-            0.75
-        } else if note.articulations.contains(.marcato) {
-            0.75
-        } else {
-            1.0
-        }
-
-        let adjusted = Int((Double(raw) * articulationMultiplier).rounded())
-        return min(raw, max(1, adjusted))
-    }
-
     private struct GraceKey: Hashable {
         let partID: String
         let staff: Int
@@ -211,33 +187,33 @@ struct MusicXMLNoteSpanBuilder {
     }
 
     private struct GracePlan {
-        let scheduleByNoteID: [String: GraceSchedule]
+        let scheduleByNoteIndex: [Int: GraceSchedule]
         let durationReductionTicksByKey: [GraceKey: Int]
 
         init(notes: [MusicXMLNoteEvent]) {
-            var graceIndicesByKey: [GraceKey: [MusicXMLNoteEvent]] = [:]
+            var graceIndicesByKey: [GraceKey: [Int]] = [:]
             var followingDurationTicksByKey: [GraceKey: Int] = [:]
 
-            for note in notes where note.isRest == false {
+            for (noteIndex, note) in notes.enumerated() where note.isRest == false {
                 let staff = note.staff ?? 1
                 let voice = note.voice ?? 1
                 let key = GraceKey(partID: note.partID, staff: staff, voice: voice, tick: note.tick)
 
                 if note.isGrace {
-                    graceIndicesByKey[key, default: []].append(note)
+                    graceIndicesByKey[key, default: []].append(noteIndex)
                 } else if followingDurationTicksByKey[key] == nil {
                     followingDurationTicksByKey[key] = max(0, note.durationTicks)
                 }
             }
 
-            var schedule: [String: GraceSchedule] = [:]
+            var schedule: [Int: GraceSchedule] = [:]
             var reductions: [GraceKey: Int] = [:]
 
-            for (key, graceNotes) in graceIndicesByKey {
+            for (key, graceNoteIndices) in graceIndicesByKey {
                 guard let followingDuration = followingDurationTicksByKey[key], followingDuration > 0 else { continue }
 
-                let stealFraction: Double = graceNotes.compactMap(\.graceStealTimeFollowing).first
-                    ?? graceNotes.compactMap(\.graceStealTimePrevious).first
+                let stealFraction: Double = graceNoteIndices.compactMap { notes[$0].graceStealTimeFollowing }.first
+                    ?? graceNoteIndices.compactMap { notes[$0].graceStealTimePrevious }.first
                     ?? 0.25
 
                 let totalStolenTicks = max(
@@ -247,23 +223,23 @@ struct MusicXMLNoteSpanBuilder {
                 reductions[key] = totalStolenTicks
 
                 let startTick = max(0, key.tick - totalStolenTicks)
-                let slice = max(1, totalStolenTicks / max(1, graceNotes.count))
+                let slice = max(1, totalStolenTicks / max(1, graceNoteIndices.count))
 
                 var cursor = startTick
-                for (i, graceNote) in graceNotes.enumerated() {
+                for (offset, graceNoteIndex) in graceNoteIndices.enumerated() {
                     var duration = slice
-                    if i == graceNotes.count - 1 {
+                    if offset == graceNoteIndices.count - 1 {
                         duration = max(1, key.tick - cursor)
                     }
-                    if graceNote.graceSlash {
+                    if notes[graceNoteIndex].graceSlash {
                         duration = max(1, duration / 2)
                     }
-                    schedule[graceNote.id] = GraceSchedule(onTick: cursor, durationTicks: duration)
+                    schedule[graceNoteIndex] = GraceSchedule(onTick: cursor, durationTicks: duration)
                     cursor += duration
                 }
             }
 
-            scheduleByNoteID = schedule
+            scheduleByNoteIndex = schedule
             durationReductionTicksByKey = reductions
         }
     }
@@ -282,13 +258,13 @@ struct MusicXMLNoteSpanBuilder {
     }
 
     private struct ArpeggiateCandidate: Equatable {
-        let noteID: String
+        let noteIndex: Int
         let midi: Int
         let durationTicks: Int
     }
 
     private struct ArpeggiatePlan {
-        let offsetTicksByNoteID: [String: Int]
+        let offsetTicksByNoteIndex: [Int: Int]
 
         init(notes: [MusicXMLNoteEvent]) {
             var directionTokenByKey: [ArpeggiateKey: String?] = [:]
@@ -307,14 +283,14 @@ struct MusicXMLNoteSpanBuilder {
             }
 
             guard directionTokenByKey.isEmpty == false else {
-                offsetTicksByNoteID = [:]
+                offsetTicksByNoteIndex = [:]
                 return
             }
 
             var candidatesByKey: [ArpeggiateKey: [ArpeggiateCandidate]] = [:]
             candidatesByKey.reserveCapacity(32)
 
-            for note in notes {
+            for (noteIndex, note) in notes.enumerated() {
                 guard note.isRest == false else { continue }
                 guard note.isGrace == false else { continue }
                 guard let midi = note.midiNote else { continue }
@@ -325,26 +301,26 @@ struct MusicXMLNoteSpanBuilder {
 
                 candidatesByKey[key, default: []].append(
                     ArpeggiateCandidate(
-                        noteID: note.id,
+                        noteIndex: noteIndex,
                         midi: midi,
                         durationTicks: max(0, note.durationTicks)
                     )
                 )
             }
 
-            var offsets: [String: Int] = [:]
+            var offsets: [Int: Int] = [:]
             offsets.reserveCapacity(candidatesByKey.values.reduce(0) { $0 + $1.count })
 
             for (key, candidates) in candidatesByKey {
                 guard candidates.count >= 2 else {
-                    offsets[candidates[0].noteID] = 0
+                    offsets[candidates[0].noteIndex] = 0
                     continue
                 }
 
                 let durationTicks = candidates.map(\.durationTicks).max() ?? 0
                 guard durationTicks > 0 else {
                     for candidate in candidates {
-                        offsets[candidate.noteID] = 0
+                        offsets[candidate.noteIndex] = 0
                     }
                     continue
                 }
@@ -360,14 +336,14 @@ struct MusicXMLNoteSpanBuilder {
 
                 var cursor = 0
                 for (i, candidate) in ordered.enumerated() {
-                    offsets[candidate.noteID] = cursor
+                    offsets[candidate.noteIndex] = cursor
                     if i < ordered.count - 1 {
                         cursor = min(totalSpreadTicks, cursor + step)
                     }
                 }
             }
 
-            offsetTicksByNoteID = offsets
+            offsetTicksByNoteIndex = offsets
         }
     }
 }

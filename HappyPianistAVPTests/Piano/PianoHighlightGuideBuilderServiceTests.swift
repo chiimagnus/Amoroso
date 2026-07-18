@@ -267,8 +267,7 @@ func highlightGuideBuilderUsesFermataExtraTicksWhenEnabled() {
     let spans = MusicXMLNoteSpanBuilder().buildSpans(
         from: score.notes,
         performanceTimingEnabled: false,
-        expressivity: expressivity,
-        fermataTimeline: fermataTimeline
+        expressivity: expressivity
     )
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -277,6 +276,6 @@ func highlightGuideBuilderUsesFermataExtraTicksWhenEnabled() {
 
     let trigger = guides.first { $0.kind == .trigger }
     #expect(spans.count == 1)
-    #expect(spans.first?.offTick == 720)
+    #expect(spans.first?.offTick == 480)
     #expect(trigger?.triggeredNotes.first?.offTick == spans.first?.offTick)
 }

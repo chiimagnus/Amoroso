@@ -5,7 +5,8 @@ struct ScoreTimingScheduleBuilder {
         notes: [MusicXMLNoteEvent],
         performanceTimingEnabled: Bool = false,
         logicalInstruments: [MusicXMLLogicalInstrument] = [],
-        arpeggiateEnabled: Bool = false
+        arpeggiateEnabled: Bool = false,
+        interpretationProfile: MusicXMLInterpretationProfile = .generic
     ) -> ScoreTimingSchedule {
         var entries = notes.enumerated().map { index, note in
             MutableEntry(noteIndex: index, note: note, performanceTimingEnabled: performanceTimingEnabled)
@@ -29,6 +30,11 @@ struct ScoreTimingScheduleBuilder {
                 entries: &entries
             )
         }
+        applyArticulation(
+            notes: notes,
+            profile: interpretationProfile,
+            entries: &entries
+        )
 
         return ScoreTimingSchedule(entries: entries.map(\.value))
     }
@@ -469,6 +475,29 @@ private extension ScoreTimingScheduleBuilder {
                     offsetTicks = min(totalSpreadTicks, offsetTicks + stepTicks)
                 }
             }
+        }
+    }
+
+    func applyArticulation(
+        notes: [MusicXMLNoteEvent],
+        profile: MusicXMLInterpretationProfile,
+        entries: inout [MutableEntry]
+    ) {
+        for index in notes.indices where notes[index].isGrace == false {
+            let multiplier = profile.durationMultiplier(for: notes[index].articulations)
+            guard multiplier < 1 else { continue }
+            let rawDuration = max(0, entries[index].performedOffTick - entries[index].performedOnTick)
+            guard rawDuration > 0 else { continue }
+            let adjustedDuration = min(
+                rawDuration,
+                max(1, Int((Double(rawDuration) * multiplier).rounded()))
+            )
+            entries[index].setInterval(
+                onTick: entries[index].performedOnTick,
+                offTick: entries[index].performedOnTick + adjustedDuration,
+                policy: .interpretationProfile,
+                timingProvenance: .interpretationProfile(id: profile.id)
+            )
         }
     }
 

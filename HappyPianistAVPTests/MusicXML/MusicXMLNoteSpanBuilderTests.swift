@@ -238,7 +238,7 @@ func noteSpanBuilderOffsetsArpeggiateChordOnsetsWhenEnabled() {
 }
 
 @Test
-func noteSpanBuilderExtendsFermataNoteOffTicksWhenEnabled() {
+func noteSpanBuilderLeavesFermataAsSingleGlobalHold() {
     let builder = MusicXMLNoteSpanBuilder()
     let notes: [MusicXMLNoteEvent] = [
         MusicXMLNoteEvent(
@@ -266,10 +266,34 @@ func noteSpanBuilderExtendsFermataNoteOffTicksWhenEnabled() {
 
     let spans = builder.buildSpans(
         from: notes,
-        expressivity: MusicXMLExpressivityOptions(fermataEnabled: true),
-        fermataTimeline: fermataTimeline
+        expressivity: MusicXMLExpressivityOptions(fermataEnabled: true)
     )
     #expect(spans.count == 1)
     #expect(spans[0].onTick == 480)
-    #expect(spans[0].offTick == 1200)
+    #expect(spans[0].offTick == 960)
+    #expect(fermataTimeline.extraTicksForNote(atTick: 480, staff: 1) == 240)
+    #expect(fermataTimeline.interpretationProfileID == MusicXMLInterpretationProfile.generic.id)
+}
+
+@Test
+func timingScheduleRecordsGenericInterpretationProfileForArticulation() {
+    let note = MusicXMLNoteEvent(
+        partID: "P1",
+        measureNumber: 1,
+        tick: 0,
+        durationTicks: 480,
+        midiNote: 60,
+        isRest: false,
+        isChord: false,
+        tieStart: false,
+        tieStop: false,
+        staff: 1,
+        voice: 1,
+        articulations: [.detachedLegato]
+    )
+
+    let entry = ScoreTimingScheduleBuilder().build(notes: [note])[0]
+    #expect(entry.performedOffTick == 360)
+    #expect(entry.releasePolicy == .interpretationProfile)
+    #expect(entry.provenance.contains(.interpretationProfile(id: MusicXMLInterpretationProfile.generic.id)))
 }

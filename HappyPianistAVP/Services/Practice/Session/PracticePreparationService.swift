@@ -199,8 +199,7 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
         let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
             from: practiceScore.notes,
             performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
-            expressivity: expressivityOptions,
-            fermataTimeline: fermataTimeline
+            expressivity: expressivityOptions
         )
         let highlightGuides = PianoHighlightGuideBuilderService().buildGuides(
             input: PianoHighlightGuideBuildInput(

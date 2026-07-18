@@ -8,6 +8,7 @@ enum ScoreTimingReleasePolicy: String, Codable, Equatable, Sendable {
     case graceStealPreviousAndFollowing
     case graceMakeTime
     case arpeggio
+    case interpretationProfile
 }
 
 enum ScoreGraceTimingKind: String, Codable, Equatable, Sendable {

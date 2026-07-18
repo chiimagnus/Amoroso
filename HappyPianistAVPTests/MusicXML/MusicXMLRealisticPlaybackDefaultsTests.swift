@@ -15,6 +15,14 @@ func musicXMLRealisticPlaybackDefaultsAreHardcodedForNoSettingsSwitches() {
     #expect(expressivity.fermataEnabled == true)
     #expect(expressivity.arpeggiateEnabled == true)
     #expect(expressivity.wordsSemanticsEnabled == true)
+
+    let profile = MusicXMLInterpretationProfile.generic
+    #expect(profile.id == "generic-score-v1")
+    #expect(profile.staccatissimoDurationMultiplier == 0.25)
+    #expect(profile.staccatoDurationMultiplier == 0.5)
+    #expect(profile.detachedLegatoDurationMultiplier == 0.75)
+    #expect(profile.marcatoDurationMultiplier == 0.75)
+    #expect(profile.fermataExtraDurationMultiplier == 0.5)
 }
 
 // Grep gate for local/CI regression checks:
