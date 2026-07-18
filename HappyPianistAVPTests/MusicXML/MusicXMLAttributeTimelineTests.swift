@@ -49,6 +49,7 @@ func attributeTimelineResolvesLastEventsAtOrBeforeTick() {
     #expect(timeline.timeSignature(atTick: 0)?.beats == 4)
     #expect(timeline.timeSignature(atTick: 479)?.beats == 4)
     #expect(timeline.timeSignature(atTick: 480)?.beats == 3)
+    #expect(timeline.meter(atTick: 480)?.displayText == "3/4")
 
     #expect(timeline.keySignature(atTick: 0)?.fifths == -3)
     #expect(timeline.keySignature(atTick: 960)?.fifths == -3)
