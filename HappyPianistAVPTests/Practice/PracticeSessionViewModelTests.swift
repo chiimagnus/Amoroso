@@ -530,11 +530,14 @@ func autoplaySchedulesAndAdvancesStepsUsingTempoMap() async {
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
-    await settleTaskQueue()
+    await waitUntil("tempo-map autoplay load and final step") {
+        playbackService.loadedSequences.count == 1 && viewModel.currentStepIndex == 2
+    }
 
     #expect(playbackService.loadedSequences.count == 1)
     #expect(playbackService.playStarts == [0])
     #expect(viewModel.currentStepIndex == 2)
+    viewModel.shutdown()
 }
 
 @Test

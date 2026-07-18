@@ -176,13 +176,12 @@ private func makePlaybackCoordinatorFixture(
 func autoplayStartsAndAdvancesStep() async {
     let fixture = makePlaybackCoordinatorFixture(
         scoreRevision: "autoplay-start",
-        currentSeconds: 999
+        currentSeconds: 0.6
     )
 
     fixture.service.startAutoplayTaskIfNeeded()
-    for _ in 0 ..< 240 {
-        if fixture.sequencer.loadCallCount == 1, fixture.stateStore.currentStepIndex == 1 { break }
-        try? await Task.sleep(for: .milliseconds(1))
+    await waitForPlaybackCondition("initial autoplay reaches the second step") {
+        fixture.sequencer.loadCallCount == 1 && fixture.stateStore.currentStepIndex == 1
     }
 
     #expect(fixture.sequencer.loadCallCount == 1)
@@ -190,6 +189,7 @@ func autoplayStartsAndAdvancesStep() async {
     #expect(fixture.sequencer.resetCommandCalls == [PerformanceTransportReducer.fullResetCommands])
     #expect(fixture.stateStore.currentStepIndex == 1)
     #expect(fixture.effectHandler.effects.contains(.refreshAudioRecognition))
+    fixture.service.shutdown()
 }
 
 @Test
@@ -299,10 +299,14 @@ func seekAndLoopRestartWithTargetTickState() async throws {
         currentSeconds: 0
     )
     fixture.service.startAutoplayTaskIfNeeded()
-    for _ in 0 ..< 10 { await Task.yield() }
+    await waitForPlaybackCondition("initial autoplay load") {
+        fixture.sequencer.loadCallCount == 1
+    }
 
     fixture.service.seekAutoplay(toStepIndex: 1)
-    for _ in 0 ..< 10 { await Task.yield() }
+    await waitForPlaybackCondition("seek autoplay reload") {
+        fixture.sequencer.loadCallCount == 2 && fixture.sequencer.playCallCount == 2
+    }
 
     #expect(fixture.sequencer.stopCallCount == 2)
     #expect(fixture.sequencer.resetCommandCalls.last == PerformanceTransportReducer.resetCommands(
@@ -318,10 +322,25 @@ func seekAndLoopRestartWithTargetTickState() async throws {
     })
 
     fixture.service.loopAutoplay(toStepIndex: 0)
-    for _ in 0 ..< 10 { await Task.yield() }
+    await waitForPlaybackCondition("loop autoplay reload") {
+        fixture.sequencer.loadCallCount == 3 && fixture.sequencer.playCallCount == 3
+    }
 
     #expect(fixture.sequencer.stopCallCount == 3)
     #expect(fixture.sequencer.loadCallCount == 3)
     #expect(fixture.sequencer.playCallCount == 3)
     #expect(fixture.stateStore.currentStepIndex == 0)
+    fixture.service.shutdown()
+}
+
+@MainActor
+private func waitForPlaybackCondition(
+    _ description: String,
+    condition: () -> Bool
+) async {
+    for _ in 0 ..< 240 {
+        if condition() { return }
+        try? await Task.sleep(for: .milliseconds(1))
+    }
+    #expect(condition(), "Timed out waiting for: \(description)")
 }
