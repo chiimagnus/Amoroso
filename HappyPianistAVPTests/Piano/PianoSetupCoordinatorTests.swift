@@ -33,7 +33,8 @@ func resetPianoSetupClearsPracticeSetupState() {
             startTick: 0,
             endTick: 1
         )],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     ))
 
     let registry = PianoModeRegistryService(modes: [])

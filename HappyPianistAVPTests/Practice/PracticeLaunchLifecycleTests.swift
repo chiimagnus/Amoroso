@@ -690,7 +690,8 @@ private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
                 endTick: 480
             ),
         ],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     )
 }
 

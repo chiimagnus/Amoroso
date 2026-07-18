@@ -23,6 +23,7 @@ func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() as
     ) == .applied)
     #expect(guide.practiceSessionViewModel.songIdentity == prepared.identity)
     #expect(guide.latestPreparedPractice?.identity == prepared.identity)
+    #expect(guide.latestPreparedPractice?.scoreContext == prepared.scoreContext)
 
     await guide.clearPreparedPracticeForLaunch()
     await guide.clearPreparedPracticeForLaunch()
@@ -266,6 +267,7 @@ func replacementDuringProgressRestoreInvalidatesOldPreparedApply() async {
     #expect(guide.practiceSessionViewModel === replacementSession)
     #expect(replacementSession.songIdentity == prepared.identity)
     #expect(guide.latestPreparedPractice?.identity == prepared.identity)
+    #expect(guide.latestPreparedPractice?.scoreContext == prepared.scoreContext)
 }
 
 @MainActor
@@ -316,7 +318,8 @@ private func makeLifecyclePreparedPractice() -> PreparedPractice {
                 endTick: 480
             ),
         ],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     )
 }
 

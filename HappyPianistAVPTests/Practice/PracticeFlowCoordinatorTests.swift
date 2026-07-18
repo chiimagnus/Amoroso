@@ -28,7 +28,8 @@ func enterPracticeStepCallsOpenImmersive() async {
             startTick: 0,
             endTick: 1
         )],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     ))
 
     var openedIDs: [String] = []

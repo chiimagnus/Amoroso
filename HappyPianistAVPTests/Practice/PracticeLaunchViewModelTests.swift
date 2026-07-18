@@ -1302,7 +1302,7 @@ private actor PracticeLaunchPreparationService: PracticePreparationServiceProtoc
         self.includeMeasureSpans = includeMeasureSpans
     }
 
-    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile) async throws -> PreparedPractice {
+    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile, options _: PracticePreparationOptions) async throws -> PreparedPractice {
         requests.append(songID)
         if let delay = delays[songID] { try await Task.sleep(for: delay) }
         if let error = errors[songID] { throw error }
@@ -1322,7 +1322,7 @@ private actor ControlledPracticeLaunchPreparationService: PracticePreparationSer
     private var continuations: [UUID: CheckedContinuation<PreparedPractice, Never>] = [:]
     private var files: [UUID: ImportedMusicXMLFile] = [:]
 
-    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile) async -> PreparedPractice {
+    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile, options _: PracticePreparationOptions) async throws -> PreparedPractice {
         files[songID] = file
         return await withCheckedContinuation { continuation in
             continuations[songID] = continuation
@@ -1360,7 +1360,7 @@ private actor SequencedPracticeLaunchPreparationService: PracticePreparationServ
         self.results = results
     }
 
-    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile) throws -> PreparedPractice {
+    func prepare(songID: UUID, from _: URL, file: ImportedMusicXMLFile, options _: PracticePreparationOptions) throws -> PreparedPractice {
         requestCount += 1
         switch results.removeFirst() {
         case let .failure(error): throw error
@@ -1555,6 +1555,7 @@ private func makePracticeLaunchPreparedPractice(
                 endTick: 960
             ),
         ] : [],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     )
 }

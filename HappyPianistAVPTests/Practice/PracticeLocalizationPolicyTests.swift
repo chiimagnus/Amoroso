@@ -40,7 +40,8 @@ func practiceEntryBlockingReasonIsMissingStoredCalibrationWhenStepsExist() {
             startTick: 0,
             endTick: 1
         )],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     ))
 
     let viewModel = ARGuideViewModel(appState: appState, practiceSetupState: practiceSetupState)
@@ -75,7 +76,8 @@ func practiceEntryBlockingReasonIsNilWhenPreconditionsAreReady() {
             startTick: 0,
             endTick: 1
         )],
-        unsupportedNoteCount: 0
+        unsupportedNoteCount: 0,
+        scoreContext: makeTestPreparedPracticeScoreContext()
     ))
 
     let viewModel = ARGuideViewModel(appState: appState, practiceSetupState: practiceSetupState)

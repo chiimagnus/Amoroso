@@ -109,6 +109,15 @@ struct PracticeStepBuildResult: Equatable {
     let unsupportedNoteCount: Int
 }
 
+struct PreparedPracticeScoreContext: Equatable {
+    let sourceScore: MusicXMLScore
+    let preparedScore: MusicXMLScore
+    let logicalInstrument: MusicXMLLogicalInstrument
+    let structuralPartID: String
+    let orderSelection: MusicXMLOrderSelection
+    let handAssignments: [MusicXMLSourceNoteID: ScoreHandAssignment]
+}
+
 struct PreparedPractice {
     let identity: PracticeSongIdentity
     let steps: [PracticeStep]
@@ -120,6 +129,7 @@ struct PreparedPractice {
     let highlightGuides: [PianoHighlightGuide]
     let measureSpans: [MusicXMLMeasureSpan]
     let unsupportedNoteCount: Int
+    let scoreContext: PreparedPracticeScoreContext
 }
 
 enum ManualAdvanceMode: String, CaseIterable, Identifiable, Codable, Equatable {

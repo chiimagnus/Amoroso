@@ -40,10 +40,20 @@ protocol PracticePreparationServiceProtocol {
     func prepare(
         songID: UUID,
         from scoreURL: URL,
-        file: ImportedMusicXMLFile
+        file: ImportedMusicXMLFile,
+        options: PracticePreparationOptions
     ) async throws -> PreparedPractice
 }
 
+extension PracticePreparationServiceProtocol {
+    func prepare(
+        songID: UUID,
+        from scoreURL: URL,
+        file: ImportedMusicXMLFile
+    ) async throws -> PreparedPractice {
+        try await prepare(songID: songID, from: scoreURL, file: file, options: .practice)
+    }
+}
 actor PracticePreparationService: PracticePreparationServiceProtocol {
     private let parser: MusicXMLParserProtocol
     private let stepBuilder: PracticeStepBuilderProtocol
@@ -60,7 +70,8 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
     func prepare(
         songID: UUID,
         from scoreURL: URL,
-        file: ImportedMusicXMLFile
+        file: ImportedMusicXMLFile,
+        options: PracticePreparationOptions
     ) async throws -> PreparedPractice {
         try Task.checkCancellation()
         let scoreBytes: Data
@@ -114,9 +125,9 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
                 reason: PracticePreparationErrorDetails.safeErrorSummary(error)
             )
         }
-        let score = MusicXMLPianoGrandStaffNormalizer().normalize(score: rawScore)
+        let normalizedScore = MusicXMLPianoGrandStaffNormalizer().normalize(score: rawScore)
         let selectedInstrument: MusicXMLLogicalInstrument
-        switch MusicXMLPracticePartSelector().select(from: score) {
+        switch MusicXMLPracticePartSelector().select(from: normalizedScore) {
         case let .selected(instrument):
             selectedInstrument = instrument
         case let .ambiguous(ambiguity):
@@ -127,15 +138,28 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
         case .unavailable:
             throw PracticePreparationError.noPlayableNotes
         }
-        let primaryPartIDForExpansion = selectedInstrument.memberPartIDs[0]
-        let scoreOrder = PracticePreparationOptions.practice.scoreOrder
+
+        guard let structuralPartID = selectedInstrument.memberPartIDs.first else {
+            throw PracticePreparationError.noPlayableNotes
+        }
+        let sourceScore = normalizedScore.filtering(toLogicalInstrument: selectedInstrument)
 
         try Task.checkCancellation()
-        let effectiveScore = scoreOrder == .performed
-            ? structureExpander.expandStructureIfPossible(score: score, primaryPartID: primaryPartIDForExpansion)
-            : score
-        let practiceScore = effectiveScore.filtering(toLogicalInstrument: selectedInstrument)
-        let primaryPartID = primaryPartIDForExpansion
+        let practiceScore: MusicXMLScore
+        let orderSelection: MusicXMLOrderSelection
+        switch options.scoreOrder {
+        case .written:
+            practiceScore = sourceScore
+            orderSelection = MusicXMLOrderSelection(requested: .written, applied: .written)
+        case .performed:
+            practiceScore = structureExpander.expandStructureIfPossible(
+                score: sourceScore,
+                primaryPartID: structuralPartID,
+                includedPartIDs: Set(selectedInstrument.memberPartIDs)
+            )
+            orderSelection = MusicXMLOrderSelection(requested: .performed, applied: .performed)
+        }
+
         let handRouting = MusicXMLHandRouter().assignments(for: practiceScore)
 
         try Task.checkCancellation()
@@ -154,7 +178,7 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
         let tempoMap = MusicXMLTempoMap(
             tempoEvents: practiceScore.tempoEvents + (wordsSemantics?.derivedTempoEvents ?? []),
             tempoRamps: wordsSemantics?.derivedTempoRamps ?? [],
-            partID: primaryPartID
+            partID: structuralPartID
         )
         let pedalTimeline = MusicXMLPedalTimeline(events: practiceScore
             .pedalEvents + (wordsSemantics?.derivedPedalEvents ?? []))
@@ -184,11 +208,13 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             )
         )
 
+        let measureSpans = practiceScore.measures.filter { $0.partID == structuralPartID }
+
         try Task.checkCancellation()
         guard buildResult.steps.isEmpty == false else {
             throw PracticePreparationError.noPlayableNotes
         }
-        guard practiceScore.measures.isEmpty == false else {
+        guard measureSpans.isEmpty == false else {
             throw PracticePreparationError.missingMeasureStructure
         }
         return PreparedPractice(
@@ -200,8 +226,16 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             fermataTimeline: fermataTimeline,
             attributeTimeline: attributeTimeline,
             highlightGuides: highlightGuides,
-            measureSpans: practiceScore.measures,
-            unsupportedNoteCount: buildResult.unsupportedNoteCount
+            measureSpans: measureSpans,
+            unsupportedNoteCount: buildResult.unsupportedNoteCount,
+            scoreContext: PreparedPracticeScoreContext(
+                sourceScore: sourceScore,
+                preparedScore: practiceScore,
+                logicalInstrument: selectedInstrument,
+                structuralPartID: structuralPartID,
+                orderSelection: orderSelection,
+                handAssignments: handRouting.assignmentsBySourceNoteID
+            )
         )
     }
 
