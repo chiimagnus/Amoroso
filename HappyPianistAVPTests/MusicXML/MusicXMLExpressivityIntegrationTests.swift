@@ -318,3 +318,154 @@ func ornamentSchedulerGeneratesOnlyFromExplicitPerformanceFacts() throws {
     #expect(glissandoNotes.first?.onTick == 1_440)
     #expect(glissandoNotes.last?.offTick == 1_920)
 }
+
+
+@Test
+func expressivePianoFixtureLocksSourceNotationTimingAndProvenance() throws {
+    let fixture = try PianoPerformanceFixtureLoader().fixture(id: "expressive-piano-semantics")
+    let score = try MusicXMLParser().parse(fileURL: fixture.url)
+    let schedule = ScoreTimingScheduleBuilder().build(
+        notes: score.notes,
+        performanceTimingEnabled: true,
+        graceEnabled: true,
+        logicalInstruments: score.logicalInstruments,
+        arpeggiateEnabled: true
+    )
+
+    expectSnapshot(
+        expressivePianoSemanticsSnapshot(score: score, schedule: schedule),
+        equals: """
+notation|note=1|source=P1:1:1:1:1:1:notation:0|kind=slur|type=start|number=1|placement=null|text=null
+notation|note=4|source=P1:1:1:1:1:4:notation:0|kind=slur|type=stop|number=1|placement=null|text=null
+notation|note=4|source=P1:1:1:1:1:4:notation:1|kind=breath-mark|type=null|number=null|placement=null|text=null
+notation|note=6|source=P1:2:2:1:1:0:notation:0|kind=trill-mark|type=null|number=null|placement=null|text=null
+notation|note=6|source=P1:2:2:1:1:0:notation:1|kind=accidental-mark|type=null|number=null|placement=above|text=natural
+notation|note=7|source=P1:2:2:1:1:1:notation:0|kind=trill-mark|type=null|number=null|placement=null|text=null
+notation|note=8|source=P1:2:2:1:1:2:notation:0|kind=tremolo|type=single|number=null|placement=null|text=3
+notation|note=9|source=P1:2:2:1:1:3:notation:0|kind=glissando|type=start|number=1|placement=null|text=null
+notation|note=10|source=P1:3:3:1:1:0:notation:0|kind=glissando|type=stop|number=1|placement=null|text=null
+notation|note=11|source=P1:3:3:1:1:1:notation:0|kind=schleifer|type=null|number=null|placement=null|text=null
+timing|note=0|source=P1:1:1:1:1:0|written=0-0|performed=0-120|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=1|source=P1:1:1:1:1:1|written=0-480|performed=120-135|policy=slurLegato|provenance=score,grace:makeTime,notation:slur:P1:1:1:1:1:1:notation:0:generic-score-v1
+timing|note=2|source=P1:1:1:1:1:2|written=0-480|performed=135-150|policy=slurLegato|provenance=score,grace:makeTime,arpeggio:1:up,notation:slur:P1:1:1:1:1:1:notation:0:generic-score-v1
+timing|note=3|source=P1:1:1:1:1:3|written=0-480|performed=150-600|policy=slurLegato|provenance=score,grace:makeTime,arpeggio:1:up,notation:slur:P1:1:1:1:1:1:notation:0:generic-score-v1
+timing|note=4|source=P1:1:1:1:1:4|written=480-960|performed=600-1020|policy=breathGap|provenance=score,grace:makeTime,notation:breath-mark:P1:1:1:1:1:4:notation:1:generic-score-v1
+timing|note=5|source=P1:1:1:1:1:5|written=960-1920|performed=1080-2040|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=6|source=P1:2:2:1:1:0|written=1920-2400|performed=2040-2520|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=7|source=P1:2:2:1:1:1|written=2400-2880|performed=2520-3000|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=8|source=P1:2:2:1:1:2|written=2880-3360|performed=3000-3480|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=9|source=P1:2:2:1:1:3|written=3360-3840|performed=3480-3960|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=10|source=P1:3:3:1:1:0|written=3840-4320|performed=3960-4440|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=11|source=P1:3:3:1:1:1|written=4320-4800|performed=4440-4920|policy=graceMakeTime|provenance=score,grace:makeTime
+timing|note=12|source=P1:3:3:1:1:2|written=4800-5760|performed=4920-5880|policy=graceMakeTime|provenance=score,grace:makeTime
+generated|kind=trill-mark|count=9|pitches=72,74,72,74,72,74,72,74,72|ticks=2040-2520|profile=generic-score-v1
+generated|kind=tremolo|count=8|pitches=67,67,67,67,67,67,67,67|ticks=3000-3480|profile=generic-score-v1
+generated|kind=glissando|count=12|pitches=60,61,62,63,64,65,66,67,68,69,70,71|ticks=3480-3960|profile=generic-score-v1
+resolution|source=P1:2:2:1:1:0:notation:0|kind=trill-mark|notes=6|replaces=6|status=generated
+resolution|source=P1:2:2:1:1:1:notation:0|kind=trill-mark|notes=7|replaces=|status=unsupported:ornament-accidental-unavailable
+resolution|source=P1:2:2:1:1:2:notation:0|kind=tremolo|notes=8|replaces=8|status=generated
+resolution|source=P1:2:2:1:1:3:notation:0|kind=glissando|notes=9,10|replaces=9|status=generated
+resolution|source=P1:3:3:1:1:0:notation:0|kind=glissando|notes=9,10|replaces=|status=generated
+dynamic|ticks=0-960|velocity=50-90|number=1
+tempo-ramp|ticks=1920-3840|bpm=120-90
+unsupported|kind=schleifer|count=1
+"""
+    )
+}
+
+private func expressivePianoSemanticsSnapshot(
+    score: MusicXMLScore,
+    schedule: ScoreTimingSchedule
+) -> String {
+    var lines: [String] = []
+    for (noteIndex, note) in score.notes.enumerated() {
+        for notation in note.performanceNotations {
+            lines.append(
+                "notation|note=\(noteIndex)|source=\(notation.sourceID?.description ?? "unresolved")"
+                    + "|kind=\(notation.diagnosticKindToken)|type=\(notation.typeToken ?? "null")"
+                    + "|number=\(notation.numberToken ?? "null")|placement=\(notation.placementToken ?? "null")"
+                    + "|text=\(notation.textToken ?? "null")"
+            )
+        }
+    }
+    for entry in schedule.entries {
+        lines.append(
+            "timing|note=\(entry.noteIndex)|source=\(entry.sourceNoteID?.description ?? "unresolved")"
+                + "|written=\(entry.writtenOnTick)-\(entry.writtenOffTick)"
+                + "|performed=\(entry.performedOnTick)-\(entry.performedOffTick)"
+                + "|policy=\(entry.releasePolicy.rawValue)"
+                + "|provenance=\(entry.provenance.map(expressiveProvenanceToken).joined(separator: ","))"
+        )
+    }
+    for kind in [MusicXMLPerformanceNotationKind.trillMark, .tremolo, .glissando] {
+        let events = schedule.generatedNotes.filter { $0.notationKind == kind }
+        guard let first = events.first, let last = events.last else { continue }
+        lines.append(
+            "generated|kind=\(kind.rawValue)|count=\(events.count)"
+                + "|pitches=\(events.map { String($0.midiNote) }.joined(separator: ","))"
+                + "|ticks=\(first.onTick)-\(last.offTick)|profile=\(first.interpretationProfileID)"
+        )
+    }
+    for resolution in schedule.notationResolutions {
+        lines.append(
+            "resolution|source=\(resolution.sourceNotationID?.description ?? "unresolved")"
+                + "|kind=\(resolution.notationKind.rawValue)"
+                + "|notes=\(resolution.sourceNoteIndices.map(String.init).joined(separator: ","))"
+                + "|replaces=\(resolution.replacesSourceNoteIndices.map(String.init).joined(separator: ","))"
+                + "|status=\(expressiveResolutionStatusToken(resolution.status))"
+        )
+    }
+    let velocityResolver = MusicXMLVelocityResolver(
+        dynamicEvents: score.dynamicEvents,
+        wedgeEvents: score.wedgeEvents,
+        wedgeEnabled: true
+    )
+    for curve in velocityResolver.dynamicCurves {
+        lines.append(
+            "dynamic|ticks=\(curve.startTick)-\(curve.endTick)"
+                + "|velocity=\(curve.startVelocity)-\(curve.endVelocity)|number=\(curve.numberToken)"
+        )
+    }
+    let words = MusicXMLWordsSemanticsInterpreter().interpret(
+        wordsEvents: score.wordsEvents,
+        tempoEvents: score.tempoEvents
+    )
+    for ramp in words.derivedTempoRamps {
+        lines.append(
+            "tempo-ramp|ticks=\(ramp.startTick)-\(ramp.endTick)"
+                + "|bpm=\(Int(ramp.startQuarterBPM))-\(Int(ramp.endQuarterBPM))"
+        )
+    }
+    for (kind, count) in score.unsupportedPerformanceNotationCountsByKind.sorted(by: { $0.key < $1.key }) {
+        lines.append("unsupported|kind=\(kind)|count=\(count)")
+    }
+    return lines.joined(separator: "\n") + "\n"
+}
+
+private func expressiveProvenanceToken(_ provenance: ScoreTimingProvenance) -> String {
+    switch provenance {
+    case .score:
+        "score"
+    case .performanceOffset:
+        "performance-offset"
+    case let .grace(kind):
+        "grace:\(kind.rawValue)"
+    case let .arpeggio(numberToken, direction):
+        "arpeggio:\(numberToken):\(direction.rawValue)"
+    case let .interpretationProfile(id):
+        "profile:\(id)"
+    case let .performanceNotation(kind, sourceID, profileID):
+        "notation:\(kind.rawValue):\(sourceID?.description ?? "unresolved"):\(profileID)"
+    case let .approximation(reason):
+        "approximation:\(reason)"
+    }
+}
+
+private func expressiveResolutionStatusToken(_ status: ScorePerformanceNotationResolutionStatus) -> String {
+    switch status {
+    case .generated:
+        "generated"
+    case let .unsupported(reason):
+        "unsupported:\(reason)"
+    }
+}

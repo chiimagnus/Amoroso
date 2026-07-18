@@ -28,6 +28,24 @@
       "snapshot": "despacito-highlight-regression"
     },
     {
+      "id": "expressive-piano-semantics",
+      "file": "ExpressivePianoSemantics.musicxml",
+      "source": "project-authored MusicXML regression fixture",
+      "license": "repository test asset",
+      "exporter": "hand-authored MusicXML 4.0",
+      "coverage": [
+        "grace",
+        "arpeggio",
+        "dynamic-curve",
+        "tempo-ramp",
+        "fermata",
+        "slur",
+        "ornament",
+        "unsupported"
+      ],
+      "snapshot": "expressive-piano-semantics"
+    },
+    {
       "id": "musicxml-autoplay-regression",
       "file": "MusicXMLAutoplayRegression.musicxml",
       "source": "project regression fixture",
