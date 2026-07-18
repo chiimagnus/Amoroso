@@ -22,6 +22,7 @@ func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() as
         isCurrent: { true }
     ) == .applied)
     #expect(guide.practiceSessionViewModel.songIdentity == prepared.identity)
+    #expect(guide.practiceSessionViewModel.performancePlan == prepared.performancePlan)
     #expect(guide.latestPreparedPractice?.identity == prepared.identity)
     #expect(guide.latestPreparedPractice?.scoreContext == prepared.scoreContext)
 
@@ -29,6 +30,7 @@ func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() as
     await guide.clearPreparedPracticeForLaunch()
 
     #expect(guide.practiceSessionViewModel.songIdentity == nil)
+    #expect(guide.practiceSessionViewModel.performancePlan == nil)
     #expect(guide.practiceSessionViewModel.steps.isEmpty)
     #expect(guide.latestPreparedPractice == nil)
     #expect(appState.practiceSetupState.preparedPracticeIdentity == nil)
@@ -69,6 +71,7 @@ func replacingPracticeSessionReappliesTheSameHistoricalRestorePolicy() async {
     let replacement = guide.practiceSessionViewModel
     #expect(replacement !== first)
     #expect(replacement.songIdentity == prepared.identity)
+    #expect(replacement.performancePlan == prepared.performancePlan)
     #expect(replacement.activeRoundConfiguration?.handMode == .left)
     #expect(replacement.activeRoundConfiguration?.tempoScale == 0.7)
     #expect(replacement.activeRoundConfiguration?.loopEnabled == true)
@@ -292,7 +295,7 @@ private func makeLifecycleGuide(
 
 private func makeLifecyclePreparedPractice() -> PreparedPractice {
     let songID = UUID()
-    return PreparedPractice(
+    return makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: "revision"),
         steps: [
             PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
@@ -302,11 +305,6 @@ private func makeLifecyclePreparedPractice() -> PreparedPractice {
             storedURL: URL(fileURLWithPath: "/dev/null"),
             importedAt: .now
         ),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        pedalTimeline: nil,
-        fermataTimeline: nil,
-        attributeTimeline: nil,
-        highlightGuides: [],
         measureSpans: [
             MusicXMLMeasureSpan(
                 partID: "P1",
@@ -317,9 +315,7 @@ private func makeLifecyclePreparedPractice() -> PreparedPractice {
                 startTick: 0,
                 endTick: 480
             ),
-        ],
-        unsupportedNoteCount: 0,
-        scoreContext: makeTestPreparedPracticeScoreContext()
+        ]
     )
 }
 

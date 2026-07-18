@@ -68,6 +68,12 @@ func preparationKeepsExactSongIDAndStableRevision() async throws {
     #expect(first.scoreContext.orderSelection == MusicXMLOrderSelection(requested: .written, applied: .written))
     #expect(first.scoreContext.sourceScore == first.scoreContext.preparedScore)
     #expect(first.scoreContext.sourceScore.notes.first?.sourceID != nil)
+    #expect(first.performancePlan.sourceScoreIdentity == ScorePerformanceSourceIdentity(
+        songID: songID,
+        scoreRevision: first.identity.scoreRevision,
+        logicalInstrumentID: first.scoreContext.logicalInstrument.id
+    ))
+    #expect(first.performancePlan.noteEvents.map(\.midiNote) == [60])
 
     try Data(identityFixtureB.utf8).write(to: url)
     let replaced = try await service.prepare(songID: songID, from: url, file: file)
@@ -96,6 +102,8 @@ func referencePlaybackPreparationExpandsPerformedOrderWithoutLosingSourceIdentit
     #expect(Set(prepared.scoreContext.preparedScore.notes.compactMap(\.sourceID)).count == 2)
     #expect(Set(prepared.scoreContext.preparedScore.notes.compactMap(\.performedID)).count == 4)
     #expect(prepared.measureSpans.map(\.occurrenceIndex) == [0, 1, 2, 3])
+    #expect(prepared.performancePlan.order == prepared.scoreContext.orderSelection)
+    #expect(prepared.performancePlan.noteEvents.map(\.midiNote) == [60, 62, 60, 62])
 }
 
 @Test

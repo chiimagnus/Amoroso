@@ -225,6 +225,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         session.installPreparedSteps(
             prepared.steps,
             identity: prepared.identity,
+            performancePlan: prepared.performancePlan,
             tempoMap: prepared.tempoMap,
             pedalTimeline: prepared.pedalTimeline,
             fermataTimeline: prepared.fermataTimeline,

@@ -11,31 +11,7 @@ func resetPianoSetupClearsPracticeSetupState() {
     practiceSetupState.isVirtualPianoPlaced = true
     practiceSetupState.bluetoothMIDISourceCount = 2
     practiceSetupState.importErrorMessage = "error"
-    practiceSetupState.setImportedSteps(from: PreparedPractice(
-        identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "test"),
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)])],
-        file: ImportedMusicXMLFile(
-            fileName: "Test",
-            storedURL: URL(fileURLWithPath: "/dev/null"),
-            importedAt: Date()
-        ),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        pedalTimeline: nil,
-        fermataTimeline: nil,
-        attributeTimeline: nil,
-        highlightGuides: [],
-        measureSpans: [MusicXMLMeasureSpan(
-            partID: "P1",
-            measureNumber: 1,
-            sourceMeasureIndex: 0,
-            sourceMeasureNumberToken: "1",
-            occurrenceIndex: 0,
-            startTick: 0,
-            endTick: 1
-        )],
-        unsupportedNoteCount: 0,
-        scoreContext: makeTestPreparedPracticeScoreContext()
-    ))
+    practiceSetupState.setImportedSteps(from: makeTestPreparedPractice())
 
     let registry = PianoModeRegistryService(modes: [])
     let coordinator = PianoSetupCoordinator(

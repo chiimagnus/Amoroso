@@ -83,9 +83,11 @@ extension PracticeSessionViewModel {
         let resolvedMeasureSpans = measureSpans.isEmpty
             ? [Self.syntheticMeasureSpan(for: steps)]
             : measureSpans
+        let identity = self.songIdentity ?? defaultTestPracticeSongIdentity
         installPreparedSteps(
             steps,
-            identity: self.songIdentity ?? defaultTestPracticeSongIdentity,
+            identity: identity,
+            performancePlan: makeTestScorePerformancePlan(identity: identity, steps: steps),
             tempoMap: tempoMap,
             pedalTimeline: pedalTimeline,
             fermataTimeline: fermataTimeline,

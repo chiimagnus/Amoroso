@@ -434,6 +434,7 @@ extension PracticeSessionViewModel {
     func installPreparedSteps(
         _ steps: [PracticeStep],
         identity: PracticeSongIdentity,
+        performancePlan: ScorePerformancePlan,
         tempoMap: MusicXMLTempoMap,
         pedalTimeline: MusicXMLPedalTimeline? = nil,
         fermataTimeline: MusicXMLFermataTimeline? = nil,
@@ -452,6 +453,7 @@ extension PracticeSessionViewModel {
         chordAttemptAccumulator.reset()
 
         self.steps = steps
+        self.performancePlan = performancePlan
         self.tempoMap = tempoMap
         self.measureSpans = measureSpans
         if let firstMeasure = measureSpans.first,
@@ -548,6 +550,7 @@ extension PracticeSessionViewModel {
         self.lastProgressRestoreOutcome = .none
         self.attemptReductionState = PracticeAttemptReductionState()
         self.latestFeedbackEvent = nil
+        self.performancePlan = nil
         self.steps = []
         self.tempoMap = MusicXMLTempoMap(tempoEvents: [])
         self.measureSpans = []

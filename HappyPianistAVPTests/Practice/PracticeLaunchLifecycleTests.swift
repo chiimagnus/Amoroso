@@ -570,13 +570,15 @@ private func installLaunchLifecycleScore(
     identity: PracticeSongIdentity,
     spans: [MusicXMLMeasureSpan]
 ) {
+    let steps = [
+        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
+        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
+        PracticeStep(tick: 960, notes: [PracticeStepNote(midiNote: 64, staff: 1, handAssignment: .unknown)]),
+    ]
     session.installPreparedSteps(
-        [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 960, notes: [PracticeStepNote(midiNote: 64, staff: 1, handAssignment: .unknown)]),
-        ],
+        steps,
         identity: identity,
+        performancePlan: makeTestScorePerformancePlan(identity: identity, steps: steps),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: spans
     )
@@ -666,7 +668,7 @@ private final class LaunchRaceSessionProvider: @unchecked Sendable {
 }
 
 private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
-    PreparedPractice(
+    makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString),
         steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
         file: ImportedMusicXMLFile(
@@ -674,11 +676,6 @@ private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
             storedURL: URL(fileURLWithPath: "/dev/null"),
             importedAt: .now
         ),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        pedalTimeline: nil,
-        fermataTimeline: nil,
-        attributeTimeline: nil,
-        highlightGuides: [],
         measureSpans: [
             MusicXMLMeasureSpan(
                 partID: "P1",
@@ -689,9 +686,7 @@ private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
                 startTick: 0,
                 endTick: 480
             ),
-        ],
-        unsupportedNoteCount: 0,
-        scoreContext: makeTestPreparedPracticeScoreContext()
+        ]
     )
 }
 

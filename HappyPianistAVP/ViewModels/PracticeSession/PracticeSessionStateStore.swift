@@ -45,6 +45,7 @@ final class PracticeSessionStateStore {
         sendLocalControlOff: false
     )
     var roundGeneration = 0
+    var performancePlan: ScorePerformancePlan?
     var steps: [PracticeStep] = []
 
     var currentStepIndex: Int = 0 {

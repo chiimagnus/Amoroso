@@ -92,9 +92,11 @@ private func installHistoricalApplicationScore(
     identity: PracticeSongIdentity,
     spans: [MusicXMLMeasureSpan]
 ) {
+    let steps = historicalApplicationSteps()
     session.installPreparedSteps(
-        historicalApplicationSteps(),
+        steps,
         identity: identity,
+        performancePlan: makeTestScorePerformancePlan(identity: identity, steps: steps),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: spans
     )

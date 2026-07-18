@@ -203,6 +203,38 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             keySignatureEvents: practiceScore.keySignatureEvents,
             clefEvents: practiceScore.clefEvents
         )
+        let timingSchedule = ScoreTimingScheduleBuilder().build(
+            notes: practiceScore.notes,
+            performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
+            graceEnabled: expressivityOptions.graceEnabled,
+            logicalInstruments: practiceScore.logicalInstruments,
+            arpeggiateEnabled: expressivityOptions.arpeggiateEnabled
+        )
+        let velocityResolver = MusicXMLVelocityResolver(
+            dynamicEvents: practiceScore.dynamicEvents,
+            wedgeEvents: practiceScore.wedgeEvents,
+            wedgeEnabled: expressivityOptions.wedgeEnabled
+        )
+        let identity = PracticeSongIdentity(songID: songID, scoreRevision: revision)
+        let performancePlan = ScorePerformancePlanBuilder().build(
+            sourceIdentity: ScorePerformanceSourceIdentity(
+                songID: songID,
+                scoreRevision: revision,
+                logicalInstrumentID: selectedInstrument.id
+            ),
+            order: orderSelection,
+            logicalInstrument: selectedInstrument,
+            notes: practiceScore.notes,
+            timingSchedule: timingSchedule,
+            velocityResolver: velocityResolver,
+            expressivity: expressivityOptions,
+            handAssignments: handRouting.assignmentsBySourceNoteID,
+            tempoMap: tempoMap,
+            pedalTimeline: pedalTimeline,
+            tempoAnnotations: wordsSemantics?.tempoAnnotations ?? [],
+            fermataEvents: practiceScore.fermataEvents,
+            fermataTimeline: fermataTimeline
+        )
         let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
             from: practiceScore.notes,
             performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
@@ -228,7 +260,8 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             throw PracticePreparationError.missingMeasureStructure
         }
         return PreparedPractice(
-            identity: PracticeSongIdentity(songID: songID, scoreRevision: revision),
+            identity: identity,
+            performancePlan: performancePlan,
             steps: buildResult.steps,
             file: file,
             tempoMap: tempoMap,

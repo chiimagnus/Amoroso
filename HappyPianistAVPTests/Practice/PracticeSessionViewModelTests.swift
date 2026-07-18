@@ -1509,17 +1509,21 @@ func changingSongWithEqualStepsReplacesCompletedPassage() {
         partID: "B", measureNumber: 9, sourceMeasureIndex: 8, sourceMeasureNumberToken: "9",
         occurrenceIndex: 0, startTick: 0, endTick: 480
     )
+    let identityA = PracticeSongIdentity(songID: UUID(), scoreRevision: "a")
     viewModel.installPreparedSteps(
         steps,
-        identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "a"),
+        identity: identityA,
+        performancePlan: makeTestScorePerformancePlan(identity: identityA, steps: steps),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: [spanA]
     )
     viewModel.state = .completed
 
+    let identityB = PracticeSongIdentity(songID: UUID(), scoreRevision: "b")
     viewModel.installPreparedSteps(
         steps,
-        identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "b"),
+        identity: identityB,
+        performancePlan: makeTestScorePerformancePlan(identity: identityB, steps: steps),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: [spanB]
     )
@@ -1903,6 +1907,7 @@ func reinstallingSamePreparedScoreDiscardsUnappliedDraftConfiguration() throws {
     session.installPreparedSteps(
         steps,
         identity: identity,
+        performancePlan: makeTestScorePerformancePlan(identity: identity, steps: steps),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: spans
     )
@@ -1913,6 +1918,7 @@ func reinstallingSamePreparedScoreDiscardsUnappliedDraftConfiguration() throws {
     session.installPreparedSteps(
         steps,
         identity: identity,
+        performancePlan: makeTestScorePerformancePlan(identity: identity, steps: steps),
         tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: spans
     )
