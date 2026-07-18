@@ -27,6 +27,12 @@ func practiceLaunchRegistersWithoutPreparingThenActivatesExactlyOnce() async {
     #expect(metadata.first?.totalSourceMeasureCount == 1)
     let resolution = await fixture.reporter.events.first { $0.code == .practiceHistoryResolution }
     #expect(resolution?.reason == "exactMissing:noValidCandidate")
+    #expect(await fixture.reporter.events
+        .filter { $0.code == .pianoPerformancePipeline }
+        .map(\.reason) == [
+            "outcome=started;capability=scoreParsing;count=0;duration=none",
+            "outcome=succeeded;capability=scoreParsing;count=1;duration=none",
+        ])
 }
 
 @MainActor
@@ -324,6 +330,9 @@ func practiceLaunchRejectsPreparedPracticeWithoutMeasureStructure() async {
     }
     #expect(failure.code == .practiceMissingMeasureStructure)
     #expect(fixture.applicator.appliedSongIDs.isEmpty)
+    #expect(await fixture.reporter.events.contains { event in
+        event.code == .pianoPerformancePipeline && event.reason.hasPrefix("outcome=failed;")
+    })
     #expect(await fixture.reporter.events.last == failure.diagnosticEvent)
 }
 

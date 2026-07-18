@@ -352,6 +352,13 @@ final class PracticeLaunchViewModel {
                     persistence: .exportable
                 )
             )
+            _ = await diagnosticsReporter.record(
+                PianoPerformanceDiagnosticSample(
+                    stage: .preparation,
+                    outcome: .started,
+                    capability: .scoreParsing
+                ).diagnosticEvent
+            )
             guard isCurrent(songID: songID, generation: generation) else { return }
             let prepared = try await preparationService.prepare(
                 songID: songID,
@@ -369,6 +376,14 @@ final class PracticeLaunchViewModel {
             guard prepared.measureSpans.isEmpty == false else {
                 throw PracticePreparationError.missingMeasureStructure
             }
+            _ = await diagnosticsReporter.record(
+                PianoPerformanceDiagnosticSample(
+                    stage: .preparation,
+                    outcome: .succeeded,
+                    capability: .scoreParsing,
+                    itemCount: prepared.steps.count
+                ).diagnosticEvent
+            )
             let restorePolicy = historicalPreferencesResolver.resolve(
                 identity: prepared.identity,
                 history: loadedHistory
@@ -502,6 +517,13 @@ final class PracticeLaunchViewModel {
                 file: fileReference
             )
             state = .failure(failure)
+            _ = await diagnosticsReporter.record(
+                PianoPerformanceDiagnosticSample(
+                    stage: .preparation,
+                    outcome: .failed,
+                    capability: .scoreParsing
+                ).diagnosticEvent
+            )
             _ = await diagnosticsReporter.record(failure.diagnosticEvent)
         }
     }

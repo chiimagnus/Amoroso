@@ -16,12 +16,6 @@ extension DiagnosticsReporting {
     func recordSystem(_ event: DiagnosticEvent) {
         Task { _ = await record(event) }
     }
-
-
-    func recordPianoPerformance(_ sample: PianoPerformanceDiagnosticSample) {
-        recordSystem(sample.diagnosticEvent)
-    }
-
     func recordSystem(
         severity: DiagnosticSeverity,
         category: DiagnosticCategory,
