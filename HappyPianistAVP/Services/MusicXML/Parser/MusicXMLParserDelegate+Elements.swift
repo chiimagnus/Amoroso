@@ -107,7 +107,6 @@ extension MusicXMLParserDelegate {
             state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
             state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
             state.currentDirectionStaff = nil
-            state.currentDirectionSourceID = nil
             state.isInDirectionTypeDynamics = false
         case "direction-type":
             break
