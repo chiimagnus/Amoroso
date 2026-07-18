@@ -354,7 +354,11 @@ func practiceLaunchFailureRetryCreatesNewFailureIdentity() async {
         return
     }
     #expect(second.id != first.id)
-    #expect(await fixture.reporter.events.count(where: { $0.severity == .error }) == 2)
+    let events = await fixture.reporter.events
+    #expect(events.count(where: { $0.code == second.code }) == 2)
+    #expect(events.count(where: {
+        $0.code == .pianoPerformancePipeline && $0.reason.contains("outcome=failed")
+    }) == 2)
 }
 
 @MainActor
@@ -892,7 +896,11 @@ func consecutivePracticeLaunchRetriesUseFreshGenerationsAndEventuallyReady() asy
     #expect(owner.state == .ready(PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString)))
     #expect(await preparation.requestCount == 3)
     #expect(applicator.appliedSongIDs == [songID])
-    #expect(await reporter.events.count(where: { $0.severity == .error }) == 2)
+    let events = await reporter.events
+    #expect(events.count(where: { $0.code == firstFailure.code }) == 2)
+    #expect(events.count(where: {
+        $0.code == .pianoPerformancePipeline && $0.reason.contains("outcome=failed")
+    }) == 2)
 }
 
 @MainActor
