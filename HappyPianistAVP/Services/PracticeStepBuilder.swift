@@ -1,28 +1,7 @@
 import Foundation
 
 protocol PracticeStepBuilderProtocol {
-    func buildSteps(
-        from score: MusicXMLScore,
-        expressivity: MusicXMLExpressivityOptions,
-        handAssignments: [MusicXMLSourceNoteID: ScoreHandAssignment]
-    ) -> PracticeStepBuildResult
-}
-
-extension PracticeStepBuilderProtocol {
-    func buildSteps(from score: MusicXMLScore) -> PracticeStepBuildResult {
-        buildSteps(
-            from: score,
-            expressivity: MusicXMLExpressivityOptions(),
-            handAssignments: [:]
-        )
-    }
-
-    func buildSteps(
-        from score: MusicXMLScore,
-        expressivity: MusicXMLExpressivityOptions
-    ) -> PracticeStepBuildResult {
-        buildSteps(from: score, expressivity: expressivity, handAssignments: [:])
-    }
+    func buildSteps(from plan: ScorePerformancePlan) -> PracticeStepBuildResult
 }
 
 struct PracticeStepBuilder: PracticeStepBuilderProtocol {
@@ -32,59 +11,42 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
         let voice: Int
     }
 
+    private struct StepNoteValue {
+        let handAssignment: ScoreHandAssignment
+        let velocity: UInt8
+        let fingeringText: String?
+        var sourceNoteIDs: [MusicXMLSourceNoteID]
+    }
+
     private let playableRange = 21 ... 108
 
-    func buildSteps(
-        from score: MusicXMLScore,
-        expressivity: MusicXMLExpressivityOptions,
-        handAssignments: [MusicXMLSourceNoteID: ScoreHandAssignment]
-    ) -> PracticeStepBuildResult {
-        var grouped: [Int: [StepNoteKey: (
-            handAssignment: ScoreHandAssignment,
-            velocity: UInt8,
-            onTickOffset: Int,
-            fingeringText: String?
-        )]] =
-            [:]
+    func buildSteps(from plan: ScorePerformancePlan) -> PracticeStepBuildResult {
+        var grouped: [Int: [StepNoteKey: StepNoteValue]] = [:]
         var unsupportedNoteCount = 0
-        let timingSchedule = ScoreTimingScheduleBuilder().build(
-            notes: score.notes,
-            graceEnabled: expressivity.graceEnabled,
-            logicalInstruments: score.logicalInstruments,
-            arpeggiateEnabled: expressivity.arpeggiateEnabled
-        )
-        let velocityResolver = MusicXMLVelocityResolver(
-            dynamicEvents: score.dynamicEvents,
-            wedgeEvents: score.wedgeEvents,
-            wedgeEnabled: expressivity.wedgeEnabled
-        )
-        for (index, noteEvent) in score.notes.enumerated() {
-            if noteEvent.isRest { continue }
-            if noteEvent.isGrace, expressivity.graceEnabled == false { continue }
-            if noteEvent.tieStop { continue }
-            guard let midiNote = noteEvent.midiNote else { continue }
-            guard playableRange.contains(midiNote) else {
+
+        for event in plan.noteEvents {
+            guard playableRange.contains(event.midiNote) else {
                 unsupportedNoteCount += 1
                 continue
             }
 
-            let velocity = velocityResolver.velocity(for: noteEvent)
-            let performedOnTick = timingSchedule[index].performedOnTick
-            let effectiveTick = noteEvent.isGrace ? performedOnTick : noteEvent.tick
-            let onTickOffset = performedOnTick - effectiveTick
-            let staff = noteEvent.staff ?? 1
-            let voice = noteEvent.voice ?? 1
-            let key = StepNoteKey(midiNote: midiNote, staff: staff, voice: voice)
-            var map = grouped[effectiveTick] ?? [:]
-            if map[key] == nil {
-                map[key] = (
-                    handAssignment: noteEvent.sourceID.flatMap { handAssignments[$0] } ?? .unknown,
-                    velocity: velocity,
-                    onTickOffset: onTickOffset,
-                    fingeringText: noteEvent.fingeringText
+            let key = StepNoteKey(midiNote: event.midiNote, staff: event.staff, voice: event.voice)
+            var notesAtTick = grouped[event.performedOnTick] ?? [:]
+            if var existing = notesAtTick[key] {
+                var existingIDs = Set(existing.sourceNoteIDs)
+                for sourceNoteID in event.contributingSourceNoteIDs where existingIDs.insert(sourceNoteID).inserted {
+                    existing.sourceNoteIDs.append(sourceNoteID)
+                }
+                notesAtTick[key] = existing
+            } else {
+                notesAtTick[key] = StepNoteValue(
+                    handAssignment: event.handAssignment,
+                    velocity: event.velocity,
+                    fingeringText: event.fingeringText,
+                    sourceNoteIDs: event.contributingSourceNoteIDs
                 )
             }
-            grouped[effectiveTick] = map
+            grouped[event.performedOnTick] = notesAtTick
         }
 
         let steps = grouped.keys.sorted().map { tick in
@@ -100,8 +62,8 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
                     staff: key.staff,
                     voice: key.voice,
                     velocity: entry?.velocity ?? 96,
-                    onTickOffset: entry?.onTickOffset ?? 0,
                     fingeringText: entry?.fingeringText,
+                    sourceNoteIDs: entry?.sourceNoteIDs ?? [],
                     handAssignment: entry?.handAssignment ?? .unknown
                 )
             }
@@ -110,5 +72,4 @@ struct PracticeStepBuilder: PracticeStepBuilderProtocol {
 
         return PracticeStepBuildResult(steps: steps, unsupportedNoteCount: unsupportedNoteCount)
     }
-
 }

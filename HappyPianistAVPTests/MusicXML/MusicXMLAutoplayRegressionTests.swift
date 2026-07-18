@@ -100,7 +100,8 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
 
     let score = try MusicXMLParser().parse(fileURL: fixture.url)
     let expressivity = MusicXMLRealisticPlaybackDefaults.expressivityOptions
-    let buildResult = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity)
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let buildResult = PracticeStepBuilder().buildSteps(from: plan)
     let wordsSemantics = MusicXMLWordsSemanticsInterpreter().interpret(
         wordsEvents: score.wordsEvents,
         tempoEvents: score.tempoEvents

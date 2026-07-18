@@ -64,7 +64,7 @@ func makeTestScorePerformancePlan(
 
     for step in steps {
         for note in step.notes {
-            let sourceNoteID = MusicXMLSourceNoteID(
+            let generatedSourceNoteID = MusicXMLSourceNoteID(
                 partID: scoreContext.structuralPartID,
                 sourceMeasureIndex: 0,
                 sourceMeasureNumberToken: "1",
@@ -72,13 +72,15 @@ func makeTestScorePerformancePlan(
                 voice: note.voice,
                 sourceOrdinal: ordinal
             )
+            let sourceNoteIDs = note.sourceNoteIDs.isEmpty ? [generatedSourceNoteID] : note.sourceNoteIDs
+            let sourceNoteID = sourceNoteIDs[0]
             let performedNoteID = MusicXMLPerformedNoteID(sourceID: sourceNoteID, occurrenceIndex: 0)
             let performedOnTick = step.tick + note.onTickOffset
             noteEvents.append(ScorePerformanceNoteEvent(
                 id: ScorePerformanceNoteEventID(performedNoteID: performedNoteID, generatedOrdinal: nil),
                 sourceNoteID: sourceNoteID,
                 performedNoteID: performedNoteID,
-                contributingSourceNoteIDs: [sourceNoteID],
+                contributingSourceNoteIDs: sourceNoteIDs,
                 contributingPerformedNoteIDs: [performedNoteID],
                 purpose: .source,
                 writtenOnTick: step.tick,
@@ -118,5 +120,47 @@ func makeTestScorePerformancePlan(
         controllerEvents: [],
         annotations: [],
         approximations: []
+    )
+}
+
+func makeTestScorePerformancePlan(
+    from score: MusicXMLScore,
+    expressivity: MusicXMLExpressivityOptions = MusicXMLExpressivityOptions(),
+    handAssignments: [MusicXMLSourceNoteID: ScoreHandAssignment] = [:],
+    performanceTimingEnabled: Bool = false
+) -> ScorePerformancePlan {
+    // ponytail: fixture scores are single logical pianos; multi-instrument tests must pass an explicit plan.
+    let memberPartIDs = Set(score.notes.map(\.partID)).sorted()
+    let logicalInstrument = MusicXMLLogicalInstrument(
+        id: "test-piano",
+        memberPartIDs: memberPartIDs,
+        classification: .piano,
+        evidence: []
+    )
+    let timingSchedule = ScoreTimingScheduleBuilder().build(
+        notes: score.notes,
+        performanceTimingEnabled: performanceTimingEnabled,
+        graceEnabled: expressivity.graceEnabled,
+        logicalInstruments: [logicalInstrument],
+        arpeggiateEnabled: expressivity.arpeggiateEnabled
+    )
+    let velocityResolver = MusicXMLVelocityResolver(
+        dynamicEvents: score.dynamicEvents,
+        wedgeEvents: score.wedgeEvents,
+        wedgeEnabled: expressivity.wedgeEnabled
+    )
+    return ScorePerformancePlanBuilder().build(
+        sourceIdentity: ScorePerformanceSourceIdentity(
+            songID: UUID(),
+            scoreRevision: "test",
+            logicalInstrumentID: logicalInstrument.id
+        ),
+        order: MusicXMLOrderSelection(requested: .written, applied: .written),
+        logicalInstrument: logicalInstrument,
+        notes: score.notes,
+        timingSchedule: timingSchedule,
+        velocityResolver: velocityResolver,
+        expressivity: expressivity,
+        handAssignments: handAssignments
     )
 }

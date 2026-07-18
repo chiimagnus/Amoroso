@@ -8,7 +8,7 @@ func highlightGuideBuilderEmitsReleaseGapAndRetriggerForRepeatedNote() {
         makeRest(tick: 2, duration: 2),
         makeNote(tick: 4, duration: 2, midi: 60),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let steps = PracticeStepBuilder().buildSteps(from: makeTestScorePerformancePlan(from: score)).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -29,7 +29,7 @@ func highlightGuideBuilderDoesNotRetriggerTieStopContinuation() {
         makeNote(tick: 0, duration: 2, midi: 60, tieStart: true),
         makeNote(tick: 2, duration: 2, midi: 60, tieStop: true),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let steps = PracticeStepBuilder().buildSteps(from: makeTestScorePerformancePlan(from: score)).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -47,7 +47,7 @@ func highlightGuideBuilderGroupsChordInSingleTriggerGuide() {
         makeNote(tick: 0, duration: 2, midi: 64, isChord: true),
         makeNote(tick: 0, duration: 2, midi: 67, isChord: true),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let steps = PracticeStepBuilder().buildSteps(from: makeTestScorePerformancePlan(from: score)).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -108,6 +108,14 @@ private func makeNote(
     arpeggiate: MusicXMLArpeggiate? = nil
 ) -> MusicXMLNoteEvent {
     MusicXMLNoteEvent(
+        sourceID: MusicXMLSourceNoteID(
+            partID: "P1",
+            sourceMeasureIndex: 0,
+            sourceMeasureNumberToken: "1",
+            staff: staff,
+            voice: voice,
+            sourceOrdinal: tick * 10_000 + midi * 10 + staff + voice
+        ),
         partID: "P1",
         measureNumber: 1,
         tick: tick,
@@ -152,7 +160,7 @@ func highlightGuideBuilderPreservesSameMidiSameStaffDifferentVoices() {
         makeNote(tick: 0, duration: 2, midi: 60, staff: 1, voice: 1),
         makeNote(tick: 0, duration: 3, midi: 60, isChord: true, staff: 1, voice: 2),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let steps = PracticeStepBuilder().buildSteps(from: makeTestScorePerformancePlan(from: score)).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -170,7 +178,7 @@ func highlightGuideBuilderUsesArticulatedOffTickFromNoteSpans() {
     let score = MusicXMLScore(notes: [
         makeNote(tick: 0, duration: 480, midi: 60, articulations: [.staccato]),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let steps = PracticeStepBuilder().buildSteps(from: makeTestScorePerformancePlan(from: score)).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -188,7 +196,9 @@ func highlightGuideBuilderUsesPerformanceTimingOnOffTicksWhenEnabled() {
     let score = MusicXMLScore(notes: [
         makeNote(tick: 0, duration: 480, midi: 60, attackTicks: 12, releaseTicks: 8),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score).steps
+    let steps = PracticeStepBuilder().buildSteps(
+        from: makeTestScorePerformancePlan(from: score, performanceTimingEnabled: true)
+    ).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes, performanceTimingEnabled: true)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -216,7 +226,9 @@ func highlightGuideBuilderUsesGraceScheduleWhenGraceEnabled() {
         ),
         makeNote(tick: 480, duration: 480, midi: 60),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity).steps
+    let steps = PracticeStepBuilder().buildSteps(
+        from: makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    ).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes, expressivity: expressivity)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -244,7 +256,9 @@ func highlightGuideBuilderUsesArpeggiateOffsetWhenEnabled() {
         makeNote(tick: 0, duration: 480, midi: 60, arpeggiate: arp),
         makeNote(tick: 0, duration: 480, midi: 64, isChord: true, arpeggiate: arp),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity).steps
+    let steps = PracticeStepBuilder().buildSteps(
+        from: makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    ).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes, expressivity: expressivity)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(
@@ -270,7 +284,9 @@ func highlightGuideBuilderUsesFermataExtraTicksWhenEnabled() {
             source: .noteNotations
         ),
     ])
-    let steps = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity).steps
+    let steps = PracticeStepBuilder().buildSteps(
+        from: makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    ).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(
         from: score.notes,
         performanceTimingEnabled: false,

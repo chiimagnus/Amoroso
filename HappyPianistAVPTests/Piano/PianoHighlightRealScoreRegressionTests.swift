@@ -8,7 +8,8 @@ func despacitoFixtureBuildsGuidesWithGapAndRetrigger() throws {
 
     let score = try MusicXMLParser().parse(fileURL: fixtureURL)
     let expressivity = MusicXMLExpressivityOptions()
-    let steps = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity).steps
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let steps = PracticeStepBuilder().buildSteps(from: plan).steps
     let spans = MusicXMLNoteSpanBuilder().buildSpans(from: score.notes, expressivity: expressivity)
 
     let guides = PianoHighlightGuideBuilderService().buildGuides(

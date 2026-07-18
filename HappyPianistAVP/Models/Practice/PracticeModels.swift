@@ -75,6 +75,7 @@ struct PracticeStepNote: Equatable, Hashable, Identifiable {
     let velocity: UInt8
     let onTickOffset: Int
     let fingeringText: String?
+    let sourceNoteIDs: [MusicXMLSourceNoteID]
 
     init(
         midiNote: Int,
@@ -83,6 +84,7 @@ struct PracticeStepNote: Equatable, Hashable, Identifiable {
         velocity: UInt8 = 96,
         onTickOffset: Int = 0,
         fingeringText: String? = nil,
+        sourceNoteIDs: [MusicXMLSourceNoteID] = [],
         handAssignment: ScoreHandAssignment
     ) {
         self.midiNote = midiNote
@@ -91,6 +93,7 @@ struct PracticeStepNote: Equatable, Hashable, Identifiable {
         self.velocity = velocity
         self.onTickOffset = onTickOffset
         self.fingeringText = fingeringText
+        self.sourceNoteIDs = sourceNoteIDs
         self.handAssignment = handAssignment
     }
 }

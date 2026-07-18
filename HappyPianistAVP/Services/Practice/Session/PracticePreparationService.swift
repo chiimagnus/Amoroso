@@ -174,11 +174,6 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
 
         try Task.checkCancellation()
         let expressivityOptions = MusicXMLRealisticPlaybackDefaults.expressivityOptions
-        let buildResult = stepBuilder.buildSteps(
-            from: practiceScore,
-            expressivity: expressivityOptions,
-            handAssignments: handRouting.assignmentsBySourceNoteID
-        )
         let wordsSemantics = expressivityOptions.wordsSemanticsEnabled
             ? MusicXMLWordsSemanticsInterpreter().interpret(
                 wordsEvents: practiceScore.wordsEvents,
@@ -235,6 +230,7 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             fermataEvents: practiceScore.fermataEvents,
             fermataTimeline: fermataTimeline
         )
+        let buildResult = stepBuilder.buildSteps(from: performancePlan)
         let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
             from: practiceScore.notes,
             performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,

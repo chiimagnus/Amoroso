@@ -90,9 +90,10 @@ func expressivityPipelineParsesAndPlumbsKeySignalsEndToEnd() throws {
     #expect(attributeTimeline.clef(atTick: 0, staffNumber: 1)?.signToken == "G")
     #expect(attributeTimeline.clef(atTick: 0, staffNumber: 2)?.signToken == "F")
 
-    let steps = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity).steps
-    #expect(steps.count == 1)
-    #expect(steps[0].notes.map(\.midiNote) == [60, 64])
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let steps = PracticeStepBuilder().buildSteps(from: plan).steps
+    #expect(steps.map(\.tick) == [0, 30])
+    #expect(steps.flatMap(\.notes).map(\.midiNote) == [60, 64])
     #expect(steps[0].notes.first(where: { $0.midiNote == 60 })?.fingeringText == "1")
 
     let spans = MusicXMLNoteSpanBuilder().buildSpans(
