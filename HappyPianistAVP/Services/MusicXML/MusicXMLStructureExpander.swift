@@ -179,18 +179,21 @@ struct MusicXMLStructureExpander {
         outputTransposeEvents.reserveCapacity(original.transposeEvents.count)
         outputOctaveShiftEvents.reserveCapacity(original.octaveShiftEvents.count)
         outputWordsEvents.reserveCapacity(original.wordsEvents.count)
-        outputMeasures.reserveCapacity(sequence.count)
+        outputMeasures.reserveCapacity(sequence.count * selectedPartIDs.count)
 
+        let orderedSelectedPartIDs = orderedPartIDs(
+            selectedPartIDs,
+            partMetadata: original.partMetadata
+        )
         var outputTick = 0
         var outputMeasureNumber = 1
         var passBySourceMeasureID: [PracticeSourceMeasureID: Int] = [:]
 
-        for index in sequence {
+        for (occurrenceIndex, index) in sequence.enumerated() {
             guard primaryMeasures.indices.contains(index) else { continue }
             let span = primaryMeasures[index]
             let duration = max(0, span.endTick - span.startTick)
             let currentMeasureStartTick = outputTick
-            let occurrenceIndex = outputMeasures.count
             let sourceMeasureID = span.sourceMeasureID
             let pass = (passBySourceMeasureID[sourceMeasureID] ?? 0) + 1
             passBySourceMeasureID[sourceMeasureID] = pass
@@ -389,15 +392,22 @@ struct MusicXMLStructureExpander {
                 ))
             }
 
-            outputMeasures.append(MusicXMLMeasureSpan(
-                partID: primaryPartID,
-                measureNumber: outputMeasureNumber,
-                sourceMeasureIndex: span.sourceMeasureIndex,
-                sourceMeasureNumberToken: span.sourceMeasureNumberToken,
-                occurrenceIndex: occurrenceIndex,
-                startTick: currentMeasureStartTick,
-                endTick: currentMeasureStartTick + duration
-            ))
+            for partID in orderedSelectedPartIDs {
+                guard let sourceSpan = sourceMeasureSpan(
+                    for: partID,
+                    matching: span,
+                    in: original.measures
+                ) else { continue }
+                outputMeasures.append(MusicXMLMeasureSpan(
+                    partID: partID,
+                    measureNumber: outputMeasureNumber,
+                    sourceMeasureIndex: sourceSpan.sourceMeasureIndex,
+                    sourceMeasureNumberToken: sourceSpan.sourceMeasureNumberToken,
+                    occurrenceIndex: occurrenceIndex,
+                    startTick: currentMeasureStartTick,
+                    endTick: currentMeasureStartTick + duration
+                ))
+            }
 
             outputTick += duration
             outputMeasureNumber += 1
@@ -448,6 +458,31 @@ struct MusicXMLStructureExpander {
             repeatDirectives: [],
             endingDirectives: []
         )
+    }
+
+    private func orderedPartIDs(
+        _ selectedPartIDs: Set<String>,
+        partMetadata: [MusicXMLPartMetadata]
+    ) -> [String] {
+        let sourceOrder = partMetadata.map(\.partID) + selectedPartIDs.sorted()
+        return sourceOrder.reduce(into: [String]()) { result, partID in
+            guard selectedPartIDs.contains(partID), result.contains(partID) == false else { return }
+            result.append(partID)
+        }
+    }
+
+    private func sourceMeasureSpan(
+        for partID: String,
+        matching primarySpan: MusicXMLMeasureSpan,
+        in measures: [MusicXMLMeasureSpan]
+    ) -> MusicXMLMeasureSpan? {
+        let partMeasures = measures.filter { $0.partID == partID }
+        return partMeasures.first { $0.sourceMeasureIndex == primarySpan.sourceMeasureIndex }
+            ?? partMeasures.first {
+                $0.sourceMeasureNumberToken != nil
+                    && $0.sourceMeasureNumberToken == primarySpan.sourceMeasureNumberToken
+            }
+            ?? partMeasures.first { $0.measureNumber == primarySpan.measureNumber }
     }
 
     private func shiftedScope(_ scope: MusicXMLEventScope) -> MusicXMLEventScope {

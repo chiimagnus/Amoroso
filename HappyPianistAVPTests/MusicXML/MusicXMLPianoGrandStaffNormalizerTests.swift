@@ -121,5 +121,9 @@ func splitPianoGoldenFixturePreservesAllPartsAndPerformedOccurrences() throws {
     #expect(performed.dynamicEvents.count == 2)
     #expect(performed.pedalEvents.count == 4)
     #expect(performed.tempoEvents.count == 2)
-    #expect(performed.measures.map(\.occurrenceIndex) == [0, 1, 2, 3])
+    #expect(performed.measures.count == 8)
+    #expect(Set(performed.measures.map(\.partID)) == ["LH", "RH"])
+    #expect(performed.measures.filter { $0.partID == "RH" }.map(\.occurrenceIndex) == [0, 1, 2, 3])
+    #expect(performed.measures.filter { $0.partID == "LH" }.map(\.occurrenceIndex) == [0, 1, 2, 3])
+    #expect(performed.measures.filter { $0.partID == "LH" }.map(\.sourceMeasureIndex) == [0, 1, 0, 1])
 }
