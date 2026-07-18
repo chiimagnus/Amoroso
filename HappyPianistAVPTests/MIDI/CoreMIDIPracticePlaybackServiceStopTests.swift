@@ -12,7 +12,7 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
         ])
         let eventID = plan.noteEvents[0].id
         let playback = await MainActor.run {
-            CoreMIDIPracticePlaybackService(destinationUniqueID: destinationUniqueID, outputService: output, velocity: 96, channel: 0)
+            CoreMIDIPracticePlaybackService(destinationUniqueID: destinationUniqueID, outputService: output, channel: 0)
         }
 
         try await MainActor.run {
@@ -48,7 +48,6 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
             CoreMIDIPracticePlaybackService(
                 destinationUniqueID: destinationUniqueID,
                 outputService: output,
-                velocity: 96,
                 channel: 2
             )
         }
@@ -139,7 +138,6 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
             CoreMIDIPracticePlaybackService(
                 destinationUniqueID: destinationUniqueID,
                 outputService: output,
-                velocity: 96,
                 channel: 0
             )
         }
@@ -174,7 +172,6 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
             CoreMIDIPracticePlaybackService(
                 destinationUniqueID: destinationUniqueID,
                 outputService: output,
-                velocity: 96,
                 channel: 1
             )
         }

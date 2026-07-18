@@ -46,13 +46,15 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
         currentSecondsValue
     }
 
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {
         playOneShotCallCount += 1
-        lastOneShotNotes = noteOns.map(\.midiNote)
+        lastOneShotNotes = commands.compactMap {
+            guard case let .noteOn(midi, _) = $0.kind else { return nil }
+            return midi
+        }
     }
 
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 

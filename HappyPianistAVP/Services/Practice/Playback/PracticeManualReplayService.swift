@@ -10,6 +10,7 @@ final class PracticeManualReplayService {
     private weak var effectHandler: (any PracticeSessionEffectHandlerProtocol)?
 
     private var manualReplayTask: Task<Void, Never>?
+    private var pendingStopTask: Task<Void, Never>?
     private var hasShutdown = false
 
     init(
@@ -75,8 +76,10 @@ final class PracticeManualReplayService {
         stateStore.currentStepIndex = startIndex
         setCurrentHighlightGuideForStepIndex(startIndex)
 
+        let pendingStopTask = self.pendingStopTask
         manualReplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            await pendingStopTask?.value
             var completedReplay = false
             defer {
                 if stateStore.manualReplayGeneration == generation {
@@ -111,7 +114,7 @@ final class PracticeManualReplayService {
             )
 
             do {
-                try sequencerPlaybackService.warmUp()
+                try await sequencerPlaybackService.warmUp()
             } catch {
                 stateStore.recordPlaybackError(error)
                 return
@@ -136,9 +139,9 @@ final class PracticeManualReplayService {
             guard Task.isCancelled == false, stateStore.manualReplayGeneration == generation else { return }
 
             do {
-                sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
-                try sequencerPlaybackService.load(sequence: sequence)
-                try sequencerPlaybackService.play(fromSeconds: 0)
+                await sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+                try await sequencerPlaybackService.load(sequence: sequence)
+                try await sequencerPlaybackService.play(fromSeconds: 0)
             } catch {
                 stateStore.recordPlaybackError(error)
                 return
@@ -155,7 +158,7 @@ final class PracticeManualReplayService {
             while Task.isCancelled == false, stateStore.manualReplayGeneration == generation {
                 guard stateStore.isManualReplayPlaying else { break }
 
-                let nowSeconds = sequencerPlaybackService.currentSeconds()
+                let nowSeconds = await sequencerPlaybackService.currentSeconds()
 
                 if let stepIndex = cursor.advance(toSeconds: nowSeconds) {
                     stateStore.currentStepIndex = stepIndex
@@ -170,7 +173,7 @@ final class PracticeManualReplayService {
             }
 
             if Task.isCancelled == false, stateStore.manualReplayGeneration == generation {
-                sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+                await sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
             }
 
             completedReplay = true
@@ -184,7 +187,13 @@ final class PracticeManualReplayService {
 
         if stateStore.isManualReplayPlaying {
             stateStore.isManualReplayPlaying = false
-            sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+            let previousStopTask = pendingStopTask
+            pendingStopTask = Task { [sequencerPlaybackService] in
+                await previousStopTask?.value
+                await sequencerPlaybackService.stop(
+                    resetCommands: PerformanceTransportReducer.fullResetCommands
+                )
+            }
             if restoreAudioRecognition, stateStore.shouldResumeAudioRecognitionAfterManualReplay {
                 effectHandler?.handle(effect: .refreshAudioRecognition)
             }

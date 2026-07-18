@@ -50,8 +50,9 @@ actor DuetAIPlaybackQueue {
         playbackLoopTask = nil
         pendingWindow = nil
 
+        let serviceFactory = await MainActor.run { playbackServiceFactory() }
+        await serviceFactory.stopAll()
         await MainActor.run {
-            playbackServiceFactory().stopAll()
             onPlaybackActiveChanged(false)
         }
     }
@@ -138,10 +139,10 @@ actor DuetAIPlaybackQueue {
             guard Task.isCancelled == false else { return }
             let service = playbackServiceFactory().playbackService(for: item.routing)
             do {
-                try service.warmUp()
-                service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
-                try service.load(sequence: sequence)
-                try service.play(fromSeconds: 0)
+                try await service.warmUp()
+                await service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+                try await service.load(sequence: sequence)
+                try await service.play(fromSeconds: 0)
             } catch {
                 diagnosticsReporter?.recordSystem(
                     severity: .warning,
@@ -155,11 +156,11 @@ actor DuetAIPlaybackQueue {
 
             let endSeconds = max(0, sequence.durationSeconds)
             while Task.isCancelled == false {
-                if service.currentSeconds() >= endSeconds { break }
+                if await service.currentSeconds() >= endSeconds { break }
                 await sleepFor(.milliseconds(16))
                 await Task.yield()
             }
-            service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+            await service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         }
 
         await withTaskCancellationHandler {

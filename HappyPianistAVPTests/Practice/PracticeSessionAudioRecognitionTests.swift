@@ -386,12 +386,14 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
         0
     }
 
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {
-        oneShots.append(noteOns.map(\.midiNote))
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {
+        oneShots.append(commands.compactMap {
+            guard case let .noteOn(midi, _) = $0.kind else { return nil }
+            return midi
+        })
     }
 
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
@@ -441,6 +443,7 @@ func microphonePermissionFailureDoesNotBlockPlaybackFallback() async {
     fakeService.emitStatus(.permissionDenied)
     await settleTaskQueue()
     viewModel.previewCurrentStepPitches()
+    await settleTaskQueue()
 
     #expect(viewModel.audioRecognitionErrorMessage == "未授予麦克风权限")
     #expect(playbackService.oneShots.count >= 2)

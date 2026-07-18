@@ -3,25 +3,30 @@ import Foundation
 import Testing
 
 @Test
-@MainActor
-func sequencerPlaybackServiceProtocolSupportsDependencyInjection() {
-    final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
+func sequencerPlaybackServiceProtocolCarriesCanonicalCommandsAcrossActorBoundary() async throws {
+    actor FakeSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
         private(set) var resetCommands: [PerformanceTransportCommand] = []
+        private(set) var commands: [PracticePlaybackCommand] = []
 
-        func warmUp() throws {}
-        func stop(resetCommands: [PerformanceTransportCommand]) {
+        func warmUp() async throws {}
+        func stop(resetCommands: [PerformanceTransportCommand]) async {
             self.resetCommands = resetCommands
         }
-        func load(sequence _: PracticeSequencerSequence) throws {}
-        func play(fromSeconds _: TimeInterval) throws {}
-        func currentSeconds() -> TimeInterval {
+        func load(sequence _: PracticeSequencerSequence) async throws {}
+        func play(fromSeconds _: TimeInterval) async throws {}
+        func currentSeconds() async -> TimeInterval {
             0
         }
 
-        func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-        func startLiveNotes(midiNotes _: Set<Int>) throws {}
-        func stopLiveNotes(midiNotes _: Set<Int>) {}
-        func stopAllLiveNotes() {}
+        func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) async throws {}
+        func execute(commands: [PracticePlaybackCommand]) async throws {
+            self.commands.append(contentsOf: commands)
+        }
+        func stopAllLiveNotes() async {}
+
+        func snapshot() -> (commands: [PracticePlaybackCommand], reset: [PerformanceTransportCommand]) {
+            (commands, resetCommands)
+        }
     }
 
     func accept(_ service: PracticeSequencerPlaybackServiceProtocol) {
@@ -30,6 +35,14 @@ func sequencerPlaybackServiceProtocolSupportsDependencyInjection() {
 
     let service = FakeSequencerPlaybackService()
     accept(service)
-    service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
-    #expect(service.resetCommands == PerformanceTransportReducer.fullResetCommands)
+    let commands = [
+        PracticePlaybackCommand(sourceEventID: "note-1", kind: .noteOn(midi: 60, velocity: 87)),
+        PracticePlaybackCommand(sourceEventID: "pedal-1", kind: .controlChange(controller: 64, value: 96)),
+    ]
+    try await service.execute(commands: commands)
+    await service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+
+    let snapshot = await service.snapshot()
+    #expect(snapshot.commands == commands)
+    #expect(snapshot.reset == PerformanceTransportReducer.fullResetCommands)
 }

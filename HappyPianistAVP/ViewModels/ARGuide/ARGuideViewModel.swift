@@ -679,7 +679,6 @@ final class ARGuideViewModel: PracticeLaunchApplying {
 
     private func cleanUpPracticePresentation() {
         recordingViewModel.stop()
-        takePlaybackViewModel.stop()
         setPracticeAutoplayEnabled(false)
         hideVirtualPiano()
         setPracticeVirtualPerformerEnabled(false)
@@ -711,7 +710,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     func startRecording() {
-        recordingViewModel.startRecording(canRecord: canRecord)
+        Task { await recordingViewModel.startRecording(canRecord: canRecord) }
     }
 
     func stopRecording() {
@@ -727,11 +726,11 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     func deleteTake(id: UUID) {
-        recordingViewModel.deleteTake(id: id)
+        Task { await recordingViewModel.deleteTake(id: id) }
     }
 
     func clearAllTakes() {
-        recordingViewModel.clearAllTakes()
+        Task { await recordingViewModel.clearAllTakes() }
     }
 
     func makeMIDIExport(for take: RecordingTake) throws -> RecordingMIDIExport {

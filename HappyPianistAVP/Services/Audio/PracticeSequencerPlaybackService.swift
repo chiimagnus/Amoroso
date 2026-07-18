@@ -2,7 +2,7 @@ import AudioToolbox
 import AVFAudio
 import Foundation
 
-struct PracticeSequencerSequence {
+struct PracticeSequencerSequence: Sendable {
     let midiData: Data
     let durationSeconds: TimeInterval
     let events: [PracticeSequencerMIDIEvent]
@@ -21,26 +21,23 @@ struct PracticeSequencerSequence {
     }
 }
 
-struct PracticeOneShotNoteOn: Hashable {
-    let midiNote: Int
-    let velocity: UInt8
+struct PracticePlaybackCommand: Equatable, Sendable {
+    let sourceEventID: String
+    let kind: PracticeSequencerMIDIEvent.Kind
 }
 
-@MainActor
 protocol PracticeSequencerPlaybackServiceProtocol: AnyObject {
-    func warmUp() throws
-    func stop(resetCommands: [PerformanceTransportCommand])
-    func load(sequence: PracticeSequencerSequence) throws
-    func play(fromSeconds start: TimeInterval) throws
-    func currentSeconds() -> TimeInterval
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws
-    func startLiveNotes(midiNotes: Set<Int>) throws
-    func stopLiveNotes(midiNotes: Set<Int>)
-    func stopAllLiveNotes()
+    func warmUp() async throws
+    func stop(resetCommands: [PerformanceTransportCommand]) async
+    func load(sequence: PracticeSequencerSequence) async throws
+    func play(fromSeconds start: TimeInterval) async throws
+    func currentSeconds() async -> TimeInterval
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds: TimeInterval) async throws
+    func execute(commands: [PracticePlaybackCommand]) async throws
+    func stopAllLiveNotes() async
 }
 
-@MainActor
-final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackServiceProtocol {
+actor AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackServiceProtocol {
     private let engine: AVAudioEngine
     private let sampler: AVAudioUnitSampler
     private let sequencer: AVAudioSequencer
@@ -48,15 +45,14 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
     private let soundFontResourceName: String
     private let program: UInt8
-    private let velocity: UInt8
     private let channel: UInt8
 
     private var isReady = false
     private var currentAudioOutputVolume: Float?
     private var volumeObservationTask: Task<Void, Never>?
-    private var playingOneShotNotes: Set<UInt8> = []
+    private var oneShotNoteBySourceEventID: [String: UInt8] = [:]
     private var oneShotStopTask: Task<Void, Never>?
-    private var liveNotes: Set<UInt8> = []
+    private var liveNoteBySourceEventID: [String: UInt8] = [:]
     private var noteBySourceEventID: [String: UInt8] = [:]
     private var audioSessionEventTasks: [Task<Void, Never>] = []
 
@@ -64,7 +60,6 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         soundFontResourceName: String,
         userDefaults: UserDefaults = .standard,
         program: UInt8 = 0,
-        velocity: UInt8 = 96,
         channel: UInt8 = 0
     ) {
         engine = AVAudioEngine()
@@ -74,37 +69,20 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
         self.soundFontResourceName = soundFontResourceName
         self.program = program
-        self.velocity = velocity
         self.channel = channel
 
         engine.attach(sampler)
         engine.connect(sampler, to: engine.mainMixerNode, format: nil)
 
-        applyAudioOutputVolumeIfNeeded()
-        volumeObservationTask = Task { @MainActor [weak self] in
-            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
-                guard let self else { return }
-                applyAudioOutputVolumeIfNeeded()
-            }
-        }
-        let notificationCenter = NotificationCenter.default
-        audioSessionEventTasks = [
-            Task { @MainActor [weak self] in
-                for await notification in notificationCenter.notifications(named: AVAudioSession.interruptionNotification) {
-                    guard let self,
-                          let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-                          rawType == AVAudioSession.InterruptionType.began.rawValue
-                    else { continue }
-                    stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
-                }
-            },
-            Task { @MainActor [weak self] in
-                for await _ in notificationCenter.notifications(named: AVAudioSession.routeChangeNotification) {
-                    guard let self else { return }
-                    stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
-                }
-            },
-        ]
+        let initialVolume = AudioOutputVolumeSettings.readAudioOutputVolume(from: userDefaults)
+        currentAudioOutputVolume = initialVolume
+        engine.mainMixerNode.outputVolume = initialVolume
+    }
+
+    deinit {
+        volumeObservationTask?.cancel()
+        oneShotStopTask?.cancel()
+        for task in audioSessionEventTasks { task.cancel() }
     }
 
     func warmUp() throws {
@@ -155,12 +133,8 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
         sequencer.currentPositionInSeconds
     }
 
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
-        let notes = noteOns.compactMap { noteOn -> (note: UInt8, velocity: UInt8)? in
-            guard let note = UInt8(exactly: noteOn.midiNote) else { return nil }
-            return (note, noteOn.velocity)
-        }
-        guard notes.isEmpty == false else { return }
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds: TimeInterval) throws {
+        guard commands.isEmpty == false else { return }
 
         try ensureReady()
         applyAudioOutputVolumeIfNeeded()
@@ -170,61 +144,115 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
 
         stopOneShotNotes()
 
-        for (note, velocity) in notes {
-            sampler.startNote(note, withVelocity: velocity, onChannel: channel)
-            playingOneShotNotes.insert(note)
-        }
+        try execute(commands: commands, tracking: .oneShot)
 
-        oneShotStopTask = Task { @MainActor [weak self] in
+        oneShotStopTask = Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .seconds(max(0, durationSeconds)))
-            guard Task.isCancelled == false else { return }
-            stopOneShotNotes()
+            do {
+                try await Task.sleep(for: .seconds(max(0, durationSeconds)))
+            } catch {
+                return
+            }
+            await self.stopOneShotNotes()
         }
     }
 
-    func startLiveNotes(midiNotes: Set<Int>) throws {
+    func execute(commands: [PracticePlaybackCommand]) throws {
         try ensureReady()
         applyAudioOutputVolumeIfNeeded()
-        for midiNote in midiNotes {
-            guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) == false else { continue }
-            sampler.startNote(note, withVelocity: velocity, onChannel: channel)
-            liveNotes.insert(note)
-        }
-    }
-
-    func stopLiveNotes(midiNotes: Set<Int>) {
-        guard isReady else { return }
-        for midiNote in midiNotes {
-            guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) else { continue }
-            sampler.stopNote(note, onChannel: channel)
-            liveNotes.remove(note)
-        }
+        try execute(commands: commands, tracking: .live)
     }
 
     func stopAllLiveNotes() {
         guard isReady else { return }
-        for note in liveNotes {
+        for note in Set(liveNoteBySourceEventID.values) {
             sampler.stopNote(note, onChannel: channel)
         }
-        liveNotes.removeAll()
+        liveNoteBySourceEventID.removeAll()
     }
 
     private func stopOneShotNotes() {
         guard isReady else { return }
 
-        for note in playingOneShotNotes {
+        for note in Set(oneShotNoteBySourceEventID.values) {
             sampler.stopNote(note, onChannel: channel)
         }
-        playingOneShotNotes.removeAll()
+        oneShotNoteBySourceEventID.removeAll()
     }
 
     private func haltPlayback() {
         oneShotStopTask?.cancel()
         oneShotStopTask = nil
         sequencer.stop()
-        playingOneShotNotes.removeAll()
-        liveNotes.removeAll()
+        oneShotNoteBySourceEventID.removeAll()
+        liveNoteBySourceEventID.removeAll()
+    }
+
+    private enum CommandTracking {
+        case live
+        case oneShot
+    }
+
+    private func execute(
+        commands: [PracticePlaybackCommand],
+        tracking: CommandTracking
+    ) throws {
+        for command in commands {
+            switch command.kind {
+            case let .noteOn(midi, velocity):
+                guard let note = UInt8(exactly: midi) else { continue }
+                sampler.startNote(note, withVelocity: velocity, onChannel: channel)
+                switch tracking {
+                case .live:
+                    liveNoteBySourceEventID[command.sourceEventID] = note
+                case .oneShot:
+                    oneShotNoteBySourceEventID[command.sourceEventID] = note
+                }
+
+            case let .noteOff(midi):
+                let trackedNote: UInt8?
+                switch tracking {
+                case .live:
+                    trackedNote = liveNoteBySourceEventID.removeValue(forKey: command.sourceEventID)
+                case .oneShot:
+                    trackedNote = oneShotNoteBySourceEventID.removeValue(forKey: command.sourceEventID)
+                }
+                guard let note = trackedNote ?? UInt8(exactly: midi) else { continue }
+                sampler.stopNote(note, onChannel: channel)
+
+            case let .controlChange(controller, value):
+                try sendMIDI(status: 0xB0 | channel, data1: controller, data2: value)
+            case let .programChange(program):
+                try sendMIDI(status: 0xC0 | channel, data1: program, data2: 0)
+            case let .pitchBend(value):
+                try sendMIDI(
+                    status: 0xE0 | channel,
+                    data1: UInt8(value & 0x7F),
+                    data2: UInt8((value >> 7) & 0x7F)
+                )
+            case let .channelPressure(value):
+                try sendMIDI(status: 0xD0 | channel, data1: value, data2: 0)
+            case let .polyPressure(midi, value):
+                guard let note = UInt8(exactly: midi) else { continue }
+                try sendMIDI(status: 0xA0 | channel, data1: note, data2: value)
+            }
+        }
+    }
+
+    private func sendMIDI(status: UInt8, data1: UInt8, data2: UInt8) throws {
+        let result = MusicDeviceMIDIEvent(
+            sampler.audioUnit,
+            UInt32(status),
+            UInt32(data1),
+            UInt32(data2),
+            0
+        )
+        guard result == noErr else {
+            throw PracticeAudioError.soundFontLoadFailed(
+                resourceName: soundFontResourceName,
+                detail: "MusicDeviceMIDIEvent failed: \(result)"
+            )
+        }
     }
 
     private func execute(_ commands: [PerformanceTransportCommand]) {
@@ -251,6 +279,8 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
     }
 
     private func ensureReady() throws {
+        startObservingLifecycleIfNeeded()
+
         func configureSessionBestEffort() {
             let session = AVAudioSession.sharedInstance()
             try? session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers])
@@ -297,6 +327,34 @@ final class AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackSe
                 detail: error.localizedDescription
             )
         }
+    }
+
+    private func startObservingLifecycleIfNeeded() {
+        guard volumeObservationTask == nil, audioSessionEventTasks.isEmpty else { return }
+        volumeObservationTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: UserDefaults.didChangeNotification) {
+                guard let self else { return }
+                await self.applyAudioOutputVolumeIfNeeded()
+            }
+        }
+        let notificationCenter = NotificationCenter.default
+        audioSessionEventTasks = [
+            Task { [weak self] in
+                for await notification in notificationCenter.notifications(named: AVAudioSession.interruptionNotification) {
+                    guard let self,
+                          let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                          rawType == AVAudioSession.InterruptionType.began.rawValue
+                    else { continue }
+                    await self.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+                }
+            },
+            Task { [weak self] in
+                for await _ in notificationCenter.notifications(named: AVAudioSession.routeChangeNotification) {
+                    guard let self else { return }
+                    await self.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+                }
+            },
+        ]
     }
 
     private func applyAudioOutputVolumeIfNeeded() {

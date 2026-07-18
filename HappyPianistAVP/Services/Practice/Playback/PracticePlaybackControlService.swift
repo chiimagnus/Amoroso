@@ -15,8 +15,10 @@ final class PracticePlaybackControlService {
     private let transportReducer = PerformanceTransportReducer()
 
     private var autoplayTask: Task<Void, Never>?
+    private var pendingResetTask: Task<Void, Never>?
     private var transportState = PerformanceTransportReducer.TransportState.idle
     private var requiresResetBeforeLoad = true
+    private var playbackPositionSeconds: TimeInterval = 0
     private var hasShutdown = false
 
     private var autoplayTaskGeneration: Int {
@@ -62,12 +64,6 @@ final class PracticePlaybackControlService {
         if isEnabled {
             guard stateStore.isManualReplayPlaying == false else { return }
 
-            do {
-                try sequencerPlaybackService.warmUp()
-            } catch {
-                stateStore.recordPlaybackError(error)
-            }
-
             stateStore.autoplayState = .playing
             stateStore.autoplayErrorMessage = nil
 
@@ -99,20 +95,34 @@ final class PracticePlaybackControlService {
                 && $0.performedOnTick < endTick
                 && mode.allows(hand: $0.handAssignment.hand)
         } ?? []
-        let velocityByMIDINote = Dictionary(grouping: planNotes, by: \.midiNote)
-            .compactMapValues { notes in notes.map(\.velocityResolution.velocity).max() }
-        let noteOns = velocityByMIDINote
-            .map { PracticeOneShotNoteOn(midiNote: $0.key, velocity: $0.value) }
-            .sorted { $0.midiNote < $1.midiNote }
-        guard noteOns.isEmpty == false else { return }
+        let commands = Dictionary(grouping: planNotes, by: \.midiNote)
+            .values
+            .compactMap { notes -> PracticePlaybackCommand? in
+                guard let note = notes.max(by: {
+                    $0.velocityResolution.velocity < $1.velocityResolution.velocity
+                }) else { return nil }
+                return PracticePlaybackCommand(
+                    sourceEventID: "preview-\(note.id.description)",
+                    kind: .noteOn(midi: note.midiNote, velocity: note.velocityResolution.velocity)
+                )
+            }
+            .sorted { lhs, rhs in
+                guard case let .noteOn(lhsMIDI, _) = lhs.kind,
+                      case let .noteOn(rhsMIDI, _) = rhs.kind
+                else { return lhs.sourceEventID < rhs.sourceEventID }
+                return lhsMIDI < rhsMIDI
+            }
+        guard commands.isEmpty == false else { return }
 
-        do {
-            try sequencerPlaybackService.playOneShot(
-                noteOns: noteOns,
-                durationSeconds: 0.35
-            )
-        } catch {
-            stateStore.recordPlaybackError(error)
+        Task {
+            do {
+                try await sequencerPlaybackService.playOneShot(
+                    commands: commands,
+                    durationSeconds: 0.35
+                )
+            } catch {
+                stateStore.recordPlaybackError(error)
+            }
         }
     }
 
@@ -205,6 +215,7 @@ final class PracticePlaybackControlService {
     private func cancelAutoplayTask() {
         autoplayTask?.cancel()
         autoplayTask = nil
+        playbackPositionSeconds = 0
 
         stateStore.autoplayTimingBaseTick = nil
         stateStore.notationGuideScrollSchedule.removeAll()
@@ -219,7 +230,7 @@ final class PracticePlaybackControlService {
         let fallbackTick = Double(currentHighlightGuide?.tick ?? baseTick)
         guard schedule.isEmpty == false else { return fallbackTick }
 
-        let nowSeconds = sequencerPlaybackService.currentSeconds()
+        let nowSeconds = playbackPositionSeconds
         guard nowSeconds.isFinite else { return fallbackTick }
 
         if nowSeconds <= schedule[0].timeSeconds {
@@ -337,7 +348,12 @@ final class PracticePlaybackControlService {
             if case let .reset(_, transportCommands, _, _) = command { return transportCommands }
             return nil
         }).first else { return false }
-        sequencerPlaybackService.stop(resetCommands: resetCommands)
+        let previousResetTask = pendingResetTask
+        let sequencerPlaybackService = sequencerPlaybackService
+        pendingResetTask = Task {
+            await previousResetTask?.value
+            await sequencerPlaybackService.stop(resetCommands: resetCommands)
+        }
         requiresResetBeforeLoad = false
         return true
     }
@@ -371,7 +387,8 @@ final class PracticePlaybackControlService {
         stateStore.isSustainPedalDown = initialSustainPedalDown
 
         do {
-            try sequencerPlaybackService.warmUp()
+            await pendingResetTask?.value
+            try await sequencerPlaybackService.warmUp()
         } catch {
             stateStore.recordPlaybackError(error)
             stopAutoplayWithError(stateStore.audioPlaybackErrorMessage ?? "无法自动播放：音频服务初始化失败。")
@@ -381,7 +398,9 @@ final class PracticePlaybackControlService {
         guard Task.isCancelled == false, autoplayTaskGeneration == generation else { return }
 
         if resetBeforeLoad {
-            sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+            await sequencerPlaybackService.stop(
+                resetCommands: PerformanceTransportReducer.fullResetCommands
+            )
             requiresResetBeforeLoad = false
         }
 
@@ -403,9 +422,10 @@ final class PracticePlaybackControlService {
         guard Task.isCancelled == false, autoplayTaskGeneration == generation else { return }
 
         do {
-            try sequencerPlaybackService.load(sequence: sequence)
-            try sequencerPlaybackService.play(fromSeconds: 0)
+            try await sequencerPlaybackService.load(sequence: sequence)
+            try await sequencerPlaybackService.play(fromSeconds: 0)
             requiresResetBeforeLoad = true
+            playbackPositionSeconds = 0
         } catch {
             stateStore.recordPlaybackError(error)
             stopAutoplayWithError(stateStore.audioPlaybackErrorMessage ?? "无法自动播放：播放服务启动失败。")
@@ -435,7 +455,8 @@ final class PracticePlaybackControlService {
             guard stateStore.autoplayState == .playing else { break }
             guard case .guiding = stateStore.state else { break }
 
-            let nowSeconds = sequencerPlaybackService.currentSeconds()
+            let nowSeconds = await sequencerPlaybackService.currentSeconds()
+            playbackPositionSeconds = nowSeconds
 
             if let isDown = pedalCursor.advance(toSeconds: nowSeconds) {
                 stateStore.isSustainPedalDown = isDown

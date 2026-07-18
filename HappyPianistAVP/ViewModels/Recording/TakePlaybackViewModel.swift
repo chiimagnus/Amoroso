@@ -28,7 +28,6 @@ final class TakePlaybackViewModel {
 
     init(controller: TakePlaybackController) {
         self.controller = controller
-        syncFromController()
     }
 
     deinit {
@@ -39,37 +38,37 @@ final class TakePlaybackViewModel {
         isScrubbing ? scrubPositionSeconds : currentPositionSeconds
     }
 
-    func play(take: RecordingTake) throws {
-        try controller.play(take: take)
+    func play(take: RecordingTake) async throws {
+        try await controller.play(take: take)
         currentDurationSeconds = take.durationSeconds
         isScrubbing = false
-        syncFromController()
+        await syncFromController()
     }
 
-    func pause() {
-        controller.pause()
-        syncFromController()
+    func pause() async {
+        await controller.pause()
+        await syncFromController()
     }
 
-    func resume() throws {
-        try controller.resume()
-        syncFromController()
+    func resume() async throws {
+        try await controller.resume()
+        await syncFromController()
     }
 
-    func stop() {
-        controller.stop()
+    func stop() async {
+        await controller.stop()
         isScrubbing = false
-        syncFromController()
+        await syncFromController()
         currentDurationSeconds = 0
     }
 
-    func seek(toSeconds seconds: TimeInterval) throws {
-        try controller.seek(toSeconds: seconds)
-        syncFromController()
+    func seek(toSeconds seconds: TimeInterval) async throws {
+        try await controller.seek(toSeconds: seconds)
+        await syncFromController()
     }
 
-    func currentSeconds() -> TimeInterval {
-        syncFromController()
+    func currentSeconds() async -> TimeInterval {
+        await syncFromController()
         return currentPositionSeconds
     }
 
@@ -77,31 +76,32 @@ final class TakePlaybackViewModel {
         currentTakeID == takeID && isPlaying
     }
 
-    func playOrPause(take: RecordingTake) throws {
+    func playOrPause(take: RecordingTake) async throws {
         guard take.events.isEmpty == false else { throw PlaybackError.emptyTake }
 
         if currentTakeID == take.id {
             if isPlaying {
-                pause()
+                await pause()
             } else {
-                try resume()
+                try await resume()
             }
         } else {
-            try play(take: take)
+            try await play(take: take)
         }
     }
 
-    func toggleCurrentPlayback() throws {
+    func toggleCurrentPlayback() async throws {
         if isPlaying {
-            pause()
+            await pause()
         } else {
-            try resume()
+            try await resume()
         }
     }
 
     func setPausePositionSeconds(_ seconds: TimeInterval?) {
         controller.pausePositionSeconds = seconds
-        syncFromController()
+        pausePositionSeconds = seconds
+        currentPositionSeconds = seconds ?? 0
     }
 
     func beginScrubbing() {
@@ -110,22 +110,22 @@ final class TakePlaybackViewModel {
         scrubPositionSeconds = currentPositionSeconds
     }
 
-    func commitScrubbing() throws {
+    func commitScrubbing() async throws {
         let target = max(0, min(scrubPositionSeconds, max(0, currentDurationSeconds)))
         isScrubbing = false
         if isPlaying {
-            try seek(toSeconds: target)
+            try await seek(toSeconds: target)
         } else {
             setPausePositionSeconds(target)
         }
-        syncFromController()
+        await syncFromController()
     }
 
     func startProgressUpdates() {
         guard progressTask == nil else { return }
         progressTask = Task { @MainActor [weak self] in
             while Task.isCancelled == false {
-                self?.syncFromController()
+                await self?.syncFromController()
                 try? await Task.sleep(for: .milliseconds(100))
             }
         }
@@ -136,11 +136,12 @@ final class TakePlaybackViewModel {
         progressTask = nil
     }
 
-    private func syncFromController() {
+    private func syncFromController() async {
+        let position = await controller.currentSeconds()
         isPlaying = controller.isPlaying
         currentTakeID = controller.currentTakeID
         pausePositionSeconds = controller.pausePositionSeconds
-        currentPositionSeconds = controller.currentSeconds()
+        currentPositionSeconds = position
 
         if currentTakeID == nil {
             currentDurationSeconds = 0

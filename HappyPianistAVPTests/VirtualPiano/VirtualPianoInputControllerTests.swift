@@ -45,8 +45,7 @@ private final class FakeKeyContactDetector: KeyContactDetectingProtocol {
 
 @MainActor
 private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
-    private(set) var startedLiveNotes: [Set<Int>] = []
-    private(set) var stoppedLiveNotes: [Set<Int>] = []
+    private(set) var commands: [[PracticePlaybackCommand]] = []
 
     func warmUp() throws {}
     func stop(resetCommands _: [PerformanceTransportCommand]) {}
@@ -56,14 +55,9 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-
-    func startLiveNotes(midiNotes: Set<Int>) throws {
-        startedLiveNotes.append(midiNotes)
-    }
-
-    func stopLiveNotes(midiNotes: Set<Int>) {
-        stoppedLiveNotes.append(midiNotes)
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands: [PracticePlaybackCommand]) throws {
+        self.commands.append(commands)
     }
 
     func stopAllLiveNotes() {}
@@ -87,7 +81,7 @@ private func makeMinimalKeyboardGeometry() -> PianoKeyboardGeometry {
 
 @Test
 @MainActor
-func virtualPianoPlaysLiveNotesWhenNotSuppressed() {
+func virtualPianoPlaysLiveNotesWhenNotSuppressed() async {
     let store = PracticeSessionStateStore()
     store.autoplayState = .off
     store.isManualReplayPlaying = false
@@ -119,15 +113,18 @@ func virtualPianoPlaysLiveNotesWhenNotSuppressed() {
         at: .now,
         practiceHandMode: .both
     )
+    await controller.waitForPendingPlayback()
 
-    #expect(sequencer.startedLiveNotes == [[60]])
-    #expect(sequencer.stoppedLiveNotes == [[61]])
+    #expect(sequencer.commands == [[
+        PracticePlaybackCommand(sourceEventID: "virtual-piano-61", kind: .noteOff(midi: 61)),
+        PracticePlaybackCommand(sourceEventID: "virtual-piano-60", kind: .noteOn(midi: 60, velocity: 96)),
+    ]])
     #expect(effectHandler.effects.contains(.advanceToNextStep))
 }
 
 @Test
 @MainActor
-func virtualPianoDoesNotPlayLiveNotesDuringAutoplay() {
+func virtualPianoDoesNotPlayLiveNotesDuringAutoplay() async {
     let store = PracticeSessionStateStore()
     store.autoplayState = .playing
     store.isManualReplayPlaying = false
@@ -157,7 +154,7 @@ func virtualPianoDoesNotPlayLiveNotesDuringAutoplay() {
         at: .now,
         practiceHandMode: .both
     )
+    await controller.waitForPendingPlayback()
 
-    #expect(sequencer.startedLiveNotes.isEmpty)
-    #expect(sequencer.stoppedLiveNotes.isEmpty)
+    #expect(sequencer.commands.isEmpty)
 }

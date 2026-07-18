@@ -10,7 +10,6 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
     private let hostTimeConverter: MIDIHostTimeConverter
     private let generationGuard = MIDIPlaybackGenerationGuard()
 
-    private let velocity: UInt8
     private let channel: UInt8
 
     private var loadedDurationSeconds: TimeInterval?
@@ -18,9 +17,9 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
     private var scheduler: MIDILookAheadScheduler?
     private var schedulerTask: Task<Void, Never>?
 
-    private var playingOneShotNotes: Set<UInt8> = []
+    private var oneShotNoteBySourceEventID: [String: UInt8] = [:]
     private var oneShotStopTask: Task<Void, Never>?
-    private var liveNotes: Set<UInt8> = []
+    private var liveNoteBySourceEventID: [String: UInt8] = [:]
 
     private var lastKnownSeconds: TimeInterval = 0
     private var playbackStartedAtUptimeSeconds: TimeInterval?
@@ -32,7 +31,6 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         outputCapabilities: PerformanceOutputCapabilities = .externalMIDI,
         hostTimeConverter: MIDIHostTimeConverter = MIDIHostTimeConverter(),
-        velocity: UInt8 = 96,
         channel: UInt8 = 0
     ) {
         self.destinationUniqueID = destinationUniqueID
@@ -40,7 +38,6 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         self.outputCapabilities = outputCapabilities
         self.diagnosticsReporter = diagnosticsReporter
         self.hostTimeConverter = hostTimeConverter
-        self.velocity = velocity
         self.channel = channel
 
         let generationGuard = self.generationGuard
@@ -161,8 +158,8 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
             }
         }
 
-        liveNotes.removeAll()
-        playingOneShotNotes.removeAll()
+        liveNoteBySourceEventID.removeAll()
+        oneShotNoteBySourceEventID.removeAll()
     }
 
     private func handleDestinationRouteChange() {
@@ -194,12 +191,8 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         return seconds
     }
 
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
-        let notes = noteOns.compactMap { noteOn -> (note: UInt8, velocity: UInt8)? in
-            guard let note = UInt8(exactly: noteOn.midiNote) else { return nil }
-            return (note, noteOn.velocity)
-        }
-        guard notes.isEmpty == false else { return }
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds: TimeInterval) throws {
+        guard commands.isEmpty == false else { return }
 
         try ensureReady()
 
@@ -208,15 +201,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
 
         stopOneShotNotes()
 
-        for (note, velocity) in notes {
-            try? outputService.sendNoteOn(
-                note: note,
-                velocity: velocity,
-                channel: channel,
-                destinationUniqueID: destinationUniqueID
-            )
-            playingOneShotNotes.insert(note)
-        }
+        try execute(commands: commands, tracking: .oneShot)
 
         oneShotStopTask = Task.detached(priority: .userInitiated) { [weak self] in
             try? await Task.sleep(for: .seconds(max(0, durationSeconds)))
@@ -227,40 +212,119 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
     }
 
-    func startLiveNotes(midiNotes: Set<Int>) throws {
+    func execute(commands: [PracticePlaybackCommand]) throws {
         try ensureReady()
-        for midiNote in midiNotes {
-            guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) == false else { continue }
-            try? outputService.sendNoteOn(
-                note: note,
-                velocity: velocity,
-                channel: channel,
-                destinationUniqueID: destinationUniqueID
-            )
-            liveNotes.insert(note)
-        }
-    }
-
-    func stopLiveNotes(midiNotes: Set<Int>) {
-        for midiNote in midiNotes {
-            guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) else { continue }
-            try? outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
-            liveNotes.remove(note)
-        }
+        try execute(commands: commands, tracking: .live)
     }
 
     func stopAllLiveNotes() {
-        for note in liveNotes {
-            try? outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+        for note in Set(liveNoteBySourceEventID.values) {
+            do {
+                try outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.stopLiveNote",
+                    summary: "停止实时 MIDI 音符失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
         }
-        liveNotes.removeAll()
+        liveNoteBySourceEventID.removeAll()
     }
 
     private func stopOneShotNotes() {
-        for note in playingOneShotNotes {
-            try? outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+        for note in Set(oneShotNoteBySourceEventID.values) {
+            do {
+                try outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.stopOneShotNote",
+                    summary: "停止预览 MIDI 音符失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
         }
-        playingOneShotNotes.removeAll()
+        oneShotNoteBySourceEventID.removeAll()
+    }
+
+    private enum CommandTracking {
+        case live
+        case oneShot
+    }
+
+    private func execute(
+        commands: [PracticePlaybackCommand],
+        tracking: CommandTracking
+    ) throws {
+        for command in commands {
+            switch command.kind {
+            case let .noteOn(midi, velocity):
+                guard let note = UInt8(exactly: midi) else { continue }
+                try outputService.sendNoteOn(
+                    note: note,
+                    velocity: velocity,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+                switch tracking {
+                case .live:
+                    liveNoteBySourceEventID[command.sourceEventID] = note
+                case .oneShot:
+                    oneShotNoteBySourceEventID[command.sourceEventID] = note
+                }
+
+            case let .noteOff(midi):
+                let trackedNote: UInt8?
+                switch tracking {
+                case .live:
+                    trackedNote = liveNoteBySourceEventID.removeValue(forKey: command.sourceEventID)
+                case .oneShot:
+                    trackedNote = oneShotNoteBySourceEventID.removeValue(forKey: command.sourceEventID)
+                }
+                guard let note = trackedNote ?? UInt8(exactly: midi) else { continue }
+                try outputService.sendNoteOff(
+                    note: note,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+
+            case let .controlChange(controller, value):
+                let resolution = outputCapabilities.resolve(controllerNumber: controller, value: value)
+                try outputService.sendControlChange(
+                    controller: controller,
+                    value: resolution.value,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .programChange(program):
+                try outputService.sendProgramChange(
+                    program: program,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .pitchBend(value):
+                try outputService.sendMIDI1Bytes([
+                    0xE0 | (channel & 0x0F),
+                    UInt8(value & 0x7F),
+                    UInt8((value >> 7) & 0x7F),
+                ], destinationUniqueID: destinationUniqueID)
+            case let .channelPressure(value):
+                try outputService.sendMIDI1Bytes(
+                    [0xD0 | (channel & 0x0F), value],
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .polyPressure(midi, value):
+                guard let note = UInt8(exactly: midi) else { continue }
+                try outputService.sendMIDI1Bytes(
+                    [0xA0 | (channel & 0x0F), note, value],
+                    destinationUniqueID: destinationUniqueID
+                )
+            }
+        }
     }
 
     private func execute(_ commands: [PerformanceTransportCommand]) {

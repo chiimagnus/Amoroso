@@ -370,7 +370,7 @@ func applyingCalibrationDoesNotResetProgress() {
 
 @Test
 @MainActor
-func guidingStartUsesPerformancePlanInsteadOfStepSoundFacts() {
+func guidingStartUsesPerformancePlanInsteadOfStepSoundFacts() async {
     let playbackService = CapturingSequencerPlaybackService()
     let viewModel = makePracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -409,6 +409,7 @@ func guidingStartUsesPerformancePlanInsteadOfStepSoundFacts() {
         ]
     )
     viewModel.startGuidingIfReady()
+    await settleTaskQueue()
 
     #expect(playbackService.oneShots.map(\.midiNotes) == [[60, 64]])
     #expect(playbackService.oneShots.map(\.velocities) == [[80, 90]])
@@ -436,7 +437,7 @@ func guidingStartRecordsAudioErrorWhenAudioPlayerThrows() async {
 
 @Test
 @MainActor
-func advancingAutoPlaysNextStepSound() {
+func advancingAutoPlaysNextStepSound() async {
     let playbackService = CapturingSequencerPlaybackService()
     let viewModel = makePracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -452,6 +453,7 @@ func advancingAutoPlaysNextStepSound() {
         ])
     viewModel.startGuidingIfReady()
     viewModel.skip()
+    await settleTaskQueue()
 
     #expect(playbackService.oneShots.map(\.midiNotes) == [[60], [62]])
 }
@@ -1734,16 +1736,19 @@ private final class CapturingSequencerPlaybackService: PracticeSequencerPlayback
         currentSecondsValue
     }
 
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds: TimeInterval) throws {
+        let noteOns = commands.compactMap { command -> (midi: Int, velocity: UInt8)? in
+            guard case let .noteOn(midi, velocity) = command.kind else { return nil }
+            return (midi, velocity)
+        }
         oneShots.append(OneShot(
-            midiNotes: noteOns.map(\.midiNote),
+            midiNotes: noteOns.map(\.midi),
             velocities: noteOns.map(\.velocity),
             durationSeconds: durationSeconds
         ))
     }
 
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
@@ -1756,12 +1761,11 @@ private final class ThrowingSequencerPlaybackService: PracticeSequencerPlaybackS
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {
         throw PracticeAudioError.soundFontMissing(resourceName: "TestSoundFont")
     }
 
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
