@@ -816,3 +816,51 @@ func parserSnapshotSupportUsesStableFieldOrdering() throws {
 
     expectSnapshot(snapshot, equals: "part=P1|tick=0|midi=60\n")
 }
+
+@Test
+func parserPreservesPartListAndMIDIInstrumentMetadata() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list>
+        <score-part id="P1">
+          <part-name>Concert Grand Piano</part-name>
+          <part-abbreviation>Pno.</part-abbreviation>
+          <score-instrument id="P1-I1"><instrument-name>Grand Piano</instrument-name></score-instrument>
+          <midi-instrument id="P1-I1"><midi-channel>1</midi-channel><midi-program>1</midi-program><midi-bank>1</midi-bank></midi-instrument>
+        </score-part>
+        <score-part id="P2"><part-name>Violin</part-name></score-part>
+      </part-list>
+      <part id="P1"><measure number="1"/></part>
+      <part id="P2"><measure number="1"/></part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+
+    #expect(score.partMetadata.map(\.partID) == ["P1", "P2"])
+    #expect(score.partMetadata[0].name == "Concert Grand Piano")
+    #expect(score.partMetadata[0].abbreviation == "Pno.")
+    #expect(score.partMetadata[0].scoreInstruments == [
+        MusicXMLScoreInstrumentMetadata(id: "P1-I1", name: "Grand Piano")
+    ])
+    #expect(score.partMetadata[0].midiInstruments == [
+        MusicXMLMIDIInstrumentMetadata(id: "P1-I1", channel: 1, program: 1, bank: 1)
+    ])
+}
+
+@Test
+func parserRejectsDuplicateScorePartIdentifiers() {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list>
+        <score-part id="P1"><part-name>Piano</part-name></score-part>
+        <score-part id="P1"><part-name>Duplicate</part-name></score-part>
+      </part-list>
+      <part id="P1"><measure number="1"/></part>
+    </score-partwise>
+    """
+
+    #expect(throws: MusicXMLParserError.invalidPartMetadata(reason: "duplicate score-part id: P1")) {
+        try MusicXMLParser().parse(data: Data(xml.utf8))
+    }
+}

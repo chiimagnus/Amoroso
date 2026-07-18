@@ -7,6 +7,37 @@ extension MusicXMLParserDelegate {
             if state.scoreVersion == nil {
                 state.scoreVersion = attributeDict["version"]
             }
+        case "part-list":
+            state.isInPartList = true
+        case "score-part" where state.isInPartList:
+            guard let partID = normalizedMetadataToken(attributeDict["id"]) else {
+                state.metadataError = .invalidPartMetadata(reason: "score-part is missing id")
+                break
+            }
+            guard state.partMetadataByID[partID] == nil,
+                  state.currentScorePartMetadata?.partID != partID
+            else {
+                state.metadataError = .invalidPartMetadata(reason: "duplicate score-part id: \(partID)")
+                break
+            }
+            state.currentScorePartMetadata = MusicXMLPartMetadata(partID: partID)
+        case "score-instrument" where state.currentScorePartMetadata != nil:
+            guard let instrumentID = normalizedMetadataToken(attributeDict["id"]) else {
+                state.metadataError = .invalidPartMetadata(reason: "score-instrument is missing id")
+                break
+            }
+            state.currentScoreInstrumentMetadata = MusicXMLScoreInstrumentMetadata(id: instrumentID, name: nil)
+        case "midi-instrument" where state.currentScorePartMetadata != nil:
+            guard let instrumentID = normalizedMetadataToken(attributeDict["id"]) else {
+                state.metadataError = .invalidPartMetadata(reason: "midi-instrument is missing id")
+                break
+            }
+            state.currentMIDIInstrumentMetadata = MusicXMLMIDIInstrumentMetadata(
+                id: instrumentID,
+                channel: nil,
+                program: nil,
+                bank: nil
+            )
         case "part":
             state.currentPartID = attributeDict["id"] ?? "P1"
             if state.partDivisions[state.currentPartID] == nil {
@@ -237,6 +268,38 @@ extension MusicXMLParserDelegate {
 
     func handleEndElement(_ elementName: String, text: String) {
         switch elementName {
+        case "part-name" where state.currentScorePartMetadata != nil:
+            state.currentScorePartMetadata?.name = normalizedMetadataToken(text)
+        case "part-abbreviation" where state.currentScorePartMetadata != nil:
+            state.currentScorePartMetadata?.abbreviation = normalizedMetadataToken(text)
+        case "instrument-name" where state.currentScoreInstrumentMetadata != nil:
+            state.currentScoreInstrumentMetadata?.name = normalizedMetadataToken(text)
+        case "midi-channel" where state.currentMIDIInstrumentMetadata != nil:
+            state.currentMIDIInstrumentMetadata?.channel = Int(text)
+        case "midi-program" where state.currentMIDIInstrumentMetadata != nil:
+            state.currentMIDIInstrumentMetadata?.program = Int(text)
+        case "midi-bank" where state.currentMIDIInstrumentMetadata != nil:
+            state.currentMIDIInstrumentMetadata?.bank = Int(text)
+        case "score-instrument" where state.currentScoreInstrumentMetadata != nil:
+            if let instrument = state.currentScoreInstrumentMetadata {
+                state.currentScorePartMetadata?.scoreInstruments.append(instrument)
+            }
+            state.currentScoreInstrumentMetadata = nil
+        case "midi-instrument" where state.currentMIDIInstrumentMetadata != nil:
+            if let instrument = state.currentMIDIInstrumentMetadata {
+                state.currentScorePartMetadata?.midiInstruments.append(instrument)
+            }
+            state.currentMIDIInstrumentMetadata = nil
+        case "score-part" where state.currentScorePartMetadata != nil:
+            if let metadata = state.currentScorePartMetadata {
+                state.partMetadataByID[metadata.partID] = metadata
+                state.partMetadataOrder.append(metadata.partID)
+            }
+            state.currentScorePartMetadata = nil
+            state.currentScoreInstrumentMetadata = nil
+            state.currentMIDIInstrumentMetadata = nil
+        case "part-list":
+            state.isInPartList = false
         case "divisions" where state.isInAttributes:
             if let value = Int(text), value > 0 {
                 state.partDivisions[state.currentPartID] = value
@@ -501,5 +564,10 @@ extension MusicXMLParserDelegate {
         default:
             break
         }
+    }
+
+    private func normalizedMetadataToken(_ raw: String?) -> String? {
+        let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? nil : value
     }
 }

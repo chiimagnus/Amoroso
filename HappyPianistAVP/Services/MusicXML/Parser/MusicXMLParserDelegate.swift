@@ -24,6 +24,14 @@ final class MusicXMLParserDelegate: NSObject {
         state.scoreVersion
     }
 
+    var partMetadata: [MusicXMLPartMetadata] {
+        state.partMetadataOrder.compactMap { state.partMetadataByID[$0] }
+    }
+
+    var metadataError: MusicXMLParserError? {
+        state.metadataError
+    }
+
     var notes: [MusicXMLNoteEvent] {
         state.notes
     }

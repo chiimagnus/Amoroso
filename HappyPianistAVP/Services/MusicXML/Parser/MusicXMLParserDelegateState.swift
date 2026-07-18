@@ -5,6 +5,12 @@ struct MusicXMLParserDelegateState {
 
     var scoreVersion: String?
     var partMetadataByID: [String: MusicXMLPartMetadata] = [:]
+    var partMetadataOrder: [String] = []
+    var metadataError: MusicXMLParserError?
+    var isInPartList = false
+    var currentScorePartMetadata: MusicXMLPartMetadata?
+    var currentScoreInstrumentMetadata: MusicXMLScoreInstrumentMetadata?
+    var currentMIDIInstrumentMetadata: MusicXMLMIDIInstrumentMetadata?
 
     var notes: [MusicXMLNoteEvent] = []
     var tempoEvents: [MusicXMLTempoEvent] = []
