@@ -37,55 +37,49 @@ struct MusicXMLStructureExpander {
         }
 
         let repeats = score.repeatDirectives.filter { $0.partID == primaryPartID }
-        guard let forward = repeats.first(where: { $0.direction == .forward }),
-              let forwardIndex = measureIndexByNumber[forward.measureNumber]
-        else {
-            return score
-        }
-
-        let backwardCandidate = repeats.first(where: { directive in
-            directive.direction == .backward && (measureIndexByNumber[directive.measureNumber] ?? -1) >= forwardIndex
-        })
-
-        guard let backward = backwardCandidate,
-              let backwardIndex = measureIndexByNumber[backward.measureNumber],
-              backwardIndex > forwardIndex
-        else {
-            return score
-        }
+        let forwardIndices = repeats.compactMap { directive -> Int? in
+            guard directive.direction == .forward else { return nil }
+            return measureIndexByNumber[directive.measureNumber]
+        }.sorted()
+        let backwardIndices = repeats.compactMap { directive -> Int? in
+            guard directive.direction == .backward else { return nil }
+            return measureIndexByNumber[directive.measureNumber]
+        }.sorted()
+        guard backwardIndices.isEmpty == false else { return score }
 
         let endingSpans = resolveEndingSpans(
             directives: score.endingDirectives.filter { $0.partID == primaryPartID },
             measureIndexByNumber: measureIndexByNumber
         )
 
-        let ending1 = endingSpans["1"]
-        let ending2 = endingSpans["2"]
-
-        var sequence: [Int] = []
-        sequence.append(contentsOf: 0 ..< forwardIndex)
-        sequence.append(contentsOf: forwardIndex ... backwardIndex)
-
-        if let ending1,
+        let sequence: [Int]
+        if backwardIndices.count == 1,
+           let backwardIndex = backwardIndices.first,
+           let ending1 = endingSpans["1"],
            ending1.endIndex == backwardIndex,
-           let ending2,
+           let ending2 = endingSpans["2"],
            ending2.startIndex == backwardIndex + 1
         {
+            let forwardIndex = forwardIndices.last(where: { $0 <= backwardIndex }) ?? 0
+            var endingSequence: [Int] = []
+            endingSequence.append(contentsOf: 0 ..< forwardIndex)
+            endingSequence.append(contentsOf: forwardIndex ... backwardIndex)
             if ending1.startIndex > forwardIndex {
-                sequence.append(contentsOf: forwardIndex ..< ending1.startIndex)
+                endingSequence.append(contentsOf: forwardIndex ..< ending1.startIndex)
             }
-            sequence.append(contentsOf: ending2.startIndex ... ending2.endIndex)
+            endingSequence.append(contentsOf: ending2.startIndex ... ending2.endIndex)
 
             let resumeIndex = ending2.endIndex + 1
             if resumeIndex < primaryMeasures.count {
-                sequence.append(contentsOf: resumeIndex ..< primaryMeasures.count)
+                endingSequence.append(contentsOf: resumeIndex ..< primaryMeasures.count)
             }
+            sequence = endingSequence
         } else {
-            sequence.append(contentsOf: forwardIndex ... backwardIndex)
-            let resumeIndex = backwardIndex + 1
-            if resumeIndex < primaryMeasures.count {
-                sequence.append(contentsOf: resumeIndex ..< primaryMeasures.count)
-            }
+            sequence = repeatSequence(
+                measureCount: primaryMeasures.count,
+                forwardIndices: forwardIndices,
+                backwardIndices: backwardIndices
+            )
         }
 
         return materializeExpandedScore(
@@ -96,6 +90,30 @@ struct MusicXMLStructureExpander {
             includeSoundDirectives: true,
             includedPartIDs: includedPartIDs
         )
+    }
+
+    private func repeatSequence(
+        measureCount: Int,
+        forwardIndices: [Int],
+        backwardIndices: [Int]
+    ) -> [Int] {
+        // ponytail: sequential, non-overlapping repeats only; add a repeat stack if nested repeats enter the contract.
+        var sequence: [Int] = []
+        var cursor = 0
+
+        for backwardIndex in backwardIndices where backwardIndex >= cursor && backwardIndex < measureCount {
+            let repeatStart = forwardIndices.last(where: {
+                $0 >= cursor && $0 <= backwardIndex
+            }) ?? cursor
+            sequence.append(contentsOf: cursor ... backwardIndex)
+            sequence.append(contentsOf: repeatStart ... backwardIndex)
+            cursor = backwardIndex + 1
+        }
+
+        if cursor < measureCount {
+            sequence.append(contentsOf: cursor ..< measureCount)
+        }
+        return sequence
     }
 
     private struct EndingSpan {

@@ -107,6 +107,40 @@ func structureExpanderFiltersTimeOnlyPedalEventsByPass() throws {
 }
 
 @Test
+func structureExpanderHandlesImplicitStartAndMultipleSequentialRepeats() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+        </measure>
+        <measure number="2">
+          <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
+          <barline location="right"><repeat direction="backward"/></barline>
+        </measure>
+        <measure number="3">
+          <barline location="left"><repeat direction="forward"/></barline>
+          <note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration></note>
+        </measure>
+        <measure number="4">
+          <note><pitch><step>F</step><octave>4</octave></pitch><duration>1</duration></note>
+          <barline location="right"><repeat direction="backward"/></barline>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let expanded = MusicXMLStructureExpander().expandRepeatAndEndingIfPossible(score: score)
+
+    #expect(expanded.notes.compactMap(\.midiNote) == [60, 62, 60, 62, 64, 65, 64, 65])
+    #expect(expanded.notes.map(\.performedOccurrenceIndex) == Array(0 ... 7))
+    #expect(Set(expanded.notes.compactMap(\.performedID)).count == 8)
+}
+
+@Test
 func structureExpanderExpandsDalSegnoJumpOnce() throws {
     let xml = """
     <?xml version="1.0" encoding="UTF-8"?>
