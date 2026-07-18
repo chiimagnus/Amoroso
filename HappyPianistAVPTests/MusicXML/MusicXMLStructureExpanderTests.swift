@@ -175,7 +175,7 @@ func structureExpanderExpandsDalSegnoJumpOnce() throws {
     """
 
     let score = try MusicXMLParser().parse(data: Data(xml.utf8))
-    let expanded = MusicXMLStructureExpander().expandStructureIfPossible(score: score)
+    let expanded = MusicXMLStructureExpander().expandStructureIfPossible(score: score).score
 
     let midiNotes = expanded.notes.compactMap(\.midiNote)
     #expect(midiNotes == [60, 60, 62, 60, 60, 62])
@@ -216,7 +216,7 @@ func structureExpanderAssociatesBarlineSoundDirectiveWithPreviousMeasure() throw
     """
 
     let score = try MusicXMLParser().parse(data: Data(xml.utf8))
-    let expanded = MusicXMLStructureExpander().expandStructureIfPossible(score: score)
+    let expanded = MusicXMLStructureExpander().expandStructureIfPossible(score: score).score
 
     let midiNotes = expanded.notes.compactMap(\.midiNote)
     #expect(midiNotes == [60, 62, 60, 62, 64])
@@ -264,7 +264,9 @@ func structureExpanderFallsBackWhenJumpLimitsAreHit() {
         endingDirectives: []
     )
 
-    let expanded = MusicXMLStructureExpander().expandSoundJumpsIfPossible(score: score, maxOutputMeasures: 0)
+    let result = MusicXMLStructureExpander(maxOutputMeasures: 0).expandSoundJumpsIfPossible(score: score)
+    let expanded = result.score
+    #expect(result.approximationReason == "structure-expansion-output-measure-limit")
     #expect(expanded.notes == score.notes)
     #expect(expanded.tempoEvents == score.tempoEvents)
     #expect(expanded.soundDirectives == score.soundDirectives)

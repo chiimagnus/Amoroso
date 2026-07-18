@@ -28,6 +28,11 @@ struct MusicXMLOrderSelection: Codable, Equatable, Sendable {
     }
 }
 
+struct MusicXMLStructureExpansionResult: Equatable, Sendable {
+    let score: MusicXMLScore
+    let approximationReason: String?
+}
+
 struct MusicXMLPerformedNoteID: Codable, Equatable, Hashable, Sendable, CustomStringConvertible {
     let sourceID: MusicXMLSourceNoteID
     let occurrenceIndex: Int

@@ -112,7 +112,7 @@ func splitPianoGoldenFixturePreservesAllPartsAndPerformedOccurrences() throws {
         score: source,
         primaryPartID: "RH",
         includedPartIDs: Set(piano.memberPartIDs)
-    )
+    ).score
 
     #expect(performed.notes.compactMap(\.midiNote) == [48, 72, 43, 74, 48, 72, 43, 74])
     #expect(Set(performed.notes.map(\.partID)) == ["LH", "RH"])

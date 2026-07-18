@@ -1,21 +1,36 @@
 import Foundation
 
 struct MusicXMLStructureExpander {
+    private let maxOutputMeasures: Int
+    private let maxJumps: Int
+
+    init(maxOutputMeasures: Int = 10000, maxJumps: Int = 64) {
+        self.maxOutputMeasures = max(0, maxOutputMeasures)
+        self.maxJumps = max(0, maxJumps)
+    }
+
     func expandStructureIfPossible(
         score: MusicXMLScore,
         primaryPartID: String = "P1",
         includedPartIDs: Set<String>? = nil
-    ) -> MusicXMLScore {
+    ) -> MusicXMLStructureExpansionResult {
         let afterRepeat = expandRepeatAndEndingIfPossible(
             score: score,
             primaryPartID: primaryPartID,
             includedPartIDs: includedPartIDs
         )
-        return expandSoundJumpsIfPossible(
+        let result = expandSoundJumpsIfPossible(
             score: afterRepeat,
             primaryPartID: primaryPartID,
             includedPartIDs: includedPartIDs
         )
+        guard result.approximationReason == nil else {
+            return MusicXMLStructureExpansionResult(
+                score: score,
+                approximationReason: result.approximationReason
+            )
+        }
+        return result
     }
 
     func expandRepeatAndEndingIfPossible(
@@ -526,18 +541,20 @@ extension MusicXMLStructureExpander {
     func expandSoundJumpsIfPossible(
         score: MusicXMLScore,
         primaryPartID: String = "P1",
-        maxOutputMeasures: Int = 10000,
-        maxJumps: Int = 64,
         includedPartIDs: Set<String>? = nil
-    ) -> MusicXMLScore {
+    ) -> MusicXMLStructureExpansionResult {
         let primarySoundDirectives = score.soundDirectives.filter { $0.partID == primaryPartID }
-        guard primarySoundDirectives.isEmpty == false else { return score }
+        guard primarySoundDirectives.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
 
         let primaryMeasures = score.measures
             .filter { $0.partID == primaryPartID }
             .sorted { $0.startTick < $1.startTick }
 
-        guard primaryMeasures.isEmpty == false else { return score }
+        guard primaryMeasures.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
 
         var measureIndexByNumber: [Int: Int] = [:]
         for (index, span) in primaryMeasures.enumerated() {
@@ -586,7 +603,9 @@ extension MusicXMLStructureExpander {
             }
         }
 
-        guard instructions.isEmpty == false else { return score }
+        guard instructions.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
 
         let instructionsByMeasure = Dictionary(grouping: instructions) { $0.atMeasureIndex }
 
@@ -596,11 +615,15 @@ extension MusicXMLStructureExpander {
         var currentIndex = 0
         var jumpCount = 0
         var executedInstructionIDs: Set<String> = []
-        var didHitLimit = false
+        var limitReason: String?
 
         while currentIndex < primaryMeasures.count {
-            if outputSequence.count >= maxOutputMeasures || jumpCount >= maxJumps {
-                didHitLimit = true
+            if outputSequence.count >= maxOutputMeasures {
+                limitReason = "structure-expansion-output-measure-limit"
+                break
+            }
+            if jumpCount >= maxJumps {
+                limitReason = "structure-expansion-jump-limit"
                 break
             }
 
@@ -647,17 +670,20 @@ extension MusicXMLStructureExpander {
             }
         }
 
-        if didHitLimit {
-            return score
+        if let limitReason {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: limitReason)
         }
 
-        return materializeExpandedScore(
-            original: score,
-            primaryPartID: primaryPartID,
-            primaryMeasures: primaryMeasures,
-            sequence: outputSequence,
-            includeSoundDirectives: false,
-            includedPartIDs: includedPartIDs
+        return MusicXMLStructureExpansionResult(
+            score: materializeExpandedScore(
+                original: score,
+                primaryPartID: primaryPartID,
+                primaryMeasures: primaryMeasures,
+                sequence: outputSequence,
+                includeSoundDirectives: false,
+                includedPartIDs: includedPartIDs
+            ),
+            approximationReason: nil
         )
     }
 }
