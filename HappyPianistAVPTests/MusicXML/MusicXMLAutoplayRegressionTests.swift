@@ -120,10 +120,8 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
     )
     let guides = PianoHighlightGuideBuilderService().buildGuides(
         input: PianoHighlightGuideBuildInput(
-            score: score,
-            steps: buildResult.steps,
-            noteSpans: noteSpans,
-            expressivity: expressivity
+            plan: plan,
+            sourceScore: score
         )
     )
     let timeline = AutoplayPerformanceTimeline.build(

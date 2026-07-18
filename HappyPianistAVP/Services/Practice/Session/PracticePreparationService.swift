@@ -231,18 +231,10 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             fermataTimeline: fermataTimeline
         )
         let buildResult = stepBuilder.buildSteps(from: performancePlan)
-        let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
-            from: practiceScore.notes,
-            performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
-            expressivity: expressivityOptions,
-            logicalInstruments: practiceScore.logicalInstruments
-        )
         let highlightGuides = PianoHighlightGuideBuilderService().buildGuides(
             input: PianoHighlightGuideBuildInput(
-                score: practiceScore,
-                steps: buildResult.steps,
-                noteSpans: noteSpans,
-                expressivity: expressivityOptions
+                plan: performancePlan,
+                sourceScore: sourceScore
             )
         )
 

@@ -28,6 +28,7 @@ struct PianoHighlightNote: Equatable, Hashable, Identifiable {
     let articulations: Set<MusicXMLArticulation>
     let arpeggiate: MusicXMLArpeggiate?
     let dotCount: Int
+    let sourceNoteIDs: [MusicXMLSourceNoteID]
 
     init(
         occurrenceID: String,
@@ -44,6 +45,7 @@ struct PianoHighlightNote: Equatable, Hashable, Identifiable {
         articulations: Set<MusicXMLArticulation> = [],
         arpeggiate: MusicXMLArpeggiate? = nil,
         dotCount: Int = 0,
+        sourceNoteIDs: [MusicXMLSourceNoteID] = [],
         handAssignment: ScoreHandAssignment
     ) {
         self.occurrenceID = occurrenceID
@@ -60,6 +62,7 @@ struct PianoHighlightNote: Equatable, Hashable, Identifiable {
         self.articulations = articulations
         self.arpeggiate = arpeggiate
         self.dotCount = dotCount
+        self.sourceNoteIDs = sourceNoteIDs
         self.handAssignment = handAssignment
     }
 }
