@@ -170,7 +170,9 @@ func skipDoesNotLetCancelledAutoplayTaskClearNewTaskReference() async {
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
-    await settleTaskQueue()
+    await waitUntil("autoplay completed") {
+        playbackService.loadedSequences.count == 1 && viewModel.currentStepIndex == 2
+    }
 
     #expect(viewModel.autoplayTimingBaseTick != nil)
 
@@ -1469,7 +1471,7 @@ private func makePracticeSessionViewModel(
 
 private func settleTaskQueue(iterations: Int = 12) async {
     for _ in 0 ..< iterations {
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
 }
 
@@ -1483,7 +1485,7 @@ private func waitUntil(
         if condition() {
             return
         }
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
     #expect(condition(), "Timed out waiting for: \(description)")
 }

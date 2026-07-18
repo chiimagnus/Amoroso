@@ -142,7 +142,7 @@ func manualReplayProjectsCanonicalPlanAndRestoresRecognitionAfterCompletion() as
     service.startManualReplay(with: ManualReplayPlan(stepRange: 1 ..< 2))
     for _ in 0 ..< 240 {
         if stateStore.isManualReplayPlaying == false, sequencer.loadCallCount == 1 { break }
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
 
     #expect(effectHandler.effects.contains(.stopAudioRecognition))

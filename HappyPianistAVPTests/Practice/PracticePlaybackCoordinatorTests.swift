@@ -182,7 +182,7 @@ func autoplayStartsAndAdvancesStep() async {
     fixture.service.startAutoplayTaskIfNeeded()
     for _ in 0 ..< 240 {
         if fixture.sequencer.loadCallCount == 1, fixture.stateStore.currentStepIndex == 1 { break }
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
 
     #expect(fixture.sequencer.loadCallCount == 1)

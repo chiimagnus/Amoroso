@@ -133,7 +133,7 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
 
 private func settleRegressionTasks(iterations: Int = 4) async {
     for _ in 0 ..< iterations {
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
 }
 
@@ -144,7 +144,7 @@ private func waitForRegressionCondition(
 ) async {
     for _ in 0 ..< 240 {
         if condition() { return }
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
     #expect(condition(), "Timed out waiting for: \(description)")
 }
