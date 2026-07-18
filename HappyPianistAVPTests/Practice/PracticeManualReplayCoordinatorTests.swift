@@ -140,7 +140,8 @@ func manualReplayProjectsCanonicalPlanAndRestoresRecognitionAfterCompletion() as
     )
 
     service.startManualReplay(with: ManualReplayPlan(stepRange: 1 ..< 2))
-    for _ in 0 ..< 20 {
+    for _ in 0 ..< 240 {
+        if stateStore.isManualReplayPlaying == false, sequencer.loadCallCount == 1 { break }
         await Task.yield()
     }
 

@@ -16,6 +16,7 @@ final class PracticePlaybackControlService {
 
     private var autoplayTask: Task<Void, Never>?
     private var transportState = PerformanceTransportReducer.TransportState.idle
+    private var requiresResetBeforeLoad = true
     private var hasShutdown = false
 
     private var autoplayTaskGeneration: Int {
@@ -116,7 +117,7 @@ final class PracticePlaybackControlService {
     }
 
     func startAutoplayTaskIfNeeded() {
-        startAutoplayTaskIfNeeded(resetBeforeLoad: true)
+        startAutoplayTaskIfNeeded(resetBeforeLoad: requiresResetBeforeLoad)
     }
 
     private func startAutoplayTaskIfNeeded(resetBeforeLoad: Bool) {
@@ -326,7 +327,7 @@ final class PracticePlaybackControlService {
         stateStore.currentHighlightGuideIndex = stateStore.strictTriggerGuideIndex(forStepIndex: stepIndex)
         stateStore.isSustainPedalDown = sustainPedalIsDown(atTick: tick)
         effectHandler?.handle(effect: .refreshAudioRecognition)
-        startAutoplayTaskIfNeeded(resetBeforeLoad: false)
+        startAutoplayTaskIfNeeded(resetBeforeLoad: requiresResetBeforeLoad)
     }
 
     @discardableResult
@@ -337,6 +338,7 @@ final class PracticePlaybackControlService {
             return nil
         }).first else { return false }
         sequencerPlaybackService.stop(resetCommands: resetCommands)
+        requiresResetBeforeLoad = false
         return true
     }
 
@@ -380,6 +382,7 @@ final class PracticePlaybackControlService {
 
         if resetBeforeLoad {
             sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+            requiresResetBeforeLoad = false
         }
 
         let sequence: PracticeSequencerSequence
@@ -402,6 +405,7 @@ final class PracticePlaybackControlService {
         do {
             try sequencerPlaybackService.load(sequence: sequence)
             try sequencerPlaybackService.play(fromSeconds: 0)
+            requiresResetBeforeLoad = true
         } catch {
             stateStore.recordPlaybackError(error)
             stopAutoplayWithError(stateStore.audioPlaybackErrorMessage ?? "无法自动播放：播放服务启动失败。")

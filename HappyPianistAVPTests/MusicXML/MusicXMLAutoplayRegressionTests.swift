@@ -52,11 +52,15 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
-    await settleRegressionTasks()
+    await waitForRegressionCondition("initial autoplay reset") {
+        playbackService.stopCount > 0
+    }
 
     let beforeSkip = playbackService.stopCount
     viewModel.skip()
-    await settleRegressionTasks(iterations: 8)
+    await waitForRegressionCondition("skip reset") {
+        playbackService.stopCount == beforeSkip + 1
+    }
 
     #expect(playbackService.stopCount == beforeSkip + 1)
 }
@@ -131,6 +135,18 @@ private func settleRegressionTasks(iterations: Int = 4) async {
     for _ in 0 ..< iterations {
         await Task.yield()
     }
+}
+
+@MainActor
+private func waitForRegressionCondition(
+    _ description: String,
+    condition: () -> Bool
+) async {
+    for _ in 0 ..< 240 {
+        if condition() { return }
+        await Task.yield()
+    }
+    #expect(condition(), "Timed out waiting for: \(description)")
 }
 
 private struct RegressionNoopPressDetectionService: PressDetectionServiceProtocol {
