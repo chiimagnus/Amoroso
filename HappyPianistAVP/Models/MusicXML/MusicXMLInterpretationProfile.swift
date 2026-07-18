@@ -7,6 +7,8 @@ struct MusicXMLInterpretationProfile: Equatable, Sendable {
         staccatoDurationMultiplier: 0.5,
         detachedLegatoDurationMultiplier: 0.75,
         marcatoDurationMultiplier: 0.75,
+        breathGapTicks: MusicXMLTempoMap.ticksPerQuarter / 8,
+        caesuraPauseTicks: MusicXMLTempoMap.ticksPerQuarter / 2,
         fermataExtraDurationMultiplier: 0.5,
         fermataMaximumExtraTicks: MusicXMLTempoMap.ticksPerQuarter * 2
     )
@@ -16,6 +18,8 @@ struct MusicXMLInterpretationProfile: Equatable, Sendable {
     let staccatoDurationMultiplier: Double
     let detachedLegatoDurationMultiplier: Double
     let marcatoDurationMultiplier: Double
+    let breathGapTicks: Int
+    let caesuraPauseTicks: Int
     let fermataExtraDurationMultiplier: Double
     let fermataMaximumExtraTicks: Int
 

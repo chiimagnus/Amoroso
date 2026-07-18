@@ -35,8 +35,18 @@ struct ScoreTimingScheduleBuilder {
             profile: interpretationProfile,
             entries: &entries
         )
+        applySlurs(
+            notes: notes,
+            profile: interpretationProfile,
+            entries: &entries
+        )
+        let directives = applyPhraseBreaks(
+            notes: notes,
+            profile: interpretationProfile,
+            entries: &entries
+        )
 
-        return ScoreTimingSchedule(entries: entries.map(\.value))
+        return ScoreTimingSchedule(entries: entries.map(\.value), directives: directives)
     }
 }
 
@@ -60,6 +70,16 @@ private extension ScoreTimingScheduleBuilder {
     struct MakeTimeGroup {
         let group: GraceGroup
         let durationTicks: Int
+    }
+
+    struct SlurKey: Hashable {
+        let lane: GraceLane
+        let numberToken: String
+    }
+
+    struct ActiveSlur {
+        let startPosition: Int
+        let sourceID: MusicXMLPerformanceNotationSourceID?
     }
 
     struct ArpeggioGroupKey: Hashable {
@@ -499,6 +519,192 @@ private extension ScoreTimingScheduleBuilder {
                 timingProvenance: .interpretationProfile(id: profile.id)
             )
         }
+    }
+
+    func applySlurs(
+        notes: [MusicXMLNoteEvent],
+        profile: MusicXMLInterpretationProfile,
+        entries: inout [MutableEntry]
+    ) {
+        let playableIndices = notes.indices.filter { index in
+            notes[index].isRest == false && notes[index].isGrace == false
+        }
+        let indicesByLane = Dictionary(grouping: playableIndices) { lane(for: notes[$0]) }
+
+        for (lane, indices) in indicesByLane {
+            let ordered = indices.sorted { lhs, rhs in
+                if entries[lhs].performedOnTick != entries[rhs].performedOnTick {
+                    return entries[lhs].performedOnTick < entries[rhs].performedOnTick
+                }
+                return lhs < rhs
+            }
+            var activeByNumber: [String: ActiveSlur] = [:]
+
+            for (position, noteIndex) in ordered.enumerated() {
+                let slurs = notes[noteIndex].performanceNotations.filter { $0.kind == .slur }
+                for slur in slurs {
+                    let numberToken = normalizedNumberToken(slur.numberToken)
+                    let key = SlurKey(lane: lane, numberToken: numberToken)
+                    switch slur.typeToken?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                    case "start":
+                        if let existing = activeByNumber[numberToken] {
+                            markApproximation(
+                                "slur-restarted-before-stop-\(key.numberToken)",
+                                noteIndices: [ordered[existing.startPosition], noteIndex],
+                                entries: &entries
+                            )
+                        }
+                        activeByNumber[numberToken] = ActiveSlur(
+                            startPosition: position,
+                            sourceID: slur.sourceID
+                        )
+                    case "continue":
+                        if activeByNumber[numberToken] == nil {
+                            entries[noteIndex].appendProvenance(
+                                .approximation(reason: "slur-continue-without-start-\(key.numberToken)")
+                            )
+                        }
+                    case "stop":
+                        guard let active = activeByNumber.removeValue(forKey: numberToken) else {
+                            entries[noteIndex].appendProvenance(
+                                .approximation(reason: "slur-stop-without-start-\(key.numberToken)")
+                            )
+                            continue
+                        }
+                        connectSlur(
+                            noteIndices: Array(ordered[active.startPosition...position]),
+                            sourceID: active.sourceID ?? slur.sourceID,
+                            profile: profile,
+                            notes: notes,
+                            entries: &entries
+                        )
+                    default:
+                        entries[noteIndex].appendProvenance(
+                            .approximation(reason: "slur-missing-or-unsupported-type")
+                        )
+                    }
+                }
+            }
+
+            for (numberToken, active) in activeByNumber {
+                entries[ordered[active.startPosition]].appendProvenance(
+                    .approximation(reason: "slur-start-without-stop-\(numberToken)")
+                )
+            }
+        }
+    }
+
+    func connectSlur(
+        noteIndices: [Int],
+        sourceID: MusicXMLPerformanceNotationSourceID?,
+        profile: MusicXMLInterpretationProfile,
+        notes: [MusicXMLNoteEvent],
+        entries: inout [MutableEntry]
+    ) {
+        guard noteIndices.count >= 2 else { return }
+        let provenance = ScoreTimingProvenance.performanceNotation(
+            kind: .slur,
+            sourceID: sourceID,
+            profileID: profile.id
+        )
+
+        for (offset, noteIndex) in noteIndices.dropLast().enumerated() {
+            let currentOnTick = entries[noteIndex].performedOnTick
+            guard let nextIndex = noteIndices[(offset + 1)...].first(where: {
+                entries[$0].performedOnTick > currentOnTick
+            }) else {
+                continue
+            }
+            let nextOnTick = entries[nextIndex].performedOnTick
+            guard nextOnTick > currentOnTick else { continue }
+
+            if notes[noteIndex].tieStart || notes[noteIndex].tieStop {
+                entries[noteIndex].appendProvenance(provenance)
+                entries[noteIndex].appendProvenance(
+                    .approximation(reason: "slur-release-deferred-to-tie")
+                )
+                continue
+            }
+            let shortArticulations: Set<MusicXMLArticulation> = [
+                .staccatissimo, .staccato, .detachedLegato, .marcato,
+            ]
+            if notes[noteIndex].articulations.isDisjoint(with: shortArticulations) == false {
+                entries[noteIndex].appendProvenance(provenance)
+                entries[noteIndex].appendProvenance(
+                    .approximation(reason: "slur-conflicts-with-short-articulation")
+                )
+                continue
+            }
+
+            entries[noteIndex].setInterval(
+                onTick: currentOnTick,
+                offTick: nextOnTick,
+                policy: .slurLegato,
+                timingProvenance: provenance
+            )
+        }
+    }
+
+    func applyPhraseBreaks(
+        notes: [MusicXMLNoteEvent],
+        profile: MusicXMLInterpretationProfile,
+        entries: inout [MutableEntry]
+    ) -> [ScoreTimingDirective] {
+        var caesuraByTick: [Int: ScoreTimingDirective] = [:]
+
+        for index in notes.indices where notes[index].isRest == false && notes[index].isGrace == false {
+            for notation in notes[index].performanceNotations {
+                let provenance = ScoreTimingProvenance.performanceNotation(
+                    kind: notation.kind,
+                    sourceID: notation.sourceID,
+                    profileID: profile.id
+                )
+                switch notation.kind {
+                case .breathMark:
+                    let available = max(0, entries[index].performedOffTick - entries[index].performedOnTick - 1)
+                    let gapTicks = min(max(0, profile.breathGapTicks), available)
+                    if gapTicks > 0 {
+                        entries[index].shortenRelease(
+                            by: gapTicks,
+                            policy: .breathGap,
+                            timingProvenance: provenance
+                        )
+                    } else {
+                        entries[index].appendProvenance(provenance)
+                        entries[index].appendProvenance(
+                            .approximation(reason: "breath-gap-insufficient-duration")
+                        )
+                    }
+                case .caesura:
+                    let tick = entries[index].performedOffTick
+                    let directive = ScoreTimingDirective(
+                        kind: .caesuraPause,
+                        tick: tick,
+                        durationTicks: max(1, profile.caesuraPauseTicks),
+                        sourceNotationID: notation.sourceID,
+                        interpretationProfileID: profile.id
+                    )
+                    if caesuraByTick[tick] == nil {
+                        caesuraByTick[tick] = directive
+                    }
+                    entries[index].appendProvenance(provenance)
+                default:
+                    continue
+                }
+            }
+        }
+
+        return caesuraByTick.values.sorted { lhs, rhs in
+            if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+            return lhs.kind.rawValue < rhs.kind.rawValue
+        }
+    }
+
+    func normalizedNumberToken(_ token: String?) -> String {
+        guard let token = token?.trimmingCharacters(in: .whitespacesAndNewlines), token.isEmpty == false else {
+            return "1"
+        }
+        return token
     }
 
     func previousRegularNoteIndices(

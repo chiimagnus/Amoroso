@@ -22,6 +22,8 @@ func musicXMLRealisticPlaybackDefaultsAreHardcodedForNoSettingsSwitches() {
     #expect(profile.staccatoDurationMultiplier == 0.5)
     #expect(profile.detachedLegatoDurationMultiplier == 0.75)
     #expect(profile.marcatoDurationMultiplier == 0.75)
+    #expect(profile.breathGapTicks == 60)
+    #expect(profile.caesuraPauseTicks == 240)
     #expect(profile.fermataExtraDurationMultiplier == 0.5)
 }
 
