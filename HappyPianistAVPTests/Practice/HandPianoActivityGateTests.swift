@@ -38,10 +38,10 @@ func exactHitFallbackStillAdvancesStep() {
         chordAttemptAccumulator: AlwaysMatchChordAttemptAccumulator(),
         sleeper: TaskSleeper()
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 62, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 10),
         ])
     viewModel.applyKeyboardGeometry(
         makeDummyKeyboardGeometry(),
@@ -64,10 +64,10 @@ func gateInactiveStillAllowsAudioMatchedAdvance() async {
         audioRecognitionService: fakeService,
         handPianoActivityGate: HandPianoActivityGate()
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 62, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 10),
         ])
     viewModel.startGuidingIfReady()
     await settleTaskQueue()

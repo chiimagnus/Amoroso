@@ -92,20 +92,24 @@ private func installHistoricalApplicationScore(
     identity: PracticeSongIdentity,
     spans: [MusicXMLMeasureSpan]
 ) {
-    let steps = historicalApplicationSteps()
+    let notes = historicalApplicationPerformanceNotes()
+    let plan = makeTestScorePerformancePlan(identity: identity, notes: notes)
     session.installPreparedSteps(
-        steps,
+        PracticeStepBuilder().buildSteps(from: plan).steps,
         identity: identity,
-        performancePlan: makeTestScorePerformancePlan(identity: identity, steps: steps),
-        notationProjection: .empty,
+        performancePlan: plan,
+        notationProjection: ScoreNotationProjection(
+            plan: plan,
+            sourceScore: makeTestMusicXMLScore(notes: notes)
+        ),
         measureSpans: spans
     )
 }
 
-private func historicalApplicationSteps() -> [PracticeStep] {
+private func historicalApplicationPerformanceNotes() -> [TestScorePerformanceNote] {
     [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 2, handAssignment: .unknown)]),
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480, staff: 2),
     ]
 }
 

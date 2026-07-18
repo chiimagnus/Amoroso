@@ -71,10 +71,10 @@ func appStatePassesMeasureSpansToPracticeSession() async {
     #expect(guideViewModel.practiceSessionViewModel === sessionViewModel)
     let prepared = makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: UUID(), scoreRevision: "test"),
-        steps: [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 64, staff: 1, handAssignment: .unknown)]),
+        performanceNotes: [
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 240),
+            TestScorePerformanceNote(midiNote: 64, onTick: 480),
         ],
         measureSpans: [
             MusicXMLMeasureSpan(partID: "P1", measureNumber: 1, sourceMeasureIndex: 1, sourceMeasureNumberToken: "1", occurrenceIndex: 0, startTick: 0, endTick: 480),

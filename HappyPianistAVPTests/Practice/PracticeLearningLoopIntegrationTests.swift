@@ -15,8 +15,8 @@ func configuredAttemptPersistsAndRebuildsAsPausedResume() async throws {
     )
     let span = learningLoopSpan()
     firstSession.songIdentity = identity
-    firstSession.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+    firstSession.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     firstSession.roundConfigurationController.pendingRequiredSuccesses = 1
@@ -37,8 +37,8 @@ func configuredAttemptPersistsAndRebuildsAsPausedResume() async throws {
         coordinator: secondCoordinator
     )
     secondSession.songIdentity = identity
-    secondSession.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+    secondSession.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     await secondSession.applyLaunchRestorePolicy(.exactAvailable)

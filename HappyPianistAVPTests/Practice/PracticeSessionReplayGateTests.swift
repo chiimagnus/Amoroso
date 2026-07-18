@@ -15,8 +15,8 @@ func manualReplayBlocksGestureAdvance() async {
         sequencerPlaybackService: playbackService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(
-        makeReplaySteps(),
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
         tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
         measureSpans: makeReplayMeasures()
     )
@@ -48,8 +48,8 @@ func manualReplayBlocksAudioRecognitionAdvance() async {
         audioRecognitionService: audioRecognitionService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(
-        makeReplaySteps(),
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
         tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
         measureSpans: makeReplayMeasures()
     )
@@ -88,8 +88,8 @@ func completedManualReplayReturnsProgressToMeasureStart() async {
         sequencerPlaybackService: playbackService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(
-        makeReplaySteps(),
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
         tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
         measureSpans: makeReplayMeasures()
     )
@@ -125,8 +125,8 @@ func restartingManualReplayDoesNotResumeAudioRecognitionBetweenGenerations() asy
         audioRecognitionService: audioRecognitionService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(
-        makeReplaySteps(),
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
         tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
         measureSpans: makeReplayMeasures()
     )
@@ -151,10 +151,10 @@ private struct ImmediateManualReplaySleeper: SleeperProtocol {
     }
 }
 
-private func makeReplaySteps() -> [PracticeStep] {
+private func makeReplayPerformanceNotes() -> [TestScorePerformanceNote] {
     [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480),
     ]
 }
 

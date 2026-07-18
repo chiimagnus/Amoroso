@@ -1545,7 +1545,7 @@ private func makePracticeLaunchPreparedPractice(
 ) -> PreparedPractice {
     makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString),
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+        performanceNotes: [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         file: file,
         measureSpans: includeMeasureSpans ? [
             MusicXMLMeasureSpan(

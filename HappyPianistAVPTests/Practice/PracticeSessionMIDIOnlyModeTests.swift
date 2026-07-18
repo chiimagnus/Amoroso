@@ -42,11 +42,10 @@ func midiOnlyPracticeInputNoteOnAdvancesStep() async {
         handPianoActivityGate: HandPianoActivityGate()
     )
 
-    let steps = [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-    ]
-    session.setSteps(steps)
+    session.installTestPerformanceNotes([
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 240),
+    ])
     session.startGuidingIfReady()
 
     #expect(inputSource.isRunning)
@@ -85,11 +84,10 @@ func midiOnlyPracticeInputMIDI2NoteOnAdvancesStepEvenWithZeroVelocity() async {
     #expect(inputSource.midi1StreamCallCount == 1)
     #expect(inputSource.midi2StreamCallCount == 1)
 
-    let steps = [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-    ]
-    session.setSteps(steps)
+    session.installTestPerformanceNotes([
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 240),
+    ])
     session.startGuidingIfReady()
 
     #expect(inputSource.isRunning)
@@ -125,11 +123,10 @@ func midiOnlyPracticeExitStopsInputAndDoesNotAdvanceStepAfterTeardown() async {
         handPianoActivityGate: HandPianoActivityGate()
     )
 
-    let steps = [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 240, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-    ]
-    session.setSteps(steps)
+    session.installTestPerformanceNotes([
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 240),
+    ])
     session.startGuidingIfReady()
 
     #expect(inputSource.startCallCount == 1)
@@ -174,16 +171,14 @@ func midiOnlyPracticeInputStartFailureThenReplacingSameIndexStepResetsMatcherExp
         handPianoActivityGate: HandPianoActivityGate()
     )
 
-    let stepA = PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])
-    session.setSteps([stepA])
+    session.installTestPerformanceNotes([TestScorePerformanceNote(midiNote: 60, onTick: 0)])
     session.startGuidingIfReady()
     #expect(inputSource.startCallCount == 1)
     #expect(session.isPracticeInputRunning == false)
     #expect(inputSource.isRunning == false)
     #expect(session.currentStepIndex == 0)
 
-    let stepB = PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 61, staff: 1, handAssignment: .unknown)])
-    session.setSteps([stepB])
+    session.installTestPerformanceNotes([TestScorePerformanceNote(midiNote: 61, onTick: 0)])
     session.startGuidingIfReady()
     #expect(inputSource.startCallCount == 2)
     #expect(session.isPracticeInputRunning)

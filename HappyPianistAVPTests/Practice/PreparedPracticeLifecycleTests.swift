@@ -3,6 +3,20 @@ import Foundation
 import Testing
 
 @Test
+func preparedPracticeFixtureDerivesEveryProjectionFromPerformanceNotes() {
+    let prepared = makeTestPreparedPractice(performanceNotes: [
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 64, onTick: 0),
+        TestScorePerformanceNote(midiNote: 67, onTick: 240),
+    ])
+
+    #expect(prepared.performancePlan.noteEvents.count == 3)
+    #expect(prepared.steps.map(\.tick) == [0, 240])
+    #expect(prepared.steps[0].notes.map(\.midiNote) == [60, 64])
+    #expect(prepared.notationProjection.performedOccurrences.count == 3)
+}
+
+@Test
 @MainActor
 func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() async {
     let appState = AppState()
@@ -280,19 +294,15 @@ func replacementDuringProgressRestoreInvalidatesOldPreparedApply() async {
 @MainActor
 func sessionProjectsCurrentGuideActivityOntoAuthoritativeNotation() throws {
     let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "notation")
-    let steps = [
-        PracticeStep(
-            tick: 0,
-            notes: [
-                PracticeStepNote(
-                    midiNote: 60,
-                    staff: 1,
-                    handAssignment: ScoreHandAssignment(hand: .right, provenance: .score)
-                ),
-            ]
+    let performanceNotes = [
+        TestScorePerformanceNote(
+            midiNote: 60,
+            onTick: 0,
+            handAssignment: ScoreHandAssignment(hand: .right, provenance: .score)
         ),
     ]
-    let plan = makeTestScorePerformancePlan(identity: identity, steps: steps)
+    let plan = makeTestScorePerformancePlan(identity: identity, notes: performanceNotes)
+    let steps = PracticeStepBuilder().buildSteps(from: plan).steps
     let event = try #require(plan.noteEvents.first)
     let score = MusicXMLScore(notes: [
         MusicXMLNoteEvent(
@@ -386,8 +396,8 @@ private func makeLifecyclePreparedPractice() -> PreparedPractice {
     let songID = UUID()
     return makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: "revision"),
-        steps: [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
+        performanceNotes: [
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
         ],
         file: ImportedMusicXMLFile(
             fileName: "Lifecycle",

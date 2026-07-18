@@ -45,9 +45,9 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
         sequencerPlaybackService: playbackService
     )
 
-    viewModel.setSteps(
-        model.steps,
-        performancePlan: model.plan,
+    viewModel.installTestPerformancePlan(
+        model.plan,
+        sourceScore: model.score,
         highlightGuides: model.guides
     )
     viewModel.setAutoplayEnabled(true)
@@ -84,9 +84,7 @@ private final class RegressionCapturingSequencerPlaybackService: PracticeSequenc
 private struct AutoplayRegressionModel {
     let score: MusicXMLScore
     let plan: ScorePerformancePlan
-    let steps: [PracticeStep]
     let guides: [PianoHighlightGuide]
-    let tempoMap: MusicXMLTempoMap
     let timeline: AutoplayPerformanceTimeline
 }
 
@@ -124,9 +122,7 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
     return AutoplayRegressionModel(
         score: score,
         plan: plan,
-        steps: buildResult.steps,
         guides: guides,
-        tempoMap: tempoMap,
         timeline: timeline
     )
 }

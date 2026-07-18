@@ -59,9 +59,9 @@ func fakeAudioRecognitionServiceRecordsLifecycleCalls() async throws {
 func guidingStartsAudioRecognitionService() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
         ])
 
     viewModel.startGuidingIfReady()
@@ -76,10 +76,10 @@ func guidingStartsAudioRecognitionService() async {
 func switchingStepUpdatesGenerationAndExpectedNotes() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 64, onTick: 10),
         ])
 
     viewModel.startGuidingIfReady()
@@ -98,10 +98,10 @@ func switchingStepUpdatesGenerationAndExpectedNotes() async {
 func staleGenerationEventDoesNotAdvanceStep() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 64, onTick: 10),
         ])
 
     viewModel.startGuidingIfReady()
@@ -128,10 +128,10 @@ func staleGenerationEventDoesNotAdvanceStep() async {
 func matchingAudioEventAdvancesStep() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 64, onTick: 10),
         ])
 
     viewModel.startGuidingIfReady()
@@ -165,10 +165,10 @@ func suppressWindowBlocksThenAllowsAdvance() async {
         sequencerPlaybackService: playbackService,
         audioRecognitionService: fakeService
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 64, onTick: 10),
         ])
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
@@ -220,10 +220,9 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
         scope: MusicXMLEventScope(partID: "P1", staff: nil, voice: nil)
     )])
     let pedalTimeline = MusicXMLPedalTimeline(events: [])
-    let fermataTimeline = MusicXMLFermataTimeline(fermataEvents: [], notes: [])
-    let steps = [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-        PracticeStep(tick: 4800, notes: [PracticeStepNote(midiNote: 64, staff: nil, handAssignment: .unknown)]),
+    let notes = [
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 64, onTick: 4800),
     ]
     let guides = [
         PianoHighlightGuide(
@@ -271,8 +270,8 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
             releasedMIDINotes: []
         ),
     ]
-    viewModel.setSteps(
-        steps,
+    viewModel.installTestPerformanceNotes(
+        notes,
         tempoEvents: makeTestScorePerformanceTempoEvents(from: tempoMap),
         controllerEvents: makeTestScorePerformanceControllerEvents(from: pedalTimeline),
         highlightGuides: guides
@@ -318,10 +317,10 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
 func permissionFailureStatusDoesNotAdvanceAndSetsError() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let viewModel = makeViewModel(audioRecognitionService: fakeService)
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 64, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 64, onTick: 10),
         ])
 
     viewModel.startGuidingIfReady()
@@ -408,9 +407,9 @@ func startGuidingPassesPlaybackSuppressDeadlineIntoAudioServiceStart() async {
         sequencerPlaybackService: playbackService,
         audioRecognitionService: fakeService
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
         ])
 
     viewModel.startGuidingIfReady()
@@ -432,9 +431,9 @@ func microphonePermissionFailureDoesNotBlockPlaybackFallback() async {
         sequencerPlaybackService: playbackService,
         audioRecognitionService: fakeService
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
         ])
 
     viewModel.startGuidingIfReady()

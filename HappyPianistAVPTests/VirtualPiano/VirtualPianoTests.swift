@@ -31,8 +31,8 @@ func autoplayEnabledStopsLiveNotes() {
         sequencerPlaybackService: playbackService
     )
 
-    viewModel.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])]
+    viewModel.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)]
     )
 
     viewModel.setAutoplayEnabled(true)
@@ -52,8 +52,8 @@ func virtualPianoNoteOnTriggersLiveStart() throws {
         sequencerPlaybackService: playbackService
     )
 
-    viewModel.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])]
+    viewModel.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)]
     )
     viewModel.startGuidingIfReady()
 
@@ -206,8 +206,8 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
         sequencerPlaybackService: playbackService
     )
 
-    viewModel.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])]
+    viewModel.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)]
     )
 
     let geometry = makeTestKeyboardGeometry()

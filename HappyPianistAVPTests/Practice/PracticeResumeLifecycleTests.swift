@@ -36,7 +36,7 @@ func restoredPracticeStaysReadyAndSilentUntilExplicitStart() async throws {
         progressCoordinator: coordinator
     )
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
 
     await session.applyLaunchRestorePolicy(.exactAvailable)
 
@@ -83,7 +83,7 @@ func exactProgressAppearingAfterHistoricalPolicySnapshotStillWins() async throws
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
 
     await session.applyLaunchRestorePolicy(.historicalPreferences(
         PracticeHistoricalPreferences(
@@ -141,7 +141,7 @@ func invalidRestoredPassageIsRepairedAndPersistedWithoutLosingFacts() async thro
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
 
     await session.applyLaunchRestorePolicy(.exactAvailable)
     let repaired = try #require(await repository.progress(for: identity))
@@ -188,8 +188,8 @@ func invalidRestoredPassageUsesSafeFallbackWhenRepairCannotPersist() async throw
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: spans
     )
 
@@ -242,8 +242,8 @@ func resumeOutsideValidActivePassageIsClearedAndPersistedWithoutLosingFacts() as
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: spans
     )
 
@@ -286,8 +286,8 @@ func resumeWithoutSavedConfigurationIsClearedAndRepairedToFullPassage() async th
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: spans
     )
 
@@ -315,8 +315,8 @@ func suspendedPracticeReturnsToPausedReadyAndCanRestartInput() async {
         progressCoordinator: coordinator
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: makeResumeSpans()
     )
     await session.applyLaunchRestorePolicy(.freshDefaults)
@@ -346,7 +346,7 @@ func pausedPracticeRejectsAdvanceEffectWithoutPlayback() {
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playback
     )
-    session.setSteps(makeResumeSteps(), measureSpans: makeResumeSpans())
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: makeResumeSpans())
 
     session.handle(effect: .advanceToNextStep)
 
@@ -370,7 +370,7 @@ func flushAndShutdownPersistsLatestResumePointBeforeTeardown() async {
     )
     let spans = makeResumeSpans()
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
     await session.applyLaunchRestorePolicy(.freshDefaults)
     session.startGuidingIfReady()
     session.recordAttemptOutcome(
@@ -396,7 +396,7 @@ func navigationWithoutAttemptPersistsLatestResumePoint() async {
     )
     let spans = makeResumeSpans()
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
     await session.applyLaunchRestorePolicy(.freshDefaults)
     session.startGuidingIfReady()
 
@@ -421,11 +421,11 @@ func retryMeasureKeepsRepeatedOccurrenceInCurrentPassage() {
         chordAttemptAccumulator: ResumeNoopChordAccumulator(),
         sleeper: TaskSleeper()
     )
-    session.setSteps(
+    session.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 960, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 480),
+            TestScorePerformanceNote(midiNote: 60, onTick: 960),
         ],
         measureSpans: spans
     )
@@ -452,8 +452,8 @@ func automaticLoopStartsANewAttemptRound() {
         sleeper: TaskSleeper()
     )
     session.songIdentity = identity
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     session.roundConfigurationController.pendingLoopEnabled = true
@@ -482,8 +482,8 @@ func automaticLoopStopsWhenPassageReachesTarget() {
         sleeper: TaskSleeper()
     )
     session.songIdentity = identity
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     session.roundConfigurationController.pendingLoopEnabled = true
@@ -509,8 +509,8 @@ func continuePassageStartsANewRoundInPractice() {
         chordAttemptAccumulator: ResumeNoopChordAccumulator(),
         sleeper: TaskSleeper()
     )
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     session.startGuidingIfReady()
@@ -523,11 +523,11 @@ func continuePassageStartsANewRoundInPractice() {
     #expect(session.currentStepIndex == 0)
 }
 
-private func makeResumeSteps() -> [PracticeStep] {
+private func makeResumePerformanceNotes() -> [TestScorePerformanceNote] {
     let rightHand = ScoreHandAssignment(hand: .right, provenance: .score)
     return [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: rightHand)]),
-        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: rightHand)]),
+        TestScorePerformanceNote(midiNote: 60, onTick: 0, handAssignment: rightHand),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480, handAssignment: rightHand),
     ]
 }
 

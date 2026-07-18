@@ -71,9 +71,8 @@ private let defaultTestPracticeSongIdentity = PracticeSongIdentity(
 
 extension PracticeSessionViewModel {
     @MainActor
-    func setSteps(
-        _ steps: [PracticeStep],
-        performancePlan: ScorePerformancePlan? = nil,
+    func installTestPerformanceNotes(
+        _ notes: [TestScorePerformanceNote],
         tempoEvents: [ScorePerformanceTempoEvent] = [],
         controllerEvents: [ScorePerformanceControllerEvent] = [],
         annotations: [ScorePerformanceAnnotation] = [],
@@ -81,22 +80,47 @@ extension PracticeSessionViewModel {
         highlightGuides: [PianoHighlightGuide] = [],
         measureSpans: [MusicXMLMeasureSpan] = []
     ) {
-        let resolvedMeasureSpans = measureSpans.isEmpty
-            ? [Self.syntheticMeasureSpan(for: steps)]
-            : measureSpans
         let identity = self.songIdentity ?? defaultTestPracticeSongIdentity
-        let resolvedPlan = performancePlan ?? makeTestScorePerformancePlan(
+        let sourceScore = makeTestMusicXMLScore(notes: notes)
+        let scoreContext = makeTestPreparedPracticeScoreContext(sourceScore: sourceScore)
+        let plan = makeTestScorePerformancePlan(
             identity: identity,
-            steps: steps,
+            notes: notes,
+            scoreContext: scoreContext,
             tempoEvents: tempoEvents,
             controllerEvents: controllerEvents,
             annotations: annotations
         )
+        installTestPerformancePlan(
+            plan,
+            sourceScore: sourceScore,
+            attributeTimeline: attributeTimeline,
+            highlightGuides: highlightGuides,
+            measureSpans: measureSpans
+        )
+    }
+
+    @MainActor
+    func installTestPerformancePlan(
+        _ plan: ScorePerformancePlan,
+        sourceScore: MusicXMLScore = MusicXMLScore(notes: []),
+        attributeTimeline: MusicXMLAttributeTimeline? = nil,
+        highlightGuides: [PianoHighlightGuide] = [],
+        measureSpans: [MusicXMLMeasureSpan] = []
+    ) {
+        let steps = PracticeStepBuilder().buildSteps(from: plan).steps
+        let resolvedMeasureSpans = measureSpans.isEmpty
+            ? [Self.syntheticMeasureSpan(for: steps)]
+            : measureSpans
+        let identity = self.songIdentity ?? PracticeSongIdentity(
+            songID: plan.sourceScoreIdentity.songID,
+            scoreRevision: plan.sourceScoreIdentity.scoreRevision
+        )
         installPreparedSteps(
             steps,
             identity: identity,
-            performancePlan: resolvedPlan,
-            notationProjection: .empty,
+            performancePlan: plan,
+            notationProjection: ScoreNotationProjection(plan: plan, sourceScore: sourceScore),
             attributeTimeline: attributeTimeline,
             highlightGuides: highlightGuides,
             measureSpans: resolvedMeasureSpans
