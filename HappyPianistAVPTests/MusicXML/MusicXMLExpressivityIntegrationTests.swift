@@ -386,7 +386,7 @@ func pedalChangePreservesBothControllerEdgesUnderOneDirectionSource() throws {
 
     let events = try MusicXMLParser().parse(data: Data(xml.utf8)).pedalEvents
     #expect(events.count == 2)
-    #expect(events.map(\.isDown) == [false, true])
+    #expect(events.map { $0.value?.isEngaged } == [false, true])
     #expect(events[0].sourceID != nil)
     #expect(events[0].sourceID == events[1].sourceID)
 }

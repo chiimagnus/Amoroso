@@ -315,7 +315,7 @@ private extension MusicXMLWordsSemanticsInterpreter {
                 measureNumber: 0,
                 tick: marker.tick,
                 kind: .start,
-                isDown: true,
+                value: .on,
                 timeOnlyPasses: nil
             )
         case .pedalUp:
@@ -326,7 +326,7 @@ private extension MusicXMLWordsSemanticsInterpreter {
                 measureNumber: 0,
                 tick: marker.tick,
                 kind: .stop,
-                isDown: false,
+                value: .off,
                 timeOnlyPasses: nil
             )
         default:

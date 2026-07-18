@@ -256,7 +256,8 @@ struct MusicXMLPedalEvent: Equatable {
     let measureNumber: Int
     let tick: Int
     let kind: MusicXMLPedalEventKind
-    let isDown: Bool?
+    var controller: MusicXMLPedalController = .damper
+    let value: MusicXMLControllerValue?
     let timeOnlyPasses: [Int]?
 }
 

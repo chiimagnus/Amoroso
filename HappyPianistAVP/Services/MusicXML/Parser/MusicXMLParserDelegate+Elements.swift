@@ -176,7 +176,7 @@ extension MusicXMLParserDelegate {
             if let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
                 recordTempoEvent(quarterBPM: bpm, source: .sound)
             }
-            recordDamperPedalEventFromSound(attributes: attributeDict)
+            recordPedalEventsFromSound(attributes: attributeDict)
             recordSoundDynamicsAttributeIfPresent(attributes: attributeDict)
             if state.isInDirection {
                 recordSoundDirective(attributes: attributeDict)

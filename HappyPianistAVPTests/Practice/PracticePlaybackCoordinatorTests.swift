@@ -88,7 +88,7 @@ private func makePlaybackCoordinatorFixture(
             measureNumber: 1,
             tick: 0,
             kind: .start,
-            isDown: false,
+            value: .off,
             timeOnlyPasses: nil
         ),
     ]

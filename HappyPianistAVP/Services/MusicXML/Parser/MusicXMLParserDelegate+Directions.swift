@@ -175,49 +175,39 @@ extension MusicXMLParserDelegate {
         return unique
     }
 
-    func recordDamperPedalEventFromSound(attributes: [String: String]) {
-        guard let rawValue = attributes["damper-pedal"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-              rawValue.isEmpty == false
-        else {
-            return
-        }
-
-        let lowered = rawValue.lowercased()
-        let isDown: Bool? = switch lowered {
-        case "yes":
-            true
-        case "no":
-            false
-        default:
-            if let value = Int(lowered) {
-                value > 0
-            } else {
-                nil
-            }
-        }
-
-        guard let isDown else {
-            return
-        }
-
+    func recordPedalEventsFromSound(attributes: [String: String]) {
         let tick: Int = if state.isInDirection {
             currentDirectionEventTick()
         } else {
             state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
         }
-
         let timeOnlyPasses = parseTimeOnlyPasses(attributes: attributes)
-        state.pedalEvents.append(
-            MusicXMLPedalEvent(
+
+        let pedalAttributes: [(name: String, controller: MusicXMLPedalController)] = [
+            ("damper-pedal", .damper),
+            ("sostenuto-pedal", .sostenuto),
+            ("soft-pedal", .soft),
+        ]
+        for attribute in pedalAttributes {
+            guard let rawValue = attributes[attribute.name],
+                  let value = MusicXMLControllerValue(musicXMLString: rawValue)
+            else { continue }
+            let kind: MusicXMLPedalEventKind = switch value.midiValue {
+            case 0: .stop
+            case 127: .start
+            default: .change
+            }
+            state.pedalEvents.append(MusicXMLPedalEvent(
                 sourceID: state.currentSoundSourceID,
                 partID: state.currentPartID,
                 measureNumber: state.currentMeasureNumber,
                 tick: tick,
-                kind: isDown ? .start : .stop,
-                isDown: isDown,
+                kind: kind,
+                controller: attribute.controller,
+                value: value,
                 timeOnlyPasses: timeOnlyPasses
-            )
-        )
+            ))
+        }
     }
 
     func recordPedalEvent(attributes: [String: String]) {
@@ -242,7 +232,7 @@ extension MusicXMLParserDelegate {
                     measureNumber: base.measureNumber,
                     tick: base.tick,
                     kind: .start,
-                    isDown: true,
+                    value: .on,
                     timeOnlyPasses: timeOnlyPasses
                 )
             )
@@ -254,7 +244,7 @@ extension MusicXMLParserDelegate {
                     measureNumber: base.measureNumber,
                     tick: base.tick,
                     kind: .stop,
-                    isDown: false,
+                    value: .off,
                     timeOnlyPasses: timeOnlyPasses
                 )
             )
@@ -266,7 +256,7 @@ extension MusicXMLParserDelegate {
                     measureNumber: base.measureNumber,
                     tick: base.tick,
                     kind: .change,
-                    isDown: false,
+                    value: .off,
                     timeOnlyPasses: timeOnlyPasses
                 )
             )
@@ -277,7 +267,7 @@ extension MusicXMLParserDelegate {
                     measureNumber: base.measureNumber,
                     tick: base.tick,
                     kind: .change,
-                    isDown: true,
+                    value: .on,
                     timeOnlyPasses: timeOnlyPasses
                 )
             )
@@ -289,7 +279,7 @@ extension MusicXMLParserDelegate {
                     measureNumber: base.measureNumber,
                     tick: base.tick,
                     kind: .continue,
-                    isDown: nil,
+                    value: nil,
                     timeOnlyPasses: timeOnlyPasses
                 )
             )
@@ -345,7 +335,8 @@ extension MusicXMLParserDelegate {
                 measureNumber: state.pedalEvents[i].measureNumber,
                 tick: shifted,
                 kind: state.pedalEvents[i].kind,
-                isDown: state.pedalEvents[i].isDown,
+                controller: state.pedalEvents[i].controller,
+                value: state.pedalEvents[i].value,
                 timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
             )
         }
@@ -475,7 +466,8 @@ extension MusicXMLParserDelegate {
                     measureNumber: state.pedalEvents[i].measureNumber,
                     tick: tick,
                     kind: state.pedalEvents[i].kind,
-                    isDown: state.pedalEvents[i].isDown,
+                    controller: state.pedalEvents[i].controller,
+                    value: state.pedalEvents[i].value,
                     timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
                 )
             }

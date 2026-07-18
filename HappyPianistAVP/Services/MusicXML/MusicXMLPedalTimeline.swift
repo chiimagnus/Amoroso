@@ -21,24 +21,29 @@ struct MusicXMLPedalTimeline: Equatable {
     init(events: [MusicXMLPedalEvent]) {
         let releaseEdges = Set(
             events.compactMap { event -> Int? in
-                guard let isDown = event.isDown else { return nil }
-                return isDown == false ? event.tick : nil
+                guard event.controller == .damper,
+                      let value = event.value
+                else { return nil }
+                return value.isEngaged ? nil : event.tick
             }
         )
         releaseEdgeTicks = releaseEdges.sorted()
         controllers = events
             .compactMap { event -> ControllerChange? in
-                guard let isDown = event.isDown else { return nil }
+                guard let value = event.value else { return nil }
                 return ControllerChange(
                     sourceDirectionID: event.sourceID,
                     performedOccurrenceIndex: event.performedOccurrenceIndex,
                     tick: event.tick,
-                    controllerNumber: 64,
-                    value: isDown ? 127 : 0
+                    controllerNumber: event.controller.rawValue,
+                    value: value.midiValue
                 )
             }
             .sorted { lhs, rhs in
                 if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+                if lhs.controllerNumber != rhs.controllerNumber {
+                    return lhs.controllerNumber < rhs.controllerNumber
+                }
                 if lhs.value != rhs.value { return lhs.value < rhs.value }
                 let lhsSource = lhs.sourceDirectionID?.description ?? ""
                 let rhsSource = rhs.sourceDirectionID?.description ?? ""
@@ -48,8 +53,10 @@ struct MusicXMLPedalTimeline: Equatable {
 
         let normalized = events
             .compactMap { event -> Change? in
-                guard let isDown = event.isDown else { return nil }
-                return Change(tick: event.tick, isDown: isDown)
+                guard event.controller == .damper,
+                      let value = event.value
+                else { return nil }
+                return Change(tick: event.tick, isDown: value.isEngaged)
             }
             .sorted { lhs, rhs in
                 if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
