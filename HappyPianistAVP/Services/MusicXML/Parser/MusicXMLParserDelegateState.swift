@@ -1,5 +1,11 @@
 import Foundation
 
+struct MusicXMLSoundEventStartIndices {
+    var tempo = 0
+    var sound = 0
+    var pedal = 0
+}
+
 struct MusicXMLParserDelegateState {
 
     struct PendingPerformanceNotation {
@@ -18,6 +24,7 @@ struct MusicXMLParserDelegateState {
     var scoreVersion: String?
     var partMetadataByID: [String: MusicXMLPartMetadata] = [:]
     var partMetadataOrder: [String] = []
+    var bodyPartIDs: Set<String> = []
     var metadataError: MusicXMLParserError?
     var isInPartList = false
     var currentScorePartMetadata: MusicXMLPartMetadata?
@@ -144,22 +151,8 @@ struct MusicXMLParserDelegateState {
 
     var currentMeasureStartTick = 0
     var currentDirectionOffsetTicks = 0
-    var currentDirectionMeasureStartTick = 0
-    var currentDirectionTempoStartIndex = 0
-    var currentDirectionSoundStartIndex = 0
-    var currentDirectionPedalStartIndex = 0
-    var currentDirectionDynamicStartIndex = 0
-    var currentDirectionWedgeStartIndex = 0
-    var currentDirectionFermataStartIndex = 0
-    var currentDirectionWordsStartIndex = 0
+    var currentDirectionOffsetAffectsSound = false
 
     var currentSoundBaseTick = 0
-    var currentSoundMeasureStartTick = 0
-    var currentSoundTempoStartIndex = 0
-    var currentSoundSoundStartIndex = 0
-    var currentSoundPedalStartIndex = 0
-
-    var currentDirectionSoundOffsetTempoOverrideTicksByIndex: [Int: Int] = [:]
-    var currentDirectionSoundOffsetSoundOverrideTicksByIndex: [Int: Int] = [:]
-    var currentDirectionSoundOffsetPedalOverrideTicksByIndex: [Int: Int] = [:]
+    var currentSoundEventStartIndices = MusicXMLSoundEventStartIndices()
 }

@@ -57,14 +57,16 @@ extension PracticePreparationServiceProtocol {
 actor PracticePreparationService: PracticePreparationServiceProtocol {
     private let parser: MusicXMLParserProtocol
     private let stepBuilder: PracticeStepBuilderProtocol
-    private let structureExpander = MusicXMLStructureExpander()
+    private let structureExpander: MusicXMLStructureExpander
 
     init(
         parser: MusicXMLParserProtocol? = nil,
-        stepBuilder: PracticeStepBuilderProtocol? = nil
+        stepBuilder: PracticeStepBuilderProtocol? = nil,
+        structureExpander: MusicXMLStructureExpander = MusicXMLStructureExpander()
     ) {
         self.parser = parser ?? MusicXMLParser()
         self.stepBuilder = stepBuilder ?? PracticeStepBuilder()
+        self.structureExpander = structureExpander
     }
 
     func prepare(
@@ -155,12 +157,17 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             practiceScore = sourceScore
             orderSelection = MusicXMLOrderSelection(requested: .written, applied: .written)
         case .performed:
-            practiceScore = structureExpander.expandStructureIfPossible(
+            let expansion = structureExpander.expandStructureIfPossible(
                 score: sourceScore,
                 primaryPartID: structuralPartID,
                 includedPartIDs: Set(selectedInstrument.memberPartIDs)
             )
-            orderSelection = MusicXMLOrderSelection(requested: .performed, applied: .performed)
+            practiceScore = expansion.score
+            orderSelection = MusicXMLOrderSelection(
+                requested: .performed,
+                applied: expansion.approximationReason == nil ? .performed : .written,
+                approximationReason: expansion.approximationReason
+            )
         }
 
         let handRouting = MusicXMLHandRouter().assignments(for: practiceScore)

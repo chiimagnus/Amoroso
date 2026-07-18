@@ -1,21 +1,38 @@
 import Foundation
 
 struct MusicXMLStructureExpander {
+    private let maxOutputMeasures: Int
+    private let maxJumps: Int
+
+    init(maxOutputMeasures: Int = 10000, maxJumps: Int = 64) {
+        self.maxOutputMeasures = max(0, maxOutputMeasures)
+        self.maxJumps = max(0, maxJumps)
+    }
+
     func expandStructureIfPossible(
         score: MusicXMLScore,
         primaryPartID: String = "P1",
         includedPartIDs: Set<String>? = nil
-    ) -> MusicXMLScore {
-        let afterRepeat = expandRepeatAndEndingIfPossible(
+    ) -> MusicXMLStructureExpansionResult {
+        let repeatResult = expandRepeatAndEnding(
             score: score,
             primaryPartID: primaryPartID,
             includedPartIDs: includedPartIDs
         )
-        return expandSoundJumpsIfPossible(
-            score: afterRepeat,
+        guard repeatResult.approximationReason == nil else { return repeatResult }
+
+        let result = expandSoundJumpsIfPossible(
+            score: repeatResult.score,
             primaryPartID: primaryPartID,
             includedPartIDs: includedPartIDs
         )
+        guard result.approximationReason == nil else {
+            return MusicXMLStructureExpansionResult(
+                score: score,
+                approximationReason: result.approximationReason
+            )
+        }
+        return result
     }
 
     func expandRepeatAndEndingIfPossible(
@@ -23,11 +40,31 @@ struct MusicXMLStructureExpander {
         primaryPartID: String = "P1",
         includedPartIDs: Set<String>? = nil
     ) -> MusicXMLScore {
+        expandRepeatAndEnding(
+            score: score,
+            primaryPartID: primaryPartID,
+            includedPartIDs: includedPartIDs
+        ).score
+    }
+
+    private func expandRepeatAndEnding(
+        score: MusicXMLScore,
+        primaryPartID: String,
+        includedPartIDs: Set<String>?
+    ) -> MusicXMLStructureExpansionResult {
+        let repeats = score.repeatDirectives.filter { $0.partID == primaryPartID }
+        let endings = score.endingDirectives.filter { $0.partID == primaryPartID }
+        guard repeats.isEmpty == false || endings.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
+
         let primaryMeasures = score.measures
             .filter { $0.partID == primaryPartID }
             .sorted { $0.startTick < $1.startTick }
 
-        guard primaryMeasures.isEmpty == false else { return score }
+        guard primaryMeasures.isEmpty == false else {
+            return repeatExpansionFallback(score: score, reason: "structure-expansion-invalid-repeat-ending")
+        }
 
         var measureIndexByNumber: [Int: Int] = [:]
         for (index, span) in primaryMeasures.enumerated() {
@@ -36,117 +73,243 @@ struct MusicXMLStructureExpander {
             }
         }
 
-        let repeats = score.repeatDirectives.filter { $0.partID == primaryPartID }
-        guard let forward = repeats.first(where: { $0.direction == .forward }),
-              let forwardIndex = measureIndexByNumber[forward.measureNumber]
-        else {
-            return score
+        let indexedRepeats = repeats.compactMap { directive -> (Int, MusicXMLRepeatDirective)? in
+            guard let index = measureIndexByNumber[directive.measureNumber] else { return nil }
+            return (index, directive)
         }
-
-        let backwardCandidate = repeats.first(where: { directive in
-            directive.direction == .backward && (measureIndexByNumber[directive.measureNumber] ?? -1) >= forwardIndex
-        })
-
-        guard let backward = backwardCandidate,
-              let backwardIndex = measureIndexByNumber[backward.measureNumber],
-              backwardIndex > forwardIndex
-        else {
-            return score
-        }
-
-        let endingSpans = resolveEndingSpans(
-            directives: score.endingDirectives.filter { $0.partID == primaryPartID },
+        guard indexedRepeats.count == repeats.count,
+              let endingSpans = resolveEndingSpans(
+            directives: endings,
             measureIndexByNumber: measureIndexByNumber
+        ) else {
+            return repeatExpansionFallback(score: score, reason: "structure-expansion-invalid-repeat-ending")
+        }
+
+        let directivesByMeasure = Dictionary(grouping: indexedRepeats, by: \.0)
+            .mapValues { $0.map(\.1) }
+        let expansion = repeatSequence(
+            measureCount: primaryMeasures.count,
+            directivesByMeasure: directivesByMeasure,
+            endingSpans: endingSpans
         )
+        guard let sequence = expansion.sequence else {
+            return repeatExpansionFallback(
+                score: score,
+                reason: expansion.approximationReason ?? "structure-expansion-invalid-repeat-ending"
+            )
+        }
 
-        let ending1 = endingSpans["1"]
-        let ending2 = endingSpans["2"]
+        return MusicXMLStructureExpansionResult(
+            score: materializeExpandedScore(
+                original: score,
+                primaryPartID: primaryPartID,
+                primaryMeasures: primaryMeasures,
+                sequence: sequence,
+                includeSoundDirectives: true,
+                includedPartIDs: includedPartIDs
+            ),
+            approximationReason: nil
+        )
+    }
 
-        var sequence: [Int] = []
-        sequence.append(contentsOf: 0 ..< forwardIndex)
-        sequence.append(contentsOf: forwardIndex ... backwardIndex)
+    private struct MeasureVisit {
+        let index: Int
+        let repeatPass: Int?
+    }
 
-        if let ending1,
-           ending1.endIndex == backwardIndex,
-           let ending2,
-           ending2.startIndex == backwardIndex + 1
-        {
-            if ending1.startIndex > forwardIndex {
-                sequence.append(contentsOf: forwardIndex ..< ending1.startIndex)
-            }
-            sequence.append(contentsOf: ending2.startIndex ... ending2.endIndex)
+    private struct RepeatFrame {
+        let startIndex: Int
+        var pass: Int
+        var totalPasses: Int?
+    }
 
-            let resumeIndex = ending2.endIndex + 1
-            if resumeIndex < primaryMeasures.count {
-                sequence.append(contentsOf: resumeIndex ..< primaryMeasures.count)
-            }
-        } else {
-            sequence.append(contentsOf: forwardIndex ... backwardIndex)
-            let resumeIndex = backwardIndex + 1
-            if resumeIndex < primaryMeasures.count {
-                sequence.append(contentsOf: resumeIndex ..< primaryMeasures.count)
+    private struct RepeatSequenceResult {
+        let sequence: [MeasureVisit]?
+        let approximationReason: String?
+    }
+
+    private func repeatSequence(
+        measureCount: Int,
+        directivesByMeasure: [Int: [MusicXMLRepeatDirective]],
+        endingSpans: [EndingSpan]
+    ) -> RepeatSequenceResult {
+        guard directivesByMeasure.isEmpty == false else {
+            return RepeatSequenceResult(
+                sequence: nil,
+                approximationReason: "structure-expansion-invalid-repeat-ending"
+            )
+        }
+
+        var endingPassesByMeasure: [Int: Set<Int>] = [:]
+        for span in endingSpans {
+            for index in span.startIndex ... span.endIndex {
+                endingPassesByMeasure[index, default: []].formUnion(span.passes)
             }
         }
 
-        return materializeExpandedScore(
-            original: score,
-            primaryPartID: primaryPartID,
-            primaryMeasures: primaryMeasures,
-            sequence: sequence,
-            includeSoundDirectives: true,
-            includedPartIDs: includedPartIDs
-        )
+        var sequence: [MeasureVisit] = []
+        var frames: [RepeatFrame] = []
+        var currentIndex = 0
+        var implicitRepeatStart = 0
+        var trailingCompletedPass: Int?
+        var transitionCount = 0
+        let transitionLimit = max(1024, min(maxOutputMeasures, 100_000) * 4 + min(measureCount, 100_000) * 4)
+
+        while currentIndex < measureCount {
+            transitionCount += 1
+            guard transitionCount <= transitionLimit else {
+                return RepeatSequenceResult(
+                    sequence: nil,
+                    approximationReason: "structure-expansion-output-measure-limit"
+                )
+            }
+
+            let directives = directivesByMeasure[currentIndex] ?? []
+            let forwards = directives.filter { $0.direction == .forward }
+            let backwards = directives.filter { $0.direction == .backward }
+            guard forwards.count <= 1, backwards.count <= 1 else {
+                return RepeatSequenceResult(
+                    sequence: nil,
+                    approximationReason: "structure-expansion-invalid-repeat-ending"
+                )
+            }
+
+            if forwards.isEmpty == false {
+                if let activeIndex = frames.lastIndex(where: { $0.startIndex == currentIndex }) {
+                    guard activeIndex == frames.indices.last else {
+                        return RepeatSequenceResult(
+                            sequence: nil,
+                            approximationReason: "structure-expansion-invalid-repeat-ending"
+                        )
+                    }
+                } else {
+                    frames.append(RepeatFrame(startIndex: currentIndex, pass: 1, totalPasses: nil))
+                }
+            }
+
+            let endingPasses = endingPassesByMeasure[currentIndex]
+            if endingPasses == nil, frames.isEmpty {
+                trailingCompletedPass = nil
+            }
+            let currentPass = frames.last?.pass ?? trailingCompletedPass ?? 1
+            if endingPasses?.contains(currentPass) != false {
+                guard sequence.count < maxOutputMeasures else {
+                    return RepeatSequenceResult(
+                        sequence: nil,
+                        approximationReason: "structure-expansion-output-measure-limit"
+                    )
+                }
+                sequence.append(MeasureVisit(index: currentIndex, repeatPass: currentPass))
+            }
+
+            guard let backward = backwards.first else {
+                currentIndex += 1
+                continue
+            }
+
+            if frames.isEmpty {
+                frames.append(RepeatFrame(startIndex: implicitRepeatStart, pass: 1, totalPasses: nil))
+            }
+            guard var frame = frames.popLast(), frame.startIndex <= currentIndex else {
+                return RepeatSequenceResult(
+                    sequence: nil,
+                    approximationReason: "structure-expansion-invalid-repeat-ending"
+                )
+            }
+
+            let totalPasses = max(1, backward.times ?? frame.totalPasses ?? 2)
+            if let configuredTotal = frame.totalPasses, configuredTotal != totalPasses {
+                return RepeatSequenceResult(
+                    sequence: nil,
+                    approximationReason: "structure-expansion-invalid-repeat-ending"
+                )
+            }
+            frame.totalPasses = totalPasses
+
+            if frame.pass < totalPasses {
+                frame.pass += 1
+                frames.append(frame)
+                trailingCompletedPass = nil
+                currentIndex = frame.startIndex
+            } else {
+                if frames.isEmpty {
+                    implicitRepeatStart = currentIndex + 1
+                    trailingCompletedPass = frame.pass
+                }
+                currentIndex += 1
+            }
+        }
+
+        guard frames.isEmpty else {
+            return RepeatSequenceResult(
+                sequence: nil,
+                approximationReason: "structure-expansion-invalid-repeat-ending"
+            )
+        }
+        return RepeatSequenceResult(sequence: sequence, approximationReason: nil)
     }
 
     private struct EndingSpan {
         let startIndex: Int
         let endIndex: Int
+        let passes: Set<Int>
     }
 
     private func resolveEndingSpans(
         directives: [MusicXMLEndingDirective],
         measureIndexByNumber: [Int: Int]
-    ) -> [String: EndingSpan] {
-        let indexedDirectives = directives.compactMap { directive -> (Int, MusicXMLEndingDirective)? in
+    ) -> [EndingSpan]? {
+        let indexedDirectives = directives.enumerated().compactMap { sourceIndex, directive -> (Int, Int, MusicXMLEndingDirective)? in
             guard let index = measureIndexByNumber[directive.measureNumber] else { return nil }
-            return (index, directive)
+            return (index, sourceIndex, directive)
         }
-        .sorted { $0.0 < $1.0 }
+        .sorted { lhs, rhs in
+            lhs.0 == rhs.0 ? lhs.1 < rhs.1 : lhs.0 < rhs.0
+        }
+        guard indexedDirectives.count == directives.count else { return nil }
 
-        var activeStartByNumber: [String: Int] = [:]
-        var spans: [String: EndingSpan] = [:]
+        var activeStartByPass: [Int: Int] = [:]
+        var spans: [EndingSpan] = []
 
-        for (measureIndex, directive) in indexedDirectives {
-            let numbers = directive.number
+        for (measureIndex, _, directive) in indexedDirectives {
+            let passes = Set(directive.number
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { $0.isEmpty == false }
+                .compactMap(Int.init)
+                .filter { $0 > 0 })
+            guard passes.isEmpty == false else { return nil }
 
             if directive.type == .start {
-                for number in numbers {
-                    if activeStartByNumber[number] == nil {
-                        activeStartByNumber[number] = measureIndex
-                    }
+                for pass in passes {
+                    guard activeStartByPass[pass] == nil else { return nil }
+                    activeStartByPass[pass] = measureIndex
                 }
                 continue
             }
 
             if directive.type == .stop || directive.type == .discontinue {
-                for number in numbers {
-                    guard spans[number] == nil, let start = activeStartByNumber[number] else { continue }
-                    spans[number] = EndingSpan(startIndex: start, endIndex: measureIndex)
+                for pass in passes {
+                    guard let start = activeStartByPass.removeValue(forKey: pass), start <= measureIndex else {
+                        return nil
+                    }
+                    spans.append(EndingSpan(startIndex: start, endIndex: measureIndex, passes: [pass]))
                 }
             }
         }
 
+        guard activeStartByPass.isEmpty else { return nil }
         return spans
+    }
+
+    private func repeatExpansionFallback(score: MusicXMLScore, reason: String) -> MusicXMLStructureExpansionResult {
+        MusicXMLStructureExpansionResult(score: score, approximationReason: reason)
     }
 
     private func materializeExpandedScore(
         original: MusicXMLScore,
         primaryPartID: String,
         primaryMeasures: [MusicXMLMeasureSpan],
-        sequence: [Int],
+        sequence: [MeasureVisit],
         includeSoundDirectives: Bool,
         includedPartIDs: Set<String>?
     ) -> MusicXMLScore {
@@ -189,14 +352,16 @@ struct MusicXMLStructureExpander {
         var outputMeasureNumber = 1
         var passBySourceMeasureID: [PracticeSourceMeasureID: Int] = [:]
 
-        for (occurrenceIndex, index) in sequence.enumerated() {
+        for (occurrenceIndex, visit) in sequence.enumerated() {
+            let index = visit.index
             guard primaryMeasures.indices.contains(index) else { continue }
             let span = primaryMeasures[index]
             let duration = max(0, span.endTick - span.startTick)
             let currentMeasureStartTick = outputTick
             let sourceMeasureID = span.sourceMeasureID
-            let pass = (passBySourceMeasureID[sourceMeasureID] ?? 0) + 1
-            passBySourceMeasureID[sourceMeasureID] = pass
+            let sourceOccurrencePass = (passBySourceMeasureID[sourceMeasureID] ?? 0) + 1
+            passBySourceMeasureID[sourceMeasureID] = sourceOccurrencePass
+            let pass = visit.repeatPass ?? sourceOccurrencePass
 
             let notesInMeasure = original.notes.filter { note in
                 selectedPartIDs.contains(note.partID) && note.tick >= span.startTick && note.tick < span.endTick
@@ -508,18 +673,20 @@ extension MusicXMLStructureExpander {
     func expandSoundJumpsIfPossible(
         score: MusicXMLScore,
         primaryPartID: String = "P1",
-        maxOutputMeasures: Int = 10000,
-        maxJumps: Int = 64,
         includedPartIDs: Set<String>? = nil
-    ) -> MusicXMLScore {
+    ) -> MusicXMLStructureExpansionResult {
         let primarySoundDirectives = score.soundDirectives.filter { $0.partID == primaryPartID }
-        guard primarySoundDirectives.isEmpty == false else { return score }
+        guard primarySoundDirectives.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
 
         let primaryMeasures = score.measures
             .filter { $0.partID == primaryPartID }
             .sorted { $0.startTick < $1.startTick }
 
-        guard primaryMeasures.isEmpty == false else { return score }
+        guard primaryMeasures.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
 
         var measureIndexByNumber: [Int: Int] = [:]
         for (index, span) in primaryMeasures.enumerated() {
@@ -568,7 +735,9 @@ extension MusicXMLStructureExpander {
             }
         }
 
-        guard instructions.isEmpty == false else { return score }
+        guard instructions.isEmpty == false else {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: nil)
+        }
 
         let instructionsByMeasure = Dictionary(grouping: instructions) { $0.atMeasureIndex }
 
@@ -578,11 +747,15 @@ extension MusicXMLStructureExpander {
         var currentIndex = 0
         var jumpCount = 0
         var executedInstructionIDs: Set<String> = []
-        var didHitLimit = false
+        var limitReason: String?
 
         while currentIndex < primaryMeasures.count {
-            if outputSequence.count >= maxOutputMeasures || jumpCount >= maxJumps {
-                didHitLimit = true
+            if outputSequence.count >= maxOutputMeasures {
+                limitReason = "structure-expansion-output-measure-limit"
+                break
+            }
+            if jumpCount >= maxJumps {
+                limitReason = "structure-expansion-jump-limit"
                 break
             }
 
@@ -629,17 +802,20 @@ extension MusicXMLStructureExpander {
             }
         }
 
-        if didHitLimit {
-            return score
+        if let limitReason {
+            return MusicXMLStructureExpansionResult(score: score, approximationReason: limitReason)
         }
 
-        return materializeExpandedScore(
-            original: score,
-            primaryPartID: primaryPartID,
-            primaryMeasures: primaryMeasures,
-            sequence: outputSequence,
-            includeSoundDirectives: false,
-            includedPartIDs: includedPartIDs
+        return MusicXMLStructureExpansionResult(
+            score: materializeExpandedScore(
+                original: score,
+                primaryPartID: primaryPartID,
+                primaryMeasures: primaryMeasures,
+                sequence: outputSequence.map { MeasureVisit(index: $0, repeatPass: nil) },
+                includeSoundDirectives: false,
+                includedPartIDs: includedPartIDs
+            ),
+            approximationReason: nil
         )
     }
 }

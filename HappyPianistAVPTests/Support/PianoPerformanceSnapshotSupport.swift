@@ -50,9 +50,8 @@ func firstSnapshotDifference(
   expected: String,
   actual: String
 ) -> PianoPerformanceSnapshotDifference? {
-  let expectedLines = expected.split(separator: "\n", omittingEmptySubsequences: false).map(
-    String.init)
-  let actualLines = actual.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+  let expectedLines = snapshotLines(expected)
+  let actualLines = snapshotLines(actual)
   let count = max(expectedLines.count, actualLines.count)
 
   for index in 0..<count {
@@ -68,6 +67,20 @@ func firstSnapshotDifference(
   }
 
   return nil
+}
+
+private func snapshotLines(_ snapshot: String) -> [String] {
+  var lines = snapshot.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+  if lines.last == "" {
+    lines.removeLast()
+  }
+  return lines
+}
+
+@Test
+func snapshotComparisonIgnoresOnlyTheTerminatingNewline() {
+  #expect(firstSnapshotDifference(expected: "line", actual: "line\n") == nil)
+  #expect(firstSnapshotDifference(expected: "line", actual: "line\n\n") != nil)
 }
 
 func expectSnapshot(

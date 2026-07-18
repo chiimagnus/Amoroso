@@ -224,6 +224,20 @@ func noteSpanBuilderOffsetsArpeggiateChordOnsetsWhenEnabled() {
             tieStart: false,
             tieStop: false,
             staff: 1,
+            voice: 1,
+            arpeggiate: MusicXMLArpeggiate(numberToken: nil, directionToken: nil)
+        ),
+        MusicXMLNoteEvent(
+            partID: "P1",
+            measureNumber: 1,
+            tick: 0,
+            durationTicks: 480,
+            midiNote: 67,
+            isRest: false,
+            isChord: true,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
             voice: 1
         ),
     ]
@@ -231,10 +245,12 @@ func noteSpanBuilderOffsetsArpeggiateChordOnsetsWhenEnabled() {
     let spans = builder.buildSpans(from: notes, expressivity: MusicXMLExpressivityOptions(arpeggiateEnabled: true))
     let low = spans.first(where: { $0.midiNote == 60 })
     let high = spans.first(where: { $0.midiNote == 64 })
+    let unmarked = spans.first(where: { $0.midiNote == 67 })
     #expect(low?.onTick == 0)
     #expect(low?.offTick == 480)
     #expect(high?.onTick == 30)
-    #expect(high?.offTick == 510)
+    #expect(high?.offTick == 480)
+    #expect(unmarked?.onTick == 0)
 }
 
 @Test
@@ -294,6 +310,30 @@ func timingScheduleRecordsGenericInterpretationProfileForArticulation() {
 
     let entry = ScoreTimingScheduleBuilder().build(notes: [note])[0]
     #expect(entry.performedOffTick == 360)
+    #expect(entry.releasePolicy == .interpretationProfile)
+    #expect(entry.provenance.contains(.interpretationProfile(id: MusicXMLInterpretationProfile.generic.id)))
+}
+
+@Test
+func timingScheduleKeepsFullTenutoDurationAndRecordsItsProfileRule() {
+    let note = MusicXMLNoteEvent(
+        partID: "P1",
+        measureNumber: 1,
+        tick: 0,
+        durationTicks: 480,
+        midiNote: 60,
+        isRest: false,
+        isChord: false,
+        tieStart: false,
+        tieStop: false,
+        staff: 1,
+        voice: 1,
+        articulations: [.tenuto]
+    )
+
+    let entry = ScoreTimingScheduleBuilder().build(notes: [note])[0]
+    #expect(entry.performedOnTick == 0)
+    #expect(entry.performedOffTick == 480)
     #expect(entry.releasePolicy == .interpretationProfile)
     #expect(entry.provenance.contains(.interpretationProfile(id: MusicXMLInterpretationProfile.generic.id)))
 }

@@ -31,6 +31,20 @@ private let identityRepeatFixture = """
 </score-partwise>
 """
 
+private let identityDaCapoFixture = """
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="4.0">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes><divisions>1</divisions></attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+      <direction><sound dacapo="yes"/></direction>
+    </measure>
+  </part>
+</score-partwise>
+"""
+
 @Test
 func preparationKeepsExactSongIDAndStableRevision() async throws {
     let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
@@ -82,6 +96,32 @@ func referencePlaybackPreparationExpandsPerformedOrderWithoutLosingSourceIdentit
     #expect(Set(prepared.scoreContext.preparedScore.notes.compactMap(\.sourceID)).count == 2)
     #expect(Set(prepared.scoreContext.preparedScore.notes.compactMap(\.performedID)).count == 4)
     #expect(prepared.measureSpans.map(\.occurrenceIndex) == [0, 1, 2, 3])
+}
+
+@Test
+func referencePlaybackPreparationReportsWrittenFallbackWhenExpansionLimitIsHit() async throws {
+    let url = FileManager.default.temporaryDirectory.appending(
+        path: "performed-order-limit-\(UUID().uuidString).musicxml"
+    )
+    try Data(identityDaCapoFixture.utf8).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let service = PracticePreparationService(
+        structureExpander: MusicXMLStructureExpander(maxOutputMeasures: 0)
+    )
+    let prepared = try await service.prepare(
+        songID: UUID(),
+        from: url,
+        file: ImportedMusicXMLFile(fileName: "Da Capo", storedURL: url, importedAt: .now),
+        options: .referencePlayback
+    )
+
+    #expect(prepared.scoreContext.orderSelection == MusicXMLOrderSelection(
+        requested: .performed,
+        applied: .written,
+        approximationReason: "structure-expansion-output-measure-limit"
+    ))
+    #expect(prepared.scoreContext.preparedScore == prepared.scoreContext.sourceScore)
 }
 
 @Test

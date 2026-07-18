@@ -80,14 +80,22 @@ struct AutoplayPerformanceTimeline: Equatable {
         }
 
         let activeGuides = guideEntries.map(\.element)
-        for interval in normalizedNoteIntervals(from: activeGuides, practiceHandMode: practiceHandMode) {
-            let offTick = activeRange.map { min(interval.offTick, $0.tickRange.upperBound) } ?? interval.offTick
+        let noteIntervals = normalizedNoteIntervals(from: activeGuides, practiceHandMode: practiceHandMode)
+            .map { interval in
+                NoteInterval(
+                    midi: interval.midi,
+                    velocity: interval.velocity,
+                    onTick: interval.onTick,
+                    offTick: activeRange.map { min(interval.offTick, $0.tickRange.upperBound) } ?? interval.offTick
+                )
+            }
+        for interval in noteIntervals {
             rawEvents.append((
                 tick: interval.onTick,
                 priority: 3,
                 kind: .noteOn(midi: interval.midi, velocity: interval.velocity)
             ))
-            rawEvents.append((tick: offTick, priority: 1, kind: .noteOff(midi: interval.midi)))
+            rawEvents.append((tick: interval.offTick, priority: 1, kind: .noteOff(midi: interval.midi)))
         }
 
         var pedalEventsByTick: [Int: Set<PedalEventKind>] = [:]
@@ -114,18 +122,28 @@ struct AutoplayPerformanceTimeline: Equatable {
             }
         }
 
-        let activeSteps = stepEntries.map(\.element)
-        for pair in zip(activeSteps, activeSteps.dropFirst()) {
-            let current = pair.0
-            let next = pair.1
+        let offTickByNoteKey = Dictionary(uniqueKeysWithValues: noteIntervals.map { interval in
+            (noteKey(onTick: interval.onTick, midi: interval.midi), interval.offTick)
+        })
+        let triggerGuidesByStepIndex = Dictionary(grouping: activeGuides.filter { $0.kind == .trigger }) {
+            $0.practiceStepIndex
+        }
+        for (stepIndex, current) in stepEntries {
             let staffs = Set(current.notes.map { $0.staff ?? 1 })
             let extraSeconds = fermataTimeline.extraHoldSeconds(
                 atTick: current.tick,
                 staffs: staffs,
                 tempoMap: tempoMap
             )
-            if extraSeconds > 0 {
-                rawEvents.append((tick: next.tick, priority: 0, kind: .pauseSeconds(extraSeconds)))
+            let holdTick = triggerGuidesByStepIndex[stepIndex]?
+                .flatMap(\.triggeredNotes)
+                .filter { practiceHandMode.allows(hand: $0.hand) }
+                .compactMap { note in
+                    offTickByNoteKey[noteKey(onTick: note.onTick, midi: note.midiNote)]
+                }
+                .max()
+            if extraSeconds > 0, let holdTick {
+                rawEvents.append((tick: holdTick, priority: 0, kind: .pauseSeconds(extraSeconds)))
             }
         }
 
@@ -163,7 +181,7 @@ struct AutoplayPerformanceTimeline: Equatable {
 
         for guide in guides where guide.kind == .trigger {
             for note in guide.triggeredNotes where practiceHandMode.allows(hand: note.hand) {
-                let key = "\(note.onTick):\(note.midiNote)"
+                let key = noteKey(onTick: note.onTick, midi: note.midiNote)
                 if var existing = grouped[key] {
                     existing.offTick = max(existing.offTick, note.offTick)
                     existing = NoteInterval(
@@ -200,6 +218,10 @@ struct AutoplayPerformanceTimeline: Equatable {
         }
 
         return intervals.filter { $0.offTick > $0.onTick }
+    }
+
+    private static func noteKey(onTick: Int, midi: Int) -> String {
+        "\(onTick):\(midi)"
     }
 
     private static func eventTieBreaker(_ kind: EventKind) -> String {

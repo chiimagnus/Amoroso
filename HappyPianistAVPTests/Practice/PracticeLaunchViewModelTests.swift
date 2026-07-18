@@ -27,6 +27,12 @@ func practiceLaunchRegistersWithoutPreparingThenActivatesExactlyOnce() async {
     #expect(metadata.first?.totalSourceMeasureCount == 1)
     let resolution = await fixture.reporter.events.first { $0.code == .practiceHistoryResolution }
     #expect(resolution?.reason == "exactMissing:noValidCandidate")
+    #expect(await fixture.reporter.events
+        .filter { $0.code == .pianoPerformancePipeline }
+        .map(\.reason) == [
+            "outcome=started;capability=scoreParsing;count=0;duration=none",
+            "outcome=succeeded;capability=scoreParsing;count=1;duration=none",
+        ])
 }
 
 @MainActor
@@ -324,6 +330,9 @@ func practiceLaunchRejectsPreparedPracticeWithoutMeasureStructure() async {
     }
     #expect(failure.code == .practiceMissingMeasureStructure)
     #expect(fixture.applicator.appliedSongIDs.isEmpty)
+    #expect(await fixture.reporter.events.contains { event in
+        event.code == .pianoPerformancePipeline && event.reason.hasPrefix("outcome=failed;")
+    })
     #expect(await fixture.reporter.events.last == failure.diagnosticEvent)
 }
 
@@ -345,7 +354,11 @@ func practiceLaunchFailureRetryCreatesNewFailureIdentity() async {
         return
     }
     #expect(second.id != first.id)
-    #expect(await fixture.reporter.events.count(where: { $0.severity == .error }) == 2)
+    let events = await fixture.reporter.events
+    #expect(events.count(where: { $0.code == second.code }) == 2)
+    #expect(events.count(where: {
+        $0.code == .pianoPerformancePipeline && $0.reason.contains("outcome=failed")
+    }) == 2)
 }
 
 @MainActor
@@ -883,7 +896,11 @@ func consecutivePracticeLaunchRetriesUseFreshGenerationsAndEventuallyReady() asy
     #expect(owner.state == .ready(PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString)))
     #expect(await preparation.requestCount == 3)
     #expect(applicator.appliedSongIDs == [songID])
-    #expect(await reporter.events.count(where: { $0.severity == .error }) == 2)
+    let events = await reporter.events
+    #expect(events.count(where: { $0.code == firstFailure.code }) == 2)
+    #expect(events.count(where: {
+        $0.code == .pianoPerformancePipeline && $0.reason.contains("outcome=failed")
+    }) == 2)
 }
 
 @MainActor

@@ -39,7 +39,19 @@ extension MusicXMLParserDelegate {
                 bank: nil
             )
         case "part":
-            state.currentPartID = attributeDict["id"] ?? "P1"
+            guard let partID = normalizedMetadataToken(attributeDict["id"]) else {
+                state.metadataError = .invalidPartMetadata(reason: "part is missing id")
+                break
+            }
+            guard state.bodyPartIDs.insert(partID).inserted else {
+                state.metadataError = .invalidPartMetadata(reason: "duplicate part id: \(partID)")
+                break
+            }
+            guard state.partMetadataByID.isEmpty || state.partMetadataByID[partID] != nil else {
+                state.metadataError = .invalidPartMetadata(reason: "part references unknown score-part id: \(partID)")
+                break
+            }
+            state.currentPartID = partID
             if state.partDivisions[state.currentPartID] == nil {
                 state.partDivisions[state.currentPartID] = 1
             }
@@ -95,17 +107,7 @@ extension MusicXMLParserDelegate {
             state.isInDirection = true
             state.currentDirectionSourceID = nextDirectionSourceID()
             state.currentDirectionOffsetTicks = 0
-            state.currentDirectionMeasureStartTick = state.currentMeasureStartTick
-            state.currentDirectionTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
-            state.currentDirectionSoundStartIndex = state.soundDirectives.count
-            state.currentDirectionPedalStartIndex = state.pedalEvents.count
-            state.currentDirectionDynamicStartIndex = state.dynamicEvents.count
-            state.currentDirectionWedgeStartIndex = state.wedgeEvents.count
-            state.currentDirectionFermataStartIndex = state.fermataEvents.count
-            state.currentDirectionWordsStartIndex = state.wordsEvents.count
-            state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
-            state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
-            state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
+            state.currentDirectionOffsetAffectsSound = false
             state.currentDirectionStaff = nil
             state.isInDirectionTypeDynamics = false
         case "direction-type":
@@ -121,7 +123,9 @@ extension MusicXMLParserDelegate {
         case "octave-shift":
             recordOctaveShiftEvent(attributes: attributeDict)
         case "offset":
-            break
+            if state.isInDirection, state.isInSound == false {
+                state.currentDirectionOffsetAffectsSound = attributeDict["sound"] == "yes"
+            }
         case "barline":
             state.isInBarline = true
         case "repeat":
@@ -133,7 +137,8 @@ extension MusicXMLParserDelegate {
                     MusicXMLRepeatDirective(
                         partID: state.currentPartID,
                         measureNumber: state.currentMeasureNumber,
-                        direction: direction
+                        direction: direction,
+                        times: attributeDict["times"].flatMap(Int.init).flatMap { $0 > 0 ? $0 : nil }
                     )
                 )
             }
@@ -162,11 +167,12 @@ extension MusicXMLParserDelegate {
         case "sound":
             state.isInSound = true
             state.currentSoundSourceID = state.currentDirectionSourceID ?? nextDirectionSourceID()
-            state.currentSoundMeasureStartTick = state.currentMeasureStartTick
             state.currentSoundBaseTick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
-            state.currentSoundTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
-            state.currentSoundSoundStartIndex = state.soundDirectives.count
-            state.currentSoundPedalStartIndex = state.pedalEvents.count
+            state.currentSoundEventStartIndices = MusicXMLSoundEventStartIndices(
+                tempo: state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0,
+                sound: state.soundDirectives.count,
+                pedal: state.pedalEvents.count
+            )
             if let tempoText = attributeDict["tempo"], let bpm = Double(tempoText) {
                 recordTempoEvent(quarterBPM: bpm, source: .sound)
             }
@@ -459,7 +465,7 @@ extension MusicXMLParserDelegate {
             if let rawOffset = Double(text), rawOffset.isFinite {
                 if state.isInSound {
                     applySoundOffset(rawOffset)
-                } else if state.isInDirection {
+                } else if state.isInDirection, state.currentDirectionOffsetAffectsSound {
                     applyDirectionOffset(rawOffset)
                 }
             }
@@ -514,11 +520,10 @@ extension MusicXMLParserDelegate {
             state.noteStaff = Int(text)
         case "staff" where state.isInDirection:
             state.currentDirectionStaff = Int(text)
-            if let staff = state.currentDirectionStaff,
-               state.currentDirectionDynamicStartIndex < state.dynamicEvents.count
-            {
-                for i in state.currentDirectionDynamicStartIndex ..< state.dynamicEvents.count
-                    where state.dynamicEvents[i].scope.staff == nil
+            if let staff = state.currentDirectionStaff {
+                for i in state.dynamicEvents.indices
+                    where state.dynamicEvents[i].sourceID == state.currentDirectionSourceID
+                        && state.dynamicEvents[i].scope.staff == nil
                 {
                     state.dynamicEvents[i] = MusicXMLDynamicEvent(
                         sourceID: state.dynamicEvents[i].sourceID,
@@ -532,12 +537,9 @@ extension MusicXMLParserDelegate {
                         source: state.dynamicEvents[i].source
                     )
                 }
-            }
-            if let staff = state.currentDirectionStaff,
-               state.currentDirectionWedgeStartIndex < state.wedgeEvents.count
-            {
-                for i in state.currentDirectionWedgeStartIndex ..< state.wedgeEvents.count
-                    where state.wedgeEvents[i].scope.staff == nil
+                for i in state.wedgeEvents.indices
+                    where state.wedgeEvents[i].sourceID == state.currentDirectionSourceID
+                        && state.wedgeEvents[i].scope.staff == nil
                 {
                     state.wedgeEvents[i] = MusicXMLWedgeEvent(
                         sourceID: state.wedgeEvents[i].sourceID,
@@ -551,12 +553,9 @@ extension MusicXMLParserDelegate {
                         )
                     )
                 }
-            }
-            if let staff = state.currentDirectionStaff,
-               state.currentDirectionFermataStartIndex < state.fermataEvents.count
-            {
-                for i in state.currentDirectionFermataStartIndex ..< state.fermataEvents.count
-                    where state.fermataEvents[i].scope.staff == nil
+                for i in state.fermataEvents.indices
+                    where state.fermataEvents[i].sourceID == state.currentDirectionSourceID
+                        && state.fermataEvents[i].scope.staff == nil
                 {
                     state.fermataEvents[i] = MusicXMLFermataEvent(
                         sourceID: state.fermataEvents[i].sourceID,
@@ -569,12 +568,9 @@ extension MusicXMLParserDelegate {
                         source: state.fermataEvents[i].source
                     )
                 }
-            }
-            if let staff = state.currentDirectionStaff,
-               state.currentDirectionWordsStartIndex < state.wordsEvents.count
-            {
-                for i in state.currentDirectionWordsStartIndex ..< state.wordsEvents.count
-                    where state.wordsEvents[i].scope.staff == nil
+                for i in state.wordsEvents.indices
+                    where state.wordsEvents[i].sourceID == state.currentDirectionSourceID
+                        && state.wordsEvents[i].scope.staff == nil
                 {
                     state.wordsEvents[i] = MusicXMLWordsEvent(
                         sourceID: state.wordsEvents[i].sourceID,
@@ -606,27 +602,14 @@ extension MusicXMLParserDelegate {
         case "direction":
             state.isInDirection = false
             state.currentDirectionOffsetTicks = 0
-            state.currentDirectionMeasureStartTick = 0
-            state.currentDirectionTempoStartIndex = 0
-            state.currentDirectionSoundStartIndex = 0
-            state.currentDirectionPedalStartIndex = 0
-            state.currentDirectionDynamicStartIndex = 0
-            state.currentDirectionWedgeStartIndex = 0
-            state.currentDirectionFermataStartIndex = 0
-            state.currentDirectionWordsStartIndex = 0
-            state.currentDirectionSoundOffsetTempoOverrideTicksByIndex = [:]
-            state.currentDirectionSoundOffsetSoundOverrideTicksByIndex = [:]
-            state.currentDirectionSoundOffsetPedalOverrideTicksByIndex = [:]
+            state.currentDirectionOffsetAffectsSound = false
             state.currentDirectionStaff = nil
             state.currentDirectionSourceID = nil
             state.isInDirectionTypeDynamics = false
         case "sound":
             state.isInSound = false
             state.currentSoundBaseTick = 0
-            state.currentSoundMeasureStartTick = 0
-            state.currentSoundTempoStartIndex = 0
-            state.currentSoundSoundStartIndex = 0
-            state.currentSoundPedalStartIndex = 0
+            state.currentSoundEventStartIndices = MusicXMLSoundEventStartIndices()
             state.currentSoundSourceID = nil
         case "barline":
             state.isInBarline = false

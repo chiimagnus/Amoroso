@@ -3,7 +3,7 @@ import Foundation
 import Testing
 
 @Test
-func learningLoopFixtureCoversEightMeasuresHandsTempoChordAndRepeatIdentity() throws {
+func learningLoopFixtureCoversEightMeasuresStaffsTempoChordAndRepeatIdentity() throws {
     let fixtureURL = testFixtureURL("PracticeLearningLoopEightMeasures.musicxml")
     #expect(FileManager.default.fileExists(atPath: fixtureURL.path()))
 
@@ -14,17 +14,25 @@ func learningLoopFixtureCoversEightMeasuresHandsTempoChordAndRepeatIdentity() th
     #expect(parsed.notes.contains(where: { $0.staff == 1 && $0.isRest == false }))
     #expect(parsed.notes.contains(where: { $0.staff == 2 && $0.isRest == false }))
 
-    let routed = MusicXMLHandRouter().routeIfNeeded(score: parsed)
-    let routedSteps = PracticeStepBuilder().buildSteps(from: routed).steps
-    #expect(routedSteps.flatMap(\.notes).contains(where: { $0.hand == .right }))
-    #expect(routedSteps.flatMap(\.notes).contains(where: { $0.hand == .left }))
+    let handAssignments = MusicXMLHandRouter().assignments(for: parsed).assignmentsBySourceNoteID
+    #expect(handAssignments.isEmpty)
+    let writtenSteps = PracticeStepBuilder().buildSteps(
+        from: parsed,
+        expressivity: .init(),
+        handAssignments: handAssignments
+    ).steps
+    #expect(writtenSteps.flatMap(\.notes).allSatisfy { $0.hand == .unknown })
 
-    let expanded = MusicXMLStructureExpander().expandRepeatAndEndingIfPossible(score: routed)
+    let expanded = MusicXMLStructureExpander().expandRepeatAndEndingIfPossible(score: parsed)
     #expect(expanded.measures.count == 10)
     #expect(expanded.measures[0].sourceMeasureID == expanded.measures[2].sourceMeasureID)
     #expect(expanded.measures[0].occurrenceID != expanded.measures[2].occurrenceID)
 
-    let steps = PracticeStepBuilder().buildSteps(from: expanded).steps
+    let steps = PracticeStepBuilder().buildSteps(
+        from: expanded,
+        expressivity: .init(),
+        handAssignments: MusicXMLHandRouter().assignments(for: expanded).assignmentsBySourceNoteID
+    ).steps
     #expect(steps.isEmpty == false)
     #expect(steps.contains(where: { $0.notes.count >= 3 }))
 }

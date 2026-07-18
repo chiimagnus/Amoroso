@@ -105,20 +105,3 @@ struct PianoPerformanceDiagnosticSample: Equatable, Sendable {
         }
     }
 }
-
-struct PianoPerformanceDiagnostics: Sendable {
-    private let reporter: any DiagnosticsReporting
-
-    init(reporter: any DiagnosticsReporting) {
-        self.reporter = reporter
-    }
-
-    func recordSystem(_ sample: PianoPerformanceDiagnosticSample) {
-        reporter.recordSystem(sample.diagnosticEvent)
-    }
-
-    @discardableResult
-    func record(_ sample: PianoPerformanceDiagnosticSample) async -> DiagnosticRecordResult {
-        await reporter.record(sample.diagnosticEvent)
-    }
-}

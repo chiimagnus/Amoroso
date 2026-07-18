@@ -20,6 +20,7 @@ func musicXMLRealisticPlaybackDefaultsAreHardcodedForNoSettingsSwitches() {
     #expect(profile.id == "generic-score-v1")
     #expect(profile.staccatissimoDurationMultiplier == 0.25)
     #expect(profile.staccatoDurationMultiplier == 0.5)
+    #expect(profile.tenutoDurationMultiplier == 1)
     #expect(profile.detachedLegatoDurationMultiplier == 0.75)
     #expect(profile.marcatoDurationMultiplier == 0.75)
     #expect(profile.breathGapTicks == 60)

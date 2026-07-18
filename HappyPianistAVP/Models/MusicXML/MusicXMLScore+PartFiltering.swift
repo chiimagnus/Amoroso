@@ -5,11 +5,6 @@ extension MusicXMLScore {
         filtering(toPartIDs: Set(instrument.memberPartIDs), selectedLogicalInstrument: instrument)
     }
 
-    func filtering(toPartID partID: String) -> MusicXMLScore {
-        let selected = logicalInstruments.first { $0.memberPartIDs == [partID] }
-        return filtering(toPartIDs: [partID], selectedLogicalInstrument: selected)
-    }
-
     private func filtering(
         toPartIDs partIDs: Set<String>,
         selectedLogicalInstrument: MusicXMLLogicalInstrument?

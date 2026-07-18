@@ -304,13 +304,11 @@ extension MusicXMLParserDelegate {
             divisions: state.partDivisions[state.currentPartID]
         ) ?? 0
         let delta = newOffset - state.currentDirectionOffsetTicks
-        guard delta != 0 else { return }
+        guard delta != 0, let sourceID = state.currentDirectionSourceID else { return }
 
-        if var tempoEvents = state.rawTempoEventsByPart[state.currentPartID],
-           state.currentDirectionTempoStartIndex < tempoEvents.count
-        {
-            for i in state.currentDirectionTempoStartIndex ..< tempoEvents.count {
-                let shifted = max(state.currentDirectionMeasureStartTick, tempoEvents[i].tick + delta)
+        if var tempoEvents = state.rawTempoEventsByPart[state.currentPartID] {
+            for i in tempoEvents.indices where tempoEvents[i].sourceID == sourceID {
+                let shifted = max(0, tempoEvents[i].tick + delta)
                 tempoEvents[i] = RawTempoEvent(
                     sourceID: tempoEvents[i].sourceID,
                     partID: tempoEvents[i].partID,
@@ -320,164 +318,100 @@ extension MusicXMLParserDelegate {
                     staff: tempoEvents[i].staff
                 )
             }
-            if state.currentDirectionSoundOffsetTempoOverrideTicksByIndex.isEmpty == false {
-                for (i, overrideTick) in state.currentDirectionSoundOffsetTempoOverrideTicksByIndex
-                    where i >= state.currentDirectionTempoStartIndex && i < tempoEvents.count
-                {
-                    tempoEvents[i] = RawTempoEvent(
-                        sourceID: tempoEvents[i].sourceID,
-                        partID: tempoEvents[i].partID,
-                        tick: overrideTick,
-                        quarterBPM: tempoEvents[i].quarterBPM,
-                        source: tempoEvents[i].source,
-                        staff: tempoEvents[i].staff
-                    )
-                }
-            }
             state.rawTempoEventsByPart[state.currentPartID] = tempoEvents
         }
 
-        if state.currentDirectionSoundStartIndex < state.soundDirectives.count {
-            for i in state.currentDirectionSoundStartIndex ..< state.soundDirectives.count {
-                let shifted = max(state.currentDirectionMeasureStartTick, state.soundDirectives[i].tick + delta)
-                state.soundDirectives[i] = MusicXMLSoundDirective(
-                    sourceID: state.soundDirectives[i].sourceID,
-                    partID: state.soundDirectives[i].partID,
-                    measureNumber: state.soundDirectives[i].measureNumber,
-                    tick: shifted,
-                    segno: state.soundDirectives[i].segno,
-                    coda: state.soundDirectives[i].coda,
-                    tocoda: state.soundDirectives[i].tocoda,
-                    dalsegno: state.soundDirectives[i].dalsegno,
-                    dacapo: state.soundDirectives[i].dacapo,
-                    timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
-                )
-            }
-            if state.currentDirectionSoundOffsetSoundOverrideTicksByIndex.isEmpty == false {
-                for (i, overrideTick) in state.currentDirectionSoundOffsetSoundOverrideTicksByIndex
-                    where i >= state.currentDirectionSoundStartIndex && i < state.soundDirectives.count
-                {
-                    state.soundDirectives[i] = MusicXMLSoundDirective(
-                        sourceID: state.soundDirectives[i].sourceID,
-                        partID: state.soundDirectives[i].partID,
-                        measureNumber: state.soundDirectives[i].measureNumber,
-                        tick: overrideTick,
-                        segno: state.soundDirectives[i].segno,
-                        coda: state.soundDirectives[i].coda,
-                        tocoda: state.soundDirectives[i].tocoda,
-                        dalsegno: state.soundDirectives[i].dalsegno,
-                        dacapo: state.soundDirectives[i].dacapo,
-                        timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
-                    )
-                }
-            }
+        for i in state.soundDirectives.indices where state.soundDirectives[i].sourceID == sourceID {
+            let shifted = max(0, state.soundDirectives[i].tick + delta)
+            state.soundDirectives[i] = MusicXMLSoundDirective(
+                sourceID: state.soundDirectives[i].sourceID,
+                partID: state.soundDirectives[i].partID,
+                measureNumber: state.soundDirectives[i].measureNumber,
+                tick: shifted,
+                segno: state.soundDirectives[i].segno,
+                coda: state.soundDirectives[i].coda,
+                tocoda: state.soundDirectives[i].tocoda,
+                dalsegno: state.soundDirectives[i].dalsegno,
+                dacapo: state.soundDirectives[i].dacapo,
+                timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
+            )
         }
 
-        if state.currentDirectionPedalStartIndex < state.pedalEvents.count {
-            for i in state.currentDirectionPedalStartIndex ..< state.pedalEvents.count {
-                let shifted = max(state.currentDirectionMeasureStartTick, state.pedalEvents[i].tick + delta)
-                state.pedalEvents[i] = MusicXMLPedalEvent(
-                    sourceID: state.pedalEvents[i].sourceID,
-                    partID: state.pedalEvents[i].partID,
-                    measureNumber: state.pedalEvents[i].measureNumber,
-                    tick: shifted,
-                    kind: state.pedalEvents[i].kind,
-                    isDown: state.pedalEvents[i].isDown,
-                    timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
-                )
-            }
-            if state.currentDirectionSoundOffsetPedalOverrideTicksByIndex.isEmpty == false {
-                for (i, overrideTick) in state.currentDirectionSoundOffsetPedalOverrideTicksByIndex
-                    where i >= state.currentDirectionPedalStartIndex && i < state.pedalEvents.count
-                {
-                    state.pedalEvents[i] = MusicXMLPedalEvent(
-                        sourceID: state.pedalEvents[i].sourceID,
-                        partID: state.pedalEvents[i].partID,
-                        measureNumber: state.pedalEvents[i].measureNumber,
-                        tick: overrideTick,
-                        kind: state.pedalEvents[i].kind,
-                        isDown: state.pedalEvents[i].isDown,
-                        timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
-                    )
-                }
-            }
+        for i in state.pedalEvents.indices where state.pedalEvents[i].sourceID == sourceID {
+            let shifted = max(0, state.pedalEvents[i].tick + delta)
+            state.pedalEvents[i] = MusicXMLPedalEvent(
+                sourceID: state.pedalEvents[i].sourceID,
+                partID: state.pedalEvents[i].partID,
+                measureNumber: state.pedalEvents[i].measureNumber,
+                tick: shifted,
+                kind: state.pedalEvents[i].kind,
+                isDown: state.pedalEvents[i].isDown,
+                timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
+            )
         }
 
-        if state.currentDirectionDynamicStartIndex < state.dynamicEvents.count {
-            for index in state.currentDirectionDynamicStartIndex ..< state.dynamicEvents.count {
-                let event = state.dynamicEvents[index]
-                state.dynamicEvents[index] = MusicXMLDynamicEvent(
-                    sourceID: event.sourceID,
-                    tick: state.directionOffsetResolver.absoluteTick(
-                        directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
-                        offsetTicks: delta
-                    ),
-                    velocity: event.velocity,
-                    scope: event.scope,
-                    source: event.source
-                )
-            }
+        for index in state.dynamicEvents.indices where state.dynamicEvents[index].sourceID == sourceID {
+            let event = state.dynamicEvents[index]
+            state.dynamicEvents[index] = MusicXMLDynamicEvent(
+                sourceID: event.sourceID,
+                tick: state.directionOffsetResolver.absoluteTick(
+                    directionStartTick: event.tick,
+                    offsetTicks: delta
+                ),
+                velocity: event.velocity,
+                scope: event.scope,
+                source: event.source
+            )
         }
 
-        if state.currentDirectionWedgeStartIndex < state.wedgeEvents.count {
-            for index in state.currentDirectionWedgeStartIndex ..< state.wedgeEvents.count {
-                let event = state.wedgeEvents[index]
-                state.wedgeEvents[index] = MusicXMLWedgeEvent(
-                    sourceID: event.sourceID,
-                    tick: state.directionOffsetResolver.absoluteTick(
-                        directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
-                        offsetTicks: delta
-                    ),
-                    kind: event.kind,
-                    numberToken: event.numberToken,
-                    scope: event.scope
-                )
-            }
+        for index in state.wedgeEvents.indices where state.wedgeEvents[index].sourceID == sourceID {
+            let event = state.wedgeEvents[index]
+            state.wedgeEvents[index] = MusicXMLWedgeEvent(
+                sourceID: event.sourceID,
+                tick: state.directionOffsetResolver.absoluteTick(
+                    directionStartTick: event.tick,
+                    offsetTicks: delta
+                ),
+                kind: event.kind,
+                numberToken: event.numberToken,
+                scope: event.scope
+            )
         }
 
-        if state.currentDirectionFermataStartIndex < state.fermataEvents.count {
-            for index in state.currentDirectionFermataStartIndex ..< state.fermataEvents.count {
-                let event = state.fermataEvents[index]
-                state.fermataEvents[index] = MusicXMLFermataEvent(
-                    sourceID: event.sourceID,
-                    tick: state.directionOffsetResolver.absoluteTick(
-                        directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
-                        offsetTicks: delta
-                    ),
-                    scope: event.scope,
-                    source: event.source
-                )
-            }
+        for index in state.fermataEvents.indices where state.fermataEvents[index].sourceID == sourceID {
+            let event = state.fermataEvents[index]
+            state.fermataEvents[index] = MusicXMLFermataEvent(
+                sourceID: event.sourceID,
+                tick: state.directionOffsetResolver.absoluteTick(
+                    directionStartTick: event.tick,
+                    offsetTicks: delta
+                ),
+                scope: event.scope,
+                source: event.source
+            )
         }
 
-        if state.currentDirectionWordsStartIndex < state.wordsEvents.count {
-            for index in state.currentDirectionWordsStartIndex ..< state.wordsEvents.count {
-                let event = state.wordsEvents[index]
-                state.wordsEvents[index] = MusicXMLWordsEvent(
-                    sourceID: event.sourceID,
-                    tick: state.directionOffsetResolver.absoluteTick(
-                        directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
-                        offsetTicks: delta
-                    ),
-                    text: event.text,
-                    scope: event.scope
-                )
-            }
+        for index in state.wordsEvents.indices where state.wordsEvents[index].sourceID == sourceID {
+            let event = state.wordsEvents[index]
+            state.wordsEvents[index] = MusicXMLWordsEvent(
+                sourceID: event.sourceID,
+                tick: state.directionOffsetResolver.absoluteTick(
+                    directionStartTick: event.tick,
+                    offsetTicks: delta
+                ),
+                text: event.text,
+                scope: event.scope
+            )
         }
 
         for index in state.octaveShiftEvents.indices
-            where state.octaveShiftEvents[index].sourceID == state.currentDirectionSourceID
+            where state.octaveShiftEvents[index].sourceID == sourceID
         {
             let event = state.octaveShiftEvents[index]
             state.octaveShiftEvents[index] = MusicXMLOctaveShiftEvent(
                 sourceID: event.sourceID,
                 tick: state.directionOffsetResolver.absoluteTick(
                     directionStartTick: event.tick,
-                    measureStartTick: state.currentDirectionMeasureStartTick,
                     offsetTicks: delta
                 ),
                 kind: event.kind,
@@ -497,14 +431,13 @@ extension MusicXMLParserDelegate {
         ) ?? 0
         let tick = state.directionOffsetResolver.absoluteTick(
             directionStartTick: state.currentSoundBaseTick,
-            measureStartTick: state.currentSoundMeasureStartTick,
             offsetTicks: offsetTicks
         )
 
         if var tempoEvents = state.rawTempoEventsByPart[state.currentPartID],
-           state.currentSoundTempoStartIndex < tempoEvents.count
+           state.currentSoundEventStartIndices.tempo < tempoEvents.count
         {
-            for i in state.currentSoundTempoStartIndex ..< tempoEvents.count {
+            for i in state.currentSoundEventStartIndices.tempo ..< tempoEvents.count {
                 tempoEvents[i] = RawTempoEvent(
                     sourceID: tempoEvents[i].sourceID,
                     partID: tempoEvents[i].partID,
@@ -513,15 +446,12 @@ extension MusicXMLParserDelegate {
                     source: tempoEvents[i].source,
                     staff: tempoEvents[i].staff
                 )
-                if state.isInDirection {
-                    state.currentDirectionSoundOffsetTempoOverrideTicksByIndex[i] = tick
-                }
             }
             state.rawTempoEventsByPart[state.currentPartID] = tempoEvents
         }
 
-        if state.currentSoundSoundStartIndex < state.soundDirectives.count {
-            for i in state.currentSoundSoundStartIndex ..< state.soundDirectives.count {
+        if state.currentSoundEventStartIndices.sound < state.soundDirectives.count {
+            for i in state.currentSoundEventStartIndices.sound ..< state.soundDirectives.count {
                 state.soundDirectives[i] = MusicXMLSoundDirective(
                     sourceID: state.soundDirectives[i].sourceID,
                     partID: state.soundDirectives[i].partID,
@@ -534,14 +464,11 @@ extension MusicXMLParserDelegate {
                     dacapo: state.soundDirectives[i].dacapo,
                     timeOnlyPasses: state.soundDirectives[i].timeOnlyPasses
                 )
-                if state.isInDirection {
-                    state.currentDirectionSoundOffsetSoundOverrideTicksByIndex[i] = tick
-                }
             }
         }
 
-        if state.currentSoundPedalStartIndex < state.pedalEvents.count {
-            for i in state.currentSoundPedalStartIndex ..< state.pedalEvents.count {
+        if state.currentSoundEventStartIndices.pedal < state.pedalEvents.count {
+            for i in state.currentSoundEventStartIndices.pedal ..< state.pedalEvents.count {
                 state.pedalEvents[i] = MusicXMLPedalEvent(
                     sourceID: state.pedalEvents[i].sourceID,
                     partID: state.pedalEvents[i].partID,
@@ -551,9 +478,6 @@ extension MusicXMLParserDelegate {
                     isDown: state.pedalEvents[i].isDown,
                     timeOnlyPasses: state.pedalEvents[i].timeOnlyPasses
                 )
-                if state.isInDirection {
-                    state.currentDirectionSoundOffsetPedalOverrideTicksByIndex[i] = tick
-                }
             }
         }
     }
@@ -573,7 +497,6 @@ extension MusicXMLParserDelegate {
         guard state.isInDirection else { return baseTick }
         return state.directionOffsetResolver.absoluteTick(
             directionStartTick: baseTick,
-            measureStartTick: state.currentDirectionMeasureStartTick,
             offsetTicks: state.currentDirectionOffsetTicks
         )
     }

@@ -9,6 +9,7 @@ struct MusicXMLInterpretationProfile: Equatable, Sendable {
         id: "generic-score-v1",
         staccatissimoDurationMultiplier: 0.25,
         staccatoDurationMultiplier: 0.5,
+        tenutoDurationMultiplier: 1,
         detachedLegatoDurationMultiplier: 0.75,
         marcatoDurationMultiplier: 0.75,
         breathGapTicks: MusicXMLTempoMap.ticksPerQuarter / 8,
@@ -23,6 +24,7 @@ struct MusicXMLInterpretationProfile: Equatable, Sendable {
     let id: String
     let staccatissimoDurationMultiplier: Double
     let staccatoDurationMultiplier: Double
+    let tenutoDurationMultiplier: Double
     let detachedLegatoDurationMultiplier: Double
     let marcatoDurationMultiplier: Double
     let breathGapTicks: Int
@@ -40,6 +42,9 @@ struct MusicXMLInterpretationProfile: Equatable, Sendable {
         if articulations.contains(.staccato) {
             return staccatoDurationMultiplier
         }
+        if articulations.contains(.tenuto) {
+            return tenutoDurationMultiplier
+        }
         if articulations.contains(.detachedLegato) {
             return detachedLegatoDurationMultiplier
         }
@@ -47,6 +52,16 @@ struct MusicXMLInterpretationProfile: Equatable, Sendable {
             return marcatoDurationMultiplier
         }
         return 1
+    }
+
+    func hasDurationRule(for articulations: Set<MusicXMLArticulation>) -> Bool {
+        articulations.isDisjoint(with: [
+            .staccatissimo,
+            .staccato,
+            .tenuto,
+            .detachedLegato,
+            .marcato,
+        ]) == false
     }
 
     func fermataExtraTicks(forBaseDurationTicks durationTicks: Int) -> Int {

@@ -31,11 +31,37 @@ struct MusicXMLParserPerformanceTimingTests {
 }
 
 @Test
-func directionOffsetResolverNormalizesDivisionsAndClampsBeforeMeasureStart() {
+func directionOffsetResolverNormalizesDivisionsAndAllowsCrossMeasureOffsets() {
     let resolver = MusicXMLDirectionOffsetResolver(ticksPerQuarter: 480)
 
     #expect(resolver.offsetTicks(rawDivisions: 1.5, divisions: 2) == 360)
     #expect(resolver.offsetTicks(rawDivisions: -2, divisions: 2) == -480)
     #expect(resolver.offsetTicks(rawDivisions: .nan, divisions: 2) == nil)
-    #expect(resolver.absoluteTick(directionStartTick: 960, measureStartTick: 720, offsetTicks: -480) == 720)
+    #expect(resolver.absoluteTick(directionStartTick: 960, offsetTicks: -480) == 480)
+    #expect(resolver.absoluteTick(directionStartTick: 240, offsetTicks: -480) == 0)
+}
+
+@Test
+func directionOffsetCanMovePlaybackFactIntoPreviousMeasure() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1">
+        <measure number="1">
+          <attributes><divisions>1</divisions></attributes>
+          <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration></note>
+        </measure>
+        <measure number="2">
+          <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration></note>
+          <direction>
+            <direction-type><words>dolce</words></direction-type>
+            <offset sound="yes">-2</offset>
+          </direction>
+        </measure>
+      </part>
+    </score-partwise>
+    """
+
+    let event = try #require(MusicXMLParser().parse(data: Data(xml.utf8)).wordsEvents.first)
+    #expect(event.tick == 0)
 }
