@@ -174,3 +174,92 @@ func pedalChangePreservesBothControllerEdgesUnderOneDirectionSource() throws {
     #expect(events[0].sourceID != nil)
     #expect(events[0].sourceID == events[1].sourceID)
 }
+
+@Test
+func dynamicCurvePreservesBaseAndAppliesAccentAfterInterpolation() {
+    let scope = MusicXMLEventScope(partID: "P1", staff: 1, voice: nil)
+    let resolver = MusicXMLVelocityResolver(
+        dynamicEvents: [
+            MusicXMLDynamicEvent(tick: 0, velocity: 60, scope: scope, source: .directionDynamics),
+            MusicXMLDynamicEvent(tick: 960, velocity: 100, scope: scope, source: .directionDynamics),
+        ],
+        wedgeEvents: [
+            MusicXMLWedgeEvent(tick: 0, kind: .crescendoStart, numberToken: "1", scope: scope),
+            MusicXMLWedgeEvent(tick: 960, kind: .stop, numberToken: "1", scope: scope),
+        ],
+        wedgeEnabled: true
+    )
+    let note = MusicXMLNoteEvent(
+        partID: "P1",
+        measureNumber: 2,
+        tick: 480,
+        durationTicks: 480,
+        midiNote: 60,
+        isRest: false,
+        isChord: false,
+        tieStart: false,
+        tieStop: false,
+        staff: 1,
+        voice: 1,
+        articulations: [.accent]
+    )
+
+    let resolution = resolver.resolution(for: note)
+
+    #expect(resolution.baseVelocity == 60)
+    #expect(resolution.curveVelocity == 80)
+    #expect(resolution.articulationDelta == 10)
+    #expect(resolution.unclampedVelocity == 90)
+    #expect(resolution.velocity == 90)
+    #expect(resolution.curve?.numberToken == "1")
+}
+
+@Test
+func dynamicCurveKeepsNestedNumbersIndependentAndDiagnosesMissingTargets() {
+    let scope = MusicXMLEventScope(partID: "P1", staff: 1, voice: nil)
+    let resolver = MusicXMLVelocityResolver(
+        dynamicEvents: [
+            MusicXMLDynamicEvent(tick: 0, velocity: 60, scope: scope, source: .directionDynamics),
+            MusicXMLDynamicEvent(tick: 480, velocity: 90, scope: scope, source: .directionDynamics),
+        ],
+        wedgeEvents: [
+            MusicXMLWedgeEvent(tick: 0, kind: .crescendoStart, numberToken: "1", scope: scope),
+            MusicXMLWedgeEvent(tick: 0, kind: .diminuendoStart, numberToken: "2", scope: scope),
+            MusicXMLWedgeEvent(tick: 0, kind: .stop, numberToken: "2", scope: scope),
+            MusicXMLWedgeEvent(tick: 480, kind: .stop, numberToken: "1", scope: scope),
+            MusicXMLWedgeEvent(tick: 720, kind: .crescendoStart, numberToken: "3", scope: scope),
+            MusicXMLWedgeEvent(tick: 960, kind: .stop, numberToken: "3", scope: scope),
+        ],
+        wedgeEnabled: true
+    )
+
+    #expect(resolver.dynamicCurves.map(\.numberToken) == ["1"])
+    #expect(resolver.wedgeApproximations.map(\.reason).sorted() == [
+        "wedge-missing-target-dynamic",
+        "wedge-zero-duration",
+    ])
+}
+
+@Test
+func velocityResolutionClampsAfterKeepingUnclampedArticulationResult() {
+    let resolver = MusicXMLVelocityResolver(dynamicEvents: [], defaultVelocity: 125)
+    let note = MusicXMLNoteEvent(
+        partID: "P1",
+        measureNumber: 1,
+        tick: 0,
+        durationTicks: 480,
+        midiNote: 60,
+        isRest: false,
+        isChord: false,
+        tieStart: false,
+        tieStop: false,
+        staff: 1,
+        voice: 1,
+        articulations: [.marcato]
+    )
+
+    let resolution = resolver.resolution(for: note)
+    #expect(resolution.baseVelocity == 125)
+    #expect(resolution.unclampedVelocity == 140)
+    #expect(resolution.velocity == 127)
+}

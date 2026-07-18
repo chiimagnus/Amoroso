@@ -22,7 +22,7 @@ struct MusicXMLScore: Equatable {
     var endingDirectives: [MusicXMLEndingDirective] = []
 }
 
-struct MusicXMLEventScope: Equatable {
+struct MusicXMLEventScope: Equatable, Sendable {
     let partID: String
     let staff: Int?
     let voice: Int?
@@ -45,7 +45,7 @@ struct MusicXMLDynamicEvent: Equatable {
     let source: MusicXMLDynamicEventSource
 }
 
-enum MusicXMLWedgeKind: Equatable {
+enum MusicXMLWedgeKind: Equatable, Sendable {
     case crescendoStart
     case diminuendoStart
     case stop
