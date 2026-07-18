@@ -89,6 +89,12 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
                     column: column,
                     reason: reason
                 )
+            case let .invalidPartMetadata(reason):
+                throw PracticePreparationError.xmlParseFailed(
+                    line: nil,
+                    column: nil,
+                    reason: reason
+                )
             }
         } catch MusicXMLTimewiseConverterError.invalidXML {
             throw PracticePreparationError.xmlParseFailed(
@@ -109,15 +115,27 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             )
         }
         let score = MusicXMLPianoGrandStaffNormalizer().normalize(score: rawScore)
+        let selectedInstrument: MusicXMLLogicalInstrument
+        switch MusicXMLPracticePartSelector().select(from: score) {
+        case let .selected(instrument):
+            selectedInstrument = instrument
+        case let .ambiguous(ambiguity):
+            throw PracticePreparationError.unexpected(
+                stage: "musicXMLPartSelection",
+                reason: "Ambiguous logical instruments: \(ambiguity.candidateInstrumentIDs.joined(separator: ",")); \(ambiguity.reason)"
+            )
+        case .unavailable:
+            throw PracticePreparationError.noPlayableNotes
+        }
+        let primaryPartIDForExpansion = selectedInstrument.memberPartIDs[0]
         let shouldExpandStructure = MusicXMLRealisticPlaybackDefaults.shouldExpandStructure
-        let primaryPartIDForExpansion = score.preferredPrimaryPartID()
 
         try Task.checkCancellation()
         let effectiveScore = shouldExpandStructure
             ? structureExpander.expandStructureIfPossible(score: score, primaryPartID: primaryPartIDForExpansion)
             : score
-        let primaryPartID = effectiveScore.preferredPrimaryPartID(preferredPartID: primaryPartIDForExpansion)
-        let practiceScore = effectiveScore.filtering(toPartID: primaryPartID)
+        let practiceScore = effectiveScore.filtering(toLogicalInstrument: selectedInstrument)
+        let primaryPartID = primaryPartIDForExpansion
         let routedPracticeScore = MusicXMLHandRouter().routeIfNeeded(score: practiceScore)
 
         try Task.checkCancellation()

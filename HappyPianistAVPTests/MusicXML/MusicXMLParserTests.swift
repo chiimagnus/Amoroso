@@ -925,3 +925,51 @@ func parserPreservesTransposeAndOctaveShiftFacts() throws {
     #expect(score.octaveShiftEvents.map(\.kind) == [.up, .stop])
     #expect(score.octaveShiftEvents.map(\.tick) == [0, 480])
 }
+
+@Test
+func partSelectorPrefersTheOnlyExplicitPianoOverNoteCount() {
+    let piano = MusicXMLLogicalInstrument(
+        id: "piano:P2",
+        memberPartIDs: ["P2"],
+        classification: .piano,
+        evidence: [.init(kind: .explicitPianoMetadata, partIDs: ["P2"])]
+    )
+    let orchestra = MusicXMLLogicalInstrument(
+        id: "other:P1",
+        memberPartIDs: ["P1"],
+        classification: .other,
+        evidence: [.init(kind: .singlePlayablePart, partIDs: ["P1"])]
+    )
+    let score = MusicXMLScore(
+        logicalInstruments: [orchestra, piano],
+        notes: [
+            MusicXMLNoteEvent(partID: "P1", measureNumber: 1, tick: 0, durationTicks: 1, midiNote: 60, isRest: false, isChord: false, tieStart: false, tieStop: false, staff: 1, voice: 1),
+            MusicXMLNoteEvent(partID: "P1", measureNumber: 1, tick: 1, durationTicks: 1, midiNote: 62, isRest: false, isChord: false, tieStart: false, tieStop: false, staff: 1, voice: 1),
+            MusicXMLNoteEvent(partID: "P2", measureNumber: 1, tick: 0, durationTicks: 1, midiNote: 48, isRest: false, isChord: false, tieStart: false, tieStop: false, staff: 1, voice: 1),
+        ]
+    )
+    #expect(MusicXMLPracticePartSelector().select(from: score) == .selected(piano))
+}
+
+@Test
+func partSelectorReportsAmbiguityInsteadOfPickingTheMostNotes() {
+    let a = MusicXMLLogicalInstrument(
+        id: "other:P1", memberPartIDs: ["P1"], classification: .other,
+        evidence: [.init(kind: .singlePlayablePart, partIDs: ["P1"])]
+    )
+    let b = MusicXMLLogicalInstrument(
+        id: "other:P2", memberPartIDs: ["P2"], classification: .other,
+        evidence: [.init(kind: .singlePlayablePart, partIDs: ["P2"])]
+    )
+    let score = MusicXMLScore(
+        logicalInstruments: [a, b],
+        notes: [
+            MusicXMLNoteEvent(partID: "P1", measureNumber: 1, tick: 0, durationTicks: 1, midiNote: 60, isRest: false, isChord: false, tieStart: false, tieStop: false, staff: 1, voice: 1),
+            MusicXMLNoteEvent(partID: "P2", measureNumber: 1, tick: 0, durationTicks: 1, midiNote: 48, isRest: false, isChord: false, tieStart: false, tieStop: false, staff: 1, voice: 1),
+        ]
+    )
+    #expect(MusicXMLPracticePartSelector().select(from: score) == .ambiguous(.init(
+        candidateInstrumentIDs: ["other:P1", "other:P2"],
+        reason: "multiple-playable-instruments-without-piano-evidence"
+    )))
+}
