@@ -21,3 +21,44 @@ func endpointPolicyFallsBackToMIDI1WhenMIDI2PortUnavailable() {
 func endpointPolicyUsesMIDI2WhenEndpointReportsMIDI2AndPortAvailable() {
     #expect(MIDIEndpointConnectionPolicy.subscribedProtocol(endpointProtocolID: ._2_0, midi2PortAvailable: true) == ._2_0)
 }
+
+@Test
+func coreMIDIOutputPacketListPreservesOrderedMessagesAndHostTimes() {
+    let messages = [
+        TimestampedMIDI1Message(hostTime: 10_000, bytes: [0x90, 60, 100]),
+        TimestampedMIDI1Message(hostTime: 10_000, bytes: [0xB0, 64, 96]),
+        TimestampedMIDI1Message(hostTime: 20_000, bytes: [0x80, 60, 0]),
+    ]
+
+    let result = CoreMIDIOutputService.withPacketList(messages) { packetList in
+        packetMessages(in: packetList)
+    }
+
+    #expect(result == messages)
+    #expect(result.allSatisfy { $0.hostTime != 0 })
+}
+
+@Test
+func coreMIDIOutputRejectsOutOfOrderHostTimesBeforeSending() {
+    #expect(throws: CoreMIDIOutputServiceError.self) {
+        try CoreMIDIOutputService.validate([
+            TimestampedMIDI1Message(hostTime: 20_000, bytes: [0x90, 60, 100]),
+            TimestampedMIDI1Message(hostTime: 10_000, bytes: [0x80, 60, 0]),
+        ])
+    }
+}
+
+private func packetMessages(in packetList: UnsafePointer<MIDIPacketList>) -> [TimestampedMIDI1Message] {
+    var messages: [TimestampedMIDI1Message] = []
+    withUnsafePointer(to: packetList.pointee.packet) { firstPacket in
+        var packet = firstPacket
+        for _ in 0 ..< Int(packetList.pointee.numPackets) {
+            let bytes = withUnsafeBytes(of: packet.pointee.data) { data in
+                Array(data.prefix(Int(packet.pointee.length)))
+            }
+            messages.append(TimestampedMIDI1Message(hostTime: packet.pointee.timeStamp, bytes: bytes))
+            packet = UnsafePointer(MIDIPacketNext(UnsafeMutablePointer(mutating: packet)))
+        }
+    }
+    return messages
+}

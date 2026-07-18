@@ -1,4 +1,5 @@
 import CoreMIDI
+import Darwin
 import Foundation
 import os
 
@@ -7,13 +8,27 @@ protocol MIDIOutputSendingProtocol: AnyObject, Sendable {
     func stop()
     func listDestinations() -> [MIDIDestinationInfo]
 
-    func sendMIDI1Bytes(_ bytes: [UInt8], destinationUniqueID: Int32) throws
+    func sendMIDI1Messages(_ messages: [TimestampedMIDI1Message], destinationUniqueID: Int32) throws
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
     func sendNoteOff(note: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
     func sendControlChange(controller: UInt8, value: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
     func sendProgramChange(program: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
     func sendAllNotesOff(channel: UInt8, destinationUniqueID: Int32) throws
     func sendAllSoundOff(channel: UInt8, destinationUniqueID: Int32) throws
+}
+
+extension MIDIOutputSendingProtocol {
+    func sendMIDI1Bytes(_ bytes: [UInt8], destinationUniqueID: Int32) throws {
+        try sendMIDI1Messages(
+            [TimestampedMIDI1Message(hostTime: mach_absolute_time(), bytes: bytes)],
+            destinationUniqueID: destinationUniqueID
+        )
+    }
+}
+
+struct TimestampedMIDI1Message: Equatable, Sendable {
+    let hostTime: MIDITimeStamp
+    let bytes: [UInt8]
 }
 
 struct MIDIDestinationInfo: Identifiable, Equatable {
@@ -25,6 +40,7 @@ enum CoreMIDIOutputServiceError: LocalizedError {
     case clientCreate(OSStatus)
     case outputPortCreate(OSStatus)
     case destinationNotFound(Int32)
+    case invalidPacketBatch(String)
     case send(OSStatus)
 
     var errorDescription: String? {
@@ -35,6 +51,8 @@ enum CoreMIDIOutputServiceError: LocalizedError {
             "Failed to create MIDI output port: \(status)"
         case let .destinationNotFound(id):
             "MIDI destination not found: \(id)"
+        case let .invalidPacketBatch(reason):
+            "Invalid MIDI packet batch: \(reason)"
         case let .send(status):
             "Failed to send MIDI message: \(status)"
         }
@@ -112,10 +130,12 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         return results
     }
 
-    func sendMIDI1Bytes(_ bytes: [UInt8], destinationUniqueID: Int32) throws {
+    func sendMIDI1Messages(_ messages: [TimestampedMIDI1Message], destinationUniqueID: Int32) throws {
+        guard messages.isEmpty == false else { return }
+        try Self.validate(messages)
         try ensureClientAndPort()
         let destination = try resolveDestination(destinationUniqueID)
-        try sendBytes(bytes, destination: destination)
+        try sendMessages(messages, destination: destination)
     }
 
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationUniqueID: Int32) throws {
@@ -191,13 +211,13 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         throw CoreMIDIOutputServiceError.destinationNotFound(destinationUniqueID)
     }
 
-    private func sendBytes(_ bytes: [UInt8], destination: MIDIEndpointRef) throws {
+    private func sendMessages(_ messages: [TimestampedMIDI1Message], destination: MIDIEndpointRef) throws {
         let result: (OSStatus, (@Sendable (String?) -> Void)?) = stateLock.withLock { state in
             guard state.outputPortRef != 0 else {
                 return (-1, state.onLastErrorMessageChange)
             }
             return (
-                Self.sendBytes(bytes, outputPortRef: state.outputPortRef, destination: destination),
+                Self.sendMessages(messages, outputPortRef: state.outputPortRef, destination: destination),
                 state.onLastErrorMessageChange
             )
         }
@@ -214,12 +234,23 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         }
     }
 
-    private static func sendBytes(
-        _ bytes: [UInt8],
+    private static func sendMessages(
+        _ messages: [TimestampedMIDI1Message],
         outputPortRef: MIDIPortRef,
         destination: MIDIEndpointRef
     ) -> OSStatus {
-        let bufferSize = 1024
+        withPacketList(messages) { packetListPointer in
+            MIDISend(outputPortRef, destination, packetListPointer)
+        }
+    }
+
+    static func withPacketList<Result>(
+        _ messages: [TimestampedMIDI1Message],
+        perform body: (UnsafePointer<MIDIPacketList>) throws -> Result
+    ) rethrows -> Result {
+        let bufferSize = messages.reduce(MemoryLayout<MIDIPacketList>.size) { size, message in
+            size + MemoryLayout<MIDIPacket>.size + message.bytes.count
+        }
         let buffer = UnsafeMutableRawPointer.allocate(
             byteCount: bufferSize,
             alignment: MemoryLayout<MIDIPacketList>.alignment
@@ -229,19 +260,30 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         let packetListPointer = buffer.assumingMemoryBound(to: MIDIPacketList.self)
         packetListPointer.initialize(to: MIDIPacketList())
         var packet = MIDIPacketListInit(packetListPointer)
-        bytes.withUnsafeBytes { rawBuffer in
-            guard let baseAddress = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt8.self) else { return }
-            packet = MIDIPacketListAdd(
-                packetListPointer,
-                bufferSize,
-                packet,
-                0,
-                bytes.count,
-                baseAddress
-            )
+        for message in messages {
+            message.bytes.withUnsafeBufferPointer { bytes in
+                guard let baseAddress = bytes.baseAddress else { return }
+                packet = MIDIPacketListAdd(
+                    packetListPointer,
+                    bufferSize,
+                    packet,
+                    message.hostTime,
+                    bytes.count,
+                    baseAddress
+                )
+            }
         }
 
-        return MIDISend(outputPortRef, destination, packetListPointer)
+        return try body(UnsafePointer(packetListPointer))
+    }
+
+    static func validate(_ messages: [TimestampedMIDI1Message]) throws {
+        guard messages.allSatisfy({ $0.bytes.isEmpty == false && $0.bytes.count <= UInt16.max }) else {
+            throw CoreMIDIOutputServiceError.invalidPacketBatch("messages must contain 1...65535 bytes")
+        }
+        guard zip(messages, messages.dropFirst()).allSatisfy({ $0.hostTime <= $1.hostTime }) else {
+            throw CoreMIDIOutputServiceError.invalidPacketBatch("host timestamps must be nondecreasing")
+        }
     }
 
     private func endpointName(_ endpoint: MIDIEndpointRef) -> String {

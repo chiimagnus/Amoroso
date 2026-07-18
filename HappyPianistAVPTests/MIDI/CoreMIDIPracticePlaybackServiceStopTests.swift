@@ -232,8 +232,10 @@ private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked
         []
     }
 
-    func sendMIDI1Bytes(_ bytes: [UInt8], destinationUniqueID: Int32) throws {
-        lock.withLock { $0.append(.bytes(bytes, destination: destinationUniqueID)) }
+    func sendMIDI1Messages(_ messages: [TimestampedMIDI1Message], destinationUniqueID: Int32) throws {
+        lock.withLock { calls in
+            calls.append(contentsOf: messages.map { .bytes($0.bytes, destination: destinationUniqueID) })
+        }
     }
 
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationUniqueID: Int32) throws {
