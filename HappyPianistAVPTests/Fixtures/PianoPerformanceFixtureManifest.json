@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "despacito-highlight-regression",
+      "file": "DESPACITOHighlightRegression.musicxml",
+      "source": "project regression fixture",
+      "license": "repository test asset",
+      "exporter": "unknown",
+      "coverage": ["highlight", "real-score-regression"],
+      "snapshot": "despacito-highlight-regression"
+    },
+    {
+      "id": "musicxml-autoplay-regression",
+      "file": "MusicXMLAutoplayRegression.musicxml",
+      "source": "project regression fixture",
+      "license": "repository test asset",
+      "exporter": "unknown",
+      "coverage": ["autoplay", "tempo", "pedal", "fermata", "articulation"],
+      "snapshot": "musicxml-autoplay-regression"
+    },
+    {
+      "id": "practice-learning-loop-eight-measures",
+      "file": "PracticeLearningLoopEightMeasures.musicxml",
+      "source": "project regression fixture",
+      "license": "repository test asset",
+      "exporter": "unknown",
+      "coverage": ["measures", "practice-loop"],
+      "snapshot": "practice-learning-loop-eight-measures"
+    },
+    {
+      "id": "practice-measure-identity-repeats",
+      "file": "PracticeMeasureIdentityRepeats.musicxml",
+      "source": "project regression fixture",
+      "license": "repository test asset",
+      "exporter": "unknown",
+      "coverage": ["measure-identity", "repeats", "endings"],
+      "snapshot": "practice-measure-identity-repeats"
+    },
+    {
+      "id": "single-staff-hand-routing-clear",
+      "file": "SingleStaffHandRoutingClear.musicxml",
+      "source": "project regression fixture",
+      "license": "repository test asset",
+      "exporter": "unknown",
+      "coverage": ["single-staff", "hand-routing"],
+      "snapshot": "single-staff-hand-routing-clear"
+    },
+    {
+      "id": "single-staff-hand-routing-interleaving",
+      "file": "SingleStaffHandRoutingInterleaving.musicxml",
+      "source": "project regression fixture",
+      "license": "repository test asset",
+      "exporter": "unknown",
+      "coverage": ["single-staff", "hand-routing", "interleaving"],
+      "snapshot": "single-staff-hand-routing-interleaving"
+    }
+  ]
+}
