@@ -39,7 +39,19 @@ extension MusicXMLParserDelegate {
                 bank: nil
             )
         case "part":
-            state.currentPartID = attributeDict["id"] ?? "P1"
+            guard let partID = normalizedMetadataToken(attributeDict["id"]) else {
+                state.metadataError = .invalidPartMetadata(reason: "part is missing id")
+                break
+            }
+            guard state.bodyPartIDs.insert(partID).inserted else {
+                state.metadataError = .invalidPartMetadata(reason: "duplicate part id: \(partID)")
+                break
+            }
+            guard state.partMetadataByID.isEmpty || state.partMetadataByID[partID] != nil else {
+                state.metadataError = .invalidPartMetadata(reason: "part references unknown score-part id: \(partID)")
+                break
+            }
+            state.currentPartID = partID
             if state.partDivisions[state.currentPartID] == nil {
                 state.partDivisions[state.currentPartID] = 1
             }

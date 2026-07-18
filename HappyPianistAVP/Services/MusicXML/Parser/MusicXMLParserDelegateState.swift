@@ -24,6 +24,7 @@ struct MusicXMLParserDelegateState {
     var scoreVersion: String?
     var partMetadataByID: [String: MusicXMLPartMetadata] = [:]
     var partMetadataOrder: [String] = []
+    var bodyPartIDs: Set<String> = []
     var metadataError: MusicXMLParserError?
     var isInPartList = false
     var currentScorePartMetadata: MusicXMLPartMetadata?

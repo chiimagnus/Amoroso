@@ -866,6 +866,40 @@ func parserRejectsDuplicateScorePartIdentifiers() {
 }
 
 @Test
+func parserRejectsMissingUnknownAndDuplicateBodyPartIdentifiers() {
+    let missing = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part><measure number="1"/></part>
+    </score-partwise>
+    """
+    #expect(throws: MusicXMLParserError.invalidPartMetadata(reason: "part is missing id")) {
+        try MusicXMLParser().parse(data: Data(missing.utf8))
+    }
+
+    let unknown = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P2"><measure number="1"/></part>
+    </score-partwise>
+    """
+    #expect(throws: MusicXMLParserError.invalidPartMetadata(reason: "part references unknown score-part id: P2")) {
+        try MusicXMLParser().parse(data: Data(unknown.utf8))
+    }
+
+    let duplicate = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1"/></part>
+      <part id="P1"><measure number="2"/></part>
+    </score-partwise>
+    """
+    #expect(throws: MusicXMLParserError.invalidPartMetadata(reason: "duplicate part id: P1")) {
+        try MusicXMLParser().parse(data: Data(duplicate.utf8))
+    }
+}
+
+@Test
 func parserPreservesWrittenPitchSpellingAndDecimalAlter() throws {
     let xml = """
     <score-partwise version="4.0">
