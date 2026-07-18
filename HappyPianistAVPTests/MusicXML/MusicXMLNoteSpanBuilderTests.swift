@@ -189,10 +189,10 @@ func noteSpanBuilderEmitsGraceSpansAndStealsFromFollowingWhenEnabled() {
 
     let grace = spans.first(where: { $0.midiNote == 60 })
     let main = spans.first(where: { $0.midiNote == 62 })
-    #expect(grace?.onTick == 360)
-    #expect(grace?.offTick == 480)
-    #expect(main?.onTick == 480)
-    #expect(main?.offTick == 840)
+    #expect(grace?.onTick == 480)
+    #expect(grace?.offTick == 600)
+    #expect(main?.onTick == 600)
+    #expect(main?.offTick == 960)
 }
 
 @Test

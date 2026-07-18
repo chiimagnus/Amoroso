@@ -4,6 +4,7 @@ struct ScoreTimingScheduleBuilder {
     func build(
         notes: [MusicXMLNoteEvent],
         performanceTimingEnabled: Bool = false,
+        graceEnabled: Bool = true,
         logicalInstruments: [MusicXMLLogicalInstrument] = [],
         arpeggiateEnabled: Bool = false,
         interpretationProfile: MusicXMLInterpretationProfile = .generic
@@ -11,7 +12,7 @@ struct ScoreTimingScheduleBuilder {
         var entries = notes.enumerated().map { index, note in
             MutableEntry(noteIndex: index, note: note, performanceTimingEnabled: performanceTimingEnabled)
         }
-        let graceGroups = makeGraceGroups(notes: notes)
+        let graceGroups = graceEnabled ? makeGraceGroups(notes: notes) : []
 
         applyMakeTime(
             groups: graceGroups,
