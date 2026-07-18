@@ -63,6 +63,38 @@ struct MusicXMLWedgeEvent: Equatable {
     let scope: MusicXMLEventScope
 }
 
+struct MusicXMLWedgePairKey: Equatable, Hashable, Sendable {
+    let partID: String
+    let staff: Int?
+    let voice: Int?
+    let numberToken: String
+}
+
+extension MusicXMLWedgeEvent {
+    var normalizedNumberToken: String {
+        guard let token = numberToken?.trimmingCharacters(in: .whitespacesAndNewlines),
+              token.isEmpty == false
+        else {
+            return "1"
+        }
+        return token
+    }
+
+    var pairKey: MusicXMLWedgePairKey {
+        MusicXMLWedgePairKey(
+            partID: scope.partID,
+            staff: scope.staff,
+            voice: scope.voice,
+            numberToken: normalizedNumberToken
+        )
+    }
+}
+
+struct MusicXMLWedgeApproximation: Equatable, Sendable {
+    let sourceID: MusicXMLDirectionSourceID?
+    let reason: String
+}
+
 enum MusicXMLFermataEventSource: Equatable {
     case noteNotations
     case directionType
