@@ -1,6 +1,17 @@
 import Foundation
 
 struct MusicXMLParserDelegateState {
+
+    struct PendingPerformanceNotation {
+        let kind: MusicXMLPerformanceNotationKind
+        let rawElementToken: String
+        let typeToken: String?
+        let numberToken: String?
+        let placementToken: String?
+        var textToken: String?
+        let attributes: [String: String]
+    }
+
     let normalizedTicksPerQuarter = 480
     let directionOffsetResolver = MusicXMLDirectionOffsetResolver(ticksPerQuarter: 480)
 
@@ -117,6 +128,10 @@ struct MusicXMLParserDelegateState {
     var noteArticulations: Set<MusicXMLArticulation> = []
     var noteHasFermata = false
     var noteArpeggiate: MusicXMLArpeggiate?
+    var notePerformanceNotations: [PendingPerformanceNotation] = []
+    var currentPerformanceNotationIndexByElement: [String: Int] = [:]
+    var isInNoteNotations = false
+    var isInNoteOrnaments = false
     var noteFingeringText: String?
     var isInTechnical = false
 

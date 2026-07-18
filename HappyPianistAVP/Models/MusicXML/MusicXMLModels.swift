@@ -343,6 +343,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let dynamicsOverrideVelocity: UInt8?
     let articulations: Set<MusicXMLArticulation>
     let arpeggiate: MusicXMLArpeggiate?
+    let performanceNotations: [MusicXMLPerformanceNotation]
     let fingeringText: String?
     let dotCount: Int
 
@@ -371,6 +372,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         dynamicsOverrideVelocity: UInt8? = nil,
         articulations: Set<MusicXMLArticulation> = [],
         arpeggiate: MusicXMLArpeggiate? = nil,
+        performanceNotations: [MusicXMLPerformanceNotation] = [],
         fingeringText: String? = nil,
         dotCount: Int = 0
     ) {
@@ -398,6 +400,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         self.dynamicsOverrideVelocity = dynamicsOverrideVelocity
         self.articulations = articulations
         self.arpeggiate = arpeggiate
+        self.performanceNotations = performanceNotations
         self.fingeringText = fingeringText
         self.dotCount = dotCount
     }

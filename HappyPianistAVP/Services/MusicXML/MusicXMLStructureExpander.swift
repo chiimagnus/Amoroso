@@ -229,6 +229,7 @@ struct MusicXMLStructureExpander {
                         dynamicsOverrideVelocity: note.dynamicsOverrideVelocity,
                         articulations: note.articulations,
                         arpeggiate: note.arpeggiate,
+                        performanceNotations: note.performanceNotations,
                         fingeringText: note.fingeringText,
                         dotCount: note.dotCount
                     )

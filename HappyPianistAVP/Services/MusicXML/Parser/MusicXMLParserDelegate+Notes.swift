@@ -96,6 +96,47 @@ extension MusicXMLParserDelegate {
         return ticks > 0 ? ticks : nil
     }
 
+
+    func recordPerformanceNotation(elementName: String, attributes: [String: String]) {
+        guard state.isInNote else { return }
+        let rawElementToken = elementName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard rawElementToken.isEmpty == false else { return }
+        let kind = MusicXMLPerformanceNotationKind(rawValue: rawElementToken) ?? .other
+        let pending = MusicXMLParserDelegateState.PendingPerformanceNotation(
+            kind: kind,
+            rawElementToken: rawElementToken,
+            typeToken: normalizedNotationToken(attributes["type"]),
+            numberToken: normalizedNotationToken(attributes["number"]),
+            placementToken: normalizedNotationToken(attributes["placement"]),
+            textToken: nil,
+            attributes: attributes
+        )
+        state.notePerformanceNotations.append(pending)
+        state.currentPerformanceNotationIndexByElement[rawElementToken] = state.notePerformanceNotations.count - 1
+    }
+
+    func finalizePerformanceNotationText(elementName: String, text: String) {
+        let rawElementToken = elementName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard let index = state.currentPerformanceNotationIndexByElement.removeValue(forKey: rawElementToken),
+              state.notePerformanceNotations.indices.contains(index)
+        else {
+            return
+        }
+        let normalizedText = normalizedNotationToken(text)
+        state.notePerformanceNotations[index].textToken = normalizedText
+    }
+
+    func shouldRecordUnsupportedOrnament(elementName: String) -> Bool {
+        guard state.isInNote, state.isInNoteOrnaments else { return false }
+        let token = elementName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return token.isEmpty == false && token != "ornaments"
+    }
+
+    private func normalizedNotationToken(_ rawValue: String?) -> String? {
+        let token = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return token.isEmpty ? nil : token
+    }
+
     func finalizeNote() {
         let duration: Int
         if let rawDuration = state.noteDuration {
@@ -144,6 +185,22 @@ extension MusicXMLParserDelegate {
         )
         state.currentSourceNoteOrdinal += 1
 
+        let performanceNotations = state.notePerformanceNotations.enumerated().map { ordinal, pending in
+            MusicXMLPerformanceNotation(
+                sourceID: MusicXMLPerformanceNotationSourceID(
+                    sourceNoteID: sourceID,
+                    sourceOrdinal: ordinal
+                ),
+                kind: pending.kind,
+                rawElementToken: pending.rawElementToken,
+                typeToken: pending.typeToken,
+                numberToken: pending.numberToken,
+                placementToken: pending.placementToken,
+                textToken: pending.textToken,
+                attributes: pending.attributes
+            )
+        }
+
         state.notes.append(
             MusicXMLNoteEvent(
                 sourceID: sourceID,
@@ -169,6 +226,7 @@ extension MusicXMLParserDelegate {
                 dynamicsOverrideVelocity: state.noteDynamicsOverrideVelocity,
                 articulations: state.noteArticulations,
                 arpeggiate: state.noteArpeggiate,
+                performanceNotations: performanceNotations,
                 fingeringText: state.noteFingeringText,
                 dotCount: state.noteDotCount
             )

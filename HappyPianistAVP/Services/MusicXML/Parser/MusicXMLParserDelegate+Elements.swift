@@ -210,8 +210,23 @@ extension MusicXMLParserDelegate {
             state.noteArticulations = []
             state.noteHasFermata = false
             state.noteArpeggiate = nil
+            state.notePerformanceNotations = []
+            state.currentPerformanceNotationIndexByElement = [:]
+            state.isInNoteNotations = false
+            state.isInNoteOrnaments = false
             state.noteFingeringText = nil
             state.isInTechnical = false
+        case "notations":
+            if state.isInNote {
+                state.isInNoteNotations = true
+            }
+        case "ornaments":
+            if state.isInNote {
+                state.isInNoteOrnaments = true
+            }
+        case "slur", "trill-mark", "mordent", "inverted-mordent", "turn", "inverted-turn",
+             "tremolo", "glissando", "breath-mark", "caesura", "other-notation":
+            recordPerformanceNotation(elementName: elementName, attributes: attributeDict)
         case "technical":
             if state.isInNote {
                 state.isInTechnical = true
@@ -282,10 +297,14 @@ extension MusicXMLParserDelegate {
                     state.noteArticulations.insert(articulation)
                 }
             }
+            if shouldRecordUnsupportedOrnament(elementName: elementName) {
+                recordPerformanceNotation(elementName: elementName, attributes: attributeDict)
+            }
         }
     }
 
     func handleEndElement(_ elementName: String, text: String) {
+        finalizePerformanceNotationText(elementName: elementName, text: text)
         switch elementName {
         case "part-name" where state.currentScorePartMetadata != nil:
             state.currentScorePartMetadata?.name = normalizedMetadataToken(text)
@@ -474,6 +493,14 @@ extension MusicXMLParserDelegate {
             if state.isInNote {
                 state.isInNoteArticulations = false
             }
+        case "ornaments":
+            if state.isInNote {
+                state.isInNoteOrnaments = false
+            }
+        case "notations":
+            if state.isInNote {
+                state.isInNoteNotations = false
+            }
         case "step" where state.isInNote:
             state.noteStep = text
         case "alter" where state.isInNote:
@@ -567,6 +594,9 @@ extension MusicXMLParserDelegate {
             finalizeNote()
             state.isInNote = false
             state.isInTechnical = false
+            state.isInNoteNotations = false
+            state.isInNoteOrnaments = false
+            state.currentPerformanceNotationIndexByElement = [:]
         case "attributes":
             state.isInAttributes = false
             state.isInTime = false
