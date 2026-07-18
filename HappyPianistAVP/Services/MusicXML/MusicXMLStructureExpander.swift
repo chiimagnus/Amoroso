@@ -142,6 +142,8 @@ struct MusicXMLStructureExpander {
         var outputTimeSignatureEvents: [MusicXMLTimeSignatureEvent] = []
         var outputKeySignatureEvents: [MusicXMLKeySignatureEvent] = []
         var outputClefEvents: [MusicXMLClefEvent] = []
+        var outputTransposeEvents: [MusicXMLTransposeEvent] = []
+        var outputOctaveShiftEvents: [MusicXMLOctaveShiftEvent] = []
         var outputWordsEvents: [MusicXMLWordsEvent] = []
         var outputMeasures: [MusicXMLMeasureSpan] = []
 
@@ -155,6 +157,8 @@ struct MusicXMLStructureExpander {
         outputTimeSignatureEvents.reserveCapacity(original.timeSignatureEvents.count)
         outputKeySignatureEvents.reserveCapacity(original.keySignatureEvents.count)
         outputClefEvents.reserveCapacity(original.clefEvents.count)
+        outputTransposeEvents.reserveCapacity(original.transposeEvents.count)
+        outputOctaveShiftEvents.reserveCapacity(original.octaveShiftEvents.count)
         outputWordsEvents.reserveCapacity(original.wordsEvents.count)
         outputMeasures.reserveCapacity(sequence.count)
 
@@ -209,6 +213,7 @@ struct MusicXMLStructureExpander {
                 where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
             {
                 outputTempoEvents.append(MusicXMLTempoEvent(
+                    sourceID: event.sourceID,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
                     quarterBPM: event.quarterBPM,
                     scope: shiftedScope(event.scope, primaryPartID: primaryPartID)
@@ -224,6 +229,7 @@ struct MusicXMLStructureExpander {
                         continue
                     }
                     outputSoundDirectives.append(MusicXMLSoundDirective(
+                        sourceID: event.sourceID,
                         partID: primaryPartID,
                         measureNumber: outputMeasureNumber,
                         tick: currentMeasureStartTick + (event.tick - span.startTick),
@@ -245,6 +251,7 @@ struct MusicXMLStructureExpander {
                     continue
                 }
                 outputPedalEvents.append(MusicXMLPedalEvent(
+                    sourceID: event.sourceID,
                     partID: primaryPartID,
                     measureNumber: outputMeasureNumber,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
@@ -258,6 +265,7 @@ struct MusicXMLStructureExpander {
                 where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
             {
                 outputDynamicEvents.append(MusicXMLDynamicEvent(
+                    sourceID: event.sourceID,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
                     velocity: event.velocity,
                     scope: shiftedScope(event.scope, primaryPartID: primaryPartID),
@@ -268,6 +276,7 @@ struct MusicXMLStructureExpander {
                 where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
             {
                 outputWedgeEvents.append(MusicXMLWedgeEvent(
+                    sourceID: event.sourceID,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
                     kind: event.kind,
                     numberToken: event.numberToken,
@@ -278,6 +287,7 @@ struct MusicXMLStructureExpander {
                 where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
             {
                 outputFermataEvents.append(MusicXMLFermataEvent(
+                    sourceID: event.sourceID,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
                     scope: shiftedScope(event.scope, primaryPartID: primaryPartID),
                     source: event.source
@@ -314,10 +324,35 @@ struct MusicXMLStructureExpander {
                     scope: shiftedScope(event.scope, primaryPartID: primaryPartID)
                 ))
             }
+            for event in original.transposeEvents
+                where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
+            {
+                outputTransposeEvents.append(MusicXMLTransposeEvent(
+                    tick: currentMeasureStartTick + (event.tick - span.startTick),
+                    diatonic: event.diatonic,
+                    chromatic: event.chromatic,
+                    octaveChange: event.octaveChange,
+                    isDouble: event.isDouble,
+                    scope: shiftedScope(event.scope, primaryPartID: primaryPartID)
+                ))
+            }
+            for event in original.octaveShiftEvents
+                where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
+            {
+                outputOctaveShiftEvents.append(MusicXMLOctaveShiftEvent(
+                    sourceID: event.sourceID,
+                    tick: currentMeasureStartTick + (event.tick - span.startTick),
+                    kind: event.kind,
+                    size: event.size,
+                    numberToken: event.numberToken,
+                    scope: shiftedScope(event.scope, primaryPartID: primaryPartID)
+                ))
+            }
             for event in original.wordsEvents
                 where event.scope.partID == primaryPartID && event.tick >= span.startTick && event.tick < span.endTick
             {
                 outputWordsEvents.append(MusicXMLWordsEvent(
+                    sourceID: event.sourceID,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
                     text: event.text,
                     scope: shiftedScope(event.scope, primaryPartID: primaryPartID)
@@ -356,10 +391,13 @@ struct MusicXMLStructureExpander {
         outputTimeSignatureEvents.sort { $0.tick < $1.tick }
         outputKeySignatureEvents.sort { $0.tick < $1.tick }
         outputClefEvents.sort { $0.tick < $1.tick }
+        outputTransposeEvents.sort { $0.tick < $1.tick }
+        outputOctaveShiftEvents.sort { $0.tick < $1.tick }
         outputWordsEvents.sort { $0.tick < $1.tick }
 
         return MusicXMLScore(
             scoreVersion: original.scoreVersion,
+            partMetadata: original.partMetadata.filter { $0.partID == primaryPartID },
             notes: outputNotes,
             tempoEvents: outputTempoEvents,
             soundDirectives: outputSoundDirectives,
@@ -370,6 +408,8 @@ struct MusicXMLStructureExpander {
             timeSignatureEvents: outputTimeSignatureEvents,
             keySignatureEvents: outputKeySignatureEvents,
             clefEvents: outputClefEvents,
+            transposeEvents: outputTransposeEvents,
+            octaveShiftEvents: outputOctaveShiftEvents,
             wordsEvents: outputWordsEvents,
             measures: outputMeasures,
             repeatDirectives: [],
