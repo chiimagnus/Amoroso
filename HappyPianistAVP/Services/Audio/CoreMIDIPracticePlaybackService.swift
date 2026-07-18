@@ -1,6 +1,4 @@
-import CoreMIDI
 import Foundation
-import os
 
 @MainActor
 final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServiceProtocol {
@@ -15,7 +13,8 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
 
     private var loadedDurationSeconds: TimeInterval?
     private var loadedEvents: [PracticeSequencerMIDIEvent]?
-    private var scheduler: MIDIEventScheduler?
+    private var scheduler: MIDILookAheadScheduler?
+    private var schedulerTask: Task<Void, Never>?
 
     private var playingOneShotNotes: Set<UInt8> = []
     private var oneShotStopTask: Task<Void, Never>?
@@ -72,16 +71,16 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         playbackStartSeconds = startSeconds
         playbackStartedAtUptimeSeconds = ProcessInfo.processInfo.systemUptime
 
-        let scheduler = MIDIEventScheduler(
+        let scheduler = MIDILookAheadScheduler(
             outputService: outputService,
             destinationUniqueID: destinationUniqueID,
             channel: channel,
             outputCapabilities: outputCapabilities,
-            hostTimeConverter: hostTimeConverter
+            hostTimeConverter: hostTimeConverter,
+            diagnosticsReporter: diagnosticsReporter
         )
         self.scheduler = scheduler
-
-        scheduler.play(events: events, fromSeconds: startSeconds)
+        schedulerTask = scheduler.start(events: events, fromSeconds: startSeconds)
     }
 
     private func haltPlayback() {
@@ -93,7 +92,8 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
         playbackStartedAtUptimeSeconds = nil
 
-        scheduler?.stop()
+        schedulerTask?.cancel()
+        schedulerTask = nil
         scheduler = nil
 
         liveNotes.removeAll()
@@ -229,154 +229,5 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
             summary: "外部 MIDI 控制器值已按输出能力量化",
             reason: "approximationCount=\(count)"
         )
-    }
-}
-
-private final class MIDIEventScheduler: Sendable {
-    private struct State {
-        var generation = 0
-        var playTask: Task<Void, Never>?
-    }
-
-    private let outputService: any MIDIOutputSendingProtocol
-    private let destinationUniqueID: Int32
-    private let channel: UInt8
-    private let outputCapabilities: PerformanceOutputCapabilities
-    private let hostTimeConverter: MIDIHostTimeConverter
-    private let state = OSAllocatedUnfairLock(initialState: State())
-
-    init(
-        outputService: any MIDIOutputSendingProtocol,
-        destinationUniqueID: Int32,
-        channel: UInt8,
-        outputCapabilities: PerformanceOutputCapabilities,
-        hostTimeConverter: MIDIHostTimeConverter
-    ) {
-        self.outputService = outputService
-        self.destinationUniqueID = destinationUniqueID
-        self.channel = channel
-        self.outputCapabilities = outputCapabilities
-        self.hostTimeConverter = hostTimeConverter
-    }
-
-    func play(events: [PracticeSequencerMIDIEvent], fromSeconds startSeconds: TimeInterval) {
-        let eventsToPlay = events.filter { $0.timeSeconds >= startSeconds }
-        let generation = state.withLock { state in
-            state.playTask?.cancel()
-            state.generation += 1
-            return state.generation
-        }
-        let task = Task.detached(priority: .userInitiated) { [weak self] in
-            guard let self else { return }
-            let startedAt = ProcessInfo.processInfo.systemUptime
-            let hostTimeOrigin = hostTimeConverter.origin(atTransportSeconds: startSeconds)
-            var index = 0
-
-            while index < eventsToPlay.count, Task.isCancelled == false {
-                let event = eventsToPlay[index]
-                let targetUptime = startedAt + max(0, event.timeSeconds - startSeconds)
-                let now = ProcessInfo.processInfo.systemUptime
-                let wait = max(0, targetUptime - now)
-                if wait > 0 {
-                    try? await Task.sleep(for: .seconds(wait))
-                    guard Task.isCancelled == false else { break }
-                }
-
-                let hostTime = hostTimeConverter.hostTime(
-                    atTransportSeconds: event.timeSeconds,
-                    relativeTo: hostTimeOrigin
-                )
-                guard sendIfCurrent(event, hostTime: hostTime, generation: generation) else { break }
-                index += 1
-            }
-        }
-        state.withLock { state in
-            guard state.generation == generation else {
-                task.cancel()
-                return
-            }
-            state.playTask = task
-        }
-    }
-
-    func stop() {
-        let task = state.withLock { state in
-            state.generation += 1
-            defer { state.playTask = nil }
-            return state.playTask
-        }
-        task?.cancel()
-    }
-
-    private func sendIfCurrent(
-        _ event: PracticeSequencerMIDIEvent,
-        hostTime: MIDITimeStamp,
-        generation: Int
-    ) -> Bool {
-        state.withLock { state in
-            guard state.generation == generation else { return false }
-            do {
-                try Self.send(
-                    event: event,
-                    outputService: outputService,
-                    destinationUniqueID: destinationUniqueID,
-                    channel: channel,
-                    outputCapabilities: outputCapabilities,
-                    hostTime: hostTime
-                )
-            } catch {
-                // best-effort: ignore individual send failures
-            }
-            return true
-        }
-    }
-
-    private static func send(
-        event: PracticeSequencerMIDIEvent,
-        outputService: any MIDIOutputSendingProtocol,
-        destinationUniqueID: Int32,
-        channel: UInt8,
-        outputCapabilities: PerformanceOutputCapabilities,
-        hostTime: MIDITimeStamp
-    ) throws {
-        guard let bytes = messageBytes(
-            for: event,
-            channel: channel,
-            outputCapabilities: outputCapabilities
-        ) else { return }
-        try outputService.sendMIDI1Messages(
-            [TimestampedMIDI1Message(hostTime: hostTime, bytes: bytes)],
-            destinationUniqueID: destinationUniqueID
-        )
-    }
-
-    private static func messageBytes(
-        for event: PracticeSequencerMIDIEvent,
-        channel: UInt8,
-        outputCapabilities: PerformanceOutputCapabilities
-    ) -> [UInt8]? {
-        let statusChannel = channel & 0x0F
-        switch event.kind {
-        case let .noteOn(midi, velocity):
-            guard let note = UInt8(exactly: midi) else { return nil }
-            return [0x90 | statusChannel, note, velocity]
-        case let .noteOff(midi):
-            guard let note = UInt8(exactly: midi) else { return nil }
-            return [0x80 | statusChannel, note, 0]
-        case let .controlChange(controller, value):
-            let resolution = outputCapabilities.resolve(controllerNumber: controller, value: value)
-            return [0xB0 | statusChannel, controller, resolution.value]
-        case let .programChange(program):
-            return [0xC0 | statusChannel, program]
-        case let .pitchBend(value):
-            let lsb = UInt8(value & 0x7F)
-            let msb = UInt8((value >> 7) & 0x7F)
-            return [0xE0 | statusChannel, lsb, msb]
-        case let .channelPressure(value):
-            return [0xD0 | statusChannel, value]
-        case let .polyPressure(midi, value):
-            guard let note = UInt8(exactly: midi) else { return nil }
-            return [0xA0 | statusChannel, note, value]
-        }
     }
 }

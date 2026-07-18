@@ -201,6 +201,98 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
             playback.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         }
     }
+
+    @Test func lookAheadSchedulerKeepsStableOrderAcrossBatchBoundary() async {
+        let output = FakeMIDIOutputService()
+        let clock = FakeMIDILookAheadClock()
+        let scheduler = MIDILookAheadScheduler(
+            outputService: output,
+            destinationUniqueID: 111,
+            channel: 0,
+            outputCapabilities: .externalMIDI,
+            hostTimeConverter: MIDIHostTimeConverter(
+                currentHostTime: { 10_000 },
+                hostTicksPerSecond: 1_000
+            ),
+            clock: clock,
+            configuration: MIDILookAheadConfiguration(horizonSeconds: 0.1, refillIntervalSeconds: 0.025)
+        )
+        let task = scheduler.start(events: [
+            PracticeSequencerMIDIEvent(timeSeconds: 0.05, kind: .noteOn(midi: 60, velocity: 80)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.1, kind: .controlChange(controller: 64, value: 90)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.1, kind: .noteOn(midi: 62, velocity: 81)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.101, kind: .noteOff(midi: 60)),
+        ], fromSeconds: 0)
+
+        #expect(await waitUntil { output.batchesSnapshot().count == 1 && clock.sleepingCount == 1 })
+        #expect(output.batchesSnapshot()[0].map(\.bytes) == [
+            [0x90, 60, 80],
+            [0xB0, 64, 90],
+            [0x90, 62, 81],
+        ])
+        #expect(output.batchesSnapshot()[0].map(\.hostTime) == [10_050, 10_100, 10_100])
+
+        clock.advance(by: 0.001)
+        #expect(await waitUntil { output.batchesSnapshot().count == 2 })
+        await task.value
+        #expect(output.batchesSnapshot()[1] == [
+            TimestampedMIDI1Message(hostTime: 10_101, bytes: [0x80, 60, 0]),
+        ])
+    }
+
+    @Test func lookAheadSchedulerClampsLateEventToCurrentTransportTime() async {
+        let output = FakeMIDIOutputService()
+        let clock = FakeMIDILookAheadClock()
+        let scheduler = MIDILookAheadScheduler(
+            outputService: output,
+            destinationUniqueID: 222,
+            channel: 0,
+            outputCapabilities: .externalMIDI,
+            hostTimeConverter: MIDIHostTimeConverter(
+                currentHostTime: { 20_000 },
+                hostTicksPerSecond: 1_000
+            ),
+            clock: clock,
+            configuration: MIDILookAheadConfiguration(horizonSeconds: 0.1, refillIntervalSeconds: 0.025)
+        )
+        let task = scheduler.start(events: [
+            PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 60, velocity: 80)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOn(midi: 62, velocity: 81)),
+        ], fromSeconds: 0)
+
+        #expect(await waitUntil { output.batchesSnapshot().count == 1 && clock.sleepingCount == 1 })
+        clock.advance(by: 0.25)
+        #expect(await waitUntil { output.batchesSnapshot().count == 2 })
+        await task.value
+        #expect(output.batchesSnapshot()[1].first?.hostTime == 20_250)
+    }
+
+    @Test func cancellingLookAheadSchedulerPreventsUnsubmittedBatches() async {
+        let output = FakeMIDIOutputService()
+        let clock = FakeMIDILookAheadClock()
+        let scheduler = MIDILookAheadScheduler(
+            outputService: output,
+            destinationUniqueID: 333,
+            channel: 0,
+            outputCapabilities: .externalMIDI,
+            hostTimeConverter: MIDIHostTimeConverter(
+                currentHostTime: { 30_000 },
+                hostTicksPerSecond: 1_000
+            ),
+            clock: clock,
+            configuration: MIDILookAheadConfiguration(horizonSeconds: 0.1, refillIntervalSeconds: 0.025)
+        )
+        let task = scheduler.start(events: [
+            PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 60, velocity: 80)),
+            PracticeSequencerMIDIEvent(timeSeconds: 1, kind: .noteOff(midi: 60)),
+        ], fromSeconds: 0)
+
+        #expect(await waitUntil { output.batchesSnapshot().count == 1 && clock.sleepingCount == 1 })
+        task.cancel()
+        await task.value
+        clock.advance(by: 2)
+        #expect(output.batchesSnapshot().count == 1)
+    }
 }
 
 private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked Sendable {
@@ -215,9 +307,14 @@ private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked
     }
 
     private let lock = OSAllocatedUnfairLock(initialState: [Call]())
+    private let batchesLock = OSAllocatedUnfairLock(initialState: [[TimestampedMIDI1Message]]())
 
     func callsSnapshot() -> [Call] {
         lock.withLock { $0 }
+    }
+
+    func batchesSnapshot() -> [[TimestampedMIDI1Message]] {
+        batchesLock.withLock { $0 }
     }
 
     func start() throws {
@@ -233,6 +330,7 @@ private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked
     }
 
     func sendMIDI1Messages(_ messages: [TimestampedMIDI1Message], destinationUniqueID: Int32) throws {
+        batchesLock.withLock { $0.append(messages) }
         lock.withLock { calls in
             calls.append(contentsOf: messages.map { .bytes($0.bytes, destination: destinationUniqueID) })
         }
@@ -261,4 +359,72 @@ private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked
     func sendAllSoundOff(channel: UInt8, destinationUniqueID: Int32) throws {
         try sendControlChange(controller: 120, value: 0, channel: channel, destinationUniqueID: destinationUniqueID)
     }
+}
+
+private final class FakeMIDILookAheadClock: MIDILookAheadClock, @unchecked Sendable {
+    private struct Sleeper {
+        let deadlineSeconds: TimeInterval
+        let continuation: CheckedContinuation<Void, any Error>
+    }
+
+    private struct State {
+        var nowSeconds: TimeInterval = 0
+        var sleepers: [UUID: Sleeper] = [:]
+    }
+
+    private let lock = OSAllocatedUnfairLock(initialState: State())
+
+    var sleepingCount: Int {
+        lock.withLock { $0.sleepers.count }
+    }
+
+    func nowSeconds() -> TimeInterval {
+        lock.withLock { $0.nowSeconds }
+    }
+
+    func sleep(for seconds: TimeInterval) async throws {
+        let id = UUID()
+        let deadlineSeconds = nowSeconds() + max(0, seconds)
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                let isCancelled = lock.withLock { state in
+                    guard Task.isCancelled == false else { return true }
+                    state.sleepers[id] = Sleeper(
+                        deadlineSeconds: deadlineSeconds,
+                        continuation: continuation
+                    )
+                    return false
+                }
+                if isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                }
+            }
+        } onCancel: {
+            let continuation = self.lock.withLock { state in
+                state.sleepers.removeValue(forKey: id)?.continuation
+            }
+            continuation?.resume(throwing: CancellationError())
+        }
+    }
+
+    func advance(by seconds: TimeInterval) {
+        let continuations = lock.withLock { state -> [CheckedContinuation<Void, any Error>] in
+            state.nowSeconds += max(0, seconds)
+            let readyIDs = state.sleepers.compactMap { id, sleeper in
+                sleeper.deadlineSeconds <= state.nowSeconds ? id : nil
+            }
+            return readyIDs.compactMap { state.sleepers.removeValue(forKey: $0)?.continuation }
+        }
+        for continuation in continuations {
+            continuation.resume()
+        }
+    }
+}
+
+private func waitUntil(_ condition: @escaping @Sendable () -> Bool) async -> Bool {
+    for _ in 0 ..< 1_000 {
+        if condition() { return true }
+        await Task.yield()
+    }
+    return condition()
 }
