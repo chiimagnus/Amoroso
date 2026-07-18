@@ -454,9 +454,9 @@ note-span builder 会扩展 offTick，autoplay timeline 还可能在下一 step 
 
 **严重度：P1｜证据：代码确认**
 
-words interpreter 主要识别 rit / ritardando、accel / accelerando、a tempo 和有限 pedal 文字。rallentando、ritenuto、stringendo、rubato、meno/più mosso、tempo primo 等未形成契约。
+words interpreter 已用受控词表覆盖 ritardando、rallentando、accelerando、stringendo、a tempo、tempo primo、doppio 和 meno mosso，并保留原文与推导来源。ritenuto、rubato、più mosso 等仍未形成契约。
 
-还需验证 `easeInOut` tempo ramp 是否真的产生足够中间控制点；只有端点时，积分结果可能仍接近线性。
+tempo ramp 仅在存在明确 anchor 与 target 时生成，并统一使用 tick-domain 的线性 BPM 查询与积分；无法确定目标时只保留 annotation 和 approximation。
 
 验收：文字语义必须保留原文和推导来源；推导失败时不静默伪造。常见词表按目标曲库增加，不做无限自然语言解析。
 
