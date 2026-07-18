@@ -103,24 +103,41 @@ struct AutoplayPerformanceTimeline: Equatable {
             ))
         }
 
-        for note in plan.noteEvents where practiceHandMode.allows(hand: note.handAssignment.hand) {
-            guard activeRange?.contains(tick: note.performedOnTick) ?? true else { continue }
-            let offTick = max(
-                note.performedOnTick + 1,
-                activeRange.map { min(note.performedOffTick, $0.tickRange.upperBound) } ?? note.performedOffTick
+        let transportNotes = plan.noteEvents.compactMap { note -> PerformanceTransportReducer.Note? in
+            guard practiceHandMode.allows(hand: note.handAssignment.hand),
+                  activeRange?.contains(tick: note.performedOnTick) ?? true
+            else {
+                return nil
+            }
+            return PerformanceTransportReducer.Note(
+                eventID: note.id,
+                midiNote: note.midiNote,
+                velocity: note.velocity,
+                onTick: note.performedOnTick,
+                offTick: max(
+                    note.performedOnTick + 1,
+                    activeRange.map { min(note.performedOffTick, $0.tickRange.upperBound) }
+                        ?? note.performedOffTick
+                )
             )
-            let sourceEventID = note.id.description
+        }
+        let transport = PerformanceTransportReducer().reduce(notes: transportNotes)
+        for command in transport.commands {
+            let kind: EventKind
+            let priority: Int
+            switch command.kind {
+            case .noteOff:
+                kind = .noteOff(midi: command.midiNote)
+                priority = 1
+            case let .noteOn(velocity):
+                kind = .noteOn(midi: command.midiNote, velocity: velocity)
+                priority = 3
+            }
             rawEvents.append(RawEvent(
-                tick: note.performedOnTick,
-                priority: 3,
-                sourceEventID: sourceEventID,
-                kind: .noteOn(midi: note.midiNote, velocity: note.velocity)
-            ))
-            rawEvents.append(RawEvent(
-                tick: offTick,
-                priority: 1,
-                sourceEventID: sourceEventID,
-                kind: .noteOff(midi: note.midiNote)
+                tick: command.tick,
+                priority: priority,
+                sourceEventID: command.eventID.description,
+                kind: kind
             ))
         }
 

@@ -57,21 +57,67 @@ func autoplayTimelinePreservesSamePitchPlanEventsAndIdentities() {
 }
 
 @Test
-func autoplayTimelineDoesNotRewriteOverlappingSamePitchPlanTiming() {
-    let plan = makeTimelinePlan(notes: [
-        TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 480),
-        TestScorePerformanceNote(midiNote: 60, velocity: 88, onTick: 240, offTick: 720),
-    ])
+func autoplayTimelineRetriggersOverlappingSamePitchWhileSustainIsDown() {
+    let plan = makeTimelinePlan(
+        notes: [
+            TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 480),
+            TestScorePerformanceNote(midiNote: 60, velocity: 88, onTick: 240, offTick: 720),
+        ],
+        controllerEvents: [timelineController(sourceID: directionID(ordinal: 8), tick: 0, value: 127)]
+    )
 
     let midiEvents = makeTimeline(plan: plan).events.compactMap { event -> String? in
         switch event.kind {
+        case let .controlChange(controller, value): "cc:\(controller):\(value)@\(event.tick)"
         case let .noteOn(midi, _): "on:\(midi)@\(event.tick)"
         case let .noteOff(midi): "off:\(midi)@\(event.tick)"
         default: nil
         }
     }
 
-    #expect(midiEvents == ["on:60@0", "on:60@240", "off:60@480", "off:60@720"])
+    #expect(midiEvents == ["cc:64:127@0", "on:60@0", "off:60@240", "on:60@240", "off:60@720"])
+}
+
+@Test
+func autoplayTimelineKeepsZeroGapRepeatInOffThenOnOrder() {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 240),
+        TestScorePerformanceNote(midiNote: 60, velocity: 88, onTick: 240, offTick: 480),
+    ])
+
+    let eventsAtRetrigger = makeTimeline(plan: plan).events.filter { $0.tick == 240 }
+
+    #expect(eventsAtRetrigger.map(\.kind) == [
+        .noteOff(midi: 60),
+        .noteOn(midi: 60, velocity: 88),
+    ])
+    #expect(eventsAtRetrigger.map(\.sourceEventID) == [
+        plan.noteEvents[0].id.description,
+        plan.noteEvents[1].id.description,
+    ])
+}
+
+@Test
+func transportReducerReportsStaleOffPreventionForRetrigger() {
+    let plan = makeTimelinePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 480),
+        TestScorePerformanceNote(midiNote: 60, velocity: 88, onTick: 240, offTick: 720),
+    ])
+    let notes = plan.noteEvents.map {
+        PerformanceTransportReducer.Note(
+            eventID: $0.id,
+            midiNote: $0.midiNote,
+            velocity: $0.velocity,
+            onTick: $0.performedOnTick,
+            offTick: $0.performedOffTick
+        )
+    }
+
+    let reduction = PerformanceTransportReducer().reduce(notes: notes)
+
+    #expect(reduction.retriggeredEventCount == 1)
+    #expect(reduction.preventedStaleOffCount == 1)
+    #expect(reduction.orphanOffCount == 0)
 }
 
 @Test
