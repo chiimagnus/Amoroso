@@ -12,7 +12,7 @@ struct MusicXMLHandRoutingResult: Equatable, Sendable {
 struct MusicXMLHandRouter {
     private let minimumRegisterSpan = 12
     private let minimumSplitGap = 5
-    private let uncertaintyRadius = 2
+    private let uncertaintyRadius = 1
 
     func assignments(for score: MusicXMLScore) -> MusicXMLHandRoutingResult {
         let pitchedNotes = score.notes.filter { note in
@@ -31,7 +31,8 @@ struct MusicXMLHandRouter {
         guard let lowest = uniquePitches.first,
               let highest = uniquePitches.last,
               highest - lowest >= minimumRegisterSpan,
-              let split = clearestSplit(in: uniquePitches)
+              let split = clearestSplit(in: uniquePitches),
+              let uncertaintyBoundary = centralBoundary(in: uniquePitches)
         else {
             return MusicXMLHandRoutingResult(assignmentsBySourceNoteID: [:])
         }
@@ -40,12 +41,14 @@ struct MusicXMLHandRouter {
         assignments.reserveCapacity(pitchedNotes.count)
         for note in pitchedNotes {
             guard let sourceID = note.sourceID, let midiNote = note.midiNote else { continue }
-            let distance = abs(Double(midiNote) - split.boundary)
-            guard distance > Double(uncertaintyRadius) else {
+            // ponytail: keep the score's central pitches unknown until explicit fingering evidence exists.
+            let uncertaintyDistance = abs(Double(midiNote) - uncertaintyBoundary)
+            guard uncertaintyDistance > Double(uncertaintyRadius) else {
                 assignments[sourceID] = .unknown
                 continue
             }
             let hand: ScoreHand = Double(midiNote) < split.boundary ? .left : .right
+            let distance = abs(Double(midiNote) - split.boundary)
             let confidence = min(0.98, 0.55 + distance / 24)
             assignments[sourceID] = ScoreHandAssignment(
                 hand: hand,
@@ -68,5 +71,12 @@ struct MusicXMLHandRouter {
         }), best.gap >= minimumSplitGap
         else { return nil }
         return (boundary: Double(best.lower + best.upper) / 2, gap: best.gap)
+    }
+
+    private func centralBoundary(in pitches: [Int]) -> Double? {
+        guard pitches.isEmpty == false else { return nil }
+        let middle = pitches.count / 2
+        guard pitches.count.isMultiple(of: 2) else { return Double(pitches[middle]) }
+        return Double(pitches[middle - 1] + pitches[middle]) / 2
     }
 }
