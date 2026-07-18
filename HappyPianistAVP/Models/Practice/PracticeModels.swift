@@ -11,7 +11,7 @@ enum ScoreHand: String, CaseIterable, Codable, Sendable {
     case unknown
 }
 
-enum PracticeHandMode: String, CaseIterable, Identifiable, Codable {
+enum PracticeHandMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case both
     case right
     case left

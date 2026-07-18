@@ -923,7 +923,7 @@ func resetSessionClearsCurrentHighlightGuide() async {
 
 @Test
 @MainActor
-func clearPreparedSongRemovesSongStateAndPreservesCalibration() throws {
+func clearPreparedSongRemovesSongStateAndPreservesCalibration() async throws {
     let viewModel = makePracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
@@ -953,6 +953,7 @@ func clearPreparedSongRemovesSongStateAndPreservesCalibration() throws {
     viewModel.sessionProgress = SongPracticeProgress(identity: identity, updatedAt: .now)
 
     viewModel.clearPreparedSong()
+    await settleTaskQueue()
 
     #expect(viewModel.songIdentity == nil)
     #expect(viewModel.steps.isEmpty)

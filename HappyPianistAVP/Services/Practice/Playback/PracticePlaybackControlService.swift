@@ -146,26 +146,31 @@ final class PracticePlaybackControlService {
         transportState = transition.state
         let generation = transportState.generation
 
-        stateStore.autoplayTimeline = AutoplayPerformanceTimeline.build(
-            plan: performancePlan,
-            guideProjection: stateStore.highlightGuides,
-            stepProjection: stateStore.steps,
-            tempoMap: stateStore.tempoMap,
-            practiceHandMode: stateStore.activeRoundConfiguration?.handMode ?? .both,
-            activeRange: stateStore.activeRange,
-            transportStartTick: timingBaseTick
-        )
-        stateStore.autoplayTimeline.recordTransportDiagnostics(
-            using: diagnosticsReporter,
-            stage: "autoplay.timeline"
-        )
-        let timelineSnapshot = stateStore.autoplayTimeline
+        let guideProjectionSnapshot = stateStore.highlightGuides
+        let stepProjectionSnapshot = stateStore.steps
         let tempoMapSnapshot = stateStore.tempoMap
+        let handModeSnapshot = stateStore.activeRoundConfiguration?.handMode ?? .both
+        let activeRangeSnapshot = stateStore.activeRange
         stateStore.autoplayTimingBaseTick = timingBaseTick
         stateStore.notationGuideScrollScheduleTaskGeneration = -1
 
         autoplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            let timelineSnapshot = await AutoplayPerformanceTimeline.buildOffMain(
+                plan: performancePlan,
+                guideProjection: guideProjectionSnapshot,
+                stepProjection: stepProjectionSnapshot,
+                tempoMap: tempoMapSnapshot,
+                practiceHandMode: handModeSnapshot,
+                activeRange: activeRangeSnapshot,
+                transportStartTick: timingBaseTick
+            )
+            guard Task.isCancelled == false, autoplayTaskGeneration == generation else { return }
+            stateStore.autoplayTimeline = timelineSnapshot
+            timelineSnapshot.recordTransportDiagnostics(
+                using: diagnosticsReporter,
+                stage: "autoplay.timeline"
+            )
             do {
                 try await runAutoplayTask(
                     generation: generation,

@@ -14,6 +14,7 @@ extension PracticeSessionViewModel {
     }
 
     func rebuildAutoplayTimeline() {
+        cancelAutoplayTimelineBuild()
         guard
             self.stateStore.isActiveRangeInvalid == false,
             let performancePlan = self.performancePlan
@@ -22,14 +23,35 @@ extension PracticeSessionViewModel {
             return
         }
 
-        self.autoplayTimeline = AutoplayPerformanceTimeline.build(
-            plan: performancePlan,
-            guideProjection: self.highlightGuides,
-            stepProjection: self.steps,
-            tempoMap: self.tempoMap,
-            practiceHandMode: self.practiceHandMode,
-            activeRange: self.activeRange
-        )
+        self.autoplayTimeline = .empty
+        let generation = autoplayTimelineBuildGeneration
+        let guideProjection = self.highlightGuides
+        let stepProjection = self.steps
+        let tempoMap = self.tempoMap
+        let handMode = self.practiceHandMode
+        let activeRange = self.activeRange
+        autoplayTimelineBuildTask = Task { @MainActor [weak self] in
+            let timeline = await AutoplayPerformanceTimeline.buildOffMain(
+                plan: performancePlan,
+                guideProjection: guideProjection,
+                stepProjection: stepProjection,
+                tempoMap: tempoMap,
+                practiceHandMode: handMode,
+                activeRange: activeRange
+            )
+            guard let self,
+                  Task.isCancelled == false,
+                  self.autoplayTimelineBuildGeneration == generation
+            else { return }
+            self.autoplayTimeline = timeline
+            self.autoplayTimelineBuildTask = nil
+        }
+    }
+
+    func cancelAutoplayTimelineBuild() {
+        autoplayTimelineBuildGeneration &+= 1
+        autoplayTimelineBuildTask?.cancel()
+        autoplayTimelineBuildTask = nil
     }
 
     func startManualReplay(with plan: ManualReplayPlan) {

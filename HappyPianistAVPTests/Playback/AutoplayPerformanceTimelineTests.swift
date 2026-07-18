@@ -676,6 +676,46 @@ func autoplayPerformanceSnapshotPreservesSourceIdentityAndSortedPositions() {
     )
 }
 
+@Test
+@MainActor
+func offMainTimelineBuildMatchesCanonicalSynchronousProjection() async throws {
+    let activeRange = try timelineActiveRange(startTick: 480, endTick: 960)
+    let plan = makeTimelinePlan(
+        notes: [
+            TestScorePerformanceNote(midiNote: 60, onTick: 0, offTick: 720),
+            TestScorePerformanceNote(midiNote: 64, onTick: 480, offTick: 960),
+        ],
+        controllerEvents: [timelineController(sourceID: directionID(ordinal: 20), tick: 0, value: 96)]
+    )
+    let guides = [makeTimelineGuide(id: 1, tick: 480)]
+    let steps = [PracticeStep(
+        tick: 480,
+        notes: [PracticeStepNote(midiNote: 64, staff: 1, handAssignment: .unknown)]
+    )]
+    let tempoMap = MusicXMLTempoMap(tempoEvents: [])
+    let expected = AutoplayPerformanceTimeline.build(
+        plan: plan,
+        guideProjection: guides,
+        stepProjection: steps,
+        tempoMap: tempoMap,
+        practiceHandMode: .both,
+        activeRange: activeRange,
+        transportStartTick: 480
+    )
+
+    let actual = await AutoplayPerformanceTimeline.buildOffMain(
+        plan: plan,
+        guideProjection: guides,
+        stepProjection: steps,
+        tempoMap: tempoMap,
+        practiceHandMode: .both,
+        activeRange: activeRange,
+        transportStartTick: 480
+    )
+
+    #expect(actual == expected)
+}
+
 private func makeTimelinePlan(
     notes: [TestScorePerformanceNote],
     tempoEvents: [ScorePerformanceTempoEvent] = [],

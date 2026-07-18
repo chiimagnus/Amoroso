@@ -539,6 +539,7 @@ extension PracticeSessionViewModel {
     }
 
     func clearPreparedSong() {
+        cancelAutoplayTimelineBuild()
         stopManualReplayTask()
         stopAutoplayTask()
         stopAudioRecognition()

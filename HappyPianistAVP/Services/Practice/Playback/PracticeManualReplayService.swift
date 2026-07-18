@@ -63,23 +63,12 @@ final class PracticeManualReplayService {
         let stepRangeSnapshot = effectiveStepRange
         let stepsSnapshot = stateStore.steps
         let tempoMapSnapshot = stateStore.tempoMap
+        let handModeSnapshot = stateStore.activeRoundConfiguration?.handMode ?? .both
+        let activeRangeSnapshot = stateStore.activeRange
         let startTick = stepsSnapshot[startIndex].tick
         let endTick = stepsSnapshot.indices.contains(stepRangeSnapshot.upperBound)
             ? stepsSnapshot[stepRangeSnapshot.upperBound].tick
             : stateStore.activeRange?.tickRange.upperBound
-        let timelineSnapshot = AutoplayPerformanceTimeline.build(
-            plan: performancePlan,
-            guideProjection: [],
-            stepProjection: [],
-            tempoMap: tempoMapSnapshot,
-            practiceHandMode: stateStore.activeRoundConfiguration?.handMode ?? .both,
-            activeRange: stateStore.activeRange,
-            transportStartTick: startTick
-        )
-        timelineSnapshot.recordTransportDiagnostics(
-            using: diagnosticsReporter,
-            stage: "manualReplay.timeline"
-        )
         let leadInSeconds: TimeInterval = 0.05
 
         stateStore.isManualReplayPlaying = true
@@ -105,6 +94,21 @@ final class PracticeManualReplayService {
                     stateStore.shouldResumeAudioRecognitionAfterManualReplay = false
                 }
             }
+
+            let timelineSnapshot = await AutoplayPerformanceTimeline.buildOffMain(
+                plan: performancePlan,
+                guideProjection: [],
+                stepProjection: [],
+                tempoMap: tempoMapSnapshot,
+                practiceHandMode: handModeSnapshot,
+                activeRange: activeRangeSnapshot,
+                transportStartTick: startTick
+            )
+            guard Task.isCancelled == false, stateStore.manualReplayGeneration == generation else { return }
+            timelineSnapshot.recordTransportDiagnostics(
+                using: diagnosticsReporter,
+                stage: "manualReplay.timeline"
+            )
 
             do {
                 try sequencerPlaybackService.warmUp()

@@ -50,6 +50,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     private(set) var guidingStartIsBlocked = false
     var lastProgressRestoreOutcome: PracticeProgressRestoreOutcome = .none
     @ObservationIgnored private var sessionRecorderEventTask: Task<Void, Never>?
+    @ObservationIgnored var autoplayTimelineBuildTask: Task<Void, Never>?
+    @ObservationIgnored var autoplayTimelineBuildGeneration = 0
 
     var practiceHandMode: PracticeHandMode {
         stateStore.activeRoundConfiguration?.handMode ?? .both
@@ -168,6 +170,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         guard hasShutdown == false else { return }
         hasShutdown = true
 
+        cancelAutoplayTimelineBuild()
         stopManualReplayTask(restoreAudioRecognition: false)
         playbackControlService?.shutdown()
         handle(effect: .stopAudioRecognition)

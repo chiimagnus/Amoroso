@@ -1,7 +1,7 @@
 import Foundation
 
-struct AutoplayPerformanceTimeline: Equatable {
-    struct TransportMetrics: Equatable {
+struct AutoplayPerformanceTimeline: Equatable, Sendable {
+    struct TransportMetrics: Equatable, Sendable {
         static let empty = TransportMetrics(
             retriggeredEventCount: 0,
             preventedStaleOffCount: 0,
@@ -13,7 +13,7 @@ struct AutoplayPerformanceTimeline: Equatable {
         let orphanOffCount: Int
     }
 
-    enum EventKind: Equatable {
+    enum EventKind: Equatable, Sendable {
         case pauseSeconds(TimeInterval)
         case noteOff(midi: Int)
         case controlChange(controller: UInt8, value: UInt8)
@@ -23,7 +23,7 @@ struct AutoplayPerformanceTimeline: Equatable {
         case advanceGuide(index: Int, guideID: Int)
     }
 
-    struct Event: Equatable, Identifiable {
+    struct Event: Equatable, Identifiable, Sendable {
         let id: Int
         let sourceEventID: String?
         let tick: Int
@@ -43,6 +43,40 @@ struct AutoplayPerformanceTimeline: Equatable {
         let priority: Int
         let sourceEventID: String?
         let kind: EventKind
+    }
+
+    private struct BuildGuide: Sendable {
+        let index: Int
+        let id: Int
+        let tick: Int
+    }
+
+    private struct BuildStep: Sendable {
+        let index: Int
+        let tick: Int
+    }
+
+    private struct ActiveRangeSnapshot: Sendable {
+        let stepRange: Range<Int>
+        let tickRange: Range<Int>
+
+        func contains(stepIndex: Int) -> Bool {
+            stepRange.contains(stepIndex)
+        }
+
+        func contains(tick: Int) -> Bool {
+            tickRange.contains(tick)
+        }
+    }
+
+    private struct BuildInput: Sendable {
+        let plan: ScorePerformancePlan
+        let guides: [BuildGuide]
+        let steps: [BuildStep]
+        let tempoMap: MusicXMLTempoMap
+        let practiceHandMode: PracticeHandMode
+        let activeRange: ActiveRangeSnapshot?
+        let transportStartTick: Int?
     }
 
     static let empty = AutoplayPerformanceTimeline(events: [])
@@ -84,31 +118,105 @@ struct AutoplayPerformanceTimeline: Equatable {
         activeRange: PracticeActiveRange? = nil,
         transportStartTick: Int? = nil
     ) -> AutoplayPerformanceTimeline {
+        build(input: makeBuildInput(
+            plan: plan,
+            guideProjection: guideProjection,
+            stepProjection: stepProjection,
+            tempoMap: tempoMap,
+            practiceHandMode: practiceHandMode,
+            activeRange: activeRange,
+            transportStartTick: transportStartTick
+        ))
+    }
+
+    @MainActor
+    static func buildOffMain(
+        plan: ScorePerformancePlan,
+        guideProjection: [PianoHighlightGuide],
+        stepProjection: [PracticeStep],
+        tempoMap: MusicXMLTempoMap,
+        practiceHandMode: PracticeHandMode,
+        activeRange: PracticeActiveRange? = nil,
+        transportStartTick: Int? = nil
+    ) async -> AutoplayPerformanceTimeline {
+        let input = makeBuildInput(
+            plan: plan,
+            guideProjection: guideProjection,
+            stepProjection: stepProjection,
+            tempoMap: tempoMap,
+            practiceHandMode: practiceHandMode,
+            activeRange: activeRange,
+            transportStartTick: transportStartTick
+        )
+        let task = Task.detached(priority: .userInitiated) {
+            build(input: input)
+        }
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    private static func makeBuildInput(
+        plan: ScorePerformancePlan,
+        guideProjection: [PianoHighlightGuide],
+        stepProjection: [PracticeStep],
+        tempoMap: MusicXMLTempoMap,
+        practiceHandMode: PracticeHandMode,
+        activeRange: PracticeActiveRange?,
+        transportStartTick: Int?
+    ) -> BuildInput {
+        BuildInput(
+            plan: plan,
+            guides: guideProjection.enumerated().map { index, guide in
+                BuildGuide(index: index, id: guide.id, tick: guide.tick)
+            },
+            steps: stepProjection.enumerated().map { index, step in
+                BuildStep(index: index, tick: step.tick)
+            },
+            tempoMap: tempoMap,
+            practiceHandMode: practiceHandMode,
+            activeRange: activeRange.map {
+                ActiveRangeSnapshot(stepRange: $0.stepRange, tickRange: $0.tickRange)
+            },
+            transportStartTick: transportStartTick
+        )
+    }
+
+    private static func build(input: BuildInput) -> AutoplayPerformanceTimeline {
+        let plan = input.plan
+        let guideProjection = input.guides
+        let stepProjection = input.steps
+        let tempoMap = input.tempoMap
+        let practiceHandMode = input.practiceHandMode
+        let activeRange = input.activeRange
+        let transportStartTick = input.transportStartTick
         var rawEvents: [RawEvent] = []
         rawEvents.reserveCapacity(
             plan.noteEvents.count * 2 + plan.controllerEvents.count + plan.tempoEvents.count
                 + guideProjection.count + stepProjection.count + plan.annotations.count
         )
 
-        for (index, guide) in guideProjection.enumerated()
+        for guide in guideProjection
             where activeRange?.contains(tick: guide.tick) ?? true
         {
             rawEvents.append(RawEvent(
                 tick: guide.tick,
                 priority: 5,
                 sourceEventID: nil,
-                kind: .advanceGuide(index: index, guideID: guide.id)
+                kind: .advanceGuide(index: guide.index, guideID: guide.id)
             ))
         }
 
-        for (index, step) in stepProjection.enumerated()
-            where activeRange?.contains(stepIndex: index) ?? true
+        for step in stepProjection
+            where activeRange?.contains(stepIndex: step.index) ?? true
         {
             rawEvents.append(RawEvent(
                 tick: step.tick,
                 priority: 4,
                 sourceEventID: nil,
-                kind: .advanceStep(index: index)
+                kind: .advanceStep(index: step.index)
             ))
         }
 
@@ -260,7 +368,7 @@ struct AutoplayPerformanceTimeline: Equatable {
         )
     }
 
-    private static func containsAnnotationTick(_ tick: Int, activeRange: PracticeActiveRange?) -> Bool {
+    private static func containsAnnotationTick(_ tick: Int, activeRange: ActiveRangeSnapshot?) -> Bool {
         guard let activeRange else { return true }
         return tick >= activeRange.tickRange.lowerBound && tick <= activeRange.tickRange.upperBound
     }
