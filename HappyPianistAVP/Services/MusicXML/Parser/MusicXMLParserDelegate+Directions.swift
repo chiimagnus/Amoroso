@@ -310,7 +310,7 @@ extension MusicXMLParserDelegate {
            state.currentDirectionTempoStartIndex < tempoEvents.count
         {
             for i in state.currentDirectionTempoStartIndex ..< tempoEvents.count {
-                let shifted = max(state.currentDirectionMeasureStartTick, tempoEvents[i].tick + delta)
+                let shifted = max(0, tempoEvents[i].tick + delta)
                 tempoEvents[i] = RawTempoEvent(
                     sourceID: tempoEvents[i].sourceID,
                     partID: tempoEvents[i].partID,
@@ -339,7 +339,7 @@ extension MusicXMLParserDelegate {
 
         if state.currentDirectionSoundStartIndex < state.soundDirectives.count {
             for i in state.currentDirectionSoundStartIndex ..< state.soundDirectives.count {
-                let shifted = max(state.currentDirectionMeasureStartTick, state.soundDirectives[i].tick + delta)
+                let shifted = max(0, state.soundDirectives[i].tick + delta)
                 state.soundDirectives[i] = MusicXMLSoundDirective(
                     sourceID: state.soundDirectives[i].sourceID,
                     partID: state.soundDirectives[i].partID,
@@ -375,7 +375,7 @@ extension MusicXMLParserDelegate {
 
         if state.currentDirectionPedalStartIndex < state.pedalEvents.count {
             for i in state.currentDirectionPedalStartIndex ..< state.pedalEvents.count {
-                let shifted = max(state.currentDirectionMeasureStartTick, state.pedalEvents[i].tick + delta)
+                let shifted = max(0, state.pedalEvents[i].tick + delta)
                 state.pedalEvents[i] = MusicXMLPedalEvent(
                     sourceID: state.pedalEvents[i].sourceID,
                     partID: state.pedalEvents[i].partID,
@@ -410,7 +410,6 @@ extension MusicXMLParserDelegate {
                     sourceID: event.sourceID,
                     tick: state.directionOffsetResolver.absoluteTick(
                         directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
                         offsetTicks: delta
                     ),
                     velocity: event.velocity,
@@ -427,7 +426,6 @@ extension MusicXMLParserDelegate {
                     sourceID: event.sourceID,
                     tick: state.directionOffsetResolver.absoluteTick(
                         directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
                         offsetTicks: delta
                     ),
                     kind: event.kind,
@@ -444,7 +442,6 @@ extension MusicXMLParserDelegate {
                     sourceID: event.sourceID,
                     tick: state.directionOffsetResolver.absoluteTick(
                         directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
                         offsetTicks: delta
                     ),
                     scope: event.scope,
@@ -460,7 +457,6 @@ extension MusicXMLParserDelegate {
                     sourceID: event.sourceID,
                     tick: state.directionOffsetResolver.absoluteTick(
                         directionStartTick: event.tick,
-                        measureStartTick: state.currentDirectionMeasureStartTick,
                         offsetTicks: delta
                     ),
                     text: event.text,
@@ -477,7 +473,6 @@ extension MusicXMLParserDelegate {
                 sourceID: event.sourceID,
                 tick: state.directionOffsetResolver.absoluteTick(
                     directionStartTick: event.tick,
-                    measureStartTick: state.currentDirectionMeasureStartTick,
                     offsetTicks: delta
                 ),
                 kind: event.kind,
@@ -497,7 +492,6 @@ extension MusicXMLParserDelegate {
         ) ?? 0
         let tick = state.directionOffsetResolver.absoluteTick(
             directionStartTick: state.currentSoundBaseTick,
-            measureStartTick: state.currentSoundMeasureStartTick,
             offsetTicks: offsetTicks
         )
 
@@ -573,7 +567,6 @@ extension MusicXMLParserDelegate {
         guard state.isInDirection else { return baseTick }
         return state.directionOffsetResolver.absoluteTick(
             directionStartTick: baseTick,
-            measureStartTick: state.currentDirectionMeasureStartTick,
             offsetTicks: state.currentDirectionOffsetTicks
         )
     }

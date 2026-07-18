@@ -17,9 +17,8 @@ struct MusicXMLDirectionOffsetResolver: Sendable {
 
     func absoluteTick(
         directionStartTick: Int,
-        measureStartTick: Int,
         offsetTicks: Int
     ) -> Int {
-        max(measureStartTick, directionStartTick + offsetTicks)
+        max(0, directionStartTick + offsetTicks)
     }
 }

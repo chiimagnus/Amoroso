@@ -144,7 +144,7 @@ struct MusicXMLParserDelegateState {
 
     var currentMeasureStartTick = 0
     var currentDirectionOffsetTicks = 0
-    var currentDirectionMeasureStartTick = 0
+    var currentDirectionOffsetAffectsSound = false
     var currentDirectionTempoStartIndex = 0
     var currentDirectionSoundStartIndex = 0
     var currentDirectionPedalStartIndex = 0
@@ -154,7 +154,6 @@ struct MusicXMLParserDelegateState {
     var currentDirectionWordsStartIndex = 0
 
     var currentSoundBaseTick = 0
-    var currentSoundMeasureStartTick = 0
     var currentSoundTempoStartIndex = 0
     var currentSoundSoundStartIndex = 0
     var currentSoundPedalStartIndex = 0

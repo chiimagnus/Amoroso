@@ -121,7 +121,7 @@ func directionOffsetMovesDynamicsAndSoundDynamicsExactlyOnce() throws {
     <score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
     <part id="P1"><measure number="1"><attributes><divisions>2</divisions></attributes>
       <note><pitch><step>C</step><octave>4</octave></pitch><duration>2</duration></note>
-      <direction><direction-type><dynamics><mf/></dynamics></direction-type><sound dynamics="100"/><offset>-1</offset></direction>
+      <direction><direction-type><dynamics><mf/></dynamics></direction-type><sound dynamics="100"/><offset sound="yes">-1</offset></direction>
     </measure></part></score-partwise>
     """
     let events = try MusicXMLParser().parse(data: Data(xml.utf8)).dynamicEvents

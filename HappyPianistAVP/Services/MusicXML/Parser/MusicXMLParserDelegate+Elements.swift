@@ -95,7 +95,7 @@ extension MusicXMLParserDelegate {
             state.isInDirection = true
             state.currentDirectionSourceID = nextDirectionSourceID()
             state.currentDirectionOffsetTicks = 0
-            state.currentDirectionMeasureStartTick = state.currentMeasureStartTick
+            state.currentDirectionOffsetAffectsSound = false
             state.currentDirectionTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
             state.currentDirectionSoundStartIndex = state.soundDirectives.count
             state.currentDirectionPedalStartIndex = state.pedalEvents.count
@@ -121,7 +121,9 @@ extension MusicXMLParserDelegate {
         case "octave-shift":
             recordOctaveShiftEvent(attributes: attributeDict)
         case "offset":
-            break
+            if state.isInDirection, state.isInSound == false {
+                state.currentDirectionOffsetAffectsSound = attributeDict["sound"] == "yes"
+            }
         case "barline":
             state.isInBarline = true
         case "repeat":
@@ -162,7 +164,6 @@ extension MusicXMLParserDelegate {
         case "sound":
             state.isInSound = true
             state.currentSoundSourceID = state.currentDirectionSourceID ?? nextDirectionSourceID()
-            state.currentSoundMeasureStartTick = state.currentMeasureStartTick
             state.currentSoundBaseTick = state.partTick[state.currentPartID] ?? state.currentMeasureStartTick
             state.currentSoundTempoStartIndex = state.rawTempoEventsByPart[state.currentPartID]?.count ?? 0
             state.currentSoundSoundStartIndex = state.soundDirectives.count
@@ -459,7 +460,7 @@ extension MusicXMLParserDelegate {
             if let rawOffset = Double(text), rawOffset.isFinite {
                 if state.isInSound {
                     applySoundOffset(rawOffset)
-                } else if state.isInDirection {
+                } else if state.isInDirection, state.currentDirectionOffsetAffectsSound {
                     applyDirectionOffset(rawOffset)
                 }
             }
@@ -606,7 +607,7 @@ extension MusicXMLParserDelegate {
         case "direction":
             state.isInDirection = false
             state.currentDirectionOffsetTicks = 0
-            state.currentDirectionMeasureStartTick = 0
+            state.currentDirectionOffsetAffectsSound = false
             state.currentDirectionTempoStartIndex = 0
             state.currentDirectionSoundStartIndex = 0
             state.currentDirectionPedalStartIndex = 0
@@ -623,7 +624,6 @@ extension MusicXMLParserDelegate {
         case "sound":
             state.isInSound = false
             state.currentSoundBaseTick = 0
-            state.currentSoundMeasureStartTick = 0
             state.currentSoundTempoStartIndex = 0
             state.currentSoundSoundStartIndex = 0
             state.currentSoundPedalStartIndex = 0
