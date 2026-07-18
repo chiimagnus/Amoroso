@@ -280,6 +280,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let graceSlash: Bool
     let graceStealTimePrevious: Double?
     let graceStealTimeFollowing: Double?
+    let graceMakeTimeTicks: Int?
     let tieStart: Bool
     let tieStop: Bool
     let staff: Int?
@@ -307,6 +308,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         graceSlash: Bool = false,
         graceStealTimePrevious: Double? = nil,
         graceStealTimeFollowing: Double? = nil,
+        graceMakeTimeTicks: Int? = nil,
         tieStart: Bool,
         tieStop: Bool,
         staff: Int?,
@@ -333,6 +335,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         self.graceSlash = graceSlash
         self.graceStealTimePrevious = graceStealTimePrevious
         self.graceStealTimeFollowing = graceStealTimeFollowing
+        self.graceMakeTimeTicks = graceMakeTimeTicks.map { max(0, $0) }
         self.tieStart = tieStart
         self.tieStop = tieStop
         self.staff = staff

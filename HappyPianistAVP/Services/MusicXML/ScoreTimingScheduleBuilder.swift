@@ -5,30 +5,435 @@ struct ScoreTimingScheduleBuilder {
         notes: [MusicXMLNoteEvent],
         performanceTimingEnabled: Bool = false
     ) -> ScoreTimingSchedule {
-        ScoreTimingSchedule(entries: notes.enumerated().map { index, note in
+        var entries = notes.enumerated().map { index, note in
+            MutableEntry(noteIndex: index, note: note, performanceTimingEnabled: performanceTimingEnabled)
+        }
+        let graceGroups = makeGraceGroups(notes: notes)
+
+        applyMakeTime(
+            groups: graceGroups,
+            notes: notes,
+            entries: &entries
+        )
+        applyStealTime(
+            groups: graceGroups,
+            notes: notes,
+            entries: &entries
+        )
+
+        return ScoreTimingSchedule(entries: entries.map(\.value))
+    }
+}
+
+private extension ScoreTimingScheduleBuilder {
+    struct GraceLane: Hashable {
+        let partID: String
+        let staff: Int
+        let voice: Int
+    }
+
+    struct GraceGroupKey: Hashable {
+        let lane: GraceLane
+        let tick: Int
+    }
+
+    struct GraceGroup {
+        let key: GraceGroupKey
+        let noteIndices: [Int]
+    }
+
+    struct MakeTimeGroup {
+        let group: GraceGroup
+        let durationTicks: Int
+    }
+
+    struct MutableEntry {
+        let noteIndex: Int
+        let sourceNoteID: MusicXMLSourceNoteID?
+        let performedNoteID: MusicXMLPerformedNoteID?
+        let writtenOnTick: Int
+        let writtenOffTick: Int
+        var performedOnTick: Int
+        var performedOffTick: Int
+        var onsetOffsetTicks: Int
+        var releaseOffsetTicks: Int
+        var releasePolicy: ScoreTimingReleasePolicy
+        var provenance: [ScoreTimingProvenance]
+
+        init(noteIndex: Int, note: MusicXMLNoteEvent, performanceTimingEnabled: Bool) {
             let writtenOnTick = max(0, note.tick)
             let writtenOffTick = max(writtenOnTick, writtenOnTick + max(0, note.durationTicks))
             let onsetOffsetTicks = performanceTimingEnabled ? (note.attackTicks ?? 0) : 0
             let releaseOffsetTicks = performanceTimingEnabled ? (note.releaseTicks ?? 0) : 0
             let performedOnTick = max(0, writtenOnTick + onsetOffsetTicks)
-            let performedOffTick = max(
-                performedOnTick,
-                writtenOffTick + releaseOffsetTicks
-            )
+            let performedOffTick = max(performedOnTick, writtenOffTick + releaseOffsetTicks)
             let usesPerformanceOffsets = onsetOffsetTicks != 0 || releaseOffsetTicks != 0
-            return ScoreTimingEntry(
-                noteIndex: index,
-                sourceNoteID: note.sourceID,
-                performedNoteID: note.performedID,
+
+            self.noteIndex = noteIndex
+            sourceNoteID = note.sourceID
+            performedNoteID = note.performedID
+            self.writtenOnTick = writtenOnTick
+            self.writtenOffTick = writtenOffTick
+            self.performedOnTick = performedOnTick
+            self.performedOffTick = performedOffTick
+            self.onsetOffsetTicks = onsetOffsetTicks
+            self.releaseOffsetTicks = releaseOffsetTicks
+            releasePolicy = usesPerformanceOffsets ? .performanceOffsets : .writtenDuration
+            provenance = usesPerformanceOffsets ? [.score, .performanceOffset] : [.score]
+        }
+
+        var value: ScoreTimingEntry {
+            ScoreTimingEntry(
+                noteIndex: noteIndex,
+                sourceNoteID: sourceNoteID,
+                performedNoteID: performedNoteID,
                 writtenOnTick: writtenOnTick,
                 writtenOffTick: writtenOffTick,
                 performedOnTick: performedOnTick,
                 performedOffTick: performedOffTick,
                 onsetOffsetTicks: onsetOffsetTicks,
                 releaseOffsetTicks: releaseOffsetTicks,
-                releasePolicy: usesPerformanceOffsets ? .performanceOffsets : .writtenDuration,
-                provenance: usesPerformanceOffsets ? [.score, .performanceOffset] : [.score]
+                releasePolicy: releasePolicy,
+                provenance: provenance
             )
-        })
+        }
+
+        mutating func shift(by ticks: Int, provenance timingProvenance: ScoreTimingProvenance) {
+            guard ticks != 0 else { return }
+            performedOnTick = max(0, performedOnTick + ticks)
+            performedOffTick = max(performedOnTick, performedOffTick + ticks)
+            onsetOffsetTicks = performedOnTick - writtenOnTick
+            releaseOffsetTicks = performedOffTick - writtenOffTick
+            releasePolicy = .graceMakeTime
+            appendProvenance(timingProvenance)
+        }
+
+        mutating func setInterval(
+            onTick: Int,
+            offTick: Int,
+            policy: ScoreTimingReleasePolicy,
+            timingProvenance: ScoreTimingProvenance
+        ) {
+            performedOnTick = max(0, onTick)
+            performedOffTick = max(performedOnTick, offTick)
+            onsetOffsetTicks = performedOnTick - writtenOnTick
+            releaseOffsetTicks = performedOffTick - writtenOffTick
+            releasePolicy = policy
+            appendProvenance(timingProvenance)
+        }
+
+        mutating func delayOnset(
+            by ticks: Int,
+            policy: ScoreTimingReleasePolicy,
+            timingProvenance: ScoreTimingProvenance
+        ) {
+            guard ticks > 0 else { return }
+            performedOnTick = min(performedOffTick, performedOnTick + ticks)
+            onsetOffsetTicks = performedOnTick - writtenOnTick
+            releasePolicy = policy
+            appendProvenance(timingProvenance)
+        }
+
+        mutating func shortenRelease(
+            by ticks: Int,
+            policy: ScoreTimingReleasePolicy,
+            timingProvenance: ScoreTimingProvenance
+        ) {
+            guard ticks > 0 else { return }
+            performedOffTick = max(performedOnTick, performedOffTick - ticks)
+            releaseOffsetTicks = performedOffTick - writtenOffTick
+            releasePolicy = policy
+            appendProvenance(timingProvenance)
+        }
+
+        mutating func appendProvenance(_ timingProvenance: ScoreTimingProvenance) {
+            if provenance.contains(timingProvenance) == false {
+                provenance.append(timingProvenance)
+            }
+        }
+    }
+
+    func makeGraceGroups(notes: [MusicXMLNoteEvent]) -> [GraceGroup] {
+        var indicesByKey: [GraceGroupKey: [Int]] = [:]
+        for (index, note) in notes.enumerated() where note.isGrace && note.isRest == false {
+            let key = GraceGroupKey(
+                lane: GraceLane(
+                    partID: note.partID,
+                    staff: note.staff ?? 1,
+                    voice: note.voice ?? 1
+                ),
+                tick: note.tick
+            )
+            indicesByKey[key, default: []].append(index)
+        }
+
+        return indicesByKey.map { key, indices in
+            GraceGroup(key: key, noteIndices: indices.sorted())
+        }.sorted { lhs, rhs in
+            if lhs.key.tick != rhs.key.tick { return lhs.key.tick < rhs.key.tick }
+            return (lhs.noteIndices.first ?? 0) < (rhs.noteIndices.first ?? 0)
+        }
+    }
+
+    func applyMakeTime(
+        groups: [GraceGroup],
+        notes: [MusicXMLNoteEvent],
+        entries: inout [MutableEntry]
+    ) {
+        let makeTimeGroups = groups.compactMap { group -> MakeTimeGroup? in
+            let explicitDurations = group.noteIndices.compactMap { notes[$0].graceMakeTimeTicks }.filter { $0 > 0 }
+            guard explicitDurations.isEmpty == false else { return nil }
+
+            let requestedDuration: Int
+            if explicitDurations.count == group.noteIndices.count {
+                requestedDuration = explicitDurations.reduce(0, +)
+            } else {
+                requestedDuration = explicitDurations[0]
+            }
+            return MakeTimeGroup(
+                group: group,
+                durationTicks: max(group.noteIndices.count, requestedDuration)
+            )
+        }
+        guard makeTimeGroups.isEmpty == false else { return }
+
+        var insertionByTick: [Int: Int] = [:]
+        for item in makeTimeGroups {
+            insertionByTick[item.group.key.tick] = max(
+                insertionByTick[item.group.key.tick] ?? 0,
+                item.durationTicks
+            )
+        }
+        let insertionTicks = insertionByTick.keys.sorted()
+
+        for index in notes.indices {
+            let note = notes[index]
+            let shift = insertionTicks.reduce(into: 0) { result, tick in
+                if tick < note.tick || (tick == note.tick && note.isGrace == false) {
+                    result += insertionByTick[tick] ?? 0
+                }
+            }
+            entries[index].shift(by: shift, provenance: .grace(kind: .makeTime))
+        }
+
+        for item in makeTimeGroups {
+            let earlierShift = insertionTicks.reduce(into: 0) { result, tick in
+                if tick < item.group.key.tick {
+                    result += insertionByTick[tick] ?? 0
+                }
+            }
+            let startTick = max(0, item.group.key.tick + earlierShift)
+            setGraceIntervals(
+                noteIndices: item.group.noteIndices,
+                startTick: startTick,
+                durationTicks: item.durationTicks,
+                policy: .graceMakeTime,
+                provenance: .grace(kind: .makeTime),
+                notes: notes,
+                entries: &entries
+            )
+        }
+    }
+
+    func applyStealTime(
+        groups: [GraceGroup],
+        notes: [MusicXMLNoteEvent],
+        entries: inout [MutableEntry]
+    ) {
+        for group in groups {
+            let hasMakeTime = group.noteIndices.contains { notes[$0].graceMakeTimeTicks != nil }
+            if hasMakeTime {
+                let hasStealTime = group.noteIndices.contains {
+                    notes[$0].graceStealTimePrevious != nil || notes[$0].graceStealTimeFollowing != nil
+                }
+                if hasStealTime {
+                    for index in group.noteIndices {
+                        entries[index].appendProvenance(.approximation(reason: "grace-make-time-overrides-steal-time"))
+                    }
+                }
+                continue
+            }
+
+            let previousFraction = group.noteIndices.compactMap { notes[$0].graceStealTimePrevious }.first
+            var followingFraction = group.noteIndices.compactMap { notes[$0].graceStealTimeFollowing }.first
+            var usedDefaultFollowing = false
+            if previousFraction == nil, followingFraction == nil {
+                followingFraction = 0.25
+                usedDefaultFollowing = true
+            }
+
+            let previousIndices = previousRegularNoteIndices(before: group, notes: notes)
+            let followingIndices = followingRegularNoteIndices(after: group, notes: notes)
+
+            let previousTicks = stolenTicks(
+                fraction: previousFraction,
+                referenceDuration: previousIndices.first.map { notes[$0].durationTicks }
+            )
+            let followingTicks = stolenTicks(
+                fraction: followingFraction,
+                referenceDuration: followingIndices.first.map { notes[$0].durationTicks }
+            )
+
+            if previousFraction != nil, previousTicks == 0 {
+                markApproximation(
+                    "grace-steal-previous-missing-anchor",
+                    noteIndices: group.noteIndices,
+                    entries: &entries
+                )
+            }
+            if followingFraction != nil, followingTicks == 0 {
+                markApproximation(
+                    "grace-steal-following-missing-anchor",
+                    noteIndices: group.noteIndices,
+                    entries: &entries
+                )
+            }
+
+            let totalTicks = previousTicks + followingTicks
+            guard totalTicks > 0 else { continue }
+
+            let kind: ScoreGraceTimingKind
+            let policy: ScoreTimingReleasePolicy
+            if previousTicks > 0, followingTicks > 0 {
+                kind = .stealPreviousAndFollowing
+                policy = .graceStealPreviousAndFollowing
+            } else if previousTicks > 0 {
+                kind = .stealPrevious
+                policy = .graceStealPrevious
+            } else {
+                kind = .stealFollowing
+                policy = .graceStealFollowing
+            }
+            let timingProvenance = ScoreTimingProvenance.grace(kind: kind)
+
+            for index in previousIndices {
+                entries[index].shortenRelease(
+                    by: previousTicks,
+                    policy: .graceStealPrevious,
+                    timingProvenance: .grace(kind: .stealPrevious)
+                )
+            }
+            for index in followingIndices {
+                entries[index].delayOnset(
+                    by: followingTicks,
+                    policy: .graceStealFollowing,
+                    timingProvenance: .grace(kind: .stealFollowing)
+                )
+            }
+
+            let anchorTick = group.noteIndices.first.map { entries[$0].performedOnTick } ?? group.key.tick
+            setGraceIntervals(
+                noteIndices: group.noteIndices,
+                startTick: max(0, anchorTick - previousTicks),
+                durationTicks: totalTicks,
+                policy: policy,
+                provenance: timingProvenance,
+                notes: notes,
+                entries: &entries
+            )
+
+            if usedDefaultFollowing {
+                markApproximation(
+                    "grace-default-steal-following-25-percent",
+                    noteIndices: group.noteIndices,
+                    entries: &entries
+                )
+            }
+            for index in group.noteIndices where notes[index].graceSlash {
+                entries[index].appendProvenance(.approximation(reason: "grace-slash-does-not-define-duration"))
+            }
+        }
+    }
+
+    func previousRegularNoteIndices(
+        before group: GraceGroup,
+        notes: [MusicXMLNoteEvent]
+    ) -> [Int] {
+        let candidates = notes.indices.filter { index in
+            let note = notes[index]
+            return note.isRest == false
+                && note.isGrace == false
+                && lane(for: note) == group.key.lane
+                && note.tick < group.key.tick
+        }
+        guard let onset = candidates.map({ notes[$0].tick }).max() else { return [] }
+        return candidates.filter { notes[$0].tick == onset }
+    }
+
+    func followingRegularNoteIndices(
+        after group: GraceGroup,
+        notes: [MusicXMLNoteEvent]
+    ) -> [Int] {
+        let candidates = notes.indices.filter { index in
+            let note = notes[index]
+            return note.isRest == false
+                && note.isGrace == false
+                && lane(for: note) == group.key.lane
+                && note.tick >= group.key.tick
+        }
+        guard let onset = candidates.map({ notes[$0].tick }).min() else { return [] }
+        return candidates.filter { notes[$0].tick == onset }
+    }
+
+    func lane(for note: MusicXMLNoteEvent) -> GraceLane {
+        GraceLane(partID: note.partID, staff: note.staff ?? 1, voice: note.voice ?? 1)
+    }
+
+    func stolenTicks(fraction: Double?, referenceDuration: Int?) -> Int {
+        guard let fraction, fraction > 0,
+              let referenceDuration, referenceDuration > 1
+        else {
+            return 0
+        }
+        return max(
+            1,
+            min(referenceDuration - 1, Int((Double(referenceDuration) * fraction).rounded()))
+        )
+    }
+
+    func setGraceIntervals(
+        noteIndices: [Int],
+        startTick: Int,
+        durationTicks: Int,
+        policy: ScoreTimingReleasePolicy,
+        provenance: ScoreTimingProvenance,
+        notes: [MusicXMLNoteEvent],
+        entries: inout [MutableEntry]
+    ) {
+        let durations = partition(durationTicks: durationTicks, count: noteIndices.count)
+        var cursor = max(0, startTick)
+        for (offset, noteIndex) in noteIndices.enumerated() {
+            let duration = durations[offset]
+            entries[noteIndex].setInterval(
+                onTick: cursor,
+                offTick: cursor + duration,
+                policy: policy,
+                timingProvenance: provenance
+            )
+            if notes[noteIndex].graceSlash {
+                entries[noteIndex].appendProvenance(.approximation(reason: "grace-slash-does-not-define-duration"))
+            }
+            cursor += duration
+        }
+    }
+
+    func partition(durationTicks: Int, count: Int) -> [Int] {
+        guard count > 0 else { return [] }
+        let total = max(count, durationTicks)
+        let base = total / count
+        let remainder = total % count
+        return (0..<count).map { index in
+            base + (index < remainder ? 1 : 0)
+        }
+    }
+
+    func markApproximation(
+        _ reason: String,
+        noteIndices: [Int],
+        entries: inout [MutableEntry]
+    ) {
+        for index in noteIndices {
+            entries[index].appendProvenance(.approximation(reason: reason))
+        }
     }
 }

@@ -20,6 +20,13 @@ extension MusicXMLParserDelegate {
         return clamped == 0 ? nil : clamped
     }
 
+    func parseGraceMakeTimeTicks(_ rawValue: String?) -> Int? {
+        guard let ticks = parseNotePerformanceOffsetTicks(rawValue), ticks > 0 else {
+            return nil
+        }
+        return ticks
+    }
+
     func parseNotePerformanceOffsetTicks(_ rawValue: String?) -> Int? {
         guard let rawValue = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
               rawValue.isEmpty == false
@@ -152,6 +159,7 @@ extension MusicXMLParserDelegate {
                 graceSlash: state.noteGraceSlash,
                 graceStealTimePrevious: state.noteGraceStealTimePrevious,
                 graceStealTimeFollowing: state.noteGraceStealTimeFollowing,
+                graceMakeTimeTicks: state.noteGraceMakeTimeTicks,
                 tieStart: state.noteTieStart,
                 tieStop: state.noteTieStop,
                 staff: state.noteStaff,

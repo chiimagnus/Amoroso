@@ -219,6 +219,7 @@ struct MusicXMLStructureExpander {
                         graceSlash: note.graceSlash,
                         graceStealTimePrevious: note.graceStealTimePrevious,
                         graceStealTimeFollowing: note.graceStealTimeFollowing,
+                        graceMakeTimeTicks: note.graceMakeTimeTicks,
                         tieStart: note.tieStart,
                         tieStop: note.tieStop,
                         staff: note.staff,

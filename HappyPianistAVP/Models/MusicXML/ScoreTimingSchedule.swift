@@ -3,11 +3,23 @@ import Foundation
 enum ScoreTimingReleasePolicy: String, Codable, Equatable, Sendable {
     case writtenDuration
     case performanceOffsets
+    case graceStealPrevious
+    case graceStealFollowing
+    case graceStealPreviousAndFollowing
+    case graceMakeTime
+}
+
+enum ScoreGraceTimingKind: String, Codable, Equatable, Sendable {
+    case stealPrevious
+    case stealFollowing
+    case stealPreviousAndFollowing
+    case makeTime
 }
 
 enum ScoreTimingProvenance: Equatable, Sendable {
     case score
     case performanceOffset
+    case grace(kind: ScoreGraceTimingKind)
     case interpretationProfile(id: String)
     case approximation(reason: String)
 }

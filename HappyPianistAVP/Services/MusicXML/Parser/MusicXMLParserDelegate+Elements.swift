@@ -187,6 +187,7 @@ extension MusicXMLParserDelegate {
             state.noteGraceSlash = false
             state.noteGraceStealTimePrevious = nil
             state.noteGraceStealTimeFollowing = nil
+            state.noteGraceMakeTimeTicks = nil
             state.noteStep = nil
             state.noteAlter = nil
             state.noteAccidentalToken = nil
@@ -240,6 +241,7 @@ extension MusicXMLParserDelegate {
                 state.noteGraceSlash = slash == "yes" || slash == "true" || slash == "1"
                 state.noteGraceStealTimePrevious = parseGraceStealFraction(attributeDict["steal-time-previous"])
                 state.noteGraceStealTimeFollowing = parseGraceStealFraction(attributeDict["steal-time-following"])
+                state.noteGraceMakeTimeTicks = parseGraceMakeTimeTicks(attributeDict["make-time"])
             }
         case "dot":
             if state.isInNote {

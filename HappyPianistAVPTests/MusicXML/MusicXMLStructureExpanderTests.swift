@@ -261,6 +261,7 @@ func structureExpanderPreservesParsedNoteAndScoreFieldsWhenMaterializing() {
                 graceSlash: true,
                 graceStealTimePrevious: 0.2,
                 graceStealTimeFollowing: 0.3,
+                graceMakeTimeTicks: 90,
                 tieStart: false,
                 tieStop: false,
                 staff: 1,
@@ -324,6 +325,7 @@ func structureExpanderPreservesParsedNoteAndScoreFieldsWhenMaterializing() {
     #expect(preserved?.graceSlash == true)
     #expect(preserved?.graceStealTimePrevious == 0.2)
     #expect(preserved?.graceStealTimeFollowing == 0.3)
+    #expect(preserved?.graceMakeTimeTicks == 90)
     #expect(preserved?.attackTicks == -10)
     #expect(preserved?.releaseTicks == 20)
     #expect(preserved?.dynamicsOverrideVelocity == 88)
