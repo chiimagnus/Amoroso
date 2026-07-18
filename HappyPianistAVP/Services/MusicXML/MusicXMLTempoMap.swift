@@ -3,26 +3,41 @@ import Foundation
 struct MusicXMLTempoMap {
     static let ticksPerQuarter = 480
 
-    struct TempoRamp: Equatable {
+    struct TempoRamp: Equatable, Sendable {
         let startTick: Int
         let endTick: Int
         let startQuarterBPM: Double
         let endQuarterBPM: Double
         let scope: MusicXMLEventScope
+        let sourceDirectionID: MusicXMLDirectionSourceID?
+        let performedOccurrenceIndex: Int
 
         init(
             startTick: Int,
             endTick: Int,
             startQuarterBPM: Double,
             endQuarterBPM: Double,
-            scope: MusicXMLEventScope = MusicXMLEventScope(partID: "P1", staff: nil, voice: nil)
+            scope: MusicXMLEventScope = MusicXMLEventScope(partID: "P1", staff: nil, voice: nil),
+            sourceDirectionID: MusicXMLDirectionSourceID? = nil,
+            performedOccurrenceIndex: Int = 0
         ) {
             self.startTick = startTick
             self.endTick = endTick
             self.startQuarterBPM = startQuarterBPM
             self.endQuarterBPM = endQuarterBPM
             self.scope = scope
+            self.sourceDirectionID = sourceDirectionID
+            self.performedOccurrenceIndex = max(0, performedOccurrenceIndex)
         }
+    }
+
+    struct PerformanceEvent: Equatable, Sendable {
+        let sourceDirectionID: MusicXMLDirectionSourceID?
+        let performedOccurrenceIndex: Int
+        let tick: Int
+        let quarterBPM: Double
+        let endTick: Int?
+        let endQuarterBPM: Double?
     }
 
     private struct Segment {
@@ -34,6 +49,7 @@ struct MusicXMLTempoMap {
     }
 
     private let segments: [Segment]
+    private let canonicalPerformanceEvents: [PerformanceEvent]
 
     init(tempoEvents: [MusicXMLTempoEvent], defaultQuarterBPM: Double = 120) {
         self.init(
@@ -63,27 +79,27 @@ struct MusicXMLTempoMap {
         let validatedDefault = (defaultQuarterBPM.isFinite && defaultQuarterBPM > 0) ? defaultQuarterBPM : 120
 
         let validatedEvents = tempoEvents
-            .filter { $0.scope.partID == effectivePartID && $0.quarterBPM.isFinite && $0.quarterBPM > 0 }
+            .filter {
+                $0.scope.partID == effectivePartID
+                    && $0.tick >= 0
+                    && $0.quarterBPM.isFinite
+                    && $0.quarterBPM > 0
+            }
 
-        var bestByTick: [Int: (staff: Int?, bpm: Double)] = [:]
+        var bestByTick: [Int: MusicXMLTempoEvent] = [:]
         for event in validatedEvents {
             if let existing = bestByTick[event.tick] {
-                let existingStaff = existing.staff
-                let candidateStaff = event.scope.staff
-
-                if candidateStaff == nil, existingStaff != nil {
-                    bestByTick[event.tick] = (staff: candidateStaff, bpm: event.quarterBPM)
-                } else if candidateStaff != nil, existingStaff == nil {
-                    continue
-                } else if let existingStaff, let candidateStaff, candidateStaff < existingStaff {
-                    bestByTick[event.tick] = (staff: candidateStaff, bpm: event.quarterBPM)
+                if Self.prefersTempoEvent(event, over: existing) {
+                    bestByTick[event.tick] = event
                 }
             } else {
-                bestByTick[event.tick] = (staff: event.scope.staff, bpm: event.quarterBPM)
+                bestByTick[event.tick] = event
             }
         }
 
-        var bpmByTick: [Int: Double] = Dictionary(uniqueKeysWithValues: bestByTick.map { ($0.key, $0.value.bpm) })
+        var bpmByTick: [Int: Double] = Dictionary(
+            uniqueKeysWithValues: bestByTick.map { ($0.key, $0.value.quarterBPM) }
+        )
 
         if bpmByTick[0] == nil {
             let firstTick = bpmByTick.keys.min()
@@ -103,8 +119,44 @@ struct MusicXMLTempoMap {
             }
             .sorted { lhs, rhs in
                 if lhs.startTick != rhs.startTick { return lhs.startTick < rhs.startTick }
-                return lhs.endTick < rhs.endTick
+                if lhs.endTick != rhs.endTick { return lhs.endTick < rhs.endTick }
+                let lhsSource = lhs.sourceDirectionID?.description ?? ""
+                let rhsSource = rhs.sourceDirectionID?.description ?? ""
+                if lhsSource != rhsSource { return lhsSource < rhsSource }
+                return lhs.performedOccurrenceIndex < rhs.performedOccurrenceIndex
             }
+
+        var performanceEvents = bestByTick.values.map { event in
+            PerformanceEvent(
+                sourceDirectionID: event.sourceID,
+                performedOccurrenceIndex: event.performedOccurrenceIndex,
+                tick: event.tick,
+                quarterBPM: event.quarterBPM,
+                endTick: nil,
+                endQuarterBPM: nil
+            )
+        }
+        if bestByTick[0] == nil {
+            performanceEvents.append(PerformanceEvent(
+                sourceDirectionID: nil,
+                performedOccurrenceIndex: 0,
+                tick: 0,
+                quarterBPM: bpmByTick[0] ?? validatedDefault,
+                endTick: nil,
+                endQuarterBPM: nil
+            ))
+        }
+        performanceEvents.append(contentsOf: validatedRamps.map { ramp in
+            PerformanceEvent(
+                sourceDirectionID: ramp.sourceDirectionID,
+                performedOccurrenceIndex: ramp.performedOccurrenceIndex,
+                tick: ramp.startTick,
+                quarterBPM: ramp.startQuarterBPM,
+                endTick: ramp.endTick,
+                endQuarterBPM: ramp.endQuarterBPM
+            )
+        })
+        canonicalPerformanceEvents = performanceEvents.sorted(by: Self.performanceEventOrder)
 
         let breakpoints = Self.makeBreakpoints(bpmByTick: bpmByTick, ramps: validatedRamps)
         let sortedTempoTicks = bpmByTick.keys.sorted()
@@ -190,6 +242,10 @@ struct MusicXMLTempoMap {
         )
 
         segments = built
+    }
+
+    func performanceEvents() -> [PerformanceEvent] {
+        canonicalPerformanceEvents
     }
 
     func timeSeconds(atTick tick: Int) -> TimeInterval {
@@ -302,5 +358,37 @@ struct MusicXMLTempoMap {
         let t = min(max(Double(tick), start), end)
         let fraction = (t - start) / max(1.0, end - start)
         return ramp.startQuarterBPM + (ramp.endQuarterBPM - ramp.startQuarterBPM) * fraction
+    }
+
+    private static func prefersTempoEvent(_ candidate: MusicXMLTempoEvent, over existing: MusicXMLTempoEvent) -> Bool {
+        switch (candidate.scope.staff, existing.scope.staff) {
+        case (nil, .some):
+            return true
+        case (.some, nil):
+            return false
+        case let (.some(candidateStaff), .some(existingStaff)) where candidateStaff != existingStaff:
+            return candidateStaff < existingStaff
+        default:
+            if (candidate.sourceID == nil) != (existing.sourceID == nil) {
+                return candidate.sourceID != nil
+            }
+            let candidateSource = candidate.sourceID?.description ?? ""
+            let existingSource = existing.sourceID?.description ?? ""
+            if candidateSource != existingSource { return candidateSource < existingSource }
+            if candidate.performedOccurrenceIndex != existing.performedOccurrenceIndex {
+                return candidate.performedOccurrenceIndex < existing.performedOccurrenceIndex
+            }
+            return candidate.quarterBPM < existing.quarterBPM
+        }
+    }
+
+    private static func performanceEventOrder(_ lhs: PerformanceEvent, _ rhs: PerformanceEvent) -> Bool {
+        if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+        if (lhs.endTick == nil) != (rhs.endTick == nil) { return lhs.endTick == nil }
+        if lhs.quarterBPM != rhs.quarterBPM { return lhs.quarterBPM < rhs.quarterBPM }
+        let lhsSource = lhs.sourceDirectionID?.description ?? ""
+        let rhsSource = rhs.sourceDirectionID?.description ?? ""
+        if lhsSource != rhsSource { return lhsSource < rhsSource }
+        return lhs.performedOccurrenceIndex < rhs.performedOccurrenceIndex
     }
 }

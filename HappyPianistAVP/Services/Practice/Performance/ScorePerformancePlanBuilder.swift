@@ -10,6 +10,11 @@ struct ScorePerformancePlanBuilder {
         velocityResolver: MusicXMLVelocityResolver,
         expressivity: MusicXMLExpressivityOptions,
         handAssignments: [MusicXMLSourceNoteID: ScoreHandAssignment],
+        tempoMap: MusicXMLTempoMap? = nil,
+        pedalTimeline: MusicXMLPedalTimeline? = nil,
+        tempoAnnotations: [MusicXMLTempoWordAnnotation] = [],
+        fermataEvents: [MusicXMLFermataEvent] = [],
+        fermataTimeline: MusicXMLFermataTimeline? = nil,
         interpretationProfileID: String = MusicXMLInterpretationProfile.generic.id
     ) -> ScorePerformancePlan {
         let memberPartIDs = Set(logicalInstrument.memberPartIDs)
@@ -106,6 +111,30 @@ struct ScorePerformancePlanBuilder {
                 )
             }
         })
+        approximations.append(contentsOf: velocityResolver.wedgeApproximations.map { approximation in
+            ScorePerformanceApproximation(
+                scope: .note,
+                eventIdentity: approximation.sourceID?.description,
+                reason: approximation.reason
+            )
+        })
+        approximations.append(contentsOf: tempoAnnotations.compactMap { annotation in
+            guard case let .approximation(reason) = annotation.resolution else { return nil }
+            return ScorePerformanceApproximation(
+                scope: .annotation,
+                eventIdentity: annotation.sourceID?.description,
+                reason: reason
+            )
+        })
+
+        let annotations = performanceAnnotations(
+            notes: notes,
+            noteEvents: events,
+            timingSchedule: timingSchedule,
+            tempoAnnotations: tempoAnnotations,
+            fermataEvents: fermataEvents,
+            fermataTimeline: fermataTimeline
+        )
 
         return ScorePerformancePlan(
             id: ScorePerformancePlanID(rawValue: [
@@ -119,9 +148,9 @@ struct ScorePerformancePlanBuilder {
             order: order,
             resolution: ScorePerformanceTickResolution(ticksPerQuarter: MusicXMLTempoMap.ticksPerQuarter),
             noteEvents: events,
-            tempoEvents: [],
-            controllerEvents: [],
-            annotations: [],
+            tempoEvents: tempoMap?.performanceEvents().map(tempoEvent) ?? [],
+            controllerEvents: pedalTimeline?.controllerChanges().map(controllerEvent) ?? [],
+            annotations: annotations,
             approximations: approximations
         )
     }
@@ -280,6 +309,134 @@ private extension ScorePerformancePlanBuilder {
         return output
     }
 
+    func performanceAnnotations(
+        notes: [MusicXMLNoteEvent],
+        noteEvents: [ScorePerformanceNoteEvent],
+        timingSchedule: ScoreTimingSchedule,
+        tempoAnnotations: [MusicXMLTempoWordAnnotation],
+        fermataEvents: [MusicXMLFermataEvent],
+        fermataTimeline: MusicXMLFermataTimeline?
+    ) -> [ScorePerformanceAnnotation] {
+        var output = timingSchedule.directives.map { directive in
+            let matchingEvent = directive.sourceNotationID.flatMap { notationID in
+                noteEvents.first {
+                    $0.contributingSourceNoteIDs.contains(notationID.sourceNoteID)
+                        && $0.performedOffTick == directive.tick
+                }
+            }
+            return ScorePerformanceAnnotation(
+                sourceDirectionID: nil,
+                performedOccurrenceIndex: matchingEvent?.performedNoteID.occurrenceIndex ?? 0,
+                tick: directive.tick,
+                durationTicks: directive.durationTicks,
+                kind: .pause,
+                text: directive.kind.rawValue,
+                provenance: [ScorePerformanceProvenance(
+                    kind: .performanceNotation,
+                    sourceIdentity: directive.sourceNotationID?.description,
+                    detail: directive.interpretationProfileID
+                )]
+            )
+        }
+        output.append(contentsOf: tempoAnnotations.map { annotation in
+            ScorePerformanceAnnotation(
+                sourceDirectionID: annotation.sourceID,
+                performedOccurrenceIndex: annotation.performedOccurrenceIndex,
+                tick: annotation.tick,
+                durationTicks: nil,
+                kind: .tempoWord,
+                text: annotation.text,
+                provenance: [tempoAnnotationProvenance(annotation)]
+            )
+        })
+        output.append(contentsOf: phraseAnnotations(notes: notes, noteEvents: noteEvents))
+        output.append(contentsOf: fermataAnnotations(
+            notes: notes,
+            noteEvents: noteEvents,
+            fermataEvents: fermataEvents,
+            fermataTimeline: fermataTimeline
+        ))
+        return output.sorted(by: annotationOrder)
+    }
+
+    func phraseAnnotations(
+        notes: [MusicXMLNoteEvent],
+        noteEvents: [ScorePerformanceNoteEvent]
+    ) -> [ScorePerformanceAnnotation] {
+        notes.flatMap { note -> [ScorePerformanceAnnotation] in
+            guard let performedID = note.performedID,
+                  let event = noteEvents.first(where: { $0.contributingPerformedNoteIDs.contains(performedID) })
+            else {
+                return []
+            }
+            return note.performanceNotations.compactMap { notation in
+                guard notation.kind == .breathMark else { return nil }
+                return ScorePerformanceAnnotation(
+                    sourceDirectionID: nil,
+                    performedOccurrenceIndex: note.performedOccurrenceIndex,
+                    tick: event.performedOffTick,
+                    durationTicks: nil,
+                    kind: .phrase,
+                    text: notation.textToken,
+                    provenance: [ScorePerformanceProvenance(
+                        kind: .performanceNotation,
+                        sourceIdentity: notation.sourceID?.description,
+                        detail: notation.kind.rawValue
+                    )]
+                )
+            }
+        }
+    }
+
+    func fermataAnnotations(
+        notes: [MusicXMLNoteEvent],
+        noteEvents: [ScorePerformanceNoteEvent],
+        fermataEvents: [MusicXMLFermataEvent],
+        fermataTimeline: MusicXMLFermataTimeline?
+    ) -> [ScorePerformanceAnnotation] {
+        guard let fermataTimeline else { return [] }
+        let groupedEvents = Dictionary(grouping: fermataEvents) { event in
+            "\(event.tick):\(event.performedOccurrenceIndex)"
+        }
+        return groupedEvents.values.compactMap { group in
+            guard let first = group.sorted(by: fermataEventOrder).first else { return nil }
+            let scopedStaffs = Set(group.compactMap { $0.scope.staff })
+            let hasGlobalScope = group.contains { $0.scope.staff == nil }
+            let matchingNotes = notes.filter { note in
+                note.tick == first.tick
+                    && note.performedOccurrenceIndex == first.performedOccurrenceIndex
+                    && (hasGlobalScope || scopedStaffs.contains(note.staff ?? 1))
+            }
+            let staffs = Set(matchingNotes.map { $0.staff ?? 1 })
+            let extraTicks = staffs.map {
+                fermataTimeline.extraTicksForNote(atTick: first.tick, staff: $0)
+            }.max() ?? 0
+            guard extraTicks > 0 else { return nil }
+            let matchingPerformedIDs = Set(matchingNotes.compactMap(\.performedID))
+            let holdTick = noteEvents
+                .filter { event in
+                    event.contributingPerformedNoteIDs.contains { matchingPerformedIDs.contains($0) }
+                }
+                .map(\.performedOffTick)
+                .max() ?? first.tick
+            return ScorePerformanceAnnotation(
+                sourceDirectionID: first.sourceID,
+                performedOccurrenceIndex: first.performedOccurrenceIndex,
+                tick: holdTick,
+                durationTicks: extraTicks,
+                kind: .pause,
+                text: "fermata",
+                provenance: group.sorted(by: fermataEventOrder).map { event in
+                    ScorePerformanceProvenance(
+                        kind: .interpretationProfile,
+                        sourceIdentity: event.sourceID?.description,
+                        detail: fermataTimeline.interpretationProfileID
+                    )
+                }
+            )
+        }
+    }
+
     func mergingTie(
         _ event: ScorePerformanceNoteEvent,
         with continuation: ScorePerformanceNoteEvent
@@ -363,6 +520,52 @@ private extension ScorePerformancePlanBuilder {
         )
     }
 
+    func tempoEvent(_ event: MusicXMLTempoMap.PerformanceEvent) -> ScorePerformanceTempoEvent {
+        ScorePerformanceTempoEvent(
+            sourceDirectionID: event.sourceDirectionID,
+            performedOccurrenceIndex: event.performedOccurrenceIndex,
+            tick: event.tick,
+            quarterBPM: event.quarterBPM,
+            endTick: event.endTick,
+            endQuarterBPM: event.endQuarterBPM
+        )
+    }
+
+    func controllerEvent(_ event: MusicXMLPedalTimeline.ControllerChange) -> ScorePerformanceControllerEvent {
+        ScorePerformanceControllerEvent(
+            sourceDirectionID: event.sourceDirectionID,
+            performedOccurrenceIndex: event.performedOccurrenceIndex,
+            tick: event.tick,
+            controllerNumber: event.controllerNumber,
+            value: event.value,
+            outputCapabilityRequirement: .continuousControlChange
+        )
+    }
+
+    func tempoAnnotationProvenance(_ annotation: MusicXMLTempoWordAnnotation) -> ScorePerformanceProvenance {
+        let detail: String
+        let kind: ScorePerformanceProvenanceKind
+        switch annotation.resolution {
+        case .tempoRamp:
+            kind = .score
+            detail = "tempo-ramp"
+        case .tempoEvent:
+            kind = .score
+            detail = "tempo-event"
+        case .explicitEventAtMarker:
+            kind = .score
+            detail = "explicit-event-at-marker"
+        case let .approximation(reason):
+            kind = .approximation
+            detail = reason
+        }
+        return ScorePerformanceProvenance(
+            kind: kind,
+            sourceIdentity: annotation.sourceID?.description,
+            detail: detail
+        )
+    }
+
     func provenance(_ value: ScoreTimingProvenance) -> ScorePerformanceProvenance {
         switch value {
         case .score:
@@ -396,6 +599,25 @@ private extension ScorePerformancePlanBuilder {
         case .tremolo: .tremolo
         case .glissando: .glissando
         }
+    }
+
+    func annotationOrder(_ lhs: ScorePerformanceAnnotation, _ rhs: ScorePerformanceAnnotation) -> Bool {
+        if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+        if lhs.kind.rawValue != rhs.kind.rawValue { return lhs.kind.rawValue < rhs.kind.rawValue }
+        if lhs.performedOccurrenceIndex != rhs.performedOccurrenceIndex {
+            return lhs.performedOccurrenceIndex < rhs.performedOccurrenceIndex
+        }
+        let lhsSource = lhs.sourceDirectionID?.description ?? lhs.provenance.first?.sourceIdentity ?? ""
+        let rhsSource = rhs.sourceDirectionID?.description ?? rhs.provenance.first?.sourceIdentity ?? ""
+        if lhsSource != rhsSource { return lhsSource < rhsSource }
+        return (lhs.text ?? "") < (rhs.text ?? "")
+    }
+
+    func fermataEventOrder(_ lhs: MusicXMLFermataEvent, _ rhs: MusicXMLFermataEvent) -> Bool {
+        let lhsSource = lhs.sourceID?.description ?? ""
+        let rhsSource = rhs.sourceID?.description ?? ""
+        if lhsSource != rhsSource { return lhsSource < rhsSource }
+        return (lhs.scope.staff ?? -1) < (rhs.scope.staff ?? -1)
     }
 
     func unsupportedNote(_ note: MusicXMLNoteEvent, reason: String) -> ScorePerformanceApproximation {

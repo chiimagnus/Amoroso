@@ -6,7 +6,16 @@ struct MusicXMLPedalTimeline: Equatable {
         let isDown: Bool
     }
 
+    struct ControllerChange: Equatable, Sendable {
+        let sourceDirectionID: MusicXMLDirectionSourceID?
+        let performedOccurrenceIndex: Int
+        let tick: Int
+        let controllerNumber: UInt8
+        let value: UInt8
+    }
+
     private let changes: [Change]
+    private let controllers: [ControllerChange]
     private let releaseEdgeTicks: [Int]
 
     init(events: [MusicXMLPedalEvent]) {
@@ -17,6 +26,25 @@ struct MusicXMLPedalTimeline: Equatable {
             }
         )
         releaseEdgeTicks = releaseEdges.sorted()
+        controllers = events
+            .compactMap { event -> ControllerChange? in
+                guard let isDown = event.isDown else { return nil }
+                return ControllerChange(
+                    sourceDirectionID: event.sourceID,
+                    performedOccurrenceIndex: event.performedOccurrenceIndex,
+                    tick: event.tick,
+                    controllerNumber: 64,
+                    value: isDown ? 127 : 0
+                )
+            }
+            .sorted { lhs, rhs in
+                if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+                if lhs.value != rhs.value { return lhs.value < rhs.value }
+                let lhsSource = lhs.sourceDirectionID?.description ?? ""
+                let rhsSource = rhs.sourceDirectionID?.description ?? ""
+                if lhsSource != rhsSource { return lhsSource < rhsSource }
+                return lhs.performedOccurrenceIndex < rhs.performedOccurrenceIndex
+            }
 
         let normalized = events
             .compactMap { event -> Change? in
@@ -87,5 +115,9 @@ struct MusicXMLPedalTimeline: Equatable {
 
     func releaseEdges() -> [Int] {
         releaseEdgeTicks
+    }
+
+    func controllerChanges() -> [ControllerChange] {
+        controllers
     }
 }
