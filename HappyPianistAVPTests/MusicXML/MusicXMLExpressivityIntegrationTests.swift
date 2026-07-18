@@ -125,7 +125,7 @@ func musicXMLScoreSnapshotCapturesSourceFactsWithoutHeuristics() throws {
 
     #expect(snapshot.contains("kind=note|sourceNoteID=\(noteID.description)|sourceIndex=0|part=P1"))
     #expect(snapshot.contains("kind=dynamic|sourceDirectionID=\(directionID.description)"))
-    #expect(snapshot.contains("kind=measure|sourceMeasureID=P1:0:1"))
+    #expect(snapshot.contains("kind=measure|sourceMeasureID=P1:1:1"))
 }
 
 @Test
