@@ -48,6 +48,29 @@ func coreMIDIOutputRejectsOutOfOrderHostTimesBeforeSending() {
     }
 }
 
+@Test
+func endpointRouteNotificationPolicySeparatesSourceAndDestinationChanges() {
+    var destinationAdded = MIDIObjectAddRemoveNotification()
+    destinationAdded.messageID = .msgObjectAdded
+    destinationAdded.messageSize = UInt32(MemoryLayout<MIDIObjectAddRemoveNotification>.size)
+    destinationAdded.childType = .destination
+
+    withUnsafePointer(to: &destinationAdded) { notification in
+        let baseNotification = UnsafeRawPointer(notification)
+            .assumingMemoryBound(to: MIDINotification.self)
+        #expect(MIDIEndpointRouteNotificationPolicy.affectsDestinations(baseNotification))
+        #expect(MIDIEndpointRouteNotificationPolicy.affectsSources(baseNotification) == false)
+    }
+
+    destinationAdded.childType = .source
+    withUnsafePointer(to: &destinationAdded) { notification in
+        let baseNotification = UnsafeRawPointer(notification)
+            .assumingMemoryBound(to: MIDINotification.self)
+        #expect(MIDIEndpointRouteNotificationPolicy.affectsSources(baseNotification))
+        #expect(MIDIEndpointRouteNotificationPolicy.affectsDestinations(baseNotification) == false)
+    }
+}
+
 private func packetMessages(in packetList: UnsafePointer<MIDIPacketList>) -> [TimestampedMIDI1Message] {
     var messages: [TimestampedMIDI1Message] = []
     withUnsafePointer(to: packetList.pointee.packet) { firstPacket in

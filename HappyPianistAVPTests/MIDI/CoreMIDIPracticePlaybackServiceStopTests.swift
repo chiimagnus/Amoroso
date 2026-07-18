@@ -293,9 +293,159 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
         clock.advance(by: 2)
         #expect(output.batchesSnapshot().count == 1)
     }
+
+    @Test func invalidatedGenerationPreventsReadyBatchWithoutRelyingOnTaskCancellation() async {
+        let output = FakeMIDIOutputService()
+        let clock = FakeMIDILookAheadClock()
+        let generationGuard = MIDIPlaybackGenerationGuard()
+        let generation = generationGuard.beginGeneration()
+        let scheduler = MIDILookAheadScheduler(
+            outputService: output,
+            destinationUniqueID: 444,
+            channel: 0,
+            outputCapabilities: .externalMIDI,
+            hostTimeConverter: MIDIHostTimeConverter(
+                currentHostTime: { 40_000 },
+                hostTicksPerSecond: 1_000
+            ),
+            clock: clock,
+            configuration: MIDILookAheadConfiguration(horizonSeconds: 0.1, refillIntervalSeconds: 0.025),
+            generationGuard: generationGuard,
+            generation: generation
+        )
+        let task = scheduler.start(events: [
+            PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 60, velocity: 80)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 60)),
+        ], fromSeconds: 0)
+
+        #expect(await waitUntil { output.batchesSnapshot().count == 1 && clock.sleepingCount == 1 })
+        generationGuard.invalidate()
+        clock.advance(by: 0.25)
+        await task.value
+        #expect(output.batchesSnapshot().count == 1)
+    }
+
+    @Test func repeatedStartAndStopFlushOnlyActiveSchedulerGeneration() async throws {
+        let output = FakeMIDIOutputService()
+        let destinationUniqueID: Int32 = 555
+        let playback = await MainActor.run {
+            CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                outputService: output
+            )
+        }
+        try await MainActor.run {
+            try playback.load(sequence: PracticeSequencerSequence(
+                midiData: Data(),
+                durationSeconds: 1,
+                events: [PracticeSequencerMIDIEvent(
+                    timeSeconds: 0.05,
+                    kind: .noteOn(midi: 60, velocity: 80)
+                )]
+            ))
+            try playback.play(fromSeconds: 0)
+        }
+        #expect(await waitUntil { output.batchesSnapshot().count == 1 })
+
+        try await MainActor.run {
+            try playback.play(fromSeconds: 0)
+        }
+        #expect(await waitUntil { output.batchesSnapshot().count == 2 })
+        await MainActor.run {
+            playback.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+            playback.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+        }
+
+        let flushCalls = output.callsSnapshot().filter {
+            if case .flush = $0 { return true }
+            return false
+        }
+        #expect(flushCalls == [
+            .flush(destination: destinationUniqueID),
+            .flush(destination: destinationUniqueID),
+        ])
+    }
+
+    @Test func destinationRouteChangeCancelsFlushesAndResetsCurrentGeneration() async throws {
+        let output = FakeMIDIOutputService()
+        let destinationUniqueID: Int32 = 666
+        let playback = await MainActor.run {
+            CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                outputService: output
+            )
+        }
+        try await MainActor.run {
+            try playback.load(sequence: PracticeSequencerSequence(
+                midiData: Data(),
+                durationSeconds: 1,
+                events: [
+                    PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 60, velocity: 80)),
+                    PracticeSequencerMIDIEvent(timeSeconds: 0.5, kind: .noteOff(midi: 60)),
+                ]
+            ))
+            try playback.play(fromSeconds: 0)
+        }
+        #expect(await waitUntil { output.batchesSnapshot().count == 1 })
+
+        output.simulateDestinationRouteChange()
+        #expect(await waitUntil {
+            output.callsSnapshot().contains(.flush(destination: destinationUniqueID))
+        })
+        let calls = output.callsSnapshot()
+        #expect(calls.contains(.controlChange(
+            controller: 64,
+            value: 0,
+            channel: 0,
+            destination: destinationUniqueID
+        )))
+        #expect(calls.contains(.controlChange(
+            controller: 120,
+            value: 0,
+            channel: 0,
+            destination: destinationUniqueID
+        )))
+    }
+
+    @Test func playbackServiceTeardownFlushesAndSendsFullResetBatch() async throws {
+        let output = FakeMIDIOutputService()
+        let destinationUniqueID: Int32 = 777
+
+        try await MainActor.run {
+            var playback: CoreMIDIPracticePlaybackService? = CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                outputService: output,
+                channel: 2
+            )
+            try playback?.load(sequence: PracticeSequencerSequence(
+                midiData: Data(),
+                durationSeconds: 1,
+                events: [PracticeSequencerMIDIEvent(
+                    timeSeconds: 0.5,
+                    kind: .noteOn(midi: 60, velocity: 80)
+                )]
+            ))
+            try playback?.play(fromSeconds: 0)
+            playback = nil
+        }
+
+        #expect(output.callsSnapshot().contains(.flush(destination: destinationUniqueID)))
+        #expect(output.batchesSnapshot().contains { batch in
+            batch.map(\.bytes) == [
+                [0xB2, 64, 0],
+                [0xB2, 66, 0],
+                [0xB2, 67, 0],
+                [0xB2, 123, 0],
+                [0xB2, 120, 0],
+            ]
+        })
+    }
 }
 
 private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked Sendable {
+    var onDestinationRouteWillChange: (@Sendable () -> Void)?
+    var onDestinationRouteChange: (@Sendable () -> Void)?
+
     enum Call: Equatable {
         case start
         case stop
@@ -304,6 +454,7 @@ private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked
         case controlChange(controller: UInt8, value: UInt8, channel: UInt8, destination: Int32)
         case programChange(program: UInt8, channel: UInt8, destination: Int32)
         case bytes([UInt8], destination: Int32)
+        case flush(destination: Int32)
     }
 
     private let lock = OSAllocatedUnfairLock(initialState: [Call]())
@@ -334,6 +485,15 @@ private final class FakeMIDIOutputService: MIDIOutputSendingProtocol, @unchecked
         lock.withLock { calls in
             calls.append(contentsOf: messages.map { .bytes($0.bytes, destination: destinationUniqueID) })
         }
+    }
+
+    func flushScheduledMessages(destinationUniqueID: Int32) throws {
+        lock.withLock { $0.append(.flush(destination: destinationUniqueID)) }
+    }
+
+    func simulateDestinationRouteChange() {
+        onDestinationRouteWillChange?()
+        onDestinationRouteChange?()
     }
 
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationUniqueID: Int32) throws {

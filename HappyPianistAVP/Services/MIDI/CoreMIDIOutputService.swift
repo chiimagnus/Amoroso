@@ -4,11 +4,15 @@ import Foundation
 import os
 
 protocol MIDIOutputSendingProtocol: AnyObject, Sendable {
+    var onDestinationRouteWillChange: (@Sendable () -> Void)? { get set }
+    var onDestinationRouteChange: (@Sendable () -> Void)? { get set }
+
     func start() throws
     func stop()
     func listDestinations() -> [MIDIDestinationInfo]
 
     func sendMIDI1Messages(_ messages: [TimestampedMIDI1Message], destinationUniqueID: Int32) throws
+    func flushScheduledMessages(destinationUniqueID: Int32) throws
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
     func sendNoteOff(note: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
     func sendControlChange(controller: UInt8, value: UInt8, channel: UInt8, destinationUniqueID: Int32) throws
@@ -41,6 +45,7 @@ enum CoreMIDIOutputServiceError: LocalizedError {
     case outputPortCreate(OSStatus)
     case destinationNotFound(Int32)
     case invalidPacketBatch(String)
+    case flush(OSStatus)
     case send(OSStatus)
 
     var errorDescription: String? {
@@ -53,6 +58,8 @@ enum CoreMIDIOutputServiceError: LocalizedError {
             "MIDI destination not found: \(id)"
         case let .invalidPacketBatch(reason):
             "Invalid MIDI packet batch: \(reason)"
+        case let .flush(status):
+            "Failed to flush scheduled MIDI messages: \(status)"
         case let .send(status):
             "Failed to send MIDI message: \(status)"
         }
@@ -60,6 +67,16 @@ enum CoreMIDIOutputServiceError: LocalizedError {
 }
 
 final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
+    var onDestinationRouteWillChange: (@Sendable () -> Void)? {
+        get { stateLock.withLock { $0.onDestinationRouteWillChange } }
+        set { stateLock.withLock { $0.onDestinationRouteWillChange = newValue } }
+    }
+
+    var onDestinationRouteChange: (@Sendable () -> Void)? {
+        get { stateLock.withLock { $0.onDestinationRouteChange } }
+        set { stateLock.withLock { $0.onDestinationRouteChange = newValue } }
+    }
+
     var onDestinationListChange: (@Sendable ([MIDIDestinationInfo]) -> Void)? {
         get { stateLock.withLock { $0.onDestinationListChange } }
         set { stateLock.withLock { $0.onDestinationListChange = newValue } }
@@ -138,6 +155,26 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         try sendMessages(messages, destination: destination)
     }
 
+    func flushScheduledMessages(destinationUniqueID: Int32) throws {
+        let result = stateLock.withLock { state -> (OSStatus, (@Sendable (String?) -> Void)?) in
+            guard let destination = state.destinationCache[destinationUniqueID], destination != 0 else {
+                return (noErr, state.onLastErrorMessageChange)
+            }
+            return (MIDIFlushOutput(destination), state.onLastErrorMessageChange)
+        }
+        guard result.0 == noErr else {
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .midi,
+                stage: "coreMIDI.flush",
+                summary: "取消 CoreMIDI 未来事件失败",
+                reason: "status=\(result.0)"
+            )
+            result.1?("MIDIFlushOutput failed: \(result.0)")
+            throw CoreMIDIOutputServiceError.flush(result.0)
+        }
+    }
+
     func sendNoteOn(note: UInt8, velocity: UInt8, channel: UInt8, destinationUniqueID: Int32) throws {
         try sendMIDI1Bytes([0x90 | (channel & 0x0F), note, velocity], destinationUniqueID: destinationUniqueID)
     }
@@ -169,8 +206,9 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
                 let status = MIDIClientCreateWithBlock(
                     "HappyPianistAVPOutputClient" as CFString,
                     &clientRef
-                ) { [weak self] _ in
-                    self?.scheduleRefreshDestinations()
+                ) { [weak self] notification in
+                    guard MIDIEndpointRouteNotificationPolicy.affectsDestinations(notification) else { return }
+                    self?.handleDestinationRouteChange()
                 }
                 guard status == noErr else {
                     throw CoreMIDIOutputServiceError.clientCreate(status)
@@ -197,6 +235,32 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         refreshScheduler.schedule { [weak self] in
             _ = self?.refreshDestinations()
         }
+    }
+
+    private func handleDestinationRouteChange() {
+        let callbacks = stateLock.withLock { state in
+            (state.onDestinationRouteWillChange, state.onDestinationRouteChange)
+        }
+        callbacks.0?()
+        let firstFailure = stateLock.withLock { state -> OSStatus? in
+            var firstFailure: OSStatus?
+            for destination in state.destinationCache.values where destination != 0 {
+                let status = MIDIFlushOutput(destination)
+                if status != noErr, firstFailure == nil { firstFailure = status }
+            }
+            return firstFailure
+        }
+        if let firstFailure {
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .midi,
+                stage: "coreMIDI.routeFlush",
+                summary: "MIDI route 变化时取消未来事件失败",
+                reason: "status=\(firstFailure)"
+            )
+        }
+        callbacks.1?()
+        scheduleRefreshDestinations()
     }
 
     private func resolveDestination(_ destinationUniqueID: Int32) throws -> MIDIEndpointRef {
@@ -301,6 +365,8 @@ private struct OutputState {
     var clientRef: MIDIClientRef = 0
     var outputPortRef: MIDIPortRef = 0
     var destinationCache: [Int32: MIDIEndpointRef] = [:]
+    var onDestinationRouteWillChange: (@Sendable () -> Void)?
+    var onDestinationRouteChange: (@Sendable () -> Void)?
     var onDestinationListChange: (@Sendable ([MIDIDestinationInfo]) -> Void)?
     var onLastErrorMessageChange: (@Sendable (String?) -> Void)?
 }

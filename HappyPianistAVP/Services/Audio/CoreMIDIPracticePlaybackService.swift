@@ -1,3 +1,4 @@
+import CoreMIDI
 import Foundation
 
 @MainActor
@@ -7,6 +8,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
     private let outputCapabilities: PerformanceOutputCapabilities
     private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let hostTimeConverter: MIDIHostTimeConverter
+    private let generationGuard = MIDIPlaybackGenerationGuard()
 
     private let velocity: UInt8
     private let channel: UInt8
@@ -40,6 +42,50 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         self.hostTimeConverter = hostTimeConverter
         self.velocity = velocity
         self.channel = channel
+
+        let generationGuard = self.generationGuard
+        self.outputService.onDestinationRouteWillChange = {
+            generationGuard.invalidate()
+        }
+        self.outputService.onDestinationRouteChange = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleDestinationRouteChange()
+            }
+        }
+    }
+
+    deinit {
+        let hadScheduledPlayback = schedulerTask != nil
+        generationGuard.invalidate()
+        schedulerTask?.cancel()
+        guard hadScheduledPlayback else { return }
+
+        do {
+            try outputService.flushScheduledMessages(destinationUniqueID: destinationUniqueID)
+        } catch {
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .midi,
+                stage: "coreMIDI.teardownFlush",
+                summary: "释放外部 MIDI 播放服务时取消未来事件失败",
+                reason: String(describing: type(of: error))
+            )
+        }
+        do {
+            let hostTime = hostTimeConverter.origin(atTransportSeconds: 0).hostTime
+            try outputService.sendMIDI1Messages(
+                Self.fullResetMessages(channel: channel, hostTime: hostTime),
+                destinationUniqueID: destinationUniqueID
+            )
+        } catch {
+            diagnosticsReporter?.recordSystem(
+                severity: .error,
+                category: .midi,
+                stage: "coreMIDI.teardownReset",
+                summary: "释放外部 MIDI 播放服务时复位失败",
+                reason: String(describing: type(of: error))
+            )
+        }
     }
 
     func warmUp() throws {
@@ -70,6 +116,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         lastKnownSeconds = startSeconds
         playbackStartSeconds = startSeconds
         playbackStartedAtUptimeSeconds = ProcessInfo.processInfo.systemUptime
+        let generation = generationGuard.beginGeneration()
 
         let scheduler = MIDILookAheadScheduler(
             outputService: outputService,
@@ -77,13 +124,16 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
             channel: channel,
             outputCapabilities: outputCapabilities,
             hostTimeConverter: hostTimeConverter,
-            diagnosticsReporter: diagnosticsReporter
+            diagnosticsReporter: diagnosticsReporter,
+            generationGuard: generationGuard,
+            generation: generation
         )
         self.scheduler = scheduler
         schedulerTask = scheduler.start(events: events, fromSeconds: startSeconds)
     }
 
     private func haltPlayback() {
+        generationGuard.invalidate()
         oneShotStopTask?.cancel()
         oneShotStopTask = nil
 
@@ -92,12 +142,46 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
         playbackStartedAtUptimeSeconds = nil
 
+        let hadScheduledPlayback = schedulerTask != nil
         schedulerTask?.cancel()
         schedulerTask = nil
         scheduler = nil
 
+        if hadScheduledPlayback {
+            do {
+                try outputService.flushScheduledMessages(destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.playbackFlush",
+                    summary: "停止外部 MIDI 播放时取消未来事件失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
+        }
+
         liveNotes.removeAll()
         playingOneShotNotes.removeAll()
+    }
+
+    private func handleDestinationRouteChange() {
+        guard schedulerTask != nil else { return }
+        haltPlayback()
+        execute(PerformanceTransportReducer.fullResetCommands)
+    }
+
+    nonisolated private static func fullResetMessages(
+        channel: UInt8,
+        hostTime: MIDITimeStamp
+    ) -> [TimestampedMIDI1Message] {
+        let status = 0xB0 | (channel & 0x0F)
+        return [64, 66, 67, 123, 120].map { controller in
+            TimestampedMIDI1Message(
+                hostTime: hostTime,
+                bytes: [status, UInt8(controller), 0]
+            )
+        }
     }
 
     func currentSeconds() -> TimeInterval {

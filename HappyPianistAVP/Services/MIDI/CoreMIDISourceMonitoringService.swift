@@ -122,6 +122,7 @@ final class CoreMIDISourceMonitoringService: MIDISourceMonitoringServiceProtocol
             "HappyPianistAVPSourcesClient" as CFString,
             &clientRef
         ) { [weak self] message in
+            guard MIDIEndpointRouteNotificationPolicy.affectsSources(message) else { return }
             let notification = message.pointee
             Task { @MainActor [weak self] in
                 self?.handleMIDINotification(notification)

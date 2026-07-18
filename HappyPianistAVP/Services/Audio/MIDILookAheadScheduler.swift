@@ -1,5 +1,32 @@
 import CoreMIDI
 import Foundation
+import os
+
+final class MIDIPlaybackGenerationGuard: @unchecked Sendable {
+    private let generation = OSAllocatedUnfairLock(initialState: UInt64(0))
+
+    func beginGeneration() -> UInt64 {
+        generation.withLock { value in
+            value &+= 1
+            return value
+        }
+    }
+
+    func invalidate() {
+        generation.withLock { $0 &+= 1 }
+    }
+
+    func performIfCurrent(
+        _ expectedGeneration: UInt64,
+        operation: @Sendable () throws -> Void
+    ) rethrows -> Bool {
+        try generation.withLock { currentGeneration in
+            guard currentGeneration == expectedGeneration else { return false }
+            try operation()
+            return true
+        }
+    }
+}
 
 protocol MIDILookAheadClock: Sendable {
     func nowSeconds() -> TimeInterval
@@ -35,6 +62,8 @@ actor MIDILookAheadScheduler {
     private let clock: any MIDILookAheadClock
     private let configuration: MIDILookAheadConfiguration
     private let diagnosticsReporter: (any DiagnosticsReporting)?
+    private let generationGuard: MIDIPlaybackGenerationGuard
+    private let generation: UInt64
 
     init(
         outputService: any MIDIOutputSendingProtocol,
@@ -44,7 +73,9 @@ actor MIDILookAheadScheduler {
         hostTimeConverter: MIDIHostTimeConverter,
         clock: any MIDILookAheadClock = SystemMIDILookAheadClock(),
         configuration: MIDILookAheadConfiguration = .standard,
-        diagnosticsReporter: (any DiagnosticsReporting)? = nil
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
+        generationGuard: MIDIPlaybackGenerationGuard = MIDIPlaybackGenerationGuard(),
+        generation: UInt64 = 0
     ) {
         self.outputService = outputService
         self.destinationUniqueID = destinationUniqueID
@@ -57,6 +88,8 @@ actor MIDILookAheadScheduler {
             refillIntervalSeconds: max(0.001, configuration.refillIntervalSeconds)
         )
         self.diagnosticsReporter = diagnosticsReporter
+        self.generationGuard = generationGuard
+        self.generation = generation
     }
 
     nonisolated func start(
@@ -125,10 +158,14 @@ actor MIDILookAheadScheduler {
 
             if messages.isEmpty == false {
                 try Task.checkCancellation()
-                try outputService.sendMIDI1Messages(
-                    messages,
-                    destinationUniqueID: destinationUniqueID
-                )
+                let batchMessages = messages
+                let sent = try generationGuard.performIfCurrent(generation) {
+                    try outputService.sendMIDI1Messages(
+                        batchMessages,
+                        destinationUniqueID: destinationUniqueID
+                    )
+                }
+                guard sent else { return }
             }
 
             guard nextEventIndex < pendingEvents.count else { return }
