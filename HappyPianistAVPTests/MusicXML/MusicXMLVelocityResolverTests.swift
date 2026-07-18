@@ -233,6 +233,7 @@ struct MusicXMLVelocityResolverTests {
         let resolver = MusicXMLVelocityResolver(dynamicEvents: [], wedgeEvents: events, wedgeEnabled: true)
 
         #expect(resolver.wedgeApproximations.map(\.reason).sorted() == [
+            "wedge-missing-target-dynamic",
             "wedge-start-without-stop",
             "wedge-stop-without-start",
         ])
