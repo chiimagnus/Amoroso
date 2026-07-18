@@ -86,6 +86,36 @@
       "snapshot": "practice-measure-identity-repeats"
     },
     {
+      "id": "polyphonic-unison-retrigger",
+      "file": "PolyphonicUnisonRetrigger.musicxml",
+      "source": "project-authored MusicXML regression fixture",
+      "license": "repository test asset",
+      "exporter": "hand-authored MusicXML 4.0",
+      "coverage": [
+        "polyphony",
+        "unison",
+        "retrigger",
+        "tie",
+        "repedal"
+      ],
+      "snapshot": "polyphonic-unison-retrigger"
+    },
+    {
+      "id": "range-start-held-notes",
+      "file": "RangeStartHeldNotes.musicxml",
+      "source": "project-authored MusicXML regression fixture",
+      "license": "repository test asset",
+      "exporter": "hand-authored MusicXML 4.0",
+      "coverage": [
+        "range-start",
+        "held-note",
+        "sustain-latched-note",
+        "tie",
+        "repedal"
+      ],
+      "snapshot": "range-start-held-notes"
+    },
+    {
       "id": "single-staff-hand-routing-clear",
       "file": "SingleStaffHandRoutingClear.musicxml",
       "source": "project regression fixture",

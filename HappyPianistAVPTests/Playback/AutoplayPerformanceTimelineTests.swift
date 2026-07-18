@@ -121,6 +121,51 @@ func transportReducerReportsStaleOffPreventionForRetrigger() {
 }
 
 @Test
+func polyphonicUnisonFixturePreservesIdentityAcrossRetriggerAndTie() throws {
+    let plan = try timelineFixturePlan(id: "polyphonic-unison-retrigger")
+    let unisonNotes = plan.noteEvents.filter { $0.midiNote == 60 }
+    let tiedNote = try #require(unisonNotes.first { $0.voice == 1 })
+    let firstVoiceTwoNote = try #require(unisonNotes.first {
+        $0.voice == 2 && $0.performedOnTick == 0
+    })
+    let retriggeredNote = try #require(unisonNotes.first {
+        $0.voice == 2 && $0.performedOnTick == 480
+    })
+
+    #expect(tiedNote.performedOnTick == 0)
+    #expect(tiedNote.performedOffTick == 2_400)
+
+    let eventsAtStart = makeTimeline(plan: plan).events.filter { $0.tick == 0 }
+    let eventsAtRetrigger = makeTimeline(plan: plan).events.filter { $0.tick == 480 }
+    #expect(eventsAtStart.compactMap { event -> String? in
+        if case .noteOn(midi: 60, _) = event.kind { event.sourceEventID } else { nil }
+    } == [tiedNote.id.description, firstVoiceTwoNote.id.description].sorted())
+    #expect(eventsAtRetrigger.map(\.kind) == [
+        .noteOff(midi: 60),
+        .noteOff(midi: 60),
+        .noteOn(midi: 60, velocity: retriggeredNote.velocity),
+    ])
+    #expect(Set(eventsAtRetrigger.prefix(2).compactMap(\.sourceEventID)) == [
+        tiedNote.id.description,
+        firstVoiceTwoNote.id.description,
+    ])
+    #expect(eventsAtRetrigger.last?.sourceEventID == retriggeredNote.id.description)
+
+    let reduction = PerformanceTransportReducer().reduce(notes: plan.noteEvents.map {
+        PerformanceTransportReducer.Note(
+            eventID: $0.id,
+            midiNote: $0.midiNote,
+            velocity: $0.velocity,
+            onTick: $0.performedOnTick,
+            offTick: $0.performedOffTick
+        )
+    })
+    #expect(reduction.retriggeredEventCount == 1)
+    #expect(reduction.preventedStaleOffCount == 1)
+    #expect(reduction.orphanOffCount == 0)
+}
+
+@Test
 func autoplayTimelineKeepsZeroDurationPlanNotesReleasable() {
     let plan = makeTimelinePlan(notes: [
         TestScorePerformanceNote(midiNote: 60, velocity: 80, onTick: 0, offTick: 0),
@@ -366,6 +411,75 @@ func autoplayTimelineReconstructsPedalLatchedNoteUntilRelease() throws {
 }
 
 @Test
+func rangeStartFixtureRestoresHeldLatchedAndRepedalStateWithResetSnapshot() throws {
+    let plan = try timelineFixturePlan(id: "range-start-held-notes")
+    let activeRange = try timelineActiveRange(startTick: 1_920, endTick: 3_840)
+    let heldNote = try #require(plan.noteEvents.first { $0.midiNote == 60 })
+    let latchedNote = try #require(plan.noteEvents.first { $0.midiNote == 64 })
+    let rangeNote = try #require(plan.noteEvents.first { $0.midiNote == 67 })
+    let timeline = makeTimeline(plan: plan, activeRange: activeRange)
+
+    let soundEvents = timeline.events.filter {
+        if case .noteOn = $0.kind { return true }
+        if case .noteOff = $0.kind { return true }
+        return false
+    }
+    #expect(soundEvents.map(\.tick) == [1_920, 1_920, 2_400, 2_400, 2_880, 3_360])
+    #expect(soundEvents.map(\.kind) == [
+        .noteOn(midi: 60, velocity: heldNote.velocity),
+        .noteOn(midi: 64, velocity: latchedNote.velocity),
+        .noteOff(midi: 60),
+        .noteOff(midi: 64),
+        .noteOn(midi: 67, velocity: rangeNote.velocity),
+        .noteOff(midi: 67),
+    ])
+    #expect(soundEvents.map(\.sourceEventID) == [
+        heldNote.id.description,
+        latchedNote.id.description,
+        heldNote.id.description,
+        latchedNote.id.description,
+        rangeNote.id.description,
+        rangeNote.id.description,
+    ])
+    #expect(timeline.rangeStartApproximations == [
+        .reattackedHeldNote(eventID: heldNote.id),
+        .reattackedSustainedNote(eventID: latchedNote.id),
+    ])
+
+    let controllers = timeline.events.filter {
+        if case .controlChange = $0.kind { return true }
+        return false
+    }
+    #expect(controllers.map(\.tick) == [1_920, 2_400, 2_880, 3_840])
+    #expect(controllers.map(\.kind) == [
+        .controlChange(controller: 64, value: 127),
+        .controlChange(controller: 64, value: 0),
+        .controlChange(controller: 64, value: 127),
+        .controlChange(controller: 64, value: 0),
+    ])
+
+    let reducer = PerformanceTransportReducer()
+    let start = reducer.transition(
+        from: .idle,
+        at: .start(tick: 1_920, activeEventIDs: [heldNote.id, latchedNote.id])
+    )
+    let stop = reducer.transition(from: start.state, at: .stop)
+    let resetCommands = try #require(stop.commands.compactMap { command -> [PerformanceTransportCommand]? in
+        if case let .reset(_, commands, _, _) = command { commands } else { nil }
+    }.first)
+    let sortedIDs = [heldNote.id, latchedNote.id].sorted { $0.description < $1.description }
+    #expect(resetCommands == [
+        .noteOff(eventID: sortedIDs[0]),
+        .noteOff(eventID: sortedIDs[1]),
+        .controlChange(controller: 64, value: 0),
+        .controlChange(controller: 66, value: 0),
+        .controlChange(controller: 67, value: 0),
+        .allNotesOff,
+        .allSoundOff,
+    ])
+}
+
+@Test
 func autoplayTimelineClosesHeldAndRangeNotesAfterSamePitchRetrigger() throws {
     let activeRange = try timelineActiveRange(startTick: 480, endTick: 960)
     let plan = makeTimelinePlan(notes: [
@@ -504,6 +618,15 @@ private func makeTimelinePlan(
         tempoEvents: tempoEvents,
         controllerEvents: controllerEvents,
         annotations: annotations
+    )
+}
+
+private func timelineFixturePlan(id: String) throws -> ScorePerformancePlan {
+    let fixture = try PianoPerformanceFixtureLoader().fixture(id: id)
+    let score = try MusicXMLParser().parse(fileURL: fixture.url)
+    return makeTestScorePerformancePlan(
+        from: score,
+        expressivity: MusicXMLRealisticPlaybackDefaults.expressivityOptions
     )
 }
 
