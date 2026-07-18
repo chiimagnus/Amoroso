@@ -516,8 +516,8 @@ private extension ScoreTimingScheduleBuilder {
         entries: inout [MutableEntry]
     ) {
         for index in notes.indices where notes[index].isGrace == false {
+            guard profile.hasDurationRule(for: notes[index].articulations) else { continue }
             let multiplier = profile.durationMultiplier(for: notes[index].articulations)
-            guard multiplier < 1 else { continue }
             let rawDuration = max(0, entries[index].performedOffTick - entries[index].performedOnTick)
             guard rawDuration > 0 else { continue }
             let adjustedDuration = min(
