@@ -199,6 +199,16 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     let geometry = makeTestKeyboardGeometry()
     let key = try #require(geometry.key(for: 60))
     let position = SIMD3<Float>(key.hitCenterLocal.x, key.surfaceLocalY, key.hitCenterLocal.z)
+    let abovePosition = SIMD3<Float>(position.x, position.y + 0.02, position.z)
+
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(
+            left: HandTips(index: abovePosition),
+            right: HandTips(index: abovePosition)
+        ),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 0.95)
+    )
 
     let first = service.detect(
         fingerTips: FingerTipsSnapshot(left: HandTips(index: position), right: HandTips(index: position)),
@@ -235,6 +245,11 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     )
     #expect(suppressedRetrigger.isEmpty)
 
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: abovePosition)),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.12)
+    )
     let retriggered = service.detect(
         fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
         keyboardGeometry: geometry,
@@ -281,6 +296,13 @@ func keyContactDetectionBlackKeyPriority() throws {
 
     let fingerTips = FingerTipsSnapshot(
         right: HandTips(index: SIMD3<Float>(overlapPointX, -0.001, blackKey.hitCenterLocal.z))
+    )
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(
+            right: HandTips(index: SIMD3<Float>(overlapPointX, 0.02, blackKey.hitCenterLocal.z))
+        ),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 0.95)
     )
     let result = service.detect(fingerTips: fingerTips, keyboardGeometry: geometry, at: .init(seconds: 1))
     #expect(result.activeMIDINotes == [blackKey.midiNote])
