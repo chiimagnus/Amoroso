@@ -24,6 +24,10 @@ protocol PracticeInputEventSourceProtocol: AnyObject {
     func stop()
 }
 
+protocol PerformanceObservationStreamProviding: AnyObject {
+    func performanceObservationsStream() -> AsyncStream<PerformanceObservation>
+}
+
 enum PracticeSessionEffect: Equatable {
     case attemptEvaluated(StepAttemptMatchResult)
     case advanceToNextStep
