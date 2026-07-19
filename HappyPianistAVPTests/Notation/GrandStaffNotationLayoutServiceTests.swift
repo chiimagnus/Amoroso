@@ -17,6 +17,31 @@ func layoutAssignsItemsToTrebleAndBassStaves() {
 }
 
 @Test
+func layoutPositionsWrittenPitchUsingTheActiveClef() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions><clef><sign>G</sign><line>2</line></clef></attributes>
+        <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+        <attributes><clef><sign>F</sign><line>4</line></clef></attributes>
+        <note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+      </measure></part>
+    </score-partwise>
+    """
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let projection = ScoreNotationProjection(
+        plan: makeTestScorePerformancePlan(from: score),
+        sourceScore: score
+    )
+    let layout = GrandStaffNotationLayoutService().makeLayout(projection: projection)
+
+    #expect(projection.sourceNotes.map { $0.clef?.signToken } == ["G", "F"])
+    #expect(layout.items.map(\.staffStep) == [-2, 8])
+    #expect(layout.attributeChanges.first?.clefGlyphToken == .fClef)
+}
+
+@Test
 func layoutEmitsBarlinesForMeasureSpansStartAndEndTicks() {
     let measureSpans = [
         MusicXMLMeasureSpan(partID: "P1", measureNumber: 1, sourceMeasureIndex: 1, sourceMeasureNumberToken: "1", occurrenceIndex: 0, startTick: 0, endTick: 480),

@@ -155,6 +155,7 @@ struct GrandStaffNotationLayoutService {
                 noteValue: noteValue(for: source.writtenRhythm),
                 durationTicks: writtenDurationTicks,
                 writtenPitch: writtenPitch,
+                clef: source.clef,
                 keySignatureFifths: source.keySignature?.fifths ?? 0,
                 displayedAccidental: nil,
                 isGrace: source.isGrace,
@@ -205,6 +206,7 @@ struct GrandStaffNotationLayoutService {
         let noteValue: GrandStaffNoteValue
         let durationTicks: Int
         let writtenPitch: MusicXMLWrittenPitch
+        let clef: ScoreNotationProjection.ClefFact?
         let keySignatureFifths: Int
         var displayedAccidental: GrandStaffAccidental?
         let isGrace: Bool
@@ -246,7 +248,11 @@ struct GrandStaffNotationLayoutService {
                 hand: note.hand,
                 tick: note.tick,
                 xPosition: 0,
-                staffStep: staffStep(for: note.writtenPitch, staffNumber: note.staffNumber),
+                staffStep: staffStep(
+                    for: note.writtenPitch,
+                    staffNumber: note.staffNumber,
+                    clef: note.clef
+                ),
                 displayedAccidental: note.displayedAccidental,
                 isHighlighted: note.isHighlighted,
                 fingerings: note.fingerings,
@@ -703,11 +709,36 @@ struct GrandStaffNotationLayoutService {
         return trimmed.isEmpty ? "1" : trimmed
     }
 
-    func staffStep(for writtenPitch: MusicXMLWrittenPitch, staffNumber: Int) -> Int {
-        let bottomLineIndex = staffNumber >= 2
+    func staffStep(
+        for writtenPitch: MusicXMLWrittenPitch,
+        staffNumber: Int,
+        clef: ScoreNotationProjection.ClefFact?
+    ) -> Int {
+        let fallbackBottomLine = staffNumber >= 2
             ? writtenDiatonicIndex(step: "G", octave: 2)
             : writtenDiatonicIndex(step: "E", octave: 4)
+        guard let clef,
+              let line = clef.line,
+              (1 ... 5).contains(line),
+              let referencePitch = clefReferencePitch(signToken: clef.signToken)
+        else {
+            return writtenDiatonicIndex(step: writtenPitch.step, octave: writtenPitch.octave)
+                - fallbackBottomLine
+        }
+        let bottomLineIndex = writtenDiatonicIndex(
+            step: referencePitch.step,
+            octave: referencePitch.octave
+        ) - (line - 1) * 2
         return writtenDiatonicIndex(step: writtenPitch.step, octave: writtenPitch.octave) - bottomLineIndex
+    }
+
+    private func clefReferencePitch(signToken: String?) -> (step: String, octave: Int)? {
+        switch signToken?.uppercased() {
+        case "G": ("G", 4)
+        case "F": ("F", 3)
+        case "C": ("C", 4)
+        default: nil
+        }
     }
 
     private func resolvingDisplayedAccidentals(_ notes: [LayoutNote]) -> [LayoutNote] {

@@ -90,7 +90,11 @@ struct GrandStaffNotationPresentationViewModel {
             guard let source = sourceNotesByID[occurrence.sourceNoteID] else { continue }
             let staffNumber = source.staff >= 2 ? 2 : 1
             guard let writtenPitch = source.writtenPitch else { continue }
-            let step = layoutService.staffStep(for: writtenPitch, staffNumber: staffNumber)
+            let step = layoutService.staffStep(
+                for: writtenPitch,
+                staffNumber: staffNumber,
+                clef: source.clef
+            )
             if staffNumber >= 2 {
                 minBassStep = min(minBassStep, step)
                 maxBassStep = max(maxBassStep, step)
