@@ -85,6 +85,10 @@ struct RecordingTakeStore: RecordingTakeStoreProtocol {
         try paths.ensureDirectoriesExist()
         let takesFileURL = try paths.takesFileURL()
 
+        for take in takes {
+            try take.metadata.validatePrivacy()
+        }
+
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
