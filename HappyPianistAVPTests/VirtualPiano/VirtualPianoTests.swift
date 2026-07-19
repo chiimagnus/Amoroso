@@ -469,7 +469,7 @@ private struct NoopPressDetectionService: PressDetectionServiceProtocol {
 }
 
 private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
-    func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], tolerance _: Int, at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
+    func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }
 
@@ -482,7 +482,7 @@ private final class RecordingChordAttemptAccumulator: ChordAttemptAccumulatorPro
     private(set) var lastExpectedNotes: [Int] = []
     var shouldReturnMatched = false
 
-    func register(pressedNotes: Set<Int>, expectedNotes: [Int], tolerance _: Int, at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
+    func register(pressedNotes: Set<Int>, expectedNotes: [Int], at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
         registerCallCount += 1
         lastPressedNotes = pressedNotes
         lastExpectedNotes = expectedNotes

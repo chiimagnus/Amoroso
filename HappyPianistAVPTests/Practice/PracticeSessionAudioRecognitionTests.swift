@@ -310,7 +310,6 @@ private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
         at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)

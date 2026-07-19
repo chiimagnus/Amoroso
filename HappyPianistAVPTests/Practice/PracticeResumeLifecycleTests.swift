@@ -660,7 +660,6 @@ private final class ResumeNoopChordAccumulator: ChordAttemptAccumulatorProtocol 
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
         at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         .insufficientEvidence

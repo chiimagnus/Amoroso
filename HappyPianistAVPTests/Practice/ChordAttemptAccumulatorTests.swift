@@ -11,7 +11,6 @@ func simultaneousChordUsesActualOnsetSpread() {
         expectedRightNotes: [60, 64],
         expectedLeftNotes: [],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         onsetExpectation: .simultaneous,
         at: .init(seconds: 1)
     )
@@ -20,7 +19,6 @@ func simultaneousChordUsesActualOnsetSpread() {
         expectedRightNotes: [60, 64],
         expectedLeftNotes: [],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         onsetExpectation: .simultaneous,
         at: .init(seconds: 1.2)
     )
@@ -38,7 +36,6 @@ func rolledChordAcceptsOnsetsAcrossConfiguredSpan() {
         expectedRightNotes: [60, 64, 67],
         expectedLeftNotes: [],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         onsetExpectation: .rolled,
         at: .init(seconds: 1)
     )
@@ -47,7 +44,6 @@ func rolledChordAcceptsOnsetsAcrossConfiguredSpan() {
         expectedRightNotes: [60, 64, 67],
         expectedLeftNotes: [],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         onsetExpectation: .rolled,
         at: .init(seconds: 1.2)
     )
@@ -56,7 +52,6 @@ func rolledChordAcceptsOnsetsAcrossConfiguredSpan() {
         expectedRightNotes: [60, 64, 67],
         expectedLeftNotes: [],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         onsetExpectation: .rolled,
         at: .init(seconds: 1.45)
     )

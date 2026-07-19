@@ -87,8 +87,6 @@ final class PracticeSessionStateStore {
         exactPressedNotes: [],
         confidenceBoost: 0
     )
-    var noteMatchTolerance: Int = 1
-
     private(set) var tempoMap = MusicXMLTempoMap(performanceEvents: [])
     var measureSpans: [MusicXMLMeasureSpan] = []
     var manualReplayGeneration = 0

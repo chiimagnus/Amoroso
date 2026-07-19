@@ -67,7 +67,6 @@ func chordAccumulatorRequiresBothHandsWithinSameWindow() {
         expectedRightNotes: [60],
         expectedLeftNotes: [48],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         at: t0
     )
     #expect(first.isMatched == false)
@@ -77,7 +76,6 @@ func chordAccumulatorRequiresBothHandsWithinSameWindow() {
         expectedRightNotes: [60],
         expectedLeftNotes: [48],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         at: t0.advanced(by: 0.1)
     )
     #expect(second.isMatched)
@@ -91,7 +89,6 @@ func chordAccumulatorRejectsCorrectPitchesPlayedByWrongHands() {
         expectedRightNotes: [60],
         expectedLeftNotes: [48],
         expectedUnassignedNotes: [],
-        tolerance: 0,
         at: .init(seconds: 1)
     )
 
@@ -106,7 +103,6 @@ func chordAccumulatorMatchesUnknownScoreHandAgainstOverallPitch() {
         expectedRightNotes: [],
         expectedLeftNotes: [],
         expectedUnassignedNotes: [60],
-        tolerance: 0,
         at: .init(seconds: 1)
     )
 

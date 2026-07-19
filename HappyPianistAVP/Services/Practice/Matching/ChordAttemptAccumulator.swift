@@ -8,27 +8,35 @@ enum ChordOnsetExpectation: Equatable {
 struct HandSeparatedNoteEvidence: Equatable {
     let right: Set<Int>
     let left: Set<Int>
+    let hasUncertainCandidate: Bool
 
     var all: Set<Int> { right.union(left) }
     var isEmpty: Bool { right.isEmpty && left.isEmpty }
 
-    init(right: Set<Int> = [], left: Set<Int> = []) {
+    init(right: Set<Int> = [], left: Set<Int> = [], hasUncertainCandidate: Bool = false) {
         self.right = right
         self.left = left
+        self.hasUncertainCandidate = hasUncertainCandidate
     }
 
     init(startedContacts: [PianoKeyContactObservation]) {
         var right: Set<Int> = []
         var left: Set<Int> = []
+        var hasUncertainCandidate = false
         for contact in startedContacts where contact.phase == .started {
-            guard let midiNote = contact.keyCandidate.exactMIDINote else { continue }
-            switch contact.hand {
-            case .right: right.insert(midiNote)
-            case .left: left.insert(midiNote)
+            switch contact.keyCandidate {
+            case let .exact(midiNote):
+                switch contact.hand {
+                case .right: right.insert(midiNote)
+                case .left: left.insert(midiNote)
+                }
+            case .ambiguous, .unknown:
+                hasUncertainCandidate = true
             }
         }
         self.right = right
         self.left = left
+        self.hasUncertainCandidate = hasUncertainCandidate
     }
 }
 
@@ -36,7 +44,6 @@ protocol ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes: Set<Int>,
         expectedNotes: [Int],
-        tolerance: Int,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult
 
@@ -45,7 +52,6 @@ protocol ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         expectedUnassignedNotes: [Int],
-        tolerance: Int,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult
     func reset()
@@ -57,13 +63,11 @@ extension ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         expectedUnassignedNotes: [Int],
-        tolerance: Int,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         register(
             pressedNotes: evidence.all,
             expectedNotes: Set(expectedRightNotes + expectedLeftNotes + expectedUnassignedNotes).sorted(),
-            tolerance: tolerance,
             at: timestamp
         )
     }
@@ -99,13 +103,11 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes: Set<Int>,
         expectedNotes: [Int],
-        tolerance: Int,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         register(
             pressedNotes: pressedNotes,
             expectedNotes: expectedNotes,
-            tolerance: tolerance,
             onsetExpectation: .rolled,
             at: timestamp
         )
@@ -114,7 +116,6 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes: Set<Int>,
         expectedNotes: [Int],
-        tolerance: Int,
         onsetExpectation: ChordOnsetExpectation,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
@@ -123,7 +124,6 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
             expectedRightNotes: expectedNotes,
             expectedLeftNotes: [],
             expectedUnassignedNotes: [],
-            tolerance: tolerance,
             onsetExpectation: onsetExpectation,
             at: timestamp
         )
@@ -134,7 +134,6 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         expectedUnassignedNotes: [Int],
-        tolerance: Int,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         registerHandSeparated(
@@ -142,7 +141,6 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
             expectedRightNotes: expectedRightNotes,
             expectedLeftNotes: expectedLeftNotes,
             expectedUnassignedNotes: expectedUnassignedNotes,
-            tolerance: tolerance,
             onsetExpectation: .rolled,
             at: timestamp
         )
@@ -153,7 +151,6 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         expectedUnassignedNotes: [Int],
-        tolerance: Int,
         onsetExpectation: ChordOnsetExpectation,
         at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
@@ -184,18 +181,15 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         })
         let rightMatched = expectedRightNotes.isEmpty || matcher.matches(
             expectedNotes: expectedRightNotes,
-            pressedNotes: observedRight,
-            tolerance: tolerance
+            pressedNotes: observedRight
         )
         let leftMatched = expectedLeftNotes.isEmpty || matcher.matches(
             expectedNotes: expectedLeftNotes,
-            pressedNotes: observedLeft,
-            tolerance: tolerance
+            pressedNotes: observedLeft
         )
         let unassignedMatched = expectedUnassignedNotes.isEmpty || matcher.matches(
             expectedNotes: expectedUnassignedNotes,
-            pressedNotes: observedRight.union(observedLeft),
-            tolerance: tolerance
+            pressedNotes: observedRight.union(observedLeft)
         )
 
         guard rightMatched, leftMatched, unassignedMatched else { return .insufficientEvidence }

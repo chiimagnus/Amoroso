@@ -704,7 +704,6 @@ private final class LaunchLifecycleChordAccumulator: ChordAttemptAccumulatorProt
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
         at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         .insufficientEvidence

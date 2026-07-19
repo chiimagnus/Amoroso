@@ -1680,7 +1680,6 @@ private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
         at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
@@ -1693,7 +1692,6 @@ private final class AlwaysMatchChordAttemptAccumulator: ChordAttemptAccumulatorP
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
         at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: true)

@@ -57,8 +57,9 @@ final class PracticeHandGateController {
         at timestamp: PerformanceMonotonicInstant,
         practiceHandMode: PracticeHandMode
     ) {
-        let evidence = HandSeparatedNoteEvidence(startedContacts: observations)
-        guard evidence.isEmpty == false else { return }
+        let startedContacts = observations.filter { $0.phase == .started }
+        guard startedContacts.isEmpty == false else { return }
+        let evidence = HandSeparatedNoteEvidence(startedContacts: startedContacts)
         guard stateStore.acceptsPracticeAttempts else { return }
         guard case .guiding = stateStore.state else { return }
         guard stateStore.autoplayState == .off else { return }
@@ -73,13 +74,18 @@ final class PracticeHandGateController {
         let expectedMIDINotes = Set(expectedNotes.map(\.midiNote)).sorted()
         guard expectedMIDINotes.isEmpty == false else { return }
 
+        if evidence.hasUncertainCandidate {
+            effectHandler?.handle(effect: .attemptEvaluated(.insufficientEvidence))
+            return
+        }
+        guard evidence.isEmpty == false else { return }
+
         let expectedByHand = uniqueMIDINotesByHand(notes: expectedNotes)
         let outcome = chordAttemptAccumulator.registerHandSeparated(
             evidence: evidence,
             expectedRightNotes: expectedByHand.right,
             expectedLeftNotes: expectedByHand.left,
             expectedUnassignedNotes: expectedByHand.unknown,
-            tolerance: stateStore.noteMatchTolerance,
             at: timestamp
         )
 

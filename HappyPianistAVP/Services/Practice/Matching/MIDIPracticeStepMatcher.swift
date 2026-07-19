@@ -88,7 +88,6 @@ final class MIDIPracticeStepMatcher: MIDIPracticeStepMatchingProtocol {
         return chordAccumulator.register(
             pressedNotes: [note],
             expectedNotes: expectedUnion.sorted(),
-            tolerance: 0,
             onsetExpectation: onsetExpectation,
             at: observation.timing.correctedHost
         )
