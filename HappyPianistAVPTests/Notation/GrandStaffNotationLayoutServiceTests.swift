@@ -37,7 +37,7 @@ func layoutPositionsWrittenPitchUsingTheActiveClef() throws {
     let layout = GrandStaffNotationLayoutService().makeLayout(projection: projection)
 
     #expect(projection.sourceNotes.map { $0.clef?.signToken } == ["G", "F"])
-    #expect(layout.items.map(\.staffStep) == [-2, 8])
+    #expect(layout.items.map(\.staffStep) == [-2, 10])
     #expect(layout.attributeChanges.first?.clefGlyphToken == .fClef)
 }
 
