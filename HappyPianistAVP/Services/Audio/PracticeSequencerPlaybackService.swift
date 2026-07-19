@@ -43,6 +43,7 @@ struct PracticeAudioPlatformOperations: Sendable {
     let loadSoundBank: @Sendable (AVAudioUnitSampler, URL, UInt8) throws -> Void
     let startEngine: @Sendable (AVAudioEngine) throws -> Void
     let stopEngine: @Sendable (AVAudioEngine) -> Void
+    let isEngineRunning: @Sendable (AVAudioEngine) -> Bool
     let loadSequence: @Sendable (AVAudioSequencer, Data) throws -> Void
     let startSequence: @Sendable (AVAudioSequencer) throws -> Void
     let stopSequence: @Sendable (AVAudioSequencer) -> Void
@@ -71,6 +72,9 @@ struct PracticeAudioPlatformOperations: Sendable {
         },
         stopEngine: { engine in
             engine.stop()
+        },
+        isEngineRunning: { engine in
+            engine.isRunning
         },
         loadSequence: { sequencer, data in
             try sequencer.load(from: data, options: [])
@@ -560,6 +564,11 @@ actor AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackServiceP
             )
         }
 
+        if isReady, platform.isEngineRunning(engine) {
+            publishReadyIfNeeded()
+            return
+        }
+
         do {
             try platform.configureAudioSession()
         } catch {
@@ -573,19 +582,17 @@ actor AVAudioSequencerPracticePlaybackService: PracticeSequencerPlaybackServiceP
         }
 
         if isReady {
-            if engine.isRunning == false {
-                do {
-                    applyAudioOutputVolumeIfNeeded()
-                    try platform.startEngine(engine)
-                } catch {
-                    throw handleFailure(
-                        operationError(
-                            operation: .engineStart,
-                            recovery: .recoverable,
-                            underlying: error
-                        )
+            do {
+                applyAudioOutputVolumeIfNeeded()
+                try platform.startEngine(engine)
+            } catch {
+                throw handleFailure(
+                    operationError(
+                        operation: .engineStart,
+                        recovery: .recoverable,
+                        underlying: error
                     )
-                }
+                )
             }
             publishReadyIfNeeded()
             return

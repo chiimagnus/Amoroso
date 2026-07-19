@@ -348,6 +348,35 @@ func localSamplerQuantizesLiveControllerAndReportsApproximation() async throws {
     })
 }
 
+@Test
+func readyAudioEngineSkipsRepeatedSessionConfigurationAndRecoversWhenStopped() async throws {
+    let output = FakePerformanceOutput(capabilities: .localSampler)
+    let service = AVAudioSequencerPracticePlaybackService(
+        soundFontResourceName: "TestSoundFont",
+        platform: output.makeAudioPlatform()
+    )
+
+    try await service.warmUp()
+    try await service.load(sequence: emptyPracticeSequence())
+    try await service.execute(commands: [
+        PracticePlaybackCommand(
+            sourceEventID: "live-program",
+            kind: .programChange(program: 1)
+        ),
+    ])
+
+    #expect(output.audioOperationCount(.audioSessionConfiguration) == 1)
+    #expect(output.audioOperationCount(.soundBankLoad) == 1)
+    #expect(output.audioOperationCount(.engineStart) == 1)
+
+    await service.handleAudioSessionEvent(.routeChanged(reason: .routeOldDeviceUnavailable))
+    try await service.warmUp()
+
+    #expect(output.audioOperationCount(.audioSessionConfiguration) == 2)
+    #expect(output.audioOperationCount(.soundBankLoad) == 2)
+    #expect(output.audioOperationCount(.engineStart) == 2)
+}
+
 private func emptyPracticeSequence() -> PracticeSequencerSequence {
     PracticeSequencerSequence(
         midiData: Data(),

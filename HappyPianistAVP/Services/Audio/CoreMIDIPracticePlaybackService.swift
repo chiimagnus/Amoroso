@@ -376,6 +376,7 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
     }
 
     private func ensureReady() throws {
+        guard ownsOutputLifecycle == false else { return }
         try outputService.start()
         ownsOutputLifecycle = true
     }

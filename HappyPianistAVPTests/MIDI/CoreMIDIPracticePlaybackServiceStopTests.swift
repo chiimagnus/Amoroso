@@ -231,6 +231,31 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
         }
     }
 
+    @Test func readyCoreMIDIOutputStartsOnlyOnceAcrossHotPaths() async throws {
+        let output = FakePerformanceOutput()
+        let playback = await MainActor.run {
+            CoreMIDIPracticePlaybackService(destinationUniqueID: 3457, outputService: output)
+        }
+
+        try await MainActor.run {
+            try playback.warmUp()
+            try playback.load(sequence: PracticeSequencerSequence(
+                midiData: Data(),
+                durationSeconds: 0,
+                events: []
+            ))
+            try playback.play(fromSeconds: 0)
+            try playback.execute(commands: [
+                PracticePlaybackCommand(
+                    sourceEventID: "live-program",
+                    kind: .programChange(program: 1)
+                ),
+            ])
+        }
+
+        #expect(output.callsSnapshot().count(where: { $0 == .start }) == 1)
+    }
+
     @Test func lookAheadSchedulerKeepsStableOrderAcrossBatchBoundary() async {
         let output = FakePerformanceOutput()
         let clock = FakeMIDILookAheadClock()

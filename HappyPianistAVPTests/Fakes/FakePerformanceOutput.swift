@@ -47,6 +47,8 @@ final class FakePerformanceOutput: MIDIOutputSendingProtocol, @unchecked Sendabl
         var failingMIDIBatchCount = 0
         var audioEntries: [AudioEntry] = []
         var audioFailures: [AudioOperation: Int] = [:]
+        var audioOperationCounts: [AudioOperation: Int] = [:]
+        var isAudioEngineRunning = false
         var failingAudioControllers: Set<UInt32> = []
         var failingAudioStatusKinds: Set<UInt32> = []
         var isSoundFontAvailable = true
@@ -101,6 +103,10 @@ final class FakePerformanceOutput: MIDIOutputSendingProtocol, @unchecked Sendabl
         lock.withLock { $0.audioFailures[operation, default: 0] += 1 }
     }
 
+    func audioOperationCount(_ operation: AudioOperation) -> Int {
+        lock.withLock { $0.audioOperationCounts[operation, default: 0] }
+    }
+
     func setFailingAudioControllers(_ controllers: Set<UInt32>) {
         lock.withLock { $0.failingAudioControllers = controllers }
     }
@@ -136,22 +142,30 @@ final class FakePerformanceOutput: MIDIOutputSendingProtocol, @unchecked Sendabl
                 return URL(fileURLWithPath: "/tmp/TestSoundFont.sf2")
             },
             configureAudioSession: { [weak self] in
-                try self?.consumeAudioFailure(.audioSessionConfiguration)
+                try self?.performAudioOperation(.audioSessionConfiguration)
             },
             loadSoundBank: { [weak self] _, _, _ in
-                try self?.consumeAudioFailure(.soundBankLoad)
+                try self?.performAudioOperation(.soundBankLoad)
             },
             startEngine: { [weak self] _ in
-                try self?.consumeAudioFailure(.engineStart)
+                guard let self else { return }
+                try performAudioOperation(.engineStart)
+                lock.withLock { $0.isAudioEngineRunning = true }
             },
             stopEngine: { [weak self] _ in
-                self?.lock.withLock { $0.audioEntries.append(.engineStopped) }
+                self?.lock.withLock {
+                    $0.isAudioEngineRunning = false
+                    $0.audioEntries.append(.engineStopped)
+                }
+            },
+            isEngineRunning: { [weak self] _ in
+                self?.lock.withLock { $0.isAudioEngineRunning } ?? false
             },
             loadSequence: { [weak self] _, _ in
-                try self?.consumeAudioFailure(.sequenceLoad)
+                try self?.performAudioOperation(.sequenceLoad)
             },
             startSequence: { [weak self] _ in
-                try self?.consumeAudioFailure(.sequenceStart)
+                try self?.performAudioOperation(.sequenceStart)
             },
             stopSequence: { [weak self] _ in
                 self?.lock.withLock { $0.audioEntries.append(.sequenceStopped) }
@@ -274,8 +288,9 @@ final class FakePerformanceOutput: MIDIOutputSendingProtocol, @unchecked Sendabl
         )
     }
 
-    private func consumeAudioFailure(_ operation: AudioOperation) throws {
+    private func performAudioOperation(_ operation: AudioOperation) throws {
         let shouldFail = lock.withLock { state in
+            state.audioOperationCounts[operation, default: 0] += 1
             guard let remaining = state.audioFailures[operation], remaining > 0 else { return false }
             state.audioFailures[operation] = remaining - 1
             return true
