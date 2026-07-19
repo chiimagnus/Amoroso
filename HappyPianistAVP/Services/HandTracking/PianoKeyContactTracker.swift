@@ -8,7 +8,9 @@ struct PianoKeyContactTracker {
         let worldPosition: SIMD3<Float>
         let planeDistanceMeters: Float
         let surfaceLocalY: Float
+        let geometryID: UUID
         let calibrationID: UUID
+        let resolvedVelocity: UInt8?
     }
 
     private var cachedGeometryID: UUID?
@@ -30,7 +32,9 @@ struct PianoKeyContactTracker {
         at timestamp: PerformanceMonotonicInstant,
         pressThresholdMeters: Float,
         releaseThresholdMeters: Float,
-        retriggerDebounceSeconds: TimeInterval
+        retriggerDebounceSeconds: TimeInterval,
+        calibrationID: UUID,
+        velocityResolver: PianoTouchVelocityResolver
     ) -> [PianoKeyContactObservation] {
         let keyboardFromWorld = keyboardGeometry.frame.keyboardFromWorld
         if let cachedGeometryID, cachedGeometryID != keyboardGeometry.cacheID {
@@ -68,7 +72,7 @@ struct PianoKeyContactTracker {
 
             let previous = previousContacts[fingerID]
             let continuesPreviousContact = previous?.midiNote == region.midiNote
-                && previous?.calibrationID == keyboardGeometry.cacheID
+                && previous?.geometryID == keyboardGeometry.cacheID
             if previous != nil, continuesPreviousContact == false {
                 return
             }
@@ -81,13 +85,18 @@ struct PianoKeyContactTracker {
 
             let contactID: PianoKeyContactID
             let phase: PianoKeyContactObservation.Phase
+            let resolvedVelocity: UInt8?
             if let previous {
                 contactID = previous.id
                 phase = .held
+                resolvedVelocity = previous.resolvedVelocity
             } else {
                 nextSequence &+= 1
                 contactID = PianoKeyContactID(finger: fingerID, sequence: nextSequence)
                 phase = .started
+                resolvedVelocity = velocityResolver.resolve(
+                    normalVelocityMetersPerSecond: motion.normalVelocityMetersPerSecond
+                )
                 retriggerAllowedAt.removeValue(forKey: fingerID)
             }
 
@@ -98,7 +107,9 @@ struct PianoKeyContactTracker {
                 worldPosition: worldPosition,
                 planeDistanceMeters: planeDistance,
                 surfaceLocalY: region.surfaceLocalY,
-                calibrationID: keyboardGeometry.cacheID
+                geometryID: keyboardGeometry.cacheID,
+                calibrationID: calibrationID,
+                resolvedVelocity: resolvedVelocity
             )
             observations.append(
                 makeObservation(
@@ -110,7 +121,8 @@ struct PianoKeyContactTracker {
                     worldPosition: worldPosition,
                     planeDistanceMeters: planeDistance,
                     normalVelocityMetersPerSecond: motion.normalVelocityMetersPerSecond,
-                    calibrationID: keyboardGeometry.cacheID
+                    resolvedVelocity: resolvedVelocity,
+                    calibrationID: calibrationID
                 )
             )
         }
@@ -182,6 +194,7 @@ struct PianoKeyContactTracker {
             worldPosition: endedWorldPosition,
             planeDistanceMeters: planeDistance,
             normalVelocityMetersPerSecond: motion?.normalVelocityMetersPerSecond,
+            resolvedVelocity: previous.resolvedVelocity,
             calibrationID: previous.calibrationID
         )
     }
@@ -195,6 +208,7 @@ struct PianoKeyContactTracker {
         worldPosition: SIMD3<Float>,
         planeDistanceMeters: Float,
         normalVelocityMetersPerSecond: Float?,
+        resolvedVelocity: UInt8?,
         calibrationID: UUID
     ) -> PianoKeyContactObservation {
         PianoKeyContactObservation(
@@ -206,6 +220,7 @@ struct PianoKeyContactTracker {
             worldPosition: worldPosition,
             planeDistanceMeters: planeDistanceMeters,
             normalVelocityMetersPerSecond: normalVelocityMetersPerSecond,
+            resolvedVelocity: resolvedVelocity,
             calibrationID: calibrationID
         )
     }

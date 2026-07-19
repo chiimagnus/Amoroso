@@ -8,6 +8,7 @@ func makeTestKeyContactObservation(
     finger: TrackedFinger = .index,
     sequence: UInt64 = 1,
     timestamp: PerformanceMonotonicInstant = .init(seconds: 1),
+    resolvedVelocity: UInt8? = 90,
     calibrationID: UUID = UUID()
 ) -> PianoKeyContactObservation {
     PianoKeyContactObservation(
@@ -19,6 +20,7 @@ func makeTestKeyContactObservation(
         worldPosition: .zero,
         planeDistanceMeters: 0,
         normalVelocityMetersPerSecond: nil,
+        resolvedVelocity: resolvedVelocity,
         calibrationID: calibrationID
     )
 }
@@ -27,6 +29,7 @@ func makeTestKeyContactObservations(
     activeMIDINotes: Set<Int> = [],
     startedMIDINotes: Set<Int> = [],
     endedMIDINotes: Set<Int> = [],
+    startedVelocity: UInt8? = 90,
     timestamp: PerformanceMonotonicInstant = .init(seconds: 1)
 ) -> [PianoKeyContactObservation] {
     let fingerIDs = TrackedHandSide.allCases.flatMap { hand in
@@ -45,6 +48,7 @@ func makeTestKeyContactObservations(
             finger: fingerID.finger,
             sequence: sequence,
             timestamp: timestamp,
+            resolvedVelocity: phase == .started ? startedVelocity : nil,
             calibrationID: calibrationID
         )
     }

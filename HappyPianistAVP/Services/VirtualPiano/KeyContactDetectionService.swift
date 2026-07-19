@@ -4,6 +4,7 @@ import simd
 @MainActor
 final class KeyContactDetectionService {
     let calibration: PianoTouchCalibration
+    private let velocityResolver: PianoTouchVelocityResolver
     private var tracker = PianoKeyContactTracker()
 
     init(
@@ -12,6 +13,7 @@ final class KeyContactDetectionService {
         )
     ) {
         self.calibration = calibration
+        velocityResolver = PianoTouchVelocityResolver(calibration: calibration)
     }
 
     func reset() {
@@ -29,7 +31,9 @@ final class KeyContactDetectionService {
             at: timestamp,
             pressThresholdMeters: calibration.planeOffsetMeters,
             releaseThresholdMeters: calibration.releaseThresholdMeters,
-            retriggerDebounceSeconds: calibration.retriggerDebounceSeconds
+            retriggerDebounceSeconds: calibration.retriggerDebounceSeconds,
+            calibrationID: calibration.id,
+            velocityResolver: velocityResolver
         )
     }
 }

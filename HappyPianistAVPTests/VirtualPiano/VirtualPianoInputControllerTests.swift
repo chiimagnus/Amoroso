@@ -47,6 +47,7 @@ private final class FakeKeyContactDetector: KeyContactDetectingProtocol {
 @MainActor
 private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol {
     private(set) var commands: [[PracticePlaybackCommand]] = []
+    private(set) var liveNoteEvents: [[PracticeLiveNoteEvent]] = []
 
     func warmUp() throws {}
     func stop(resetCommands _: [PerformanceTransportCommand]) {}
@@ -59,6 +60,9 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
     func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
     func execute(commands: [PracticePlaybackCommand]) throws {
         self.commands.append(commands)
+    }
+    func execute(liveNoteEvents: [PracticeLiveNoteEvent]) throws {
+        self.liveNoteEvents.append(liveNoteEvents)
     }
 
     func stopAllLiveNotes() {}
@@ -82,7 +86,7 @@ private func makeMinimalKeyboardGeometry() -> PianoKeyboardGeometry {
 
 @Test
 @MainActor
-func virtualPianoPlaysLiveNotesWhenNotSuppressed() async {
+func virtualPianoPlaysLiveNotesWhenNotSuppressed() async throws {
     let store = PracticeSessionStateStore()
     store.autoplayState = .off
     store.isManualReplayPlaying = false
@@ -120,9 +124,21 @@ func virtualPianoPlaysLiveNotesWhenNotSuppressed() async {
     )
     await controller.waitForPendingPlayback()
 
-    #expect(sequencer.commands == [[
-        PracticePlaybackCommand(sourceEventID: "virtual-piano-61", kind: .noteOff(midi: 61)),
-        PracticePlaybackCommand(sourceEventID: "virtual-piano-60", kind: .noteOn(midi: 60, velocity: 96)),
+    let ended = try #require(detector.resultToReturn.first { $0.phase == .ended })
+    let started = try #require(detector.resultToReturn.first { $0.phase == .started })
+    #expect(sequencer.liveNoteEvents == [[
+        PracticeLiveNoteEvent(
+            contactID: ended.id,
+            midiNote: 61,
+            phase: .noteOff,
+            timestamp: .init(seconds: 1)
+        ),
+        PracticeLiveNoteEvent(
+            contactID: started.id,
+            midiNote: 60,
+            phase: .noteOn(velocity: 90),
+            timestamp: .init(seconds: 1)
+        ),
     ]])
     #expect(effectHandler.effects.contains(.advanceToNextStep))
 }
@@ -164,8 +180,13 @@ func releasingOneOfTwoContactsOnSameKeyKeepsPhysicalNoteOn() async {
 
     _ = controller.handleFingerTips(.empty, keyboardGeometry: geometry, at: .init(seconds: 1), practiceHandMode: .both)
     await controller.waitForPendingPlayback()
-    #expect(sequencer.commands == [[
-        PracticePlaybackCommand(sourceEventID: "virtual-piano-60", kind: .noteOn(midi: 60, velocity: 96)),
+    #expect(sequencer.liveNoteEvents == [[
+        PracticeLiveNoteEvent(
+            contactID: left.id,
+            midiNote: 60,
+            phase: .noteOn(velocity: 90),
+            timestamp: .init(seconds: 1)
+        ),
     ]])
 
     detector.resultToReturn = [
@@ -188,7 +209,7 @@ func releasingOneOfTwoContactsOnSameKeyKeepsPhysicalNoteOn() async {
     ]
     _ = controller.handleFingerTips(.empty, keyboardGeometry: geometry, at: .init(seconds: 2), practiceHandMode: .both)
     await controller.waitForPendingPlayback()
-    #expect(sequencer.commands.count == 1)
+    #expect(sequencer.liveNoteEvents.count == 1)
 
     detector.resultToReturn = [
         makeTestKeyContactObservation(
@@ -202,8 +223,13 @@ func releasingOneOfTwoContactsOnSameKeyKeepsPhysicalNoteOn() async {
     ]
     _ = controller.handleFingerTips(.empty, keyboardGeometry: geometry, at: .init(seconds: 3), practiceHandMode: .both)
     await controller.waitForPendingPlayback()
-    #expect(sequencer.commands.last == [
-        PracticePlaybackCommand(sourceEventID: "virtual-piano-60", kind: .noteOff(midi: 60)),
+    #expect(sequencer.liveNoteEvents.last == [
+        PracticeLiveNoteEvent(
+            contactID: left.id,
+            midiNote: 60,
+            phase: .noteOff,
+            timestamp: .init(seconds: 3)
+        ),
     ])
 }
 
@@ -245,5 +271,72 @@ func virtualPianoDoesNotPlayLiveNotesDuringAutoplay() async {
     )
     await controller.waitForPendingPlayback()
 
-    #expect(sequencer.commands.isEmpty)
+    #expect(sequencer.liveNoteEvents.isEmpty)
+}
+
+@Test
+@MainActor
+func virtualPianoPreservesIndependentChordVelocityAndRejectsSlowPress() async {
+    let store = PracticeSessionStateStore()
+    let handGateController = PracticeHandGateController(
+        activityGate: HandPianoActivityGate(),
+        chordAttemptAccumulator: AlwaysMatchChordAttemptAccumulator(),
+        stateStore: store,
+        effectHandler: CapturingEffectHandler()
+    )
+    let soft = makeTestKeyContactObservation(
+        midiNote: 60,
+        phase: .started,
+        hand: .left,
+        sequence: 1,
+        timestamp: .init(seconds: 2),
+        resolvedVelocity: 37
+    )
+    let loud = makeTestKeyContactObservation(
+        midiNote: 64,
+        phase: .started,
+        hand: .right,
+        sequence: 2,
+        timestamp: .init(seconds: 2.01),
+        resolvedVelocity: 111
+    )
+    let slow = makeTestKeyContactObservation(
+        midiNote: 67,
+        phase: .started,
+        hand: .right,
+        finger: .middle,
+        sequence: 3,
+        timestamp: .init(seconds: 2.02),
+        resolvedVelocity: nil
+    )
+    let sequencer = FakeSequencerPlaybackService()
+    let controller = VirtualPianoInputController(
+        detector: FakeKeyContactDetector(resultToReturn: [soft, loud, slow]),
+        sequencerPlaybackService: sequencer,
+        stateStore: store,
+        handGateController: handGateController
+    )
+
+    _ = controller.handleFingerTips(
+        .empty,
+        keyboardGeometry: makeMinimalKeyboardGeometry(),
+        at: .init(seconds: 2.02),
+        practiceHandMode: .both
+    )
+    await controller.waitForPendingPlayback()
+
+    #expect(sequencer.liveNoteEvents == [[
+        PracticeLiveNoteEvent(
+            contactID: soft.id,
+            midiNote: 60,
+            phase: .noteOn(velocity: 37),
+            timestamp: .init(seconds: 2)
+        ),
+        PracticeLiveNoteEvent(
+            contactID: loud.id,
+            midiNote: 64,
+            phase: .noteOn(velocity: 111),
+            timestamp: .init(seconds: 2.01)
+        ),
+    ]])
 }

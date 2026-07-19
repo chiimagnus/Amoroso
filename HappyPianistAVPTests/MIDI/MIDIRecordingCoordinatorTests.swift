@@ -72,13 +72,44 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() throws {
     service.recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: false,
         isVirtualPianoEnabled: false,
-        observations: makeTestKeyContactObservations(startedMIDINotes: [60], endedMIDINotes: [60])
+        observations: makeTestKeyContactObservations(
+            startedMIDINotes: [60],
+            endedMIDINotes: [60],
+            startedVelocity: 73
+        )
     )
     service.stopRecordingIfNeeded()
     #expect(recordedTakes.count == 1)
     #expect(recordedTakes[0].events.isEmpty == false)
     #expect(recordedTakes[0].metadata.scoreIdentity == scoreIdentity)
     #expect(recordedTakes[0].metadata.inputSources.first?.kind == .realPianoContact)
-    #expect(recordedTakes[0].metadata.inputSources.first?.capabilities.velocity == .unavailable)
+    #expect(recordedTakes[0].metadata.inputSources.first?.capabilities.velocity == .degraded)
     #expect(recordedTakes[0].events.allSatisfy { $0.observation?.source.kind == .realPianoContact })
+    #expect(recordedTakes[0].events.first?.kind == .noteOn(midi: 60, velocity: 73))
+}
+
+@Test
+@MainActor
+func virtualPianoTakeUsesResolvedContactVelocity() {
+    var recordedTakes: [RecordingTake] = []
+    let service = MIDIRecordingState(
+        nowUptimeSeconds: { 0 },
+        nowDate: { Date(timeIntervalSince1970: 0) },
+        onStateChanged: { _ in },
+        onTakeRecorded: { recordedTakes.append($0) }
+    )
+    service.startRecordingIfPossible(canRecord: true)
+    service.recordTakeFromKeyContactIfNeeded(
+        usesBluetoothMIDIInput: false,
+        isVirtualPianoEnabled: true,
+        observations: makeTestKeyContactObservations(
+            startedMIDINotes: [64],
+            endedMIDINotes: [64],
+            startedVelocity: 106
+        )
+    )
+    service.stopRecordingIfNeeded()
+
+    #expect(recordedTakes.first?.events.first?.kind == .noteOn(midi: 64, velocity: 106))
+    #expect(recordedTakes.first?.metadata.inputSources.first?.kind == .virtualPianoContact)
 }

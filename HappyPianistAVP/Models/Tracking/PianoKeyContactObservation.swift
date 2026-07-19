@@ -32,6 +32,7 @@ struct PianoKeyContactObservation: Equatable, Sendable {
     let worldPosition: SIMD3<Float>
     let planeDistanceMeters: Float
     let normalVelocityMetersPerSecond: Float?
+    let resolvedVelocity: UInt8?
     let calibrationID: UUID
 
     var hand: TrackedHandSide { id.finger.hand }

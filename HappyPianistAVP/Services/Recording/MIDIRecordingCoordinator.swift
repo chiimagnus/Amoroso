@@ -114,18 +114,20 @@ final class MIDIRecordingState {
         observations: [PianoKeyContactObservation]
     ) {
         guard usesBluetoothMIDIInput == false else { return }
-        guard isVirtualPianoEnabled == false else { return }
         guard isRecording else { return }
+        let sourceKind: PerformanceObservation.Source.Kind = isVirtualPianoEnabled
+            ? .virtualPianoContact
+            : .realPianoContact
 
         for contact in observations {
             guard let note = contact.keyCandidate.exactMIDINote else { continue }
-            let observation = performanceObservation(from: contact)
+            let observation = performanceObservation(from: contact, sourceKind: sourceKind)
             switch contact.phase {
             case .started:
-                // ponytail: T7 replaces this projection with calibrated per-contact velocity.
+                guard let velocity = contact.resolvedVelocity else { continue }
                 takeRecorder.recordNoteOn(
                     note: note,
-                    velocity: 64,
+                    velocity: Int(velocity),
                     now: contact.timestamp.seconds,
                     observation: observation
                 )
@@ -141,30 +143,23 @@ final class MIDIRecordingState {
         }
     }
 
-    private func performanceObservation(from contact: PianoKeyContactObservation) -> PerformanceObservation {
+    private func performanceObservation(
+        from contact: PianoKeyContactObservation,
+        sourceKind: PerformanceObservation.Source.Kind
+    ) -> PerformanceObservation {
         let phase: PerformanceObservation.ContactPhase = switch contact.phase {
         case .started: .started
         case .held: .held
         case .ended: .ended
         }
-        let capabilities = PerformanceInputCapabilities(
-            pitch: .degraded,
-            onset: .observed,
-            release: .observed,
-            velocity: .unavailable,
-            controllers: .unavailable,
-            polyphony: .observed,
-            hand: .observed,
-            finger: .observed,
-            position: .observed,
-            confidence: .observed
-        )
         return PerformanceObservation(
             source: PerformanceObservation.Source(
-                kind: .realPianoContact,
-                id: "real-piano-key-contact",
+                kind: sourceKind,
+                id: sourceKind == .virtualPianoContact
+                    ? "virtual-piano-key-contact"
+                    : "real-piano-key-contact",
                 generation: recordingGeneration,
-                capabilities: capabilities
+                capabilities: .handContact
             ),
             timing: PerformanceClockReading(
                 host: contact.timestamp,

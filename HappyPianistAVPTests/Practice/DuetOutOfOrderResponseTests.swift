@@ -25,14 +25,16 @@ private actor ControlledBackend: ImprovBackendProtocol {
 
     private var continuation: CheckedContinuation<ImprovBackendPlaybackPlan, Error>?
     private var callWaiters: [CheckedContinuation<Bool, Never>] = []
+    private var lastRequest: ImprovGenerateRequestV2?
 
     init(kind: ImprovBackendKind, displayName: String = "Controlled") {
         self.kind = kind
         self.displayName = displayName
     }
 
-    func generatePlaybackPlan(request _: ImprovGenerateRequestV2, timeout _: Duration) async throws -> ImprovBackendPlaybackPlan {
+    func generatePlaybackPlan(request: ImprovGenerateRequestV2, timeout _: Duration) async throws -> ImprovBackendPlaybackPlan {
         try Task.checkCancellation()
+        lastRequest = request
         return try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
             let waiters = callWaiters
@@ -48,6 +50,10 @@ private actor ControlledBackend: ImprovBackendProtocol {
         return await withCheckedContinuation { continuation in
             callWaiters.append(continuation)
         }
+    }
+
+    func requestSnapshot() -> ImprovGenerateRequestV2? {
+        lastRequest
     }
 
     func resume(with plan: ImprovBackendPlaybackPlan) {
@@ -121,6 +127,7 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
         observations: makeTestKeyContactObservations(
             activeMIDINotes: [60],
             startedMIDINotes: [60],
+            startedVelocity: 37,
             timestamp: .init(seconds: nowUptime)
         )
     )
@@ -128,6 +135,8 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
     await controlClock.advance()
 
     #expect(await backend.waitForCall())
+    let request = await backend.requestSnapshot()
+    #expect(request?.events.contains { $0.note == 60 && $0.velocity == 37 } == true)
 
     let schedule = [
         PracticeSequencerMIDIEvent(timeSeconds: 0.0, kind: .noteOn(midi: 67, velocity: 90)),

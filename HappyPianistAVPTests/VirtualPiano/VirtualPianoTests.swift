@@ -141,7 +141,8 @@ func keyContactDetectionStartedEndedHysteresis() throws {
     #expect(started.worldPosition == atSurface.right.index)
     #expect(started.planeDistanceMeters == 0)
     #expect(abs((started.normalVelocityMetersPerSecond ?? 0) + 0.4) < 0.0001)
-    #expect(started.calibrationID == geometry.cacheID)
+    #expect(started.calibrationID == service.calibration.id)
+    #expect(started.resolvedVelocity != nil)
 
     let betweenThresholds = FingerTipsSnapshot(
         right: HandTips(
@@ -243,7 +244,7 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     )
     #expect(placementReset.count == 1)
     #expect(placementReset.first?.phase == .ended)
-    #expect(placementReset.first?.calibrationID == geometry.cacheID)
+    #expect(placementReset.first?.calibrationID == service.calibration.id)
 }
 
 @MainActor

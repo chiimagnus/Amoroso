@@ -251,7 +251,12 @@ final class AIPerformanceService {
             guard let note = observation.keyCandidate.exactMIDINote else { continue }
             switch observation.phase {
             case .started:
-                noteContext.recordNoteOn(midi: note, velocity: 90, timestampSeconds: observation.timestamp.seconds)
+                guard let velocity = observation.resolvedVelocity else { continue }
+                noteContext.recordNoteOn(
+                    midi: note,
+                    velocity: Int(velocity),
+                    timestampSeconds: observation.timestamp.seconds
+                )
             case .ended:
                 noteContext.recordNoteOff(
                     midi: note,

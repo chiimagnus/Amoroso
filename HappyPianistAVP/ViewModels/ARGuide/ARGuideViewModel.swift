@@ -865,6 +865,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
                 if practiceSessionViewModel.keyboardGeometry != nil {
                     _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips, isVirtualPiano: true)
                     recordPhraseIfNeeded()
+                    recordTakeIfNeeded()
                 }
             } else {
                 _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
