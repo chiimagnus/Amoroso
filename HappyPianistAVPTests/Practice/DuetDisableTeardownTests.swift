@@ -2,6 +2,24 @@ import Foundation
 @testable import HappyPianistAVP
 import Testing
 
+actor AIPerformanceControlClock {
+    private let ticks: AsyncStream<Void>
+    private let tickContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        (ticks, tickContinuation) = AsyncStream.makeStream()
+    }
+
+    func sleep(for _: Duration) async {
+        var iterator = ticks.makeAsyncIterator()
+        _ = await iterator.next()
+    }
+
+    func advance() {
+        tickContinuation.yield()
+    }
+}
+
 @MainActor
 private final class FakeDiscoveryOrchestrator: ImprovBackendDiscoveryOrchestrating {
     func start(for _: ImprovBackendKind) {}
@@ -19,27 +37,10 @@ private final class MutableBackendKind {
 
 @MainActor
 private final class FakePracticeSession: AIPerformancePracticeSessionProtocol {
-    var autoplayState: PracticeSessionAutoplayState = .off
-    var isManualReplayPlaying: Bool = false
-    var currentStep: PracticeStep?
-    var autoplayTimeline: AutoplayPerformanceTimeline = .empty
-    var tempoMap: MusicXMLTempoMap = .init(tempoEvents: [])
-    var pedalTimeline: MusicXMLPedalTimeline?
-    let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     let settingsProvider: any PracticeSessionSettingsProviderProtocol
 
-    init(
-        sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol,
-        settingsProvider: any PracticeSessionSettingsProviderProtocol
-    ) {
-        self.sequencerPlaybackService = sequencerPlaybackService
+    init(settingsProvider: any PracticeSessionSettingsProviderProtocol) {
         self.settingsProvider = settingsProvider
-    }
-
-    func stopVirtualPianoInput() {}
-    func stopAudioRecognition() {}
-    func prepareAudioRecognitionSuppressWindowForPlayback() -> Date {
-        .now
     }
 
     func refreshAudioRecognitionForCurrentState() {}
@@ -51,6 +52,7 @@ private actor ControlledBackend: ImprovBackendProtocol {
 
     private var continuations: [CheckedContinuation<ImprovBackendPlaybackPlan, Error>] = []
     private var calls = 0
+    private var callWaiters: [(minimumCount: Int, continuation: CheckedContinuation<Bool, Never>)] = []
 
     init(kind: ImprovBackendKind, displayName: String = "Controlled") {
         self.kind = kind
@@ -62,17 +64,19 @@ private actor ControlledBackend: ImprovBackendProtocol {
         return try await withCheckedThrowingContinuation { continuation in
             calls += 1
             continuations.append(continuation)
+            let readyWaiters = callWaiters.filter { $0.minimumCount <= calls }
+            callWaiters.removeAll { $0.minimumCount <= calls }
+            for waiter in readyWaiters {
+                waiter.continuation.resume(returning: true)
+            }
         }
     }
 
-    func waitForCall(minimumCount: Int = 1, timeout: Duration = .seconds(2)) async -> Bool {
-        let deadline = ContinuousClock.now + timeout
-        while ContinuousClock.now < deadline {
-            if continuations.count >= minimumCount { return true }
-            // ponytail: 1 ms polling keeps this test helper deterministic without a bespoke test clock.
-            try? await Task.sleep(for: .milliseconds(1))
+    func waitForCall(minimumCount: Int = 1) async -> Bool {
+        if calls >= minimumCount { return true }
+        return await withCheckedContinuation { continuation in
+            callWaiters.append((minimumCount, continuation))
         }
-        return continuations.count >= minimumCount
     }
 
     func resume(with plan: ImprovBackendPlaybackPlan) {
@@ -89,16 +93,15 @@ private actor ControlledBackend: ImprovBackendProtocol {
 @MainActor
 private final class NonAdvancingPlaybackService: PracticeSequencerPlaybackServiceProtocol {
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
@@ -151,6 +154,7 @@ func releasedServiceStopsItsControlLoop() async {
 @MainActor
 func disablingServiceDropsLateBackendResponses() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
 
     let selectedKind: ImprovBackendKind = .localRule
     let backend = ControlledBackend(kind: selectedKind)
@@ -164,7 +168,7 @@ func disablingServiceDropsLateBackendResponses() async {
     var didEnqueueAnySchedule = false
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
@@ -174,11 +178,7 @@ func disablingServiceDropsLateBackendResponses() async {
         }
     )
 
-    let practicePlaybackService = NonAdvancingPlaybackService()
-    let session = FakePracticeSession(
-        sequencerPlaybackService: practicePlaybackService,
-        settingsProvider: FakeSettingsProvider()
-    )
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
 
@@ -188,6 +188,7 @@ func disablingServiceDropsLateBackendResponses() async {
         nowUptimeSeconds: nowUptime
     )
     nowUptime = 0.2
+    await controlClock.advance()
 
     #expect(await backend.waitForCall())
 
@@ -213,6 +214,7 @@ func disablingServiceDropsLateBackendResponses() async {
 @MainActor
 func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
     let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
     let backend = ControlledBackend(kind: selectedKind)
     let playbackService = NonAdvancingPlaybackService()
@@ -223,14 +225,14 @@ func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
     var enqueuedSchedule = false
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
         aiPlaybackServiceFactory: { factory },
         onStateChanged: { enqueuedSchedule = enqueuedSchedule || $0.latestSchedule.isEmpty == false }
     )
-    let session = FakePracticeSession(sequencerPlaybackService: playbackService, settingsProvider: FakeSettingsProvider())
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
@@ -239,6 +241,7 @@ func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
         nowUptimeSeconds: 0
     )
     nowUptime = 0.2
+    await controlClock.advance()
     #expect(await backend.waitForCall())
 
     service.recordKeyContactForPhraseRecordingIfNeeded(
@@ -263,6 +266,7 @@ func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
 @MainActor
 func changingBackendDoesNotWaitForSuspendedOldBackend() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
     let selectedKind = MutableBackendKind(.localRule)
     let oldBackend = ControlledBackend(kind: .localRule)
     let newBackend = ControlledBackend(kind: .networkBonjourHTTPAriaV2)
@@ -273,14 +277,14 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
     )
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [oldBackend, newBackend]),
         selectedBackendKind: { selectedKind.value },
         aiPlaybackServiceFactory: { factory },
         onStateChanged: { _ in }
     )
-    let session = FakePracticeSession(sequencerPlaybackService: playbackService, settingsProvider: FakeSettingsProvider())
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
@@ -289,6 +293,7 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
         nowUptimeSeconds: 0
     )
     nowUptime = 0.2
+    await controlClock.advance()
     #expect(await oldBackend.waitForCall())
 
     selectedKind.value = .networkBonjourHTTPAriaV2
@@ -298,6 +303,7 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
         nowUptimeSeconds: nowUptime
     )
     nowUptime = 0.4
+    await controlClock.advance()
     #expect(await newBackend.waitForCall())
 
     await newBackend.resume(with: .schedule([], backendLatencyMS: nil))
@@ -309,6 +315,7 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
 @MainActor
 func replacingPracticeSessionInvalidatesOldResponse() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
     let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
     let backend = ControlledBackend(kind: selectedKind)
     let playbackService = NonAdvancingPlaybackService()
@@ -319,15 +326,15 @@ func replacingPracticeSessionInvalidatesOldResponse() async {
     var enqueuedSchedule = false
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
         aiPlaybackServiceFactory: { factory },
         onStateChanged: { enqueuedSchedule = enqueuedSchedule || $0.latestSchedule.isEmpty == false }
     )
-    let firstSession = FakePracticeSession(sequencerPlaybackService: playbackService, settingsProvider: FakeSettingsProvider())
-    let replacementSession = FakePracticeSession(sequencerPlaybackService: playbackService, settingsProvider: FakeSettingsProvider())
+    let firstSession = FakePracticeSession(settingsProvider: FakeSettingsProvider())
+    let replacementSession = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(firstSession)
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
@@ -336,6 +343,7 @@ func replacingPracticeSessionInvalidatesOldResponse() async {
         nowUptimeSeconds: 0
     )
     nowUptime = 0.2
+    await controlClock.advance()
     #expect(await backend.waitForCall())
 
     service.updatePracticeSession(replacementSession)
@@ -355,6 +363,7 @@ func replacingPracticeSessionInvalidatesOldResponse() async {
 @MainActor
 func silentContextDropsLateContinuousResponse() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
     let selectedKind: ImprovBackendKind = .localRule
     let backend = ControlledBackend(kind: selectedKind)
     let playbackService = NonAdvancingPlaybackService()
@@ -365,14 +374,14 @@ func silentContextDropsLateContinuousResponse() async {
     var enqueuedSchedule = false
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
         aiPlaybackServiceFactory: { factory },
         onStateChanged: { enqueuedSchedule = enqueuedSchedule || $0.latestSchedule.isEmpty == false }
     )
-    let session = FakePracticeSession(sequencerPlaybackService: playbackService, settingsProvider: FakeSettingsProvider())
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
@@ -381,6 +390,7 @@ func silentContextDropsLateContinuousResponse() async {
         nowUptimeSeconds: 0
     )
     nowUptime = 0.2
+    await controlClock.advance()
     #expect(await backend.waitForCall())
 
     nowUptime = 2.0
@@ -400,6 +410,7 @@ func silentContextDropsLateContinuousResponse() async {
 @MainActor
 func disablingAndReenablingKeepsNewRequestTracked() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
     let selectedKind: ImprovBackendKind = .localRule
     let backend = ControlledBackend(kind: selectedKind)
     let playbackService = NonAdvancingPlaybackService()
@@ -409,14 +420,14 @@ func disablingAndReenablingKeepsNewRequestTracked() async {
     )
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
         aiPlaybackServiceFactory: { factory },
         onStateChanged: { _ in }
     )
-    let session = FakePracticeSession(sequencerPlaybackService: playbackService, settingsProvider: FakeSettingsProvider())
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
@@ -425,6 +436,7 @@ func disablingAndReenablingKeepsNewRequestTracked() async {
         nowUptimeSeconds: 0
     )
     nowUptime = 0.2
+    await controlClock.advance()
     #expect(await backend.waitForCall())
 
     service.setEnabled(false)
@@ -435,6 +447,7 @@ func disablingAndReenablingKeepsNewRequestTracked() async {
         nowUptimeSeconds: nowUptime
     )
     nowUptime = 0.4
+    await controlClock.advance()
     #expect(await backend.waitForCall(minimumCount: 2))
 
     await backend.resume(with: .schedule([], backendLatencyMS: nil))

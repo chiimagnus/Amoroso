@@ -39,3 +39,16 @@ func improvScheduleBuilderV2BuildsCCAndNotesWithStablePriority() {
     // A.I. Duet: reply note durations are shortened to 90%.
     #expect(abs(schedule[2].timeSeconds - 0.18) < 0.0001)
 }
+
+@Test
+func improvScheduleBuilderPreservesSameTimeControllerSourceOrder() {
+    let schedule = ImprovScheduleBuilder().buildSchedule(from: [
+        .cc(controller: 64, value: 127, time: 0),
+        .cc(controller: 64, value: 0, time: 0),
+    ], leadInSeconds: 0)
+
+    #expect(schedule.map(\.kind) == [
+        .controlChange(controller: 64, value: 127),
+        .controlChange(controller: 64, value: 0),
+    ])
+}

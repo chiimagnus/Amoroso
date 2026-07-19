@@ -92,18 +92,24 @@ private func installHistoricalApplicationScore(
     identity: PracticeSongIdentity,
     spans: [MusicXMLMeasureSpan]
 ) {
+    let notes = historicalApplicationPerformanceNotes()
+    let plan = makeTestScorePerformancePlan(identity: identity, notes: notes)
     session.installPreparedSteps(
-        historicalApplicationSteps(),
+        PracticeStepBuilder().buildSteps(from: plan).steps,
         identity: identity,
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        performancePlan: plan,
+        notationProjection: ScoreNotationProjection(
+            plan: plan,
+            sourceScore: makeTestMusicXMLScore(notes: notes)
+        ),
         measureSpans: spans
     )
 }
 
-private func historicalApplicationSteps() -> [PracticeStep] {
+private func historicalApplicationPerformanceNotes() -> [TestScorePerformanceNote] {
     [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 2, handAssignment: .unknown)]),
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480, staff: 2),
     ]
 }
 
@@ -201,15 +207,14 @@ private final class HistoricalApplicationChordAccumulator: ChordAttemptAccumulat
 
 private final class HistoricalApplicationPlaybackService: PracticeSequencerPlaybackServiceProtocol {
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }

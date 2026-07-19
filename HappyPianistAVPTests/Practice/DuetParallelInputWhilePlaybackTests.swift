@@ -17,29 +17,10 @@ private final class FakeDiscoveryOrchestrator: ImprovBackendDiscoveryOrchestrati
 
 @MainActor
 private final class FakePracticeSession: AIPerformancePracticeSessionProtocol {
-    var autoplayState: PracticeSessionAutoplayState = .off
-    var isManualReplayPlaying: Bool = false
-    var currentStep: PracticeStep?
-    var autoplayTimeline: AutoplayPerformanceTimeline = .empty
-    var tempoMap: MusicXMLTempoMap = .init(tempoEvents: [])
-    var pedalTimeline: MusicXMLPedalTimeline?
-    let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     let settingsProvider: any PracticeSessionSettingsProviderProtocol
 
-    init(
-        currentStep: PracticeStep?,
-        sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol,
-        settingsProvider: any PracticeSessionSettingsProviderProtocol
-    ) {
-        self.currentStep = currentStep
-        self.sequencerPlaybackService = sequencerPlaybackService
+    init(settingsProvider: any PracticeSessionSettingsProviderProtocol) {
         self.settingsProvider = settingsProvider
-    }
-
-    func stopVirtualPianoInput() {}
-    func stopAudioRecognition() {}
-    func prepareAudioRecognitionSuppressWindowForPlayback() -> Date {
-        .now
     }
 
     func refreshAudioRecognitionForCurrentState() {}
@@ -73,7 +54,7 @@ private final class NonAdvancingPlaybackService: PracticeSequencerPlaybackServic
     private(set) var playCallCount = 0
 
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
 
     func play(fromSeconds _: TimeInterval) throws {
@@ -84,9 +65,8 @@ private final class NonAdvancingPlaybackService: PracticeSequencerPlaybackServic
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
@@ -135,12 +115,7 @@ func aiPlaybackDoesNotBlockSecondContinuousWindowRequest() async {
         onStateChanged: { _ in }
     )
 
-    let practicePlaybackService = NonAdvancingPlaybackService()
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: practicePlaybackService,
-        settingsProvider: FakeSettingsProvider()
-    )
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
 

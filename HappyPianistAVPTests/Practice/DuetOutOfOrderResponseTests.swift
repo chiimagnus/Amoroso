@@ -10,27 +10,10 @@ private final class FakeDiscoveryOrchestrator: ImprovBackendDiscoveryOrchestrati
 
 @MainActor
 private final class FakePracticeSession: AIPerformancePracticeSessionProtocol {
-    var autoplayState: PracticeSessionAutoplayState = .off
-    var isManualReplayPlaying: Bool = false
-    var currentStep: PracticeStep?
-    var autoplayTimeline: AutoplayPerformanceTimeline = .empty
-    var tempoMap: MusicXMLTempoMap = .init(tempoEvents: [])
-    var pedalTimeline: MusicXMLPedalTimeline?
-    let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     let settingsProvider: any PracticeSessionSettingsProviderProtocol
 
-    init(
-        sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol,
-        settingsProvider: any PracticeSessionSettingsProviderProtocol
-    ) {
-        self.sequencerPlaybackService = sequencerPlaybackService
+    init(settingsProvider: any PracticeSessionSettingsProviderProtocol) {
         self.settingsProvider = settingsProvider
-    }
-
-    func stopVirtualPianoInput() {}
-    func stopAudioRecognition() {}
-    func prepareAudioRecognitionSuppressWindowForPlayback() -> Date {
-        .now
     }
 
     func refreshAudioRecognitionForCurrentState() {}
@@ -41,6 +24,7 @@ private actor ControlledBackend: ImprovBackendProtocol {
     nonisolated let displayName: String
 
     private var continuation: CheckedContinuation<ImprovBackendPlaybackPlan, Error>?
+    private var callWaiters: [CheckedContinuation<Bool, Never>] = []
 
     init(kind: ImprovBackendKind, displayName: String = "Controlled") {
         self.kind = kind
@@ -51,17 +35,19 @@ private actor ControlledBackend: ImprovBackendProtocol {
         try Task.checkCancellation()
         return try await withCheckedThrowingContinuation { continuation in
             self.continuation = continuation
+            let waiters = callWaiters
+            callWaiters.removeAll()
+            for waiter in waiters {
+                waiter.resume(returning: true)
+            }
         }
     }
 
-    func waitForCall(timeout: Duration = .seconds(2)) async -> Bool {
-        let deadline = ContinuousClock.now + timeout
-        while ContinuousClock.now < deadline {
-            if continuation != nil { return true }
-            // ponytail: 1 ms polling keeps this test helper deterministic without a bespoke test clock.
-            try? await Task.sleep(for: .milliseconds(1))
+    func waitForCall() async -> Bool {
+        if continuation != nil { return true }
+        return await withCheckedContinuation { continuation in
+            callWaiters.append(continuation)
         }
-        return continuation != nil
     }
 
     func resume(with plan: ImprovBackendPlaybackPlan) {
@@ -74,16 +60,15 @@ private actor ControlledBackend: ImprovBackendProtocol {
 @MainActor
 private final class NonAdvancingPlaybackService: PracticeSequencerPlaybackServiceProtocol {
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
@@ -106,6 +91,7 @@ private struct FakeSettingsProvider: PracticeSessionSettingsProviderProtocol {
 @MainActor
 func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
 
     let selectedKind: ImprovBackendKind = .localRule
     let backend = ControlledBackend(kind: selectedKind)
@@ -118,7 +104,7 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
 
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
@@ -126,11 +112,7 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
         onStateChanged: { _ in }
     )
 
-    let practicePlaybackService = NonAdvancingPlaybackService()
-    let session = FakePracticeSession(
-        sequencerPlaybackService: practicePlaybackService,
-        settingsProvider: FakeSettingsProvider()
-    )
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
 
@@ -140,6 +122,7 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
         nowUptimeSeconds: nowUptime
     )
     nowUptime = 0.2
+    await controlClock.advance()
 
     #expect(await backend.waitForCall())
 
@@ -156,6 +139,7 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
 @MainActor
 func continuousDuetRequestsGenerationForMIDI2Input() async {
     var nowUptime: TimeInterval = 0
+    let controlClock = AIPerformanceControlClock()
 
     let selectedKind: ImprovBackendKind = .localRule
     let backend = ControlledBackend(kind: selectedKind)
@@ -168,7 +152,7 @@ func continuousDuetRequestsGenerationForMIDI2Input() async {
 
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
-        sleepFor: { _ in },
+        sleepFor: { duration in await controlClock.sleep(for: duration) },
         discoveryOrchestrator: FakeDiscoveryOrchestrator(),
         backendRegistry: ImprovBackendRegistry(backends: [backend]),
         selectedBackendKind: { selectedKind },
@@ -176,11 +160,7 @@ func continuousDuetRequestsGenerationForMIDI2Input() async {
         onStateChanged: { _ in }
     )
 
-    let practicePlaybackService = NonAdvancingPlaybackService()
-    let session = FakePracticeSession(
-        sequencerPlaybackService: practicePlaybackService,
-        settingsProvider: FakeSettingsProvider()
-    )
+    let session = FakePracticeSession(settingsProvider: FakeSettingsProvider())
     service.updatePracticeSession(session)
     service.setEnabled(true)
 
@@ -193,6 +173,7 @@ func continuousDuetRequestsGenerationForMIDI2Input() async {
         receivedAtUptimeSeconds: nowUptime
     ))
     nowUptime = 0.2
+    await controlClock.advance()
 
     #expect(await backend.waitForCall())
 

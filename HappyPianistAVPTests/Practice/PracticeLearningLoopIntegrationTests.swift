@@ -15,9 +15,8 @@ func configuredAttemptPersistsAndRebuildsAsPausedResume() async throws {
     )
     let span = learningLoopSpan()
     firstSession.songIdentity = identity
-    firstSession.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    firstSession.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     firstSession.roundConfigurationController.pendingRequiredSuccesses = 1
@@ -38,9 +37,8 @@ func configuredAttemptPersistsAndRebuildsAsPausedResume() async throws {
         coordinator: secondCoordinator
     )
     secondSession.songIdentity = identity
-    secondSession.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    secondSession.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     await secondSession.applyLaunchRestorePolicy(.exactAvailable)
@@ -136,7 +134,7 @@ private final class LearningLoopPlaybackService: PracticeSequencerPlaybackServic
     private(set) var oneShotCount = 0
     private(set) var playCount = 0
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {
         playCount += 1
@@ -146,12 +144,11 @@ private final class LearningLoopPlaybackService: PracticeSequencerPlaybackServic
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {
         oneShotCount += 1
     }
 
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 

@@ -71,24 +71,56 @@ private let defaultTestPracticeSongIdentity = PracticeSongIdentity(
 
 extension PracticeSessionViewModel {
     @MainActor
-    func setSteps(
-        _ steps: [PracticeStep],
-        tempoMap: MusicXMLTempoMap,
-        pedalTimeline: MusicXMLPedalTimeline? = nil,
-        fermataTimeline: MusicXMLFermataTimeline? = nil,
+    func installTestPerformanceNotes(
+        _ notes: [TestScorePerformanceNote],
+        tempoEvents: [ScorePerformanceTempoEvent] = [],
+        controllerEvents: [ScorePerformanceControllerEvent] = [],
+        annotations: [ScorePerformanceAnnotation] = [],
         attributeTimeline: MusicXMLAttributeTimeline? = nil,
         highlightGuides: [PianoHighlightGuide] = [],
         measureSpans: [MusicXMLMeasureSpan] = []
     ) {
+        let identity = self.songIdentity ?? defaultTestPracticeSongIdentity
+        let sourceScore = makeTestMusicXMLScore(notes: notes)
+        let scoreContext = makeTestPreparedPracticeScoreContext(sourceScore: sourceScore)
+        let plan = makeTestScorePerformancePlan(
+            identity: identity,
+            notes: notes,
+            scoreContext: scoreContext,
+            tempoEvents: tempoEvents,
+            controllerEvents: controllerEvents,
+            annotations: annotations
+        )
+        installTestPerformancePlan(
+            plan,
+            sourceScore: sourceScore,
+            attributeTimeline: attributeTimeline,
+            highlightGuides: highlightGuides,
+            measureSpans: measureSpans
+        )
+    }
+
+    @MainActor
+    func installTestPerformancePlan(
+        _ plan: ScorePerformancePlan,
+        sourceScore: MusicXMLScore = MusicXMLScore(notes: []),
+        attributeTimeline: MusicXMLAttributeTimeline? = nil,
+        highlightGuides: [PianoHighlightGuide] = [],
+        measureSpans: [MusicXMLMeasureSpan] = []
+    ) {
+        let steps = PracticeStepBuilder().buildSteps(from: plan).steps
         let resolvedMeasureSpans = measureSpans.isEmpty
             ? [Self.syntheticMeasureSpan(for: steps)]
             : measureSpans
+        let identity = self.songIdentity ?? PracticeSongIdentity(
+            songID: plan.sourceScoreIdentity.songID,
+            scoreRevision: plan.sourceScoreIdentity.scoreRevision
+        )
         installPreparedSteps(
             steps,
-            identity: self.songIdentity ?? defaultTestPracticeSongIdentity,
-            tempoMap: tempoMap,
-            pedalTimeline: pedalTimeline,
-            fermataTimeline: fermataTimeline,
+            identity: identity,
+            performancePlan: plan,
+            notationProjection: ScoreNotationProjection(plan: plan, sourceScore: sourceScore),
             attributeTimeline: attributeTimeline,
             highlightGuides: highlightGuides,
             measureSpans: resolvedMeasureSpans

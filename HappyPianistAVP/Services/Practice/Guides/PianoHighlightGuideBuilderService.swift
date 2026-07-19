@@ -1,148 +1,72 @@
 import Foundation
 
 struct PianoHighlightGuideBuildInput {
-    let score: MusicXMLScore
-    let steps: [PracticeStep]
-    let noteSpans: [MusicXMLNoteSpan]
-    let expressivity: MusicXMLExpressivityOptions
-
-    init(
-        score: MusicXMLScore,
-        steps: [PracticeStep],
-        noteSpans: [MusicXMLNoteSpan],
-        expressivity: MusicXMLExpressivityOptions = MusicXMLExpressivityOptions()
-    ) {
-        self.score = score
-        self.steps = steps
-        self.noteSpans = noteSpans
-        self.expressivity = expressivity
-    }
+    let plan: ScorePerformancePlan
+    let sourceScore: MusicXMLScore
 }
 
 struct PianoHighlightGuideBuilderService {
-    private struct SourceNoteKey: Hashable {
-        let midiNote: Int
-        let staff: Int
-        let voice: Int
-        let tick: Int
-    }
-
-    private struct SpanKey: Hashable {
-        let midiNote: Int
-        let staff: Int
-        let voice: Int
-        let onTick: Int
-    }
-
     private let playableRange = 21 ... 108
 
     func buildGuides(input: PianoHighlightGuideBuildInput) -> [PianoHighlightGuide] {
-        guard input.steps.isEmpty == false else { return [] }
+        let playableEvents = input.plan.noteEvents.filter { playableRange.contains($0.midiNote) }
+        guard playableEvents.isEmpty == false else { return [] }
 
-        let sourceNotesByKey = makeSourceNotesByKey(score: input.score, expressivity: input.expressivity)
-        let spanByKey = makeSpanByKey(input.noteSpans)
-        let restTicks = Set(input.score.notes.filter(\.isRest).map(\.tick))
-
-        var occurrenceCounter = 0
+        let sourceNotesByID = Dictionary(grouping: input.sourceScore.notes.compactMap { note in
+            note.sourceID.map { ($0, note) }
+        }, by: \.0).compactMapValues { matches in
+            matches.count == 1 ? matches[0].1 : nil
+        }
+        let stepIndexByTick = Dictionary(uniqueKeysWithValues: Set(playableEvents.map(\.performedOnTick))
+            .sorted()
+            .enumerated()
+            .map { ($0.element, $0.offset) })
         var triggersByTick: [Int: [PianoHighlightNote]] = [:]
         var releasesByTick: [Int: [PianoHighlightNote]] = [:]
-        var practiceStepIndexByTriggerTick: [Int: Int] = [:]
-        practiceStepIndexByTriggerTick.reserveCapacity(input.steps.count)
 
-        for (stepIndex, step) in input.steps.enumerated() {
-            for stepNote in step.notes {
-                let baseOnTick = step.tick + stepNote.onTickOffset
-                let staff = stepNote.staff ?? 1
-                let voice = stepNote.voice ?? 1
-                let source = sourceNotesByKey[SourceNoteKey(
-                    midiNote: stepNote.midiNote,
-                    staff: staff,
-                    voice: voice,
-                    tick: baseOnTick
-                )]
-                    ?? sourceNotesByKey[SourceNoteKey(
-                        midiNote: stepNote.midiNote,
-                        staff: staff,
-                        voice: voice,
-                        tick: step.tick
-                    )]
-                let attackTicks = source?.attackTicks ?? 0
-                let spanOnTickCandidates = [
-                    baseOnTick,
-                    baseOnTick + attackTicks,
-                    step.tick,
-                    step.tick + attackTicks,
-                ]
-                var span: MusicXMLNoteSpan?
-                for candidateTick in spanOnTickCandidates {
-                    if span != nil { break }
-                    span = spanByKey[SpanKey(
-                        midiNote: stepNote.midiNote,
-                        staff: staff,
-                        voice: voice,
-                        onTick: candidateTick
-                    )]
-                }
-                let resolvedVoice = source?.voice ?? voice
-                let onTick = span?.onTick ?? baseOnTick
-                let offTick = max(onTick + 1, span?.offTick ?? (onTick + max(1, source?.durationTicks ?? 1)))
-                occurrenceCounter += 1
-                let note = PianoHighlightNote(
-                    occurrenceID: "h-\(occurrenceCounter)-\(stepNote.midiNote)-\(onTick)-\(staff)-\(resolvedVoice)-\(stepNote.hand.rawValue)",
-                    midiNote: stepNote.midiNote,
-                    staff: stepNote.staff,
-                    voice: resolvedVoice,
-                    velocity: stepNote.velocity,
-                    onTick: onTick,
-                    offTick: offTick,
-                    fingeringText: stepNote.fingeringText,
-                    isGrace: source?.isGrace ?? false,
-                    tieStart: source?.tieStart ?? false,
-                    tieStop: source?.tieStop ?? false,
-                    articulations: source?.articulations ?? [],
-                    arpeggiate: source?.arpeggiate,
-                    dotCount: source?.dotCount ?? 0,
-                    handAssignment: stepNote.handAssignment
-                )
-                triggersByTick[onTick, default: []].append(note)
-                if practiceStepIndexByTriggerTick[onTick] == nil {
-                    practiceStepIndexByTriggerTick[onTick] = stepIndex
-                }
-                if offTick > onTick {
-                    releasesByTick[offTick, default: []].append(note)
-                }
-            }
+        for event in playableEvents {
+            let source = sourceNotesByID[event.sourceNoteID]
+            let onTick = event.performedOnTick
+            let offTick = max(onTick + 1, event.performedOffTick)
+            let note = PianoHighlightNote(
+                occurrenceID: event.id.description,
+                midiNote: event.midiNote,
+                staff: event.staff,
+                voice: event.voice,
+                velocity: event.velocity,
+                onTick: onTick,
+                offTick: offTick,
+                fingeringText: event.fingeringText,
+                isGrace: event.timingProvenance.contains { $0.kind == .grace } || source?.isGrace == true,
+                tieStart: source?.tieStart ?? false,
+                tieStop: false,
+                articulations: source?.articulations ?? [],
+                arpeggiate: source?.arpeggiate,
+                dotCount: source?.dotCount ?? 0,
+                sourceNoteIDs: event.contributingSourceNoteIDs,
+                handAssignment: event.handAssignment
+            )
+            triggersByTick[onTick, default: []].append(note)
+            releasesByTick[offTick, default: []].append(note)
         }
 
-        var eventTicks = Set(triggersByTick.keys).union(releasesByTick.keys).union(restTicks)
-        eventTicks = eventTicks.filter { tick in
-            triggersByTick[tick]?.isEmpty == false || releasesByTick[tick]?.isEmpty == false || restTicks.contains(tick)
-        }
-        let sortedTicks = eventTicks.sorted()
-        guard sortedTicks.isEmpty == false else { return [] }
-
+        let eventTicks = Set(triggersByTick.keys).union(releasesByTick.keys).sorted()
         var activeNotesByOccurrenceID: [String: PianoHighlightNote] = [:]
         var guides: [PianoHighlightGuide] = []
-        guides.reserveCapacity(sortedTicks.count)
+        guides.reserveCapacity(eventTicks.count)
 
-        for (tickIndex, tick) in sortedTicks.enumerated() {
+        for (tickIndex, tick) in eventTicks.enumerated() {
             let releases = releasesByTick[tick] ?? []
             for release in releases {
                 activeNotesByOccurrenceID[release.occurrenceID] = nil
             }
 
-            let triggers = (triggersByTick[tick] ?? []).filter { playableRange.contains($0.midiNote) }
+            let triggers = sorted(triggersByTick[tick] ?? [])
             for trigger in triggers {
                 activeNotesByOccurrenceID[trigger.occurrenceID] = trigger
             }
 
-            let activeNotes = activeNotesByOccurrenceID.values.sorted { lhs, rhs in
-                if lhs.midiNote != rhs.midiNote { return lhs.midiNote < rhs.midiNote }
-                if (lhs.staff ?? 0) != (rhs.staff ?? 0) { return (lhs.staff ?? 0) < (rhs.staff ?? 0) }
-                if (lhs.voice ?? 0) != (rhs.voice ?? 0) { return (lhs.voice ?? 0) < (rhs.voice ?? 0) }
-                return lhs.occurrenceID < rhs.occurrenceID
-            }
-
+            let activeNotes = sorted(Array(activeNotesByOccurrenceID.values))
             let kind: PianoHighlightGuideKind = if triggers.isEmpty == false {
                 .trigger
             } else if releases.isEmpty == false {
@@ -150,69 +74,30 @@ struct PianoHighlightGuideBuilderService {
             } else {
                 .gap
             }
-
-            let nextTick = sortedTicks.indices.contains(tickIndex + 1) ? sortedTicks[tickIndex + 1] : nil
-            let durationTicks = nextTick.map { max(0, $0 - tick) }
-            let practiceStepIndex = (kind == .trigger) ? practiceStepIndexByTriggerTick[tick] : nil
-            let releasedMIDINotes = Set(releases.map(\.midiNote))
+            let nextTick = eventTicks.indices.contains(tickIndex + 1) ? eventTicks[tickIndex + 1] : nil
 
             guides.append(PianoHighlightGuide(
                 id: guides.count + 1,
                 kind: kind,
                 tick: tick,
-                durationTicks: durationTicks,
-                practiceStepIndex: practiceStepIndex,
+                durationTicks: nextTick.map { max(0, $0 - tick) },
+                practiceStepIndex: kind == .trigger ? stepIndexByTick[tick] : nil,
                 activeNotes: activeNotes,
-                triggeredNotes: triggers.sorted { lhs, rhs in
-                    if lhs.midiNote != rhs.midiNote { return lhs.midiNote < rhs.midiNote }
-                    if (lhs.staff ?? 0) != (rhs.staff ?? 0) { return (lhs.staff ?? 0) < (rhs.staff ?? 0) }
-                    return (lhs.voice ?? 0) < (rhs.voice ?? 0)
-                },
-                releasedMIDINotes: releasedMIDINotes
+                triggeredNotes: triggers,
+                releasedMIDINotes: Set(releases.map(\.midiNote))
+                    .subtracting(activeNotes.map(\.midiNote))
             ))
         }
 
         return guides
     }
 
-    private func makeSourceNotesByKey(
-        score: MusicXMLScore,
-        expressivity: MusicXMLExpressivityOptions
-    ) -> [SourceNoteKey: MusicXMLNoteEvent] {
-        var result: [SourceNoteKey: MusicXMLNoteEvent] = [:]
-        result.reserveCapacity(score.notes.count)
-
-        for note in score.notes {
-            guard note.isRest == false else { continue }
-            guard note.tieStop == false else { continue }
-            if note.isGrace, expressivity.graceEnabled == false { continue }
-            guard let midiNote = note.midiNote else { continue }
-            let staff = note.staff ?? 1
-            let voice = note.voice ?? 1
-            let key = SourceNoteKey(midiNote: midiNote, staff: staff, voice: voice, tick: note.tick)
-            if result[key] == nil {
-                result[key] = note
-            }
+    private func sorted(_ notes: [PianoHighlightNote]) -> [PianoHighlightNote] {
+        notes.sorted { lhs, rhs in
+            if lhs.midiNote != rhs.midiNote { return lhs.midiNote < rhs.midiNote }
+            if (lhs.staff ?? 0) != (rhs.staff ?? 0) { return (lhs.staff ?? 0) < (rhs.staff ?? 0) }
+            if (lhs.voice ?? 0) != (rhs.voice ?? 0) { return (lhs.voice ?? 0) < (rhs.voice ?? 0) }
+            return lhs.occurrenceID < rhs.occurrenceID
         }
-
-        return result
-    }
-
-    private func makeSpanByKey(_ spans: [MusicXMLNoteSpan]) -> [SpanKey: MusicXMLNoteSpan] {
-        var result: [SpanKey: MusicXMLNoteSpan] = [:]
-        result.reserveCapacity(spans.count)
-
-        for span in spans {
-            let key = SpanKey(midiNote: span.midiNote, staff: span.staff, voice: span.voice, onTick: span.onTick)
-            if let existing = result[key] {
-                if span.offTick > existing.offTick {
-                    result[key] = span
-                }
-            } else {
-                result[key] = span
-            }
-        }
-
-        return result
     }
 }

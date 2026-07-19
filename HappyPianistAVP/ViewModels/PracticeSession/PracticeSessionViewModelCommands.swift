@@ -25,10 +25,20 @@ extension PracticeSessionViewModel {
         return self.activeRange?.measureSpans ?? self.measureSpans
     }
 
-    var activeHighlightGuides: [PianoHighlightGuide] {
-        guard self.stateStore.isActiveRangeInvalid == false else { return [] }
-        guard let activeRange = self.activeRange else { return self.highlightGuides }
-        return self.highlightGuides.filter { activeRange.contains(tick: $0.tick) }
+    var activeNotationProjection: ScoreNotationProjection? {
+        guard self.stateStore.isActiveRangeInvalid == false,
+              let notationProjection = self.notationProjection
+        else {
+            return nil
+        }
+        let activeOccurrenceIDs = Set(
+            (self.currentPianoHighlightGuide.map { $0.activeNotes + $0.triggeredNotes } ?? [])
+                .map(\.occurrenceID)
+        )
+        let activeEventIDs = Set(activeOccurrenceIDs.compactMap {
+            self.stateStore.performanceEventIDByDescription[$0]
+        })
+        return notationProjection.activating(activeEventIDs)
     }
 
     var currentGrandStaffNotationContext: GrandStaffNotationContext? {
@@ -268,7 +278,6 @@ extension PracticeSessionViewModel {
         invalidateFeedbackPresentation()
         stopManualReplayTask()
         stopAutoplayTask()
-        stopAutoplayAudio()
         stopAudioRecognition()
         stopPracticeInput()
     }
@@ -396,7 +405,6 @@ extension PracticeSessionViewModel {
         enqueueSessionRecorderEvent(.guiding(false))
         stopManualReplayTask()
         stopAutoplayTask()
-        stopAutoplayAudio()
         stopAudioRecognition()
         let routingChanged = roundConfigurationController.applyPending()
         rebuildActiveRange()
@@ -434,9 +442,8 @@ extension PracticeSessionViewModel {
     func installPreparedSteps(
         _ steps: [PracticeStep],
         identity: PracticeSongIdentity,
-        tempoMap: MusicXMLTempoMap,
-        pedalTimeline: MusicXMLPedalTimeline? = nil,
-        fermataTimeline: MusicXMLFermataTimeline? = nil,
+        performancePlan: ScorePerformancePlan,
+        notationProjection: ScoreNotationProjection,
         attributeTimeline: MusicXMLAttributeTimeline? = nil,
         highlightGuides: [PianoHighlightGuide] = [],
         measureSpans: [MusicXMLMeasureSpan]
@@ -446,13 +453,13 @@ extension PracticeSessionViewModel {
         let shouldResetProgress = self.steps != steps || songChanged
         stopManualReplayTask()
         stopAutoplayTask()
-        stopAutoplayAudio()
         stopAudioRecognition()
         highlightGuideController?.stopTransition()
         chordAttemptAccumulator.reset()
 
         self.steps = steps
-        self.tempoMap = tempoMap
+        self.performancePlan = performancePlan
+        self.notationProjection = notationProjection
         self.measureSpans = measureSpans
         if let firstMeasure = measureSpans.first,
            let lastMeasure = measureSpans.last,
@@ -465,8 +472,6 @@ extension PracticeSessionViewModel {
         }
         self.measureIndex = PracticeMeasureIndex(steps: steps, measureSpans: measureSpans)
         rebuildActiveRange()
-        self.pedalTimeline = pedalTimeline
-        self.fermataTimeline = fermataTimeline
         self.attributeTimeline = attributeTimeline
         self.highlightGuides = highlightGuides
         rebuildAutoplayTimeline()
@@ -484,7 +489,9 @@ extension PracticeSessionViewModel {
         }
 
         let tick = steps.indices.contains(self.currentStepIndex) ? steps[self.currentStepIndex].tick : 0
-        self.isSustainPedalDown = pedalTimeline?.isDown(atTick: tick) ?? false
+        self.isSustainPedalDown = performancePlan.controllerEvents.last {
+            $0.controllerNumber == 64 && $0.tick <= tick
+        }.map { $0.value >= 64 } ?? false
 
         if steps.isEmpty {
             self.state = .idle
@@ -532,9 +539,9 @@ extension PracticeSessionViewModel {
     }
 
     func clearPreparedSong() {
+        cancelAutoplayTimelineBuild()
         stopManualReplayTask()
         stopAutoplayTask()
-        stopAutoplayAudio()
         stopAudioRecognition()
         stopPracticeInput()
         chordAttemptAccumulator.reset()
@@ -548,14 +555,13 @@ extension PracticeSessionViewModel {
         self.lastProgressRestoreOutcome = .none
         self.attemptReductionState = PracticeAttemptReductionState()
         self.latestFeedbackEvent = nil
+        self.performancePlan = nil
+        self.notationProjection = nil
         self.steps = []
-        self.tempoMap = MusicXMLTempoMap(tempoEvents: [])
         self.measureSpans = []
         self.measureIndex = nil
         self.activeRange = nil
         self.activeRangeDiagnostic = nil
-        self.pedalTimeline = nil
-        self.fermataTimeline = nil
         self.attributeTimeline = nil
         self.highlightGuides = []
         self.currentHighlightGuideIndex = nil
@@ -636,7 +642,7 @@ extension PracticeSessionViewModel {
         } else {
             _ = prepareAudioRecognitionSuppressWindowForPlayback()
             refreshAudioRecognitionForCurrentState()
-            playCurrentStepSound(applyRecognitionSuppress: false)
+            previewCurrentStepPitches(applyRecognitionSuppress: false)
         }
 
         startAutoplayTaskIfNeeded()
@@ -695,9 +701,6 @@ extension PracticeSessionViewModel {
 
         stopManualReplayTask()
         stopAutoplayTask()
-        if self.autoplayState == .playing || self.isManualReplayPlaying {
-            stopAutoplayAudio()
-        }
 
         advanceToNextManualUnit()
         startAutoplayTaskIfNeeded()
@@ -710,13 +713,13 @@ extension PracticeSessionViewModel {
         startManualReplay(with: plan)
     }
 
-    func playCurrentStepSound() {
+    func previewCurrentStepPitches() {
         guard self.stateStore.isActiveRangeInvalid == false else { return }
-        playCurrentStepSound(applyRecognitionSuppress: true)
+        previewCurrentStepPitches(applyRecognitionSuppress: true)
     }
 
-    func playCurrentStepSound(applyRecognitionSuppress: Bool) {
-        playbackControlService?.playCurrentStepSound(applyRecognitionSuppress: applyRecognitionSuppress)
+    func previewCurrentStepPitches(applyRecognitionSuppress: Bool) {
+        playbackControlService?.previewCurrentStepPitches(applyRecognitionSuppress: applyRecognitionSuppress)
     }
 
     func setAutoplayEnabled(_ isEnabled: Bool) {
@@ -770,7 +773,6 @@ extension PracticeSessionViewModel {
             self.pressedNotes.removeAll()
             self.state = navigation.state
             stopAutoplayTask()
-            stopAutoplayAudio()
             stopAudioRecognition()
             enqueueSessionRecorderEvent(.guiding(false))
             return
@@ -788,7 +790,7 @@ extension PracticeSessionViewModel {
         } else {
             _ = prepareAudioRecognitionSuppressWindowForPlayback()
             refreshAudioRecognitionForCurrentState()
-            playCurrentStepSound(applyRecognitionSuppress: false)
+            previewCurrentStepPitches(applyRecognitionSuppress: false)
         }
     }
 
@@ -813,7 +815,7 @@ extension PracticeSessionViewModel {
 
         if shouldPlaySound {
             _ = prepareAudioRecognitionSuppressWindowForPlayback()
-            playCurrentStepSound(applyRecognitionSuppress: false)
+            previewCurrentStepPitches(applyRecognitionSuppress: false)
         }
     }
 
@@ -847,7 +849,6 @@ extension PracticeSessionViewModel {
         self.state = .completed
         stopManualReplayTask()
         stopAutoplayTask()
-        stopAutoplayAudio()
         stopAudioRecognition()
         enqueueSessionRecorderEvent(.guiding(false))
     }

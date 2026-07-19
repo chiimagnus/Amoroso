@@ -10,6 +10,53 @@ enum MIDIEndpointConnectionPolicy {
     }
 }
 
+enum MIDIEndpointRouteNotificationPolicy {
+    static func affectsSources(_ notification: UnsafePointer<MIDINotification>) -> Bool {
+        affectsRoute(
+            notification,
+            endpointTypes: [.source, .externalSource]
+        )
+    }
+
+    static func affectsDestinations(_ notification: UnsafePointer<MIDINotification>) -> Bool {
+        affectsRoute(
+            notification,
+            endpointTypes: [.destination, .externalDestination]
+        )
+    }
+
+    private static func affectsRoute(
+        _ notification: UnsafePointer<MIDINotification>,
+        endpointTypes: Set<MIDIObjectType>
+    ) -> Bool {
+        switch notification.pointee.messageID {
+        case .msgSetupChanged, .msgIOError:
+            return true
+
+        case .msgObjectAdded, .msgObjectRemoved:
+            guard notification.pointee.messageSize >= MemoryLayout<MIDIObjectAddRemoveNotification>.size else {
+                return false
+            }
+            let change = UnsafeRawPointer(notification)
+                .assumingMemoryBound(to: MIDIObjectAddRemoveNotification.self)
+                .pointee
+            return endpointTypes.contains(change.childType)
+
+        case .msgPropertyChanged:
+            guard notification.pointee.messageSize >= MemoryLayout<MIDIObjectPropertyChangeNotification>.size else {
+                return false
+            }
+            let change = UnsafeRawPointer(notification)
+                .assumingMemoryBound(to: MIDIObjectPropertyChangeNotification.self)
+                .pointee
+            return endpointTypes.contains(change.objectType)
+
+        default:
+            return false
+        }
+    }
+}
+
 enum MIDISourceMonitoringConnectionState: Equatable {
     case idle
     case connected(sourceCount: Int)

@@ -78,7 +78,7 @@ func expressivityPipelineParsesAndPlumbsKeySignalsEndToEnd() throws {
         tempoEvents: score.tempoEvents
     )
     let pedalTimeline = MusicXMLPedalTimeline(events: score.pedalEvents + wordsSemantics.derivedPedalEvents)
-    #expect(pedalTimeline.isDown(atTick: 0) == true)
+    #expect(pedalTimeline.controllerChanges().map(\.value) == [127, 0])
 
     let attributeTimeline = MusicXMLAttributeTimeline(
         timeSignatureEvents: score.timeSignatureEvents,
@@ -90,20 +90,190 @@ func expressivityPipelineParsesAndPlumbsKeySignalsEndToEnd() throws {
     #expect(attributeTimeline.clef(atTick: 0, staffNumber: 1)?.signToken == "G")
     #expect(attributeTimeline.clef(atTick: 0, staffNumber: 2)?.signToken == "F")
 
-    let steps = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity).steps
-    #expect(steps.count == 1)
-    #expect(steps[0].notes.map(\.midiNote) == [60, 64])
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let steps = PracticeStepBuilder().buildSteps(from: plan).steps
+    #expect(steps.map(\.tick) == [0, 30])
+    #expect(steps.flatMap(\.notes).map(\.midiNote) == [60, 64])
     #expect(steps[0].notes.first(where: { $0.midiNote == 60 })?.fingeringText == "1")
 
-    let spans = MusicXMLNoteSpanBuilder().buildSpans(
-        from: score.notes,
-        expressivity: expressivity
+    let c4 = plan.noteEvents.first(where: { $0.midiNote == 60 })
+    let e4 = plan.noteEvents.first(where: { $0.midiNote == 64 })
+    #expect(c4?.performedOnTick == 0)
+    #expect(e4?.performedOnTick == 30)
+    #expect(c4?.performedOffTick == 480)
+}
+
+@Test
+func performancePlanKeepsTempoControllersAndAnnotationsInCanonicalTickDomain() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions></attributes>
+        <direction><sound tempo="120" damper-pedal="yes"/></direction>
+        <note>
+          <pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff>
+          <notations><fermata/><breath-mark/></notations>
+        </note>
+        <direction><direction-type><words>rit.</words></direction-type></direction>
+        <direction><direction-type><pedal type="change"/></direction-type></direction>
+        <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff></note>
+        <direction><sound tempo="90"/></direction>
+      </measure></part>
+    </score-partwise>
+    """
+    var score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    for index in score.tempoEvents.indices {
+        score.tempoEvents[index].performedOccurrenceIndex = 2
+    }
+    for index in score.pedalEvents.indices {
+        score.pedalEvents[index].performedOccurrenceIndex = 2
+    }
+    for index in score.wordsEvents.indices {
+        score.wordsEvents[index].performedOccurrenceIndex = 2
+    }
+
+    let words = MusicXMLWordsSemanticsInterpreter().interpret(
+        wordsEvents: score.wordsEvents,
+        tempoEvents: score.tempoEvents
     )
-    let c4Span = spans.first(where: { $0.midiNote == 60 })
-    let e4Span = spans.first(where: { $0.midiNote == 64 })
-    #expect(c4Span?.onTick == 0)
-    #expect(e4Span?.onTick == 30)
-    #expect(c4Span?.offTick == 480)
+    let tempoMap = MusicXMLTempoMap(
+        tempoEvents: score.tempoEvents + words.derivedTempoEvents,
+        tempoRamps: words.derivedTempoRamps,
+        partID: "P1"
+    )
+    let pedalTimeline = MusicXMLPedalTimeline(events: score.pedalEvents + words.derivedPedalEvents)
+    let expressivity = MusicXMLExpressivityOptions(
+        wedgeEnabled: true,
+        graceEnabled: true,
+        fermataEnabled: true,
+        arpeggiateEnabled: true,
+        wordsSemanticsEnabled: true
+    )
+    let schedule = ScoreTimingScheduleBuilder().build(
+        notes: score.notes,
+        performanceTimingEnabled: true,
+        graceEnabled: expressivity.graceEnabled,
+        arpeggiateEnabled: expressivity.arpeggiateEnabled
+    )
+    let fermataTimeline = MusicXMLFermataTimeline(
+        fermataEvents: score.fermataEvents,
+        notes: score.notes
+    )
+    let logicalInstrument = MusicXMLLogicalInstrument(
+        id: "piano:P1",
+        memberPartIDs: ["P1"],
+        classification: .piano,
+        evidence: []
+    )
+    let songID = try #require(UUID(uuidString: "50C583D1-343A-4577-BF5F-9003314A5051"))
+    let plan = ScorePerformancePlanBuilder().build(
+        sourceIdentity: ScorePerformanceSourceIdentity(
+            songID: songID,
+            scoreRevision: "revision",
+            logicalInstrumentID: logicalInstrument.id
+        ),
+        order: MusicXMLOrderSelection(requested: .performed, applied: .performed),
+        logicalInstrument: logicalInstrument,
+        notes: score.notes,
+        timingSchedule: schedule,
+        velocityResolver: MusicXMLVelocityResolver(
+            dynamicEvents: score.dynamicEvents,
+            wedgeEvents: score.wedgeEvents,
+            wedgeEnabled: expressivity.wedgeEnabled
+        ),
+        expressivity: expressivity,
+        handAssignments: [:],
+        tempoMap: tempoMap,
+        pedalTimeline: pedalTimeline,
+        tempoAnnotations: words.tempoAnnotations,
+        fermataTimeline: fermataTimeline
+    )
+
+    #expect(plan.tempoEvents.map(\.tick) == [0, 480, 960])
+    #expect(plan.tempoEvents.map(\.performedOccurrenceIndex) == [2, 2, 2])
+    #expect(plan.tempoEvents.first(where: { $0.endTick != nil })?.endTick == 960)
+    #expect(plan.tempoEvents.first(where: { $0.endTick != nil })?.endQuarterBPM == 90)
+    #expect(plan.controllerEvents.map(\.value) == [127, 0, 127])
+    #expect(plan.controllerEvents.allSatisfy { $0.controllerNumber == 64 })
+    #expect(plan.controllerEvents.allSatisfy { $0.performedOccurrenceIndex == 2 })
+    #expect(plan.annotations.contains { $0.kind == .phrase && $0.tick == 420 })
+    #expect(plan.annotations.contains { $0.kind == .pause && $0.text == "fermata" && $0.tick == 420 })
+    #expect(plan.annotations.contains {
+        $0.kind == .tempoWord && $0.tick == 480 && $0.performedOccurrenceIndex == 2
+    })
+}
+
+@Test
+func fermataAcrossVoicesAndStaffsAddsOneTotalHold() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions><staves>2</staves></attributes>
+        <note>
+          <pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff>
+          <notations><fermata/></notations>
+        </note>
+        <note>
+          <chord/><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>2</voice><staff>2</staff>
+          <notations><fermata/></notations>
+        </note>
+        <note><pitch><step>G</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><staff>1</staff></note>
+      </measure></part>
+    </score-partwise>
+    """
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let expressivity = MusicXMLExpressivityOptions(
+        fermataEnabled: true,
+        arpeggiateEnabled: false,
+        wordsSemanticsEnabled: false
+    )
+    let schedule = ScoreTimingScheduleBuilder().build(notes: score.notes)
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let fermataAnnotations = plan.annotations.filter { $0.kind == .pause && $0.text == "fermata" }
+
+    #expect(schedule.entries.prefix(2).map(\.performedOffTick) == [480, 480])
+    #expect(fermataAnnotations.count == 1)
+    #expect(fermataAnnotations.first?.tick == 480)
+    #expect(fermataAnnotations.first?.durationTicks == 240)
+    #expect(fermataAnnotations.first?.provenance.count == 2)
+
+    let tempoMap = MusicXMLTempoMap(tempoEvents: [
+        MusicXMLTempoEvent(
+            tick: 0,
+            quarterBPM: 120,
+            scope: MusicXMLEventScope(partID: "P1", staff: nil, voice: nil)
+        ),
+    ])
+    let timeline = AutoplayPerformanceTimeline.build(
+        plan: plan,
+        guideProjection: [],
+        stepProjection: [],
+        tempoMap: tempoMap,
+        practiceHandMode: .both
+    )
+    let pauseEvents = timeline.events.filter {
+        if case .pauseSeconds = $0.kind { return true }
+        return false
+    }
+    let playbackEvents = PracticeSequencerSequenceBuilder().buildPerformanceEventSchedule(
+        timeline: timeline,
+        tempoMap: tempoMap,
+        startTick: 0
+    )
+    let chordNoteOffTimes = playbackEvents.compactMap { event -> TimeInterval? in
+        switch event.kind {
+        case .noteOff(midi: 60), .noteOff(midi: 64):
+            event.timeSeconds
+        default:
+            nil
+        }
+    }
+
+    #expect(pauseEvents.count == 1)
+    #expect(chordNoteOffTimes.count == 2)
+    #expect(chordNoteOffTimes.allSatisfy { abs($0 - 0.75) < 0.000_001 })
 }
 
 @Test
@@ -216,7 +386,7 @@ func pedalChangePreservesBothControllerEdgesUnderOneDirectionSource() throws {
 
     let events = try MusicXMLParser().parse(data: Data(xml.utf8)).pedalEvents
     #expect(events.count == 2)
-    #expect(events.map(\.isDown) == [false, true])
+    #expect(events.compactMap(\.value?.midiValue) == [0, 127])
     #expect(events[0].sourceID != nil)
     #expect(events[0].sourceID == events[1].sourceID)
 }

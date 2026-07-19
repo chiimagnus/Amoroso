@@ -1,3 +1,4 @@
+import Foundation
 @testable import HappyPianistAVP
 
 struct MusicXMLScoreSnapshot {
@@ -49,25 +50,11 @@ struct MusicXMLScoreSnapshot {
                 value: "\(event.kind):\(event.numberToken ?? "null")"
             )
         })
-        lines.append(contentsOf: canonicalLines(score.pedalEvents, sortKey: { event, fallback in
-            directionSortKey(
-                sourceID: event.sourceID,
-                tick: event.tick,
-                scope: MusicXMLEventScope(partID: event.partID, staff: nil, voice: nil),
-                fallback: fallback
-            )
-        }) { index, event in
-            encoder.encode(fields: [
-                ("kind", "pedal"),
-                ("sourceDirectionID", event.sourceID?.description ?? "unresolved"),
-                ("sourceIndex", String(index)),
-                ("part", event.partID),
-                ("measure", String(event.measureNumber)),
-                ("tick", String(event.tick)),
-                ("event", event.kind.rawValue),
-                ("down", encoder.encode(event.isDown)),
-            ])
-        })
+        lines.append(contentsOf: canonicalLines(
+            score.pedalEvents,
+            sortKey: pedalSortKey,
+            encode: pedalLine
+        ))
         lines.append(contentsOf: canonicalLines(score.fermataEvents, sortKey: { event, fallback in
             directionSortKey(sourceID: event.sourceID, tick: event.tick, scope: event.scope, fallback: fallback)
         }) { index, event in
@@ -194,6 +181,30 @@ struct MusicXMLScoreSnapshot {
             ("tieStart", encoder.encode(note.tieStart)),
             ("tieStop", encoder.encode(note.tieStop)),
         ])
+    }
+
+    private func pedalLine(index: Int, event: MusicXMLPedalEvent) -> String {
+        encoder.encode(fields: [
+            ("kind", "pedal"),
+            ("sourceDirectionID", event.sourceID?.description ?? "unresolved"),
+            ("sourceIndex", String(index)),
+            ("part", event.partID),
+            ("measure", String(event.measureNumber)),
+            ("tick", String(event.tick)),
+            ("event", event.kind.rawValue),
+            ("controller", String(event.controller.rawValue)),
+            ("value", event.value.map { String($0.midiValue) }),
+            ("sourcePercentage", event.value.map { NSDecimalNumber(decimal: $0.percentage).stringValue }),
+        ])
+    }
+
+    private func pedalSortKey(_ event: MusicXMLPedalEvent, fallback: String) -> SnapshotSortKey {
+        directionSortKey(
+            sourceID: event.sourceID,
+            tick: event.tick,
+            scope: MusicXMLEventScope(partID: event.partID, staff: nil, voice: nil),
+            fallback: fallback
+        )
     }
 
     private func directionLine(

@@ -19,6 +19,7 @@ final class VirtualPianoInputController {
     private let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let stateStore: PracticeSessionStateStore
     private let handGateController: PracticeHandGateController
+    private var playbackTask: Task<Void, Never>?
     private var hasShutdown = false
 
     init(
@@ -40,7 +41,12 @@ final class VirtualPianoInputController {
     }
 
     func stop() {
-        sequencerPlaybackService.stopAllLiveNotes()
+        let previousPlaybackTask = playbackTask
+        let sequencerPlaybackService = sequencerPlaybackService
+        playbackTask = Task {
+            await previousPlaybackTask?.value
+            await sequencerPlaybackService.stopAllLiveNotes()
+        }
         detector.reset()
         stateStore.latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
         stateStore.pressedNotes.removeAll()
@@ -62,12 +68,19 @@ final class VirtualPianoInputController {
 
         let shouldPlayLiveNotes = stateStore.autoplayState == .off && stateStore.isManualReplayPlaying == false
         if shouldPlayLiveNotes {
-            if result.started.isEmpty == false {
-                try? sequencerPlaybackService.startLiveNotes(midiNotes: result.started)
-            }
-            if result.ended.isEmpty == false {
-                sequencerPlaybackService.stopLiveNotes(midiNotes: result.ended)
-            }
+            enqueuePlayback(
+                commands: result.ended.sorted().map {
+                    PracticePlaybackCommand(
+                        sourceEventID: "virtual-piano-\($0)",
+                        kind: .noteOff(midi: $0)
+                    )
+                } + result.started.sorted().map {
+                    PracticePlaybackCommand(
+                        sourceEventID: "virtual-piano-\($0)",
+                        kind: .noteOn(midi: $0, velocity: 96)
+                    )
+                }
+            )
         }
 
         stateStore.pressedNotes = result.down
@@ -86,5 +99,23 @@ final class VirtualPianoInputController {
         }
 
         return result.down
+    }
+
+    func waitForPendingPlayback() async {
+        await playbackTask?.value
+    }
+
+    private func enqueuePlayback(commands: [PracticePlaybackCommand]) {
+        guard commands.isEmpty == false else { return }
+        let previousPlaybackTask = playbackTask
+        let sequencerPlaybackService = sequencerPlaybackService
+        playbackTask = Task {
+            await previousPlaybackTask?.value
+            do {
+                try await sequencerPlaybackService.execute(commands: commands)
+            } catch {
+                stateStore.recordPlaybackError(error)
+            }
+        }
     }
 }

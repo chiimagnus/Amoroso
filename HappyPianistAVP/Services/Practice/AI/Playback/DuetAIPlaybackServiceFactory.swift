@@ -39,10 +39,10 @@ final class DuetAIPlaybackServiceFactory {
         }
     }
 
-    func stopAll() {
-        cachedLocalSampler?.stop()
+    func stopAll() async {
+        await cachedLocalSampler?.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         for service in cachedExternalMIDI.values {
-            service.stop()
+            await service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
         }
     }
 }

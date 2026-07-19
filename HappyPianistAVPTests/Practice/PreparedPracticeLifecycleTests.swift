@@ -3,6 +3,20 @@ import Foundation
 import Testing
 
 @Test
+func preparedPracticeFixtureDerivesEveryProjectionFromPerformanceNotes() {
+    let prepared = makeTestPreparedPractice(performanceNotes: [
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 64, onTick: 0),
+        TestScorePerformanceNote(midiNote: 67, onTick: 240),
+    ])
+
+    #expect(prepared.performancePlan.noteEvents.count == 3)
+    #expect(prepared.steps.map(\.tick) == [0, 240])
+    #expect(prepared.steps[0].notes.map(\.midiNote) == [60, 64])
+    #expect(prepared.notationProjection.performedOccurrences.count == 3)
+}
+
+@Test
 @MainActor
 func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() async {
     let appState = AppState()
@@ -22,6 +36,8 @@ func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() as
         isCurrent: { true }
     ) == .applied)
     #expect(guide.practiceSessionViewModel.songIdentity == prepared.identity)
+    #expect(guide.practiceSessionViewModel.performancePlan == prepared.performancePlan)
+    #expect(guide.practiceSessionViewModel.notationProjection == prepared.notationProjection)
     #expect(guide.latestPreparedPractice?.identity == prepared.identity)
     #expect(guide.latestPreparedPractice?.scoreContext == prepared.scoreContext)
 
@@ -29,6 +45,8 @@ func clearingPreparedPracticePreventsSessionReplacementFromResurrectingSong() as
     await guide.clearPreparedPracticeForLaunch()
 
     #expect(guide.practiceSessionViewModel.songIdentity == nil)
+    #expect(guide.practiceSessionViewModel.performancePlan == nil)
+    #expect(guide.practiceSessionViewModel.notationProjection == nil)
     #expect(guide.practiceSessionViewModel.steps.isEmpty)
     #expect(guide.latestPreparedPractice == nil)
     #expect(appState.practiceSetupState.preparedPracticeIdentity == nil)
@@ -69,6 +87,8 @@ func replacingPracticeSessionReappliesTheSameHistoricalRestorePolicy() async {
     let replacement = guide.practiceSessionViewModel
     #expect(replacement !== first)
     #expect(replacement.songIdentity == prepared.identity)
+    #expect(replacement.performancePlan == prepared.performancePlan)
+    #expect(replacement.notationProjection == prepared.notationProjection)
     #expect(replacement.activeRoundConfiguration?.handMode == .left)
     #expect(replacement.activeRoundConfiguration?.tempoScale == 0.7)
     #expect(replacement.activeRoundConfiguration?.loopEnabled == true)
@@ -270,6 +290,88 @@ func replacementDuringProgressRestoreInvalidatesOldPreparedApply() async {
     #expect(guide.latestPreparedPractice?.scoreContext == prepared.scoreContext)
 }
 
+@Test
+@MainActor
+func sessionProjectsCurrentGuideActivityOntoAuthoritativeNotation() throws {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "notation")
+    let performanceNotes = [
+        TestScorePerformanceNote(
+            midiNote: 60,
+            onTick: 0,
+            handAssignment: ScoreHandAssignment(hand: .right, provenance: .score)
+        ),
+    ]
+    let plan = makeTestScorePerformancePlan(identity: identity, notes: performanceNotes)
+    let steps = PracticeStepBuilder().buildSteps(from: plan).steps
+    let event = try #require(plan.noteEvents.first)
+    let score = MusicXMLScore(notes: [
+        MusicXMLNoteEvent(
+            sourceID: event.sourceNoteID,
+            partID: event.sourceNoteID.partID,
+            measureNumber: 1,
+            tick: event.writtenOnTick,
+            durationTicks: event.writtenOffTick - event.writtenOnTick,
+            writtenPitch: MusicXMLWrittenPitch(step: "C", octave: 4),
+            midiNote: event.midiNote,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: event.staff,
+            voice: event.voice
+        ),
+    ])
+    let guide = PianoHighlightGuide(
+        id: 1,
+        kind: .trigger,
+        tick: 0,
+        durationTicks: 480,
+        practiceStepIndex: 0,
+        activeNotes: [],
+        triggeredNotes: [
+            PianoHighlightNote(
+                occurrenceID: event.id.description,
+                midiNote: event.midiNote,
+                staff: event.staff,
+                voice: event.voice,
+                velocity: event.velocity,
+                onTick: event.performedOnTick,
+                offTick: event.performedOffTick,
+                fingeringText: nil,
+                handAssignment: event.handAssignment
+            ),
+        ],
+        releasedMIDINotes: []
+    )
+    let session = PracticeSessionViewModel(
+        pressDetectionService: PressDetectionService(),
+        chordAttemptAccumulator: ChordAttemptAccumulator(),
+        sleeper: TaskSleeper()
+    )
+    session.installPreparedSteps(
+        steps,
+        identity: identity,
+        performancePlan: plan,
+        notationProjection: ScoreNotationProjection(plan: plan, sourceScore: score),
+        highlightGuides: [guide],
+        measureSpans: [
+            MusicXMLMeasureSpan(
+                partID: "P1",
+                measureNumber: 1,
+                sourceMeasureIndex: 0,
+                sourceMeasureNumberToken: "1",
+                occurrenceIndex: 0,
+                startTick: 0,
+                endTick: 480
+            ),
+        ]
+    )
+
+    session.startGuidingIfReady()
+
+    #expect(session.activeNotationProjection?.activeState.occurrenceIDs == [event.id])
+}
+
 @MainActor
 private func makeLifecycleGuide(
     appState: AppState,
@@ -292,21 +394,16 @@ private func makeLifecycleGuide(
 
 private func makeLifecyclePreparedPractice() -> PreparedPractice {
     let songID = UUID()
-    return PreparedPractice(
+    return makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: "revision"),
-        steps: [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
+        performanceNotes: [
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
         ],
         file: ImportedMusicXMLFile(
             fileName: "Lifecycle",
             storedURL: URL(fileURLWithPath: "/dev/null"),
             importedAt: .now
         ),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        pedalTimeline: nil,
-        fermataTimeline: nil,
-        attributeTimeline: nil,
-        highlightGuides: [],
         measureSpans: [
             MusicXMLMeasureSpan(
                 partID: "P1",
@@ -317,9 +414,7 @@ private func makeLifecyclePreparedPractice() -> PreparedPractice {
                 startTick: 0,
                 endTick: 480
             ),
-        ],
-        unsupportedNoteCount: 0,
-        scoreContext: makeTestPreparedPracticeScoreContext()
+        ]
     )
 }
 

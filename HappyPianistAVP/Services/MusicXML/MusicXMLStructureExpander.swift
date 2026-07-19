@@ -451,7 +451,8 @@ struct MusicXMLStructureExpander {
                     measureNumber: outputMeasureNumber,
                     tick: currentMeasureStartTick + (event.tick - span.startTick),
                     kind: event.kind,
-                    isDown: event.isDown,
+                    controller: event.controller,
+                    value: event.value,
                     timeOnlyPasses: event.timeOnlyPasses
                 ))
             }
@@ -588,8 +589,9 @@ struct MusicXMLStructureExpander {
         outputSoundDirectives.sort { $0.tick < $1.tick }
         outputPedalEvents.sort { lhs, rhs in
             if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
-            let lhsKey = lhs.isDown.map { $0 ? 1 : 0 } ?? 2
-            let rhsKey = rhs.isDown.map { $0 ? 1 : 0 } ?? 2
+            if lhs.controller != rhs.controller { return lhs.controller.rawValue < rhs.controller.rawValue }
+            let lhsKey = lhs.value.map { Int($0.midiValue) } ?? 128
+            let rhsKey = rhs.value.map { Int($0.midiValue) } ?? 128
             return lhsKey < rhsKey
         }
         outputDynamicEvents.sort { $0.tick < $1.tick }

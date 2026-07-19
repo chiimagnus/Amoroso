@@ -16,11 +16,8 @@ func learningLoopFixtureCoversEightMeasuresStaffsTempoChordAndRepeatIdentity() t
 
     let handAssignments = MusicXMLHandRouter().assignments(for: parsed).assignmentsBySourceNoteID
     #expect(handAssignments.isEmpty)
-    let writtenSteps = PracticeStepBuilder().buildSteps(
-        from: parsed,
-        expressivity: .init(),
-        handAssignments: handAssignments
-    ).steps
+    let writtenPlan = makeTestScorePerformancePlan(from: parsed, handAssignments: handAssignments)
+    let writtenSteps = PracticeStepBuilder().buildSteps(from: writtenPlan).steps
     #expect(writtenSteps.flatMap(\.notes).allSatisfy { $0.hand == .unknown })
 
     let expanded = MusicXMLStructureExpander().expandRepeatAndEndingIfPossible(score: parsed)
@@ -28,11 +25,11 @@ func learningLoopFixtureCoversEightMeasuresStaffsTempoChordAndRepeatIdentity() t
     #expect(expanded.measures[0].sourceMeasureID == expanded.measures[2].sourceMeasureID)
     #expect(expanded.measures[0].occurrenceID != expanded.measures[2].occurrenceID)
 
-    let steps = PracticeStepBuilder().buildSteps(
+    let expandedPlan = makeTestScorePerformancePlan(
         from: expanded,
-        expressivity: .init(),
         handAssignments: MusicXMLHandRouter().assignments(for: expanded).assignmentsBySourceNoteID
-    ).steps
+    )
+    let steps = PracticeStepBuilder().buildSteps(from: expandedPlan).steps
     #expect(steps.isEmpty == false)
     #expect(steps.contains(where: { $0.notes.count >= 3 }))
 }

@@ -36,7 +36,7 @@ func restoredPracticeStaysReadyAndSilentUntilExplicitStart() async throws {
         progressCoordinator: coordinator
     )
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
 
     await session.applyLaunchRestorePolicy(.exactAvailable)
 
@@ -48,6 +48,7 @@ func restoredPracticeStaysReadyAndSilentUntilExplicitStart() async throws {
     #expect(playback.playCount == 0)
 
     session.startGuidingIfReady()
+    await playback.waitForOneShot()
     #expect(session.state == .guiding(stepIndex: 1))
     #expect(playback.oneShotCount == 1)
 }
@@ -83,7 +84,7 @@ func exactProgressAppearingAfterHistoricalPolicySnapshotStillWins() async throws
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
 
     await session.applyLaunchRestorePolicy(.historicalPreferences(
         PracticeHistoricalPreferences(
@@ -141,7 +142,7 @@ func invalidRestoredPassageIsRepairedAndPersistedWithoutLosingFacts() async thro
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
 
     await session.applyLaunchRestorePolicy(.exactAvailable)
     let repaired = try #require(await repository.progress(for: identity))
@@ -188,9 +189,8 @@ func invalidRestoredPassageUsesSafeFallbackWhenRepairCannotPersist() async throw
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: spans
     )
 
@@ -243,9 +243,8 @@ func resumeOutsideValidActivePassageIsClearedAndPersistedWithoutLosingFacts() as
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: spans
     )
 
@@ -288,9 +287,8 @@ func resumeWithoutSavedConfigurationIsClearedAndRepairedToFullPassage() async th
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: spans
     )
 
@@ -318,9 +316,8 @@ func suspendedPracticeReturnsToPausedReadyAndCanRestartInput() async {
         progressCoordinator: coordinator
     )
     session.songIdentity = identity
-    session.setSteps(
-        makeResumeSteps(),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        makeResumePerformanceNotes(),
         measureSpans: makeResumeSpans()
     )
     await session.applyLaunchRestorePolicy(.freshDefaults)
@@ -350,7 +347,7 @@ func pausedPracticeRejectsAdvanceEffectWithoutPlayback() {
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playback
     )
-    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: makeResumeSpans())
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: makeResumeSpans())
 
     session.handle(effect: .advanceToNextStep)
 
@@ -374,7 +371,7 @@ func flushAndShutdownPersistsLatestResumePointBeforeTeardown() async {
     )
     let spans = makeResumeSpans()
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
     await session.applyLaunchRestorePolicy(.freshDefaults)
     session.startGuidingIfReady()
     session.recordAttemptOutcome(
@@ -400,7 +397,7 @@ func navigationWithoutAttemptPersistsLatestResumePoint() async {
     )
     let spans = makeResumeSpans()
     session.songIdentity = identity
-    session.setSteps(makeResumeSteps(), tempoMap: MusicXMLTempoMap(tempoEvents: []), measureSpans: spans)
+    session.installTestPerformanceNotes(makeResumePerformanceNotes(), measureSpans: spans)
     await session.applyLaunchRestorePolicy(.freshDefaults)
     session.startGuidingIfReady()
 
@@ -425,13 +422,12 @@ func retryMeasureKeepsRepeatedOccurrenceInCurrentPassage() {
         chordAttemptAccumulator: ResumeNoopChordAccumulator(),
         sleeper: TaskSleeper()
     )
-    session.setSteps(
+    session.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 960, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 480),
+            TestScorePerformanceNote(midiNote: 60, onTick: 960),
         ],
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
         measureSpans: spans
     )
     session.roundConfigurationController.pendingPassage = PracticePassage(
@@ -457,9 +453,8 @@ func automaticLoopStartsANewAttemptRound() {
         sleeper: TaskSleeper()
     )
     session.songIdentity = identity
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     session.roundConfigurationController.pendingLoopEnabled = true
@@ -488,9 +483,8 @@ func automaticLoopStopsWhenPassageReachesTarget() {
         sleeper: TaskSleeper()
     )
     session.songIdentity = identity
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     session.roundConfigurationController.pendingLoopEnabled = true
@@ -516,9 +510,8 @@ func continuePassageStartsANewRoundInPractice() {
         chordAttemptAccumulator: ResumeNoopChordAccumulator(),
         sleeper: TaskSleeper()
     )
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         measureSpans: [span]
     )
     session.startGuidingIfReady()
@@ -531,11 +524,11 @@ func continuePassageStartsANewRoundInPractice() {
     #expect(session.currentStepIndex == 0)
 }
 
-private func makeResumeSteps() -> [PracticeStep] {
+private func makeResumePerformanceNotes() -> [TestScorePerformanceNote] {
     let rightHand = ScoreHandAssignment(hand: .right, provenance: .score)
     return [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: rightHand)]),
-        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: rightHand)]),
+        TestScorePerformanceNote(midiNote: 60, onTick: 0, handAssignment: rightHand),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480, handAssignment: rightHand),
     ]
 }
 
@@ -619,8 +612,17 @@ private actor FailingRepairRepository: PracticeProgressRepositoryProtocol {
 private final class CapturingResumePlaybackService: PracticeSequencerPlaybackServiceProtocol {
     private(set) var oneShotCount = 0
     private(set) var playCount = 0
+    private let oneShotEvents: AsyncStream<Void>
+    private let oneShotContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        (oneShotEvents, oneShotContinuation) = AsyncStream.makeStream(
+            bufferingPolicy: .bufferingNewest(1)
+        )
+    }
+
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {
         playCount += 1
@@ -630,12 +632,17 @@ private final class CapturingResumePlaybackService: PracticeSequencerPlaybackSer
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {
         oneShotCount += 1
+        oneShotContinuation.yield()
     }
 
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func waitForOneShot() async {
+        var iterator = oneShotEvents.makeAsyncIterator()
+        _ = await iterator.next()
+    }
+
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 

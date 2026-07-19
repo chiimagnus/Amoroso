@@ -15,7 +15,11 @@ func manualReplayBlocksGestureAdvance() async {
         sequencerPlaybackService: playbackService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(makeReplaySteps(), tempoMap: makeReplayTempoMap(), measureSpans: makeReplayMeasures())
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
+        tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
+        measureSpans: makeReplayMeasures()
+    )
     viewModel.applyKeyboardGeometry(makeReplayKeyboardGeometry(), calibration: makeReplayCalibration())
     viewModel.startGuidingIfReady()
     viewModel.replayCurrentUnit()
@@ -44,7 +48,11 @@ func manualReplayBlocksAudioRecognitionAdvance() async {
         audioRecognitionService: audioRecognitionService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(makeReplaySteps(), tempoMap: makeReplayTempoMap(), measureSpans: makeReplayMeasures())
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
+        tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
+        measureSpans: makeReplayMeasures()
+    )
     viewModel.startGuidingIfReady()
     await Task.yield()
     viewModel.replayCurrentUnit()
@@ -80,7 +88,11 @@ func completedManualReplayReturnsProgressToMeasureStart() async {
         sequencerPlaybackService: playbackService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(makeReplaySteps(), tempoMap: makeReplayTempoMap(), measureSpans: makeReplayMeasures())
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
+        tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
+        measureSpans: makeReplayMeasures()
+    )
     viewModel.startGuidingIfReady()
     viewModel.currentStepIndex = 1
     #expect(viewModel.currentStepIndex == 1)
@@ -113,7 +125,11 @@ func restartingManualReplayDoesNotResumeAudioRecognitionBetweenGenerations() asy
         audioRecognitionService: audioRecognitionService,
         manualAdvanceMode: .measure
     )
-    viewModel.setSteps(makeReplaySteps(), tempoMap: makeReplayTempoMap(), measureSpans: makeReplayMeasures())
+    viewModel.installTestPerformanceNotes(
+        makeReplayPerformanceNotes(),
+        tempoEvents: makeTestScorePerformanceTempoEvents(from: makeReplayTempoMap()),
+        measureSpans: makeReplayMeasures()
+    )
     viewModel.startGuidingIfReady()
     await Task.yield()
     let startCallCountBeforeReplay = audioRecognitionService.startCalls.count
@@ -135,10 +151,10 @@ private struct ImmediateManualReplaySleeper: SleeperProtocol {
     }
 }
 
-private func makeReplaySteps() -> [PracticeStep] {
+private func makeReplayPerformanceNotes() -> [TestScorePerformanceNote] {
     [
-        PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-        PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480),
     ]
 }
 
@@ -186,7 +202,7 @@ private final class ManualReplaySequencerPlaybackService: PracticeSequencerPlayb
         warmUpCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCount += 1
     }
 
@@ -202,9 +218,8 @@ private final class ManualReplaySequencerPlaybackService: PracticeSequencerPlayb
         currentSecondsValue
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 

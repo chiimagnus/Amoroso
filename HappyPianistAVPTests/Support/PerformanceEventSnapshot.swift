@@ -9,7 +9,7 @@ struct PerformanceEventSnapshot {
             encoder.encode(fields: [
                 ("position", String(position)),
                 ("eventID", String(event.id)),
-                ("sourceEventID", "unresolved"),
+                ("sourceEventID", event.sourceEventID ?? "unresolved"),
                 ("tick", String(event.tick)),
                 ("kind", timelineKind(event.kind)),
             ])
@@ -20,7 +20,7 @@ struct PerformanceEventSnapshot {
         encoder.encode(lines: events.enumerated().map { position, event in
             encoder.encode(fields: [
                 ("position", String(position)),
-                ("sourceEventID", "unresolved"),
+                ("sourceEventID", event.sourceEventID ?? "unresolved"),
                 ("seconds", encoder.encode(event.timeSeconds)),
                 ("kind", sequencerKind(event.kind)),
             ])
@@ -33,10 +33,10 @@ struct PerformanceEventSnapshot {
             "pause:\(encoder.encode(seconds))"
         case let .noteOff(midi):
             "noteOff:\(midi)"
-        case .pedalDown:
-            "cc:64:127"
-        case .pedalUp:
-            "cc:64:0"
+        case let .controlChange(controller, value):
+            "cc:\(controller):\(value)"
+        case let .tempo(quarterBPM, endTick, endQuarterBPM):
+            "tempo:\(encoder.encode(quarterBPM)):\(endTick.map(String.init) ?? "nil"):\(endQuarterBPM.map(encoder.encode) ?? "nil")"
         case let .noteOn(midi, velocity):
             "noteOn:\(midi):\(velocity)"
         case let .advanceStep(index):

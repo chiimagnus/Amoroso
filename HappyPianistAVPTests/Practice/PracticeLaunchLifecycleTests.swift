@@ -326,10 +326,8 @@ func multipleRoundsAndSettingsUseOneWindowSessionAndPauseActiveTime() async thro
     let clock = try LaunchLifecycleRecorderClock()
     let recorder = PracticeSessionRecorder(repository: repository, clock: clock.makeClock())
     let session = LaunchLifecycleRecorderSessionProvider(recorder: recorder).callAsFunction(nil)
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: [])
-    )
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)])
     let identity = try #require(session.songIdentity)
     let visitID = UUID()
     await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
@@ -372,10 +370,8 @@ func inactiveSceneExcludesBackgroundTimeAndRequiresRealGuidingResume() async thr
     let clock = try LaunchLifecycleRecorderClock()
     let recorder = PracticeSessionRecorder(repository: repository, clock: clock.makeClock())
     let session = LaunchLifecycleRecorderSessionProvider(recorder: recorder).callAsFunction(nil)
-    session.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: MusicXMLTempoMap(tempoEvents: [])
-    )
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)])
     let identity = try #require(session.songIdentity)
     let visitID = UUID()
     await recorder.beginVisit(id: visitID, songID: identity.songID, sceneIsActive: true)
@@ -570,14 +566,20 @@ private func installLaunchLifecycleScore(
     identity: PracticeSongIdentity,
     spans: [MusicXMLMeasureSpan]
 ) {
+    let notes = [
+        TestScorePerformanceNote(midiNote: 60, onTick: 0),
+        TestScorePerformanceNote(midiNote: 62, onTick: 480),
+        TestScorePerformanceNote(midiNote: 64, onTick: 960),
+    ]
+    let plan = makeTestScorePerformancePlan(identity: identity, notes: notes)
     session.installPreparedSteps(
-        [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 480, notes: [PracticeStepNote(midiNote: 62, staff: 1, handAssignment: .unknown)]),
-            PracticeStep(tick: 960, notes: [PracticeStepNote(midiNote: 64, staff: 1, handAssignment: .unknown)]),
-        ],
+        PracticeStepBuilder().buildSteps(from: plan).steps,
         identity: identity,
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
+        performancePlan: plan,
+        notationProjection: ScoreNotationProjection(
+            plan: plan,
+            sourceScore: makeTestMusicXMLScore(notes: notes)
+        ),
         measureSpans: spans
     )
 }
@@ -666,19 +668,14 @@ private final class LaunchRaceSessionProvider: @unchecked Sendable {
 }
 
 private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
-    PreparedPractice(
+    makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString),
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+        performanceNotes: [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         file: ImportedMusicXMLFile(
             fileName: songID.uuidString,
             storedURL: URL(fileURLWithPath: "/dev/null"),
             importedAt: .now
         ),
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        pedalTimeline: nil,
-        fermataTimeline: nil,
-        attributeTimeline: nil,
-        highlightGuides: [],
         measureSpans: [
             MusicXMLMeasureSpan(
                 partID: "P1",
@@ -689,9 +686,7 @@ private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
                 startTick: 0,
                 endTick: 480
             ),
-        ],
-        unsupportedNoteCount: 0,
-        scoreContext: makeTestPreparedPracticeScoreContext()
+        ]
     )
 }
 

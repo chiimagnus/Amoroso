@@ -9,6 +9,7 @@ final class TakePlaybackController {
     private(set) var currentTakeID: UUID?
     private var cachedSequence: PracticeSequencerSequence?
     private var cachedTakeID: UUID?
+    private var transportGeneration = 0
     var pausePositionSeconds: TimeInterval?
 
     init(
@@ -19,49 +20,72 @@ final class TakePlaybackController {
         self.adapter = adapter
     }
 
-    func play(take: RecordingTake) throws {
+    func play(take: RecordingTake) async throws {
+        transportGeneration &+= 1
+        let generation = transportGeneration
         let sequence = try cachedSequence(for: take)
-        try playbackService.load(sequence: sequence)
-        try playbackService.play(fromSeconds: 0)
+        await playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+        guard generation == transportGeneration else { return }
+        try await playbackService.load(sequence: sequence)
+        guard generation == transportGeneration else { return }
+        try await playbackService.play(fromSeconds: 0)
+        guard generation == transportGeneration else { return }
         isPlaying = true
         currentTakeID = take.id
         pausePositionSeconds = nil
     }
 
-    func pause() {
+    func pause() async {
         guard isPlaying else { return }
-        pausePositionSeconds = playbackService.currentSeconds()
-        playbackService.stop()
+        transportGeneration &+= 1
+        let generation = transportGeneration
+        let position = await playbackService.currentSeconds()
+        guard generation == transportGeneration else { return }
+        pausePositionSeconds = position
+        await playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+        guard generation == transportGeneration else { return }
         isPlaying = false
     }
 
-    func resume() throws {
+    func resume() async throws {
         guard let position = pausePositionSeconds else { return }
-        try playbackService.play(fromSeconds: position)
+        transportGeneration &+= 1
+        let generation = transportGeneration
+        try await playbackService.play(fromSeconds: position)
+        guard generation == transportGeneration else { return }
         isPlaying = true
         pausePositionSeconds = nil
     }
 
-    func stop() {
-        playbackService.stop()
+    func stop() async {
+        transportGeneration &+= 1
         isPlaying = false
         currentTakeID = nil
         pausePositionSeconds = nil
+        await playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
     }
 
-    func seek(toSeconds seconds: TimeInterval) throws {
+    func seek(toSeconds seconds: TimeInterval) async throws {
         guard let takeID = currentTakeID, let sequence = cachedSequence, cachedTakeID == takeID
         else { return }
-        playbackService.stop()
-        try playbackService.load(sequence: sequence)
-        try playbackService.play(fromSeconds: max(0, seconds))
+        transportGeneration &+= 1
+        let generation = transportGeneration
+        await playbackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+        guard generation == transportGeneration else { return }
+        try await playbackService.load(sequence: sequence)
+        guard generation == transportGeneration else { return }
+        try await playbackService.play(fromSeconds: max(0, seconds))
+        guard generation == transportGeneration else { return }
         isPlaying = true
         pausePositionSeconds = nil
     }
 
-    func currentSeconds() -> TimeInterval {
+    func currentSeconds() async -> TimeInterval {
         guard isPlaying else { return pausePositionSeconds ?? 0 }
-        return playbackService.currentSeconds()
+        let generation = transportGeneration
+        let position = await playbackService.currentSeconds()
+        guard generation == transportGeneration, isPlaying else { return pausePositionSeconds ?? 0 }
+        return position
     }
 
     private func cachedSequence(for take: RecordingTake) throws -> PracticeSequencerSequence {

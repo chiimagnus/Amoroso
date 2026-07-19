@@ -50,6 +50,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     private(set) var guidingStartIsBlocked = false
     var lastProgressRestoreOutcome: PracticeProgressRestoreOutcome = .none
     @ObservationIgnored private var sessionRecorderEventTask: Task<Void, Never>?
+    @ObservationIgnored var autoplayTimelineBuildTask: Task<Void, Never>?
+    @ObservationIgnored var autoplayTimelineBuildGeneration = 0
 
     var practiceHandMode: PracticeHandMode {
         stateStore.activeRoundConfiguration?.handMode ?? .both
@@ -131,7 +133,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             audioRecognitionService: audioRecognitionService,
             effectHandler: self,
             audioRecognitionSuppressDuration: audioRecognitionSuppressDuration,
-            leadInSeconds: autoplayTimingLeadInSeconds
+            leadInSeconds: autoplayTimingLeadInSeconds,
+            diagnosticsReporter: diagnosticsReporter
         )
 
         manualReplayService = PracticeManualReplayService(
@@ -139,7 +142,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             sequencerPlaybackService: sequencerPlaybackService,
             playbackSequenceBuilder: self.playbackSequenceBuilder,
             stateStore: stateStore,
-            effectHandler: self
+            effectHandler: self,
+            diagnosticsReporter: diagnosticsReporter
         )
 
         highlightGuideController = PracticeHighlightGuideController(
@@ -166,6 +170,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         guard hasShutdown == false else { return }
         hasShutdown = true
 
+        cancelAutoplayTimelineBuild()
         stopManualReplayTask(restoreAudioRecognition: false)
         playbackControlService?.shutdown()
         handle(effect: .stopAudioRecognition)
@@ -215,8 +220,6 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             refreshPracticeInputForCurrentState()
         case .refreshAudioRecognition:
             refreshAudioRecognitionForCurrentState()
-        case let .playCurrentStepSound(applyRecognitionSuppress):
-            playCurrentStepSound(applyRecognitionSuppress: applyRecognitionSuppress)
         case .stopTransientWork:
             stopManualReplayTask()
             playbackControlService?.stopTransientWork()

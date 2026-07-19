@@ -45,20 +45,22 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
         sequencerPlaybackService: playbackService
     )
 
-    viewModel.setSteps(
-        model.steps,
-        tempoMap: model.tempoMap,
-        pedalTimeline: model.pedalTimeline,
-        fermataTimeline: model.fermataTimeline,
+    viewModel.installTestPerformancePlan(
+        model.plan,
+        sourceScore: model.score,
         highlightGuides: model.guides
     )
     viewModel.setAutoplayEnabled(true)
     viewModel.startGuidingIfReady()
-    await settleRegressionTasks()
+    await waitForRegressionCondition("initial autoplay reset") {
+        playbackService.stopCount > 0
+    }
 
     let beforeSkip = playbackService.stopCount
     viewModel.skip()
-    await settleRegressionTasks(iterations: 8)
+    await waitForRegressionCondition("skip reset") {
+        playbackService.stopCount == beforeSkip + 1
+    }
 
     #expect(playbackService.stopCount == beforeSkip + 1)
 }
@@ -67,7 +69,7 @@ private final class RegressionCapturingSequencerPlaybackService: PracticeSequenc
     private(set) var stopCount = 0
 
     func warmUp() throws {}
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCount += 1
     }
 
@@ -77,20 +79,15 @@ private final class RegressionCapturingSequencerPlaybackService: PracticeSequenc
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
 private struct AutoplayRegressionModel {
     let score: MusicXMLScore
-    let steps: [PracticeStep]
-    let noteSpans: [MusicXMLNoteSpan]
+    let plan: ScorePerformancePlan
     let guides: [PianoHighlightGuide]
-    let tempoMap: MusicXMLTempoMap
-    let pedalTimeline: MusicXMLPedalTimeline
-    let fermataTimeline: MusicXMLFermataTimeline
     let timeline: AutoplayPerformanceTimeline
 }
 
@@ -100,7 +97,8 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
 
     let score = try MusicXMLParser().parse(fileURL: fixture.url)
     let expressivity = MusicXMLRealisticPlaybackDefaults.expressivityOptions
-    let buildResult = PracticeStepBuilder().buildSteps(from: score, expressivity: expressivity)
+    let plan = makeTestScorePerformancePlan(from: score, expressivity: expressivity)
+    let buildResult = PracticeStepBuilder().buildSteps(from: plan)
     let wordsSemantics = MusicXMLWordsSemanticsInterpreter().interpret(
         wordsEvents: score.wordsEvents,
         tempoEvents: score.tempoEvents
@@ -110,46 +108,44 @@ private func makeAutoplayRegressionModel() throws -> AutoplayRegressionModel {
         tempoRamps: wordsSemantics.derivedTempoRamps,
         partID: "P1"
     )
-    let pedalTimeline = MusicXMLPedalTimeline(events: score.pedalEvents + wordsSemantics.derivedPedalEvents)
-    let fermataTimeline = MusicXMLFermataTimeline(fermataEvents: score.fermataEvents, notes: score.notes)
-    let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
-        from: score.notes,
-        performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
-        expressivity: expressivity
-    )
     let guides = PianoHighlightGuideBuilderService().buildGuides(
         input: PianoHighlightGuideBuildInput(
-            score: score,
-            steps: buildResult.steps,
-            noteSpans: noteSpans,
-            expressivity: expressivity
+            plan: plan,
+            sourceScore: score
         )
     )
     let timeline = AutoplayPerformanceTimeline.build(
-        guides: guides,
-        steps: buildResult.steps,
-        pedalTimeline: pedalTimeline,
-        fermataTimeline: fermataTimeline,
+        plan: plan,
+        guideProjection: guides,
+        stepProjection: buildResult.steps,
         tempoMap: tempoMap,
         practiceHandMode: .both
     )
 
     return AutoplayRegressionModel(
         score: score,
-        steps: buildResult.steps,
-        noteSpans: noteSpans,
+        plan: plan,
         guides: guides,
-        tempoMap: tempoMap,
-        pedalTimeline: pedalTimeline,
-        fermataTimeline: fermataTimeline,
         timeline: timeline
     )
 }
 
 private func settleRegressionTasks(iterations: Int = 4) async {
     for _ in 0 ..< iterations {
-        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(1))
     }
+}
+
+@MainActor
+private func waitForRegressionCondition(
+    _ description: String,
+    condition: () -> Bool
+) async {
+    for _ in 0 ..< 240 {
+        if condition() { return }
+        try? await Task.sleep(for: .milliseconds(1))
+    }
+    #expect(condition(), "Timed out waiting for: \(description)")
 }
 
 private struct RegressionNoopPressDetectionService: PressDetectionServiceProtocol {

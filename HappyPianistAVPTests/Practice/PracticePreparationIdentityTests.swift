@@ -55,7 +55,7 @@ func preparationKeepsExactSongIDAndStableRevision() async throws {
     try Data(identityFixtureA.utf8).write(to: url)
     let songID = UUID()
     let file = ImportedMusicXMLFile(fileName: "Fixture", storedURL: url, importedAt: .now)
-    let service = PracticePreparationService()
+    let service = PracticePreparationService(diagnosticsReporter: InMemoryDiagnosticsReporter())
 
     let first = try await service.prepare(songID: songID, from: url, file: file)
     let second = try await service.prepare(songID: songID, from: url, file: file)
@@ -68,6 +68,12 @@ func preparationKeepsExactSongIDAndStableRevision() async throws {
     #expect(first.scoreContext.orderSelection == MusicXMLOrderSelection(requested: .written, applied: .written))
     #expect(first.scoreContext.sourceScore == first.scoreContext.preparedScore)
     #expect(first.scoreContext.sourceScore.notes.first?.sourceID != nil)
+    #expect(first.performancePlan.sourceScoreIdentity == ScorePerformanceSourceIdentity(
+        songID: songID,
+        scoreRevision: first.identity.scoreRevision,
+        logicalInstrumentID: first.scoreContext.logicalInstrument.id
+    ))
+    #expect(first.performancePlan.noteEvents.map(\.midiNote) == [60])
 
     try Data(identityFixtureB.utf8).write(to: url)
     let replaced = try await service.prepare(songID: songID, from: url, file: file)
@@ -82,7 +88,7 @@ func referencePlaybackPreparationExpandsPerformedOrderWithoutLosingSourceIdentit
     try Data(identityRepeatFixture.utf8).write(to: url)
     defer { try? FileManager.default.removeItem(at: url) }
 
-    let service = PracticePreparationService()
+    let service = PracticePreparationService(diagnosticsReporter: InMemoryDiagnosticsReporter())
     let prepared = try await service.prepare(
         songID: UUID(),
         from: url,
@@ -96,6 +102,8 @@ func referencePlaybackPreparationExpandsPerformedOrderWithoutLosingSourceIdentit
     #expect(Set(prepared.scoreContext.preparedScore.notes.compactMap(\.sourceID)).count == 2)
     #expect(Set(prepared.scoreContext.preparedScore.notes.compactMap(\.performedID)).count == 4)
     #expect(prepared.measureSpans.map(\.occurrenceIndex) == [0, 1, 2, 3])
+    #expect(prepared.performancePlan.order == prepared.scoreContext.orderSelection)
+    #expect(prepared.performancePlan.noteEvents.map(\.midiNote) == [60, 62, 60, 62])
 }
 
 @Test
@@ -107,6 +115,7 @@ func referencePlaybackPreparationReportsWrittenFallbackWhenExpansionLimitIsHit()
     defer { try? FileManager.default.removeItem(at: url) }
 
     let service = PracticePreparationService(
+        diagnosticsReporter: InMemoryDiagnosticsReporter(),
         structureExpander: MusicXMLStructureExpander(maxOutputMeasures: 0)
     )
     let prepared = try await service.prepare(
@@ -127,7 +136,9 @@ func referencePlaybackPreparationReportsWrittenFallbackWhenExpansionLimitIsHit()
 @Test
 func splitPianoPreparationUsesThePartThatOwnsStructureDirectives() async throws {
     let url = testFixtureURL("SplitPartGrandStaffPiano.musicxml")
-    let prepared = try await PracticePreparationService().prepare(
+    let prepared = try await PracticePreparationService(
+        diagnosticsReporter: InMemoryDiagnosticsReporter()
+    ).prepare(
         songID: UUID(),
         from: url,
         file: ImportedMusicXMLFile(fileName: "Split Piano", storedURL: url, importedAt: .now),
@@ -150,7 +161,10 @@ func plainMusicXMLPreparationParsesTheAlreadyReadBytes() async throws {
     try scoreBytes.write(to: url)
     defer { try? FileManager.default.removeItem(at: url) }
     let parser = RecordingPreparationParser()
-    let service = PracticePreparationService(parser: parser)
+    let service = PracticePreparationService(
+        diagnosticsReporter: InMemoryDiagnosticsReporter(),
+        parser: parser
+    )
 
     _ = try await service.prepare(
         songID: UUID(),
@@ -169,7 +183,10 @@ func compressedMusicXMLPreparationKeepsTheArchiveParserPath() async throws {
     try Data("archive-placeholder".utf8).write(to: url)
     defer { try? FileManager.default.removeItem(at: url) }
     let parser = RecordingPreparationParser()
-    let service = PracticePreparationService(parser: parser)
+    let service = PracticePreparationService(
+        diagnosticsReporter: InMemoryDiagnosticsReporter(),
+        parser: parser
+    )
 
     _ = try await service.prepare(
         songID: UUID(),
@@ -178,6 +195,87 @@ func compressedMusicXMLPreparationKeepsTheArchiveParserPath() async throws {
     )
 
     #expect(parser.calls == [.fileURL(url)])
+}
+
+@Test
+func preparationRecordsSystemOnlyPlanBuildMetrics() async throws {
+    let url = FileManager.default.temporaryDirectory.appending(
+        path: "plan-diagnostics-\(UUID().uuidString).musicxml"
+    )
+    try Data(identityFixtureA.utf8).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let songID = UUID()
+    let reporter = InMemoryDiagnosticsReporter()
+    let service = PracticePreparationService(diagnosticsReporter: reporter)
+
+    _ = try await service.prepare(
+        songID: songID,
+        from: url,
+        file: ImportedMusicXMLFile(fileName: "Diagnostics", storedURL: url, importedAt: .now)
+    )
+
+    let events = await reporter.events
+    let event = try #require(events.first)
+    #expect(events.count == 1)
+    #expect(event.code == .pianoPerformancePipeline)
+    #expect(event.category == .pianoPerformance)
+    #expect(event.stage == PianoPerformanceDiagnosticStage.plan.rawValue)
+    #expect(event.severity == .info)
+    #expect(event.songID == songID)
+    #expect(event.scoreRevision != nil)
+    #expect(event.persistence == .systemOnly)
+    #expect(event.reason.contains("outcome=succeeded"))
+    #expect(event.reason.contains("duration="))
+    #expect(event.reason.contains("noteEvents=1"))
+    #expect(event.reason.contains("tempoEvents="))
+    #expect(event.reason.contains("controllerEvents="))
+    #expect(event.reason.contains("annotations="))
+    #expect(event.reason.contains("unsupportedNotes=0"))
+    #expect(event.reason.contains("approximations=0"))
+    #expect(event.reason.contains("stepMismatches=0"))
+    #expect(event.reason.contains("highlightMismatches=0"))
+    #expect(event.reason.contains("notationMismatches=0"))
+    #expect(event.reason.contains(url.path) == false)
+    #expect(event.reason.contains("musicxml") == false)
+}
+
+@Test
+func preparationReportsProjectionMismatchBeforeRejectingEmptySteps() async throws {
+    let url = FileManager.default.temporaryDirectory.appending(
+        path: "plan-mismatch-\(UUID().uuidString).musicxml"
+    )
+    try Data(identityFixtureA.utf8).write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let reporter = InMemoryDiagnosticsReporter()
+    let service = PracticePreparationService(
+        diagnosticsReporter: reporter,
+        stepBuilder: EmptyPreparationStepBuilder()
+    )
+
+    await #expect(throws: PracticePreparationError.noPlayableNotes) {
+        _ = try await service.prepare(
+            songID: UUID(),
+            from: url,
+            file: ImportedMusicXMLFile(fileName: "Mismatch", storedURL: url, importedAt: .now)
+        )
+    }
+
+    let events = await reporter.events
+    let event = try #require(events.first)
+    #expect(events.count == 1)
+    #expect(event.severity == .warning)
+    #expect(event.persistence == .systemOnly)
+    #expect(event.reason.contains("outcome=mismatch"))
+    #expect(event.reason.contains("unsupportedNotes=3"))
+    #expect(event.reason.contains("stepMismatches=1"))
+    #expect(event.reason.contains("highlightMismatches=0"))
+    #expect(event.reason.contains("notationMismatches=0"))
+}
+
+private struct EmptyPreparationStepBuilder: PracticeStepBuilderProtocol {
+    func buildSteps(from _: ScorePerformancePlan) -> PracticeStepBuildResult {
+        PracticeStepBuildResult(steps: [], unsupportedNoteCount: 3)
+    }
 }
 
 private final class RecordingPreparationParser: MusicXMLParserProtocol, Sendable {

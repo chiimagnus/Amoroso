@@ -10,7 +10,6 @@ struct GrandStaffNotationLayoutService {
     private let visibleOverscan: Double = 0.18
     private let trebleBottomLineMIDINote = 64
     private let bassBottomLineMIDINote = 43
-    private let blackKeyPitchClasses: Set<Int> = [1, 3, 6, 8, 10]
     private let diatonicIndexByPitchClass: [Int: Int] = [
         0: 0,
         1: 0,
@@ -27,61 +26,113 @@ struct GrandStaffNotationLayoutService {
     ]
 
     func makeLayout(
-        guides: [PianoHighlightGuide],
-        currentGuide: PianoHighlightGuide?,
+        projection: ScoreNotationProjection,
         measureSpans: [MusicXMLMeasureSpan] = [],
         context: GrandStaffNotationContext? = nil,
+        tickRange: Range<Int>? = nil,
         halfWindowTicks: Int = 1920,
         scrollTick: Double? = nil
     ) -> GrandStaffNotationLayout {
-        guard guides.isEmpty == false else {
-            return GrandStaffNotationLayout(
-                items: [],
-                chords: [],
-                rests: [],
-                barlines: [],
-                beams: [],
-                context: context
+        let sourceNotesByID = Dictionary(grouping: projection.sourceNotes, by: \.id)
+            .compactMapValues { notes in notes.count == 1 ? notes[0] : nil }
+        let activeEventIDs = projection.activeState.occurrenceIDs
+        let layoutNotes = projection.performedOccurrences.enumerated().compactMap { index, occurrence -> LayoutNote? in
+            guard tickRange?.contains(occurrence.writtenOnTick) ?? true else { return nil }
+            guard let source = sourceNotesByID[occurrence.sourceNoteID],
+                  source.isRest == false
+            else {
+                return nil
+            }
+            let writtenDurationTicks = max(1, source.writtenDurationTicks)
+            return LayoutNote(
+                occurrenceID: occurrence.id.description,
+                staffNumber: resolvedStaffNumber(source.staff),
+                voice: source.voice,
+                hand: occurrence.handAssignment.hand,
+                midiNote: source.midiNote ?? occurrence.midiNote,
+                guideID: index + 1,
+                tick: occurrence.writtenOnTick,
+                isHighlighted: occurrence.performanceEventIDs.contains { activeEventIDs.contains($0) },
+                fingeringText: source.fingeringText,
+                noteValue: noteValue(forDurationTicks: writtenDurationTicks),
+                durationTicks: writtenDurationTicks,
+                showsSharpAccidental: source.writtenPitch?.alter == 1,
+                isGrace: source.isGrace,
+                tieStart: source.tieStart,
+                tieStop: source.tieStop,
+                articulations: source.articulations,
+                arpeggiate: source.arpeggiate,
+                dotCount: source.dotCount
             )
         }
 
-        let currentTick: Double = scrollTick ?? Double(currentGuide?.tick ?? guides.first?.tick ?? 0)
-        let safeHalfWindowTicks = max(1, halfWindowTicks)
-        let currentGuideID = currentGuide?.id
+        return makeLayout(
+            notes: layoutNotes,
+            measureSpans: measureSpans,
+            context: context,
+            halfWindowTicks: halfWindowTicks,
+            scrollTick: scrollTick
+        )
+    }
 
-        let rawItems = guides.flatMap { guide in
-            guide.triggeredNotes.map { note in
-                let xPosition = 0.5 + (Double(guide.tick) - currentTick) / Double(safeHalfWindowTicks * 2)
-                let staffNumber = resolvedStaffNumber(note.staff)
-                let voice = note.voice ?? 1
-                return GrandStaffNotationItem(
-                    occurrenceID: note.occurrenceID,
-                    staffNumber: staffNumber,
-                    voice: voice,
-                    hand: note.hand,
-                    midiNote: note.midiNote,
-                    guideID: guide.id,
-                    tick: guide.tick,
-                    xPosition: xPosition,
-                    staffStep: staffStep(for: note.midiNote, staffNumber: staffNumber),
-                    showsSharpAccidental: showsSharpAccidental(for: note.midiNote),
-                    isHighlighted: guide.id == currentGuideID,
-                    fingeringText: note.fingeringText,
-                    noteValue: noteValue(forDurationTicks: max(1, note.offTick - note.onTick)),
-                    chordID: nil,
-                    noteHeadXOffset: 0,
-                    stemDirection: .up,
-                    beamID: nil,
-                    durationTicks: max(1, note.offTick - note.onTick),
-                    isGrace: note.isGrace,
-                    tieStart: note.tieStart,
-                    tieStop: note.tieStop,
-                    tieEndXPosition: nil,
-                    articulations: note.articulations,
-                    arpeggiate: note.arpeggiate,
-                    dotCount: note.dotCount
-                )
-            }
+    private struct LayoutNote {
+        let occurrenceID: String
+        let staffNumber: Int
+        let voice: Int
+        let hand: ScoreHand
+        let midiNote: Int
+        let guideID: Int
+        let tick: Int
+        let isHighlighted: Bool
+        let fingeringText: String?
+        let noteValue: GrandStaffNoteValue
+        let durationTicks: Int
+        let showsSharpAccidental: Bool
+        let isGrace: Bool
+        let tieStart: Bool
+        let tieStop: Bool
+        let articulations: Set<MusicXMLArticulation>
+        let arpeggiate: MusicXMLArpeggiate?
+        let dotCount: Int
+    }
+
+    private func makeLayout(
+        notes: [LayoutNote],
+        measureSpans: [MusicXMLMeasureSpan],
+        context: GrandStaffNotationContext?,
+        halfWindowTicks: Int,
+        scrollTick: Double?
+    ) -> GrandStaffNotationLayout {
+        let currentTick = scrollTick ?? Double(notes.first?.tick ?? 0)
+        let safeHalfWindowTicks = max(1, halfWindowTicks)
+        let rawItems = notes.map { note in
+            GrandStaffNotationItem(
+                occurrenceID: note.occurrenceID,
+                staffNumber: note.staffNumber,
+                voice: note.voice,
+                hand: note.hand,
+                midiNote: note.midiNote,
+                guideID: note.guideID,
+                tick: note.tick,
+                xPosition: 0.5 + (Double(note.tick) - currentTick) / Double(safeHalfWindowTicks * 2),
+                staffStep: staffStep(for: note.midiNote, staffNumber: note.staffNumber),
+                showsSharpAccidental: note.showsSharpAccidental,
+                isHighlighted: note.isHighlighted,
+                fingeringText: note.fingeringText,
+                noteValue: note.noteValue,
+                chordID: nil,
+                noteHeadXOffset: 0,
+                stemDirection: .up,
+                beamID: nil,
+                durationTicks: note.durationTicks,
+                isGrace: note.isGrace,
+                tieStart: note.tieStart,
+                tieStop: note.tieStop,
+                tieEndXPosition: nil,
+                articulations: note.articulations,
+                arpeggiate: note.arpeggiate,
+                dotCount: note.dotCount
+            )
         }
         .filter { item in
             item.xPosition >= -visibleOverscan && item.xPosition <= 1 + visibleOverscan
@@ -115,10 +166,6 @@ struct GrandStaffNotationLayoutService {
     func staffStep(for midiNote: Int, staffNumber: Int) -> Int {
         let bottomLineMIDINote = (staffNumber >= 2) ? bassBottomLineMIDINote : trebleBottomLineMIDINote
         return diatonicIndex(for: midiNote) - diatonicIndex(for: bottomLineMIDINote)
-    }
-
-    func showsSharpAccidental(for midiNote: Int) -> Bool {
-        blackKeyPitchClasses.contains(normalizedPitchClass(for: midiNote))
     }
 
     func ledgerStaffSteps(for staffStep: Int) -> [Int] {

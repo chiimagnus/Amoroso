@@ -38,13 +38,11 @@ func exactHitFallbackStillAdvancesStep() {
         chordAttemptAccumulator: AlwaysMatchChordAttemptAccumulator(),
         sleeper: TaskSleeper()
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 62, staff: nil, handAssignment: .unknown)]),
-        ],
-        tempoMap: MusicXMLTempoMap(tempoEvents: [])
-    )
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 10),
+        ])
     viewModel.applyKeyboardGeometry(
         makeDummyKeyboardGeometry(),
         calibration: PianoCalibration(a0: .zero, c8: SIMD3<Float>(1, 0, 0), planeHeight: 0)
@@ -66,13 +64,11 @@ func gateInactiveStillAllowsAudioMatchedAdvance() async {
         audioRecognitionService: fakeService,
         handPianoActivityGate: HandPianoActivityGate()
     )
-    viewModel.setSteps(
+    viewModel.installTestPerformanceNotes(
         [
-            PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: nil, handAssignment: .unknown)]),
-            PracticeStep(tick: 10, notes: [PracticeStepNote(midiNote: 62, staff: nil, handAssignment: .unknown)]),
-        ],
-        tempoMap: MusicXMLTempoMap(tempoEvents: [])
-    )
+            TestScorePerformanceNote(midiNote: 60, onTick: 0),
+            TestScorePerformanceNote(midiNote: 62, onTick: 10),
+        ])
     viewModel.startGuidingIfReady()
     await settleTaskQueue()
     let generation = fakeService.startCalls.first?.generation ?? 0

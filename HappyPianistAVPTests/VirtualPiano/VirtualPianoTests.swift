@@ -5,7 +5,7 @@ import Testing
 
 @MainActor
 @Test
-func virtualPianoToggleOffStopsAllLiveNotes() {
+func virtualPianoToggleOffStopsAllLiveNotes() async {
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -15,6 +15,7 @@ func virtualPianoToggleOffStopsAllLiveNotes() {
     )
 
     viewModel.stopVirtualPianoInput()
+    await Task.yield()
 
     #expect(playbackService.stopAllLiveNotesCount == 1)
     #expect(viewModel.pressedNotes.isEmpty)
@@ -22,7 +23,7 @@ func virtualPianoToggleOffStopsAllLiveNotes() {
 
 @MainActor
 @Test
-func autoplayEnabledStopsLiveNotes() {
+func autoplayEnabledStopsLiveNotes() async {
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -31,22 +32,19 @@ func autoplayEnabledStopsLiveNotes() {
         sequencerPlaybackService: playbackService
     )
 
-    let tempoMap = MusicXMLTempoMap(
-        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: .init(partID: "P1", staff: nil, voice: nil))]
-    )
-    viewModel.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: tempoMap
+    viewModel.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)]
     )
 
     viewModel.setAutoplayEnabled(true)
+    await Task.yield()
 
     #expect(playbackService.stopAllLiveNotesCount >= 1)
 }
 
 @MainActor
 @Test
-func virtualPianoNoteOnTriggersLiveStart() throws {
+func virtualPianoNoteOnTriggersLiveStart() async throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let chordAccumulator = RecordingChordAttemptAccumulator()
     let viewModel = PracticeSessionViewModel(
@@ -56,12 +54,8 @@ func virtualPianoNoteOnTriggersLiveStart() throws {
         sequencerPlaybackService: playbackService
     )
 
-    let tempoMap = MusicXMLTempoMap(
-        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: .init(partID: "P1", staff: nil, voice: nil))]
-    )
-    viewModel.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: tempoMap
+    viewModel.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)]
     )
     viewModel.startGuidingIfReady()
 
@@ -73,6 +67,7 @@ func virtualPianoNoteOnTriggersLiveStart() throws {
         right: HandTips(index: SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z))
     )
     let detected = viewModel.handleFingerTipPositions(fingerTips, isVirtualPiano: true)
+    await Task.yield()
 
     #expect(detected.contains(60))
     #expect(playbackService.startedLiveNotes.contains(60))
@@ -214,12 +209,8 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
         sequencerPlaybackService: playbackService
     )
 
-    let tempoMap = MusicXMLTempoMap(
-        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: .init(partID: "P1", staff: nil, voice: nil))]
-    )
-    viewModel.setSteps(
-        [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
-        tempoMap: tempoMap
+    viewModel.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0)]
     )
 
     let geometry = makeTestKeyboardGeometry()
@@ -239,7 +230,7 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
 
 @MainActor
 @Test
-func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() throws {
+func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() async throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let session = PracticeSessionViewModel(
         pressDetectionService: NoopPressDetectionService(),
@@ -266,9 +257,11 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() throws {
         FingerTipsSnapshot(right: HandTips(index: keyWorldPoint)),
         isVirtualPiano: true
     )
+    await Task.yield()
     #expect(playbackService.startedLiveNotes.contains(60))
 
     viewModel.setPracticeVirtualPianoEnabled(false)
+    await Task.yield()
     #expect(playbackService.stopAllLiveNotesCount >= 1)
     #expect(session.keyboardGeometry == nil)
 }
@@ -347,21 +340,26 @@ private final class LiveNoteCapturingPlaybackService: PracticeSequencerPlaybackS
     private(set) var stoppedLiveNotes: Set<Int> = []
 
     func warmUp() throws {}
-    func stop() {}
+    func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
     func play(fromSeconds _: TimeInterval) throws {}
     func currentSeconds() -> TimeInterval {
         0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
 
-    func startLiveNotes(midiNotes: Set<Int>) throws {
-        startedLiveNotes.formUnion(midiNotes)
-    }
-
-    func stopLiveNotes(midiNotes: Set<Int>) {
-        stoppedLiveNotes.formUnion(midiNotes)
+    func execute(commands: [PracticePlaybackCommand]) throws {
+        for command in commands {
+            switch command.kind {
+            case let .noteOn(midi, _):
+                startedLiveNotes.insert(midi)
+            case let .noteOff(midi):
+                stoppedLiveNotes.insert(midi)
+            case .controlChange, .programChange, .pitchBend, .polyPressure, .channelPressure:
+                break
+            }
+        }
     }
 
     func stopAllLiveNotes() {

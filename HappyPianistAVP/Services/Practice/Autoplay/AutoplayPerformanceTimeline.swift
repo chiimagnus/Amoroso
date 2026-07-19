@@ -1,42 +1,99 @@
 import Foundation
 
-struct AutoplayPerformanceTimeline: Equatable {
-    enum EventKind: Equatable {
+struct AutoplayPerformanceTimeline: Equatable, Sendable {
+    struct TransportMetrics: Equatable, Sendable {
+        static let empty = TransportMetrics(
+            retriggeredEventCount: 0,
+            preventedStaleOffCount: 0,
+            orphanOffCount: 0
+        )
+
+        let retriggeredEventCount: Int
+        let preventedStaleOffCount: Int
+        let orphanOffCount: Int
+    }
+
+    enum EventKind: Equatable, Sendable {
         case pauseSeconds(TimeInterval)
         case noteOff(midi: Int)
-        case pedalDown
-        case pedalUp
+        case controlChange(controller: UInt8, value: UInt8)
+        case tempo(quarterBPM: Double, endTick: Int?, endQuarterBPM: Double?)
         case noteOn(midi: Int, velocity: UInt8)
         case advanceStep(index: Int)
         case advanceGuide(index: Int, guideID: Int)
     }
 
-    struct Event: Equatable, Identifiable {
+    struct Event: Equatable, Identifiable, Sendable {
         let id: Int
+        let sourceEventID: String?
         let tick: Int
         let kind: EventKind
 
-        var sortPriority: Int {
-            switch kind {
-            case .pauseSeconds:
-                0
-            case .noteOff:
-                1
-            case .pedalDown, .pedalUp:
-                2
-            case .noteOn:
-                3
-            case .advanceStep:
-                4
-            case .advanceGuide:
-                5
-            }
+        init(id: Int, sourceEventID: String? = nil, tick: Int, kind: EventKind) {
+            self.id = id
+            self.sourceEventID = sourceEventID
+            self.tick = tick
+            self.kind = kind
         }
+
+    }
+
+    private struct RawEvent {
+        let tick: Int
+        let priority: Int
+        let sourceEventID: String?
+        let kind: EventKind
+    }
+
+    private struct BuildGuide: Sendable {
+        let index: Int
+        let id: Int
+        let tick: Int
+    }
+
+    private struct BuildStep: Sendable {
+        let index: Int
+        let tick: Int
+    }
+
+    private struct ActiveRangeSnapshot: Sendable {
+        let stepRange: Range<Int>
+        let tickRange: Range<Int>
+
+        func contains(stepIndex: Int) -> Bool {
+            stepRange.contains(stepIndex)
+        }
+
+        func contains(tick: Int) -> Bool {
+            tickRange.contains(tick)
+        }
+    }
+
+    private struct BuildInput: Sendable {
+        let plan: ScorePerformancePlan
+        let guides: [BuildGuide]
+        let steps: [BuildStep]
+        let tempoMap: MusicXMLTempoMap
+        let practiceHandMode: PracticeHandMode
+        let activeRange: ActiveRangeSnapshot?
+        let transportStartTick: Int?
     }
 
     static let empty = AutoplayPerformanceTimeline(events: [])
 
     let events: [Event]
+    let rangeStartApproximations: [PerformanceRangeStateResolver.Approximation]
+    let transportMetrics: TransportMetrics
+
+    init(
+        events: [Event],
+        rangeStartApproximations: [PerformanceRangeStateResolver.Approximation] = [],
+        transportMetrics: TransportMetrics = .empty
+    ) {
+        self.events = events
+        self.rangeStartApproximations = rangeStartApproximations
+        self.transportMetrics = transportMetrics
+    }
 
     func firstEventIndex(atOrAfter tick: Int) -> Int {
         var low = 0
@@ -52,194 +109,298 @@ struct AutoplayPerformanceTimeline: Equatable {
         return low
     }
 
-    @MainActor static func build(
-        guides: [PianoHighlightGuide],
-        steps: [PracticeStep],
-        pedalTimeline: MusicXMLPedalTimeline,
-        fermataTimeline: MusicXMLFermataTimeline,
+    static func build(
+        plan: ScorePerformancePlan,
+        guideProjection: [PianoHighlightGuide],
+        stepProjection: [PracticeStep],
         tempoMap: MusicXMLTempoMap,
         practiceHandMode: PracticeHandMode,
-        activeRange: PracticeActiveRange? = nil
+        activeRange: PracticeActiveRange? = nil,
+        transportStartTick: Int? = nil
     ) -> AutoplayPerformanceTimeline {
-        var rawEvents: [(tick: Int, priority: Int, kind: EventKind)] = []
-        rawEvents.reserveCapacity(guides.count + steps.count + 16)
+        build(input: makeBuildInput(
+            plan: plan,
+            guideProjection: guideProjection,
+            stepProjection: stepProjection,
+            tempoMap: tempoMap,
+            practiceHandMode: practiceHandMode,
+            activeRange: activeRange,
+            transportStartTick: transportStartTick
+        ))
+    }
 
-        let guideEntries = guides.enumerated().filter { _, guide in
-            activeRange?.contains(tick: guide.tick) ?? true
+    @MainActor
+    static func buildOffMain(
+        plan: ScorePerformancePlan,
+        guideProjection: [PianoHighlightGuide],
+        stepProjection: [PracticeStep],
+        tempoMap: MusicXMLTempoMap,
+        practiceHandMode: PracticeHandMode,
+        activeRange: PracticeActiveRange? = nil,
+        transportStartTick: Int? = nil
+    ) async -> AutoplayPerformanceTimeline {
+        let input = makeBuildInput(
+            plan: plan,
+            guideProjection: guideProjection,
+            stepProjection: stepProjection,
+            tempoMap: tempoMap,
+            practiceHandMode: practiceHandMode,
+            activeRange: activeRange,
+            transportStartTick: transportStartTick
+        )
+        let task = Task.detached(priority: .userInitiated) {
+            build(input: input)
         }
-        let stepEntries = steps.enumerated().filter { index, _ in
-            activeRange?.contains(stepIndex: index) ?? true
+        return await withTaskCancellationHandler {
+            await task.value
+        } onCancel: {
+            task.cancel()
         }
+    }
 
-        for (index, guide) in guideEntries {
-            rawEvents.append((tick: guide.tick, priority: 5, kind: .advanceGuide(index: index, guideID: guide.id)))
-        }
+    private static func makeBuildInput(
+        plan: ScorePerformancePlan,
+        guideProjection: [PianoHighlightGuide],
+        stepProjection: [PracticeStep],
+        tempoMap: MusicXMLTempoMap,
+        practiceHandMode: PracticeHandMode,
+        activeRange: PracticeActiveRange?,
+        transportStartTick: Int?
+    ) -> BuildInput {
+        BuildInput(
+            plan: plan,
+            guides: guideProjection.enumerated().map { index, guide in
+                BuildGuide(index: index, id: guide.id, tick: guide.tick)
+            },
+            steps: stepProjection.enumerated().map { index, step in
+                BuildStep(index: index, tick: step.tick)
+            },
+            tempoMap: tempoMap,
+            practiceHandMode: practiceHandMode,
+            activeRange: activeRange.map {
+                ActiveRangeSnapshot(stepRange: $0.stepRange, tickRange: $0.tickRange)
+            },
+            transportStartTick: transportStartTick
+        )
+    }
 
-        for (index, step) in stepEntries {
-            rawEvents.append((tick: step.tick, priority: 4, kind: .advanceStep(index: index)))
-        }
+    private static func build(input: BuildInput) -> AutoplayPerformanceTimeline {
+        let plan = input.plan
+        let guideProjection = input.guides
+        let stepProjection = input.steps
+        let tempoMap = input.tempoMap
+        let practiceHandMode = input.practiceHandMode
+        let activeRange = input.activeRange
+        let transportStartTick = input.transportStartTick
+        var rawEvents: [RawEvent] = []
+        rawEvents.reserveCapacity(
+            plan.noteEvents.count * 2 + plan.controllerEvents.count + plan.tempoEvents.count
+                + guideProjection.count + stepProjection.count + plan.annotations.count
+        )
 
-        let activeGuides = guideEntries.map(\.element)
-        let noteIntervals = normalizedNoteIntervals(from: activeGuides, practiceHandMode: practiceHandMode)
-            .map { interval in
-                NoteInterval(
-                    midi: interval.midi,
-                    velocity: interval.velocity,
-                    onTick: interval.onTick,
-                    offTick: activeRange.map { min(interval.offTick, $0.tickRange.upperBound) } ?? interval.offTick
-                )
-            }
-        for interval in noteIntervals {
-            rawEvents.append((
-                tick: interval.onTick,
-                priority: 3,
-                kind: .noteOn(midi: interval.midi, velocity: interval.velocity)
+        for guide in guideProjection
+            where activeRange?.contains(tick: guide.tick) ?? true
+        {
+            rawEvents.append(RawEvent(
+                tick: guide.tick,
+                priority: 5,
+                sourceEventID: nil,
+                kind: .advanceGuide(index: guide.index, guideID: guide.id)
             ))
-            rawEvents.append((tick: interval.offTick, priority: 1, kind: .noteOff(midi: interval.midi)))
         }
 
-        var pedalEventsByTick: [Int: Set<PedalEventKind>] = [:]
-        if let activeRange, pedalTimeline.isDown(atTick: activeRange.tickRange.lowerBound) {
-            pedalEventsByTick[activeRange.tickRange.lowerBound, default: []].insert(.down)
-        }
-        var cursor = -1
-        while let change = pedalTimeline.nextChange(afterTick: cursor) {
-            pedalEventsByTick[change.tick, default: []].insert(change.isDown ? .down : .up)
-            cursor = change.tick
-        }
-        for releaseTick in pedalTimeline.releaseEdges() {
-            pedalEventsByTick[releaseTick, default: []].insert(.up)
-            if pedalTimeline.isDown(atTick: releaseTick) {
-                pedalEventsByTick[releaseTick, default: []].insert(.down)
-            }
-        }
-        for (tick, events) in pedalEventsByTick where activeRange.map({ $0.contains(tick: tick) }) ?? true {
-            if events.contains(.up) {
-                rawEvents.append((tick: tick, priority: 2, kind: .pedalUp))
-            }
-            if events.contains(.down) {
-                rawEvents.append((tick: tick, priority: 2, kind: .pedalDown))
-            }
+        for step in stepProjection
+            where activeRange?.contains(stepIndex: step.index) ?? true
+        {
+            rawEvents.append(RawEvent(
+                tick: step.tick,
+                priority: 4,
+                sourceEventID: nil,
+                kind: .advanceStep(index: step.index)
+            ))
         }
 
-        let offTickByNoteKey = Dictionary(uniqueKeysWithValues: noteIntervals.map { interval in
-            (noteKey(onTick: interval.onTick, midi: interval.midi), interval.offTick)
-        })
-        let triggerGuidesByStepIndex = Dictionary(grouping: activeGuides.filter { $0.kind == .trigger }) {
-            $0.practiceStepIndex
-        }
-        for (stepIndex, current) in stepEntries {
-            let staffs = Set(current.notes.map { $0.staff ?? 1 })
-            let extraSeconds = fermataTimeline.extraHoldSeconds(
-                atTick: current.tick,
-                staffs: staffs,
-                tempoMap: tempoMap
+        let stateStartTick = transportStartTick ?? activeRange?.tickRange.lowerBound
+        let rangeStartState = stateStartTick.map {
+            PerformanceRangeStateResolver().resolve(
+                plan: plan,
+                at: $0,
+                practiceHandMode: practiceHandMode
             )
-            let holdTick = triggerGuidesByStepIndex[stepIndex]?
-                .flatMap(\.triggeredNotes)
-                .filter { practiceHandMode.allows(hand: $0.hand) }
-                .compactMap { note in
-                    offTickByNoteKey[noteKey(onTick: note.onTick, midi: note.midiNote)]
-                }
-                .max()
-            if extraSeconds > 0, let holdTick {
-                rawEvents.append((tick: holdTick, priority: 0, kind: .pauseSeconds(extraSeconds)))
+        }
+        let rangeEndTick = activeRange?.tickRange.upperBound
+        let rangeEndState = rangeEndTick.map {
+            PerformanceRangeStateResolver().resolveEnd(plan: plan, at: $0)
+        }
+        let heldNotes = (rangeStartState?.heldNotes ?? []).map { note in
+            PerformanceTransportReducer.Note(
+                eventID: note.eventID,
+                midiNote: note.midiNote,
+                velocity: note.velocity,
+                onTick: note.onTick,
+                offTick: rangeEndTick.map { min(note.offTick, $0) } ?? note.offTick
+            )
+        }
+        let transportNotes = heldNotes + plan.noteEvents.compactMap { note in
+            guard practiceHandMode.allows(hand: note.handAssignment.hand),
+                  stateStartTick.map({ note.performedOnTick >= $0 }) ?? true,
+                  activeRange?.contains(tick: note.performedOnTick) ?? true
+            else {
+                return nil
             }
+            return PerformanceTransportReducer.Note(
+                eventID: note.id,
+                midiNote: note.midiNote,
+                velocity: note.velocity,
+                onTick: note.performedOnTick,
+                offTick: max(
+                    note.performedOnTick + 1,
+                    activeRange.map { min(note.performedOffTick, $0.tickRange.upperBound) }
+                        ?? note.performedOffTick
+                )
+            )
+        }
+        let transport = PerformanceTransportReducer().reduce(notes: transportNotes)
+        for command in transport.commands {
+            let kind: EventKind
+            let priority: Int
+            switch command.kind {
+            case .noteOff:
+                kind = .noteOff(midi: command.midiNote)
+                priority = 1
+            case let .noteOn(velocity):
+                kind = .noteOn(midi: command.midiNote, velocity: velocity)
+                priority = 3
+            }
+            rawEvents.append(RawEvent(
+                tick: command.tick,
+                priority: priority,
+                sourceEventID: command.eventID.description,
+                kind: kind
+            ))
+        }
+
+        let selectedTempoEvents = (rangeStartState?.tempo.map { [$0] } ?? []) + plan.tempoEvents.filter { event in
+            (stateStartTick.map { $0 <= event.tick } ?? true)
+                && (activeRange?.contains(tick: event.tick) ?? true)
+        }
+        for (index, tempo) in selectedTempoEvents.enumerated() {
+            rawEvents.append(RawEvent(
+                tick: tempo.tick,
+                priority: 2,
+                sourceEventID: tempo.sourceDirectionID?.description
+                    ?? "tempo:\(tempo.performedOccurrenceIndex):\(tempo.tick):\(index)",
+                kind: .tempo(
+                    quarterBPM: tempo.quarterBPM,
+                    endTick: tempo.endTick,
+                    endQuarterBPM: tempo.endQuarterBPM
+                )
+            ))
+        }
+
+        let selectedControllerEvents = (rangeStartState?.controllers ?? [])
+            + plan.controllerEvents.filter { event in
+                (stateStartTick.map { $0 <= event.tick } ?? true)
+                    && (activeRange?.contains(tick: event.tick) ?? true)
+            }
+            + (rangeEndState?.controllerResets ?? [])
+        for (index, controller) in selectedControllerEvents.enumerated() {
+            rawEvents.append(RawEvent(
+                tick: controller.tick,
+                priority: 2,
+                sourceEventID: controller.sourceDirectionID?.description
+                    ?? "controller:\(controller.performedOccurrenceIndex):\(controller.tick):\(index)",
+                kind: .controlChange(
+                    controller: controller.controllerNumber,
+                    value: controller.value
+                )
+            ))
+        }
+
+        // ponytail: priority 0 lets the sole fermata pause hold same-tick note-offs without changing plan note ticks.
+        for (index, annotation) in plan.annotations.enumerated() {
+            guard annotation.kind == .pause,
+                  let durationTicks = annotation.durationTicks,
+                  durationTicks > 0,
+                  containsAnnotationTick(annotation.tick, activeRange: activeRange)
+            else {
+                continue
+            }
+            let seconds = tempoMap.timeSeconds(atTick: annotation.tick + durationTicks)
+                - tempoMap.timeSeconds(atTick: annotation.tick)
+            guard seconds > 0 else { continue }
+            rawEvents.append(RawEvent(
+                tick: annotation.tick,
+                priority: 0,
+                sourceEventID: annotation.sourceDirectionID?.description
+                    ?? annotation.provenance.compactMap(\.sourceIdentity).first
+                    ?? "annotation:\(annotation.performedOccurrenceIndex):\(annotation.tick):\(index)",
+                kind: .pauseSeconds(seconds)
+            ))
         }
 
         let sortedEvents = rawEvents
+            .enumerated()
             .sorted { lhs, rhs in
-                if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
-                if lhs.priority != rhs.priority { return lhs.priority < rhs.priority }
-                return eventTieBreaker(lhs.kind) < eventTieBreaker(rhs.kind)
+                if lhs.element.tick != rhs.element.tick {
+                    return lhs.element.tick < rhs.element.tick
+                }
+                if lhs.element.priority != rhs.element.priority {
+                    return lhs.element.priority < rhs.element.priority
+                }
+                return lhs.offset < rhs.offset
             }
             .enumerated()
-            .map { offset, event in
-                Event(id: offset, tick: event.tick, kind: event.kind)
+            .map { offset, indexedEvent in
+                let event = indexedEvent.element
+                return Event(
+                    id: offset,
+                    sourceEventID: event.sourceEventID,
+                    tick: event.tick,
+                    kind: event.kind
+                )
             }
 
-        return AutoplayPerformanceTimeline(events: sortedEvents)
+        return AutoplayPerformanceTimeline(
+            events: sortedEvents,
+            rangeStartApproximations: rangeStartState?.approximations ?? [],
+            transportMetrics: TransportMetrics(
+                retriggeredEventCount: transport.retriggeredEventCount,
+                preventedStaleOffCount: transport.preventedStaleOffCount,
+                orphanOffCount: transport.orphanOffCount
+            )
+        )
     }
 
-    private enum PedalEventKind: Hashable {
-        case up
-        case down
+    private static func containsAnnotationTick(_ tick: Int, activeRange: ActiveRangeSnapshot?) -> Bool {
+        guard let activeRange else { return true }
+        return tick >= activeRange.tickRange.lowerBound && tick <= activeRange.tickRange.upperBound
     }
 
-    private struct NoteInterval: Equatable {
-        let midi: Int
-        let velocity: UInt8
-        let onTick: Int
-        var offTick: Int
-    }
+}
 
-    private static func normalizedNoteIntervals(
-        from guides: [PianoHighlightGuide],
-        practiceHandMode: PracticeHandMode
-    ) -> [NoteInterval] {
-        var grouped: [String: NoteInterval] = [:]
-
-        for guide in guides where guide.kind == .trigger {
-            for note in guide.triggeredNotes where practiceHandMode.allows(hand: note.hand) {
-                let key = noteKey(onTick: note.onTick, midi: note.midiNote)
-                if var existing = grouped[key] {
-                    existing.offTick = max(existing.offTick, note.offTick)
-                    existing = NoteInterval(
-                        midi: existing.midi,
-                        velocity: max(existing.velocity, note.velocity),
-                        onTick: existing.onTick,
-                        offTick: max(existing.onTick + 1, existing.offTick)
-                    )
-                    grouped[key] = existing
-                } else {
-                    grouped[key] = NoteInterval(
-                        midi: note.midiNote,
-                        velocity: note.velocity,
-                        onTick: note.onTick,
-                        offTick: max(note.onTick + 1, note.offTick)
-                    )
-                }
-            }
+extension AutoplayPerformanceTimeline {
+    func recordTransportDiagnostics(
+        using reporter: (any DiagnosticsReporting)?,
+        stage: String
+    ) {
+        let heldCount = rangeStartApproximations.count { approximation in
+            if case .reattackedHeldNote = approximation { true } else { false }
         }
-
-        var intervals = grouped.values.sorted { lhs, rhs in
-            if lhs.midi != rhs.midi { return lhs.midi < rhs.midi }
-            if lhs.onTick != rhs.onTick { return lhs.onTick < rhs.onTick }
-            return lhs.offTick < rhs.offTick
+        let sustainedCount = rangeStartApproximations.count { approximation in
+            if case .reattackedSustainedNote = approximation { true } else { false }
         }
+        guard transportMetrics != .empty || heldCount > 0 || sustainedCount > 0 else { return }
 
-        var lastIndexByMIDI: [Int: Int] = [:]
-        for index in intervals.indices {
-            let midi = intervals[index].midi
-            if let previousIndex = lastIndexByMIDI[midi], intervals[previousIndex].offTick > intervals[index].onTick {
-                intervals[previousIndex].offTick = intervals[index].onTick
-            }
-            lastIndexByMIDI[midi] = index
-        }
-
-        return intervals.filter { $0.offTick > $0.onTick }
-    }
-
-    private static func noteKey(onTick: Int, midi: Int) -> String {
-        "\(onTick):\(midi)"
-    }
-
-    private static func eventTieBreaker(_ kind: EventKind) -> String {
-        switch kind {
-        case let .noteOff(midi):
-            "noteOff-\(midi)"
-        case let .noteOn(midi, velocity):
-            "noteOn-\(midi)-\(velocity)"
-        case let .advanceStep(index):
-            "advanceStep-\(index)"
-        case let .advanceGuide(index, guideID):
-            "advanceGuide-\(index)-\(guideID)"
-        case .pedalDown:
-            "pedal-1-down"
-        case .pedalUp:
-            "pedal-0-up"
-        case let .pauseSeconds(seconds):
-            "pause-\(seconds)"
-        }
+        reporter?.recordSystem(
+            severity: transportMetrics.orphanOffCount > 0 ? .warning : .info,
+            category: .pianoPerformance,
+            stage: stage,
+            summary: "演奏 transport 已完成事件归约",
+            reason: "retriggered=\(transportMetrics.retriggeredEventCount); "
+                + "staleOffPrevented=\(transportMetrics.preventedStaleOffCount); "
+                + "orphanOff=\(transportMetrics.orphanOffCount); "
+                + "heldReconstructed=\(heldCount); sustainedReconstructed=\(sustainedCount)"
+        )
     }
 }

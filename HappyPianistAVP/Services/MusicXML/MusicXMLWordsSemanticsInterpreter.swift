@@ -20,11 +20,30 @@ enum MusicXMLTempoWordResolution: Equatable, Sendable {
 
 struct MusicXMLTempoWordAnnotation: Equatable, Sendable {
     let sourceID: MusicXMLDirectionSourceID?
+    let performedOccurrenceIndex: Int
     let tick: Int
     let text: String
     let scope: MusicXMLEventScope
     let kind: MusicXMLTempoWordKind
     let resolution: MusicXMLTempoWordResolution
+
+    init(
+        sourceID: MusicXMLDirectionSourceID?,
+        performedOccurrenceIndex: Int = 0,
+        tick: Int,
+        text: String,
+        scope: MusicXMLEventScope,
+        kind: MusicXMLTempoWordKind,
+        resolution: MusicXMLTempoWordResolution
+    ) {
+        self.sourceID = sourceID
+        self.performedOccurrenceIndex = max(0, performedOccurrenceIndex)
+        self.tick = tick
+        self.text = text
+        self.scope = scope
+        self.kind = kind
+        self.resolution = resolution
+    }
 }
 
 struct MusicXMLWordsSemanticsResult: Equatable {
@@ -60,7 +79,9 @@ struct MusicXMLWordsSemanticsInterpreter {
                     startTick: marker.tick,
                     direction: .slower,
                     explicitTempoEvents: combinedTempoEvents,
-                    scope: scope
+                    scope: scope,
+                    sourceID: marker.sourceID,
+                    performedOccurrenceIndex: marker.performedOccurrenceIndex
                 ) {
                     derivedTempoRamps.append(ramp)
                     annotations.append(marker.annotation(kind: tempoKind, resolution: .tempoRamp))
@@ -76,7 +97,9 @@ struct MusicXMLWordsSemanticsInterpreter {
                     startTick: marker.tick,
                     direction: .faster,
                     explicitTempoEvents: combinedTempoEvents,
-                    scope: scope
+                    scope: scope,
+                    sourceID: marker.sourceID,
+                    performedOccurrenceIndex: marker.performedOccurrenceIndex
                 ) {
                     derivedTempoRamps.append(ramp)
                     annotations.append(marker.annotation(kind: tempoKind, resolution: .tempoRamp))
@@ -98,6 +121,7 @@ struct MusicXMLWordsSemanticsInterpreter {
                 ) {
                     derivedTempoEvents.append(MusicXMLTempoEvent(
                         sourceID: marker.sourceID,
+                        performedOccurrenceIndex: marker.performedOccurrenceIndex,
                         tick: marker.tick,
                         quarterBPM: bpm,
                         scope: scope
@@ -119,6 +143,7 @@ struct MusicXMLWordsSemanticsInterpreter {
                 ) {
                     derivedTempoEvents.append(MusicXMLTempoEvent(
                         sourceID: marker.sourceID,
+                        performedOccurrenceIndex: marker.performedOccurrenceIndex,
                         tick: marker.tick,
                         quarterBPM: bpm,
                         scope: scope
@@ -139,6 +164,7 @@ struct MusicXMLWordsSemanticsInterpreter {
                 ) {
                     derivedTempoEvents.append(MusicXMLTempoEvent(
                         sourceID: marker.sourceID,
+                        performedOccurrenceIndex: marker.performedOccurrenceIndex,
                         tick: marker.tick,
                         quarterBPM: bpm * 2,
                         scope: scope
@@ -219,6 +245,7 @@ private extension MusicXMLWordsSemanticsInterpreter {
         }
 
         let sourceID: MusicXMLDirectionSourceID?
+        let performedOccurrenceIndex: Int
         let tick: Int
         let text: String
         let scope: MusicXMLEventScope
@@ -230,6 +257,7 @@ private extension MusicXMLWordsSemanticsInterpreter {
         ) -> MusicXMLTempoWordAnnotation {
             MusicXMLTempoWordAnnotation(
                 sourceID: sourceID,
+                performedOccurrenceIndex: performedOccurrenceIndex,
                 tick: tick,
                 text: text,
                 scope: scope,
@@ -245,34 +273,34 @@ private extension MusicXMLWordsSemanticsInterpreter {
         let tokens = tokenize(normalized)
 
         if tokens == ["ped"] {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .pedalDown)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .pedalDown)
         }
         if tokens == ["*"] {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .pedalUp)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .pedalUp)
         }
         if normalized.contains("tempo primo") || tokens.contains("tempoprimo") {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .tempoPrimo)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .tempoPrimo)
         }
         if normalized.contains("a tempo") || tokens.contains("atempo") {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .aTempo)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .aTempo)
         }
         if normalized.contains("doppio movimento") || tokens.contains("doppio") {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .doppioMovimento)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .doppioMovimento)
         }
         if normalized.contains("meno mosso") {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .menoMosso)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .menoMosso)
         }
         if tokens.contains(where: { ["rall", "rallentando"].contains($0) }) {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .rallentando)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .rallentando)
         }
         if tokens.contains(where: { ["rit", "ritard", "ritardando"].contains($0) }) {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .ritardando)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .ritardando)
         }
         if tokens.contains(where: { ["accel", "accelerando"].contains($0) }) {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .accelerando)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .accelerando)
         }
         if tokens.contains("stringendo") {
-            return Marker(sourceID: event.sourceID, tick: event.tick, text: event.text, scope: event.scope, kind: .stringendo)
+            return Marker(sourceID: event.sourceID, performedOccurrenceIndex: event.performedOccurrenceIndex, tick: event.tick, text: event.text, scope: event.scope, kind: .stringendo)
         }
         return nil
     }
@@ -282,21 +310,23 @@ private extension MusicXMLWordsSemanticsInterpreter {
         case .pedalDown:
             MusicXMLPedalEvent(
                 sourceID: marker.sourceID,
+                performedOccurrenceIndex: marker.performedOccurrenceIndex,
                 partID: marker.scope.partID,
                 measureNumber: 0,
                 tick: marker.tick,
                 kind: .start,
-                isDown: true,
+                value: .on,
                 timeOnlyPasses: nil
             )
         case .pedalUp:
             MusicXMLPedalEvent(
                 sourceID: marker.sourceID,
+                performedOccurrenceIndex: marker.performedOccurrenceIndex,
                 partID: marker.scope.partID,
                 measureNumber: 0,
                 tick: marker.tick,
                 kind: .stop,
-                isDown: false,
+                value: .off,
                 timeOnlyPasses: nil
             )
         default:
@@ -383,7 +413,9 @@ private extension MusicXMLWordsSemanticsInterpreter {
         startTick: Int,
         direction: RampDirection,
         explicitTempoEvents: [MusicXMLTempoEvent],
-        scope: MusicXMLEventScope
+        scope: MusicXMLEventScope,
+        sourceID: MusicXMLDirectionSourceID?,
+        performedOccurrenceIndex: Int
     ) -> MusicXMLTempoMap.TempoRamp? {
         guard let startBPM = lastExplicitTempoBPM(
             atOrBeforeTick: startTick,
@@ -412,7 +444,9 @@ private extension MusicXMLWordsSemanticsInterpreter {
             endTick: endEvent.tick,
             startQuarterBPM: startBPM,
             endQuarterBPM: endEvent.quarterBPM,
-            scope: scope
+            scope: scope,
+            sourceDirectionID: sourceID,
+            performedOccurrenceIndex: performedOccurrenceIndex
         )
     }
 

@@ -1,19 +1,26 @@
+import CoreMIDI
 import Foundation
 
 @MainActor
 final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServiceProtocol {
     private let outputService: any MIDIOutputSendingProtocol
     private let destinationUniqueID: Int32
+    private let outputCapabilities: PerformanceOutputCapabilities
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
+    private let hostTimeConverter: MIDIHostTimeConverter
+    private let generationGuard = MIDIPlaybackGenerationGuard()
 
-    private let velocity: UInt8
     private let channel: UInt8
 
-    private var loadedSequence: PracticeSequencerSequence?
-    private var scheduler: MIDIEventScheduler?
+    private var loadedDurationSeconds: TimeInterval?
+    private var loadedEvents: [PracticeSequencerMIDIEvent]?
+    private var scheduler: MIDILookAheadScheduler?
+    private var schedulerTask: Task<Void, Never>?
+    private var ownsOutputLifecycle = false
 
-    private var playingOneShotNotes: Set<UInt8> = []
+    private var oneShotNoteBySourceEventID: [String: UInt8] = [:]
     private var oneShotStopTask: Task<Void, Never>?
-    private var liveNotes: Set<UInt8> = []
+    private var liveNoteBySourceEventID: [String: UInt8] = [:]
 
     private var lastKnownSeconds: TimeInterval = 0
     private var playbackStartedAtUptimeSeconds: TimeInterval?
@@ -23,20 +30,100 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         destinationUniqueID: Int32,
         outputService: (any MIDIOutputSendingProtocol)? = nil,
         diagnosticsReporter: (any DiagnosticsReporting)? = nil,
-        velocity: UInt8 = 96,
+        outputCapabilities: PerformanceOutputCapabilities = .externalMIDI,
+        hostTimeConverter: MIDIHostTimeConverter = MIDIHostTimeConverter(),
         channel: UInt8 = 0
     ) {
         self.destinationUniqueID = destinationUniqueID
         self.outputService = outputService ?? CoreMIDIOutputService(diagnosticsReporter: diagnosticsReporter)
-        self.velocity = velocity
+        self.outputCapabilities = outputCapabilities
+        self.diagnosticsReporter = diagnosticsReporter
+        self.hostTimeConverter = hostTimeConverter
         self.channel = channel
+
+        let generationGuard = self.generationGuard
+        self.outputService.onDestinationRouteWillChange = {
+            generationGuard.invalidate()
+        }
+        self.outputService.onDestinationRouteChange = { [weak self] in
+            guard let self else { return Task {} }
+            return Task { @MainActor in
+                self.handleDestinationRouteChange()
+            }
+        }
+    }
+
+    isolated deinit {
+        let hadScheduledPlayback = schedulerTask != nil
+        outputService.onDestinationRouteWillChange = nil
+        outputService.onDestinationRouteChange = nil
+        generationGuard.invalidate()
+        oneShotStopTask?.cancel()
+        schedulerTask?.cancel()
+        guard ownsOutputLifecycle else { return }
+
+        if hadScheduledPlayback {
+            do {
+                try outputService.flushScheduledMessages(destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.teardownFlush",
+                    summary: "释放外部 MIDI 播放服务时取消未来事件失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
+        }
+        execute(PerformanceTransportReducer.fullResetCommands)
     }
 
     func warmUp() throws {
         try ensureReady()
     }
 
-    func stop() {
+    func stop(resetCommands: [PerformanceTransportCommand]) {
+        haltPlayback()
+        execute(resetCommands)
+    }
+
+    func load(sequence: PracticeSequencerSequence) throws {
+        try ensureReady()
+        haltPlayback()
+        loadedDurationSeconds = sequence.durationSeconds
+        loadedEvents = sequence.events
+        lastKnownSeconds = 0
+        recordControllerApproximations(in: sequence.events)
+    }
+
+    func play(fromSeconds start: TimeInterval) throws {
+        try ensureReady()
+        guard let events = loadedEvents else { return }
+
+        haltPlayback()
+
+        let startSeconds = max(0, start)
+        lastKnownSeconds = startSeconds
+        playbackStartSeconds = startSeconds
+        playbackStartedAtUptimeSeconds = ProcessInfo.processInfo.systemUptime
+        let generation = generationGuard.beginGeneration()
+
+        let scheduler = MIDILookAheadScheduler(
+            outputService: outputService,
+            destinationUniqueID: destinationUniqueID,
+            channel: channel,
+            outputCapabilities: outputCapabilities,
+            hostTimeConverter: hostTimeConverter,
+            diagnosticsReporter: diagnosticsReporter,
+            generationGuard: generationGuard,
+            generation: generation
+        )
+        self.scheduler = scheduler
+        schedulerTask = scheduler.start(events: events, fromSeconds: startSeconds)
+    }
+
+    private func haltPlayback() {
+        generationGuard.invalidate()
         oneShotStopTask?.cancel()
         oneShotStopTask = nil
 
@@ -45,64 +132,47 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
         playbackStartedAtUptimeSeconds = nil
 
-        Task { [scheduler] in
-            await scheduler?.stop()
-        }
+        let hadScheduledPlayback = schedulerTask != nil
+        schedulerTask?.cancel()
+        schedulerTask = nil
         scheduler = nil
 
-        stopAllLiveNotes()
-        stopOneShotNotes()
-
-        sendAllNotesOffBestEffort()
-    }
-
-    func load(sequence: PracticeSequencerSequence) throws {
-        try ensureReady()
-        stop()
-        loadedSequence = sequence
-        lastKnownSeconds = 0
-    }
-
-    func play(fromSeconds start: TimeInterval) throws {
-        try ensureReady()
-        guard let sequence = loadedSequence else { return }
-
-        stop()
-
-        let startSeconds = max(0, start)
-        lastKnownSeconds = startSeconds
-        playbackStartSeconds = startSeconds
-        playbackStartedAtUptimeSeconds = ProcessInfo.processInfo.systemUptime
-
-        let scheduler = MIDIEventScheduler(
-            outputService: outputService,
-            destinationUniqueID: destinationUniqueID,
-            channel: channel
-        )
-        self.scheduler = scheduler
-
-        let events = sequence.events
-        Task.detached(priority: .userInitiated) {
-            await scheduler.play(events: events, fromSeconds: startSeconds)
+        if hadScheduledPlayback {
+            do {
+                try outputService.flushScheduledMessages(destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.playbackFlush",
+                    summary: "停止外部 MIDI 播放时取消未来事件失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
         }
+
+        liveNoteBySourceEventID.removeAll()
+        oneShotNoteBySourceEventID.removeAll()
+    }
+
+    private func handleDestinationRouteChange() {
+        guard ownsOutputLifecycle else { return }
+        haltPlayback()
+        execute(PerformanceTransportReducer.fullResetCommands)
     }
 
     func currentSeconds() -> TimeInterval {
         guard let playbackStartedAtUptimeSeconds else { return lastKnownSeconds }
         let now = ProcessInfo.processInfo.systemUptime
         let seconds = playbackStartSeconds + max(0, now - playbackStartedAtUptimeSeconds)
-        if let loadedSequence {
-            return min(seconds, loadedSequence.durationSeconds)
+        if let loadedDurationSeconds {
+            return min(seconds, loadedDurationSeconds)
         }
         return seconds
     }
 
-    func playOneShot(noteOns: [PracticeOneShotNoteOn], durationSeconds: TimeInterval) throws {
-        let notes = noteOns.compactMap { noteOn -> (note: UInt8, velocity: UInt8)? in
-            guard let note = UInt8(exactly: noteOn.midiNote) else { return nil }
-            return (note, noteOn.velocity)
-        }
-        guard notes.isEmpty == false else { return }
+    func playOneShot(commands: [PracticePlaybackCommand], durationSeconds: TimeInterval) throws {
+        guard commands.isEmpty == false else { return }
 
         try ensureReady()
 
@@ -111,18 +181,14 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
 
         stopOneShotNotes()
 
-        for (note, velocity) in notes {
-            try? outputService.sendNoteOn(
-                note: note,
-                velocity: velocity,
-                channel: channel,
-                destinationUniqueID: destinationUniqueID
-            )
-            playingOneShotNotes.insert(note)
-        }
+        try execute(commands: commands, tracking: .oneShot)
 
         oneShotStopTask = Task.detached(priority: .userInitiated) { [weak self] in
-            try? await Task.sleep(for: .seconds(max(0, durationSeconds)))
+            do {
+                try await Task.sleep(for: .seconds(max(0, durationSeconds)))
+            } catch {
+                return
+            }
             guard Task.isCancelled == false else { return }
             await MainActor.run { [weak self] in
                 self?.stopOneShotNotes()
@@ -130,131 +196,206 @@ final class CoreMIDIPracticePlaybackService: PracticeSequencerPlaybackServicePro
         }
     }
 
-    func startLiveNotes(midiNotes: Set<Int>) throws {
+    func execute(commands: [PracticePlaybackCommand]) throws {
         try ensureReady()
-        for midiNote in midiNotes {
-            guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) == false else { continue }
-            try? outputService.sendNoteOn(
-                note: note,
-                velocity: velocity,
-                channel: channel,
-                destinationUniqueID: destinationUniqueID
-            )
-            liveNotes.insert(note)
-        }
-    }
-
-    func stopLiveNotes(midiNotes: Set<Int>) {
-        for midiNote in midiNotes {
-            guard let note = UInt8(exactly: midiNote), liveNotes.contains(note) else { continue }
-            try? outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
-            liveNotes.remove(note)
-        }
+        try execute(commands: commands, tracking: .live)
     }
 
     func stopAllLiveNotes() {
-        for note in liveNotes {
-            try? outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+        for note in Set(liveNoteBySourceEventID.values) {
+            do {
+                try outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.stopLiveNote",
+                    summary: "停止实时 MIDI 音符失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
         }
-        liveNotes.removeAll()
+        liveNoteBySourceEventID.removeAll()
     }
 
     private func stopOneShotNotes() {
-        for note in playingOneShotNotes {
-            try? outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+        for note in Set(oneShotNoteBySourceEventID.values) {
+            do {
+                try outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
+            } catch {
+                diagnosticsReporter?.recordSystem(
+                    severity: .error,
+                    category: .midi,
+                    stage: "coreMIDI.stopOneShotNote",
+                    summary: "停止预览 MIDI 音符失败",
+                    reason: String(describing: type(of: error))
+                )
+            }
         }
-        playingOneShotNotes.removeAll()
+        oneShotNoteBySourceEventID.removeAll()
     }
 
-    private func sendAllNotesOffBestEffort() {
-        try? outputService.sendAllNotesOff(channel: channel, destinationUniqueID: destinationUniqueID)
-        try? outputService.sendAllSoundOff(channel: channel, destinationUniqueID: destinationUniqueID)
+    private enum CommandTracking {
+        case live
+        case oneShot
     }
 
-    private func ensureReady() throws {
-        try outputService.start()
-    }
-}
-
-actor MIDIEventScheduler {
-    private let outputService: any MIDIOutputSendingProtocol
-    private let destinationUniqueID: Int32
-    private let channel: UInt8
-
-    private var playTask: Task<Void, Never>?
-
-    init(outputService: any MIDIOutputSendingProtocol, destinationUniqueID: Int32, channel: UInt8) {
-        self.outputService = outputService
-        self.destinationUniqueID = destinationUniqueID
-        self.channel = channel
-    }
-
-    func play(events: [PracticeSequencerMIDIEvent], fromSeconds startSeconds: TimeInterval) {
-        stopInternal()
-
-        let eventsToPlay = events.filter { $0.timeSeconds >= startSeconds }
-        playTask = Task.detached(priority: .userInitiated) { [outputService, destinationUniqueID, channel] in
-            let startedAt = ProcessInfo.processInfo.systemUptime
-            var index = 0
-
-            while index < eventsToPlay.count, Task.isCancelled == false {
-                let event = eventsToPlay[index]
-                let targetUptime = startedAt + max(0, event.timeSeconds - startSeconds)
-                let now = ProcessInfo.processInfo.systemUptime
-                let wait = max(0, targetUptime - now)
-                if wait > 0 {
-                    try? await Task.sleep(for: .seconds(wait))
-                    guard Task.isCancelled == false else { break }
+    private func execute(
+        commands: [PracticePlaybackCommand],
+        tracking: CommandTracking
+    ) throws {
+        for command in commands {
+            switch command.kind {
+            case let .noteOn(midi, velocity):
+                guard let note = UInt8(exactly: midi) else { continue }
+                try outputService.sendNoteOn(
+                    note: note,
+                    velocity: velocity,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+                switch tracking {
+                case .live:
+                    liveNoteBySourceEventID[command.sourceEventID] = note
+                case .oneShot:
+                    oneShotNoteBySourceEventID[command.sourceEventID] = note
                 }
 
-                do {
-                    try Self.send(event: event, outputService: outputService, destinationUniqueID: destinationUniqueID, channel: channel)
-                } catch {
-                    // best-effort: ignore individual send failures
+            case let .noteOff(midi):
+                let trackedNote: UInt8?
+                switch tracking {
+                case .live:
+                    trackedNote = liveNoteBySourceEventID.removeValue(forKey: command.sourceEventID)
+                case .oneShot:
+                    trackedNote = oneShotNoteBySourceEventID.removeValue(forKey: command.sourceEventID)
                 }
-                index += 1
+                guard let note = trackedNote ?? UInt8(exactly: midi) else { continue }
+                try outputService.sendNoteOff(
+                    note: note,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+
+            case let .controlChange(controller, value):
+                let resolution = outputCapabilities.resolve(controllerNumber: controller, value: value)
+                try outputService.sendControlChange(
+                    controller: controller,
+                    value: resolution.value,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .programChange(program):
+                try outputService.sendProgramChange(
+                    program: program,
+                    channel: channel,
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .pitchBend(value):
+                try outputService.sendMIDI1Bytes([
+                    0xE0 | (channel & 0x0F),
+                    UInt8(value & 0x7F),
+                    UInt8((value >> 7) & 0x7F),
+                ], destinationUniqueID: destinationUniqueID)
+            case let .channelPressure(value):
+                try outputService.sendMIDI1Bytes(
+                    [0xD0 | (channel & 0x0F), value],
+                    destinationUniqueID: destinationUniqueID
+                )
+            case let .polyPressure(midi, value):
+                guard let note = UInt8(exactly: midi) else { continue }
+                try outputService.sendMIDI1Bytes(
+                    [0xA0 | (channel & 0x0F), note, value],
+                    destinationUniqueID: destinationUniqueID
+                )
             }
         }
     }
 
-    func stop() {
-        stopInternal()
-    }
-
-    private func stopInternal() {
-        playTask?.cancel()
-        playTask = nil
-    }
-
-    private static func send(
-        event: PracticeSequencerMIDIEvent,
-        outputService: any MIDIOutputSendingProtocol,
-        destinationUniqueID: Int32,
-        channel: UInt8
-    ) throws {
-        switch event.kind {
-        case let .noteOn(midi, velocity):
-            guard let note = UInt8(exactly: midi) else { return }
-            try outputService.sendNoteOn(note: note, velocity: velocity, channel: channel, destinationUniqueID: destinationUniqueID)
-        case let .noteOff(midi):
-            guard let note = UInt8(exactly: midi) else { return }
-            try outputService.sendNoteOff(note: note, channel: channel, destinationUniqueID: destinationUniqueID)
-        case let .controlChange(controller, value):
-            try outputService.sendControlChange(controller: controller, value: value, channel: channel, destinationUniqueID: destinationUniqueID)
-        case let .programChange(program):
-            try outputService.sendProgramChange(program: program, channel: channel, destinationUniqueID: destinationUniqueID)
-        case let .pitchBend(value):
-            let lsb = UInt8(value & 0x7F)
-            let msb = UInt8((value >> 7) & 0x7F)
-            let status: UInt8 = 0xE0 | (channel & 0x0F)
-            try outputService.sendMIDI1Bytes([status, lsb, msb], destinationUniqueID: destinationUniqueID)
-        case let .channelPressure(value):
-            let status: UInt8 = 0xD0 | (channel & 0x0F)
-            try outputService.sendMIDI1Bytes([status, value], destinationUniqueID: destinationUniqueID)
-        case let .polyPressure(midi, value):
-            guard let note = UInt8(exactly: midi) else { return }
-            let status: UInt8 = 0xA0 | (channel & 0x0F)
-            try outputService.sendMIDI1Bytes([status, note, value], destinationUniqueID: destinationUniqueID)
+    private func execute(_ commands: [PerformanceTransportCommand]) {
+        var failureCount = 0
+        for command in commands {
+            do {
+                switch command {
+                case let .noteOff(eventID):
+                    guard let note = loadedEvents?.lazy.compactMap({ event -> UInt8? in
+                        guard event.sourceEventID == eventID.description,
+                              case let .noteOn(midi, _) = event.kind
+                        else { return nil }
+                        return UInt8(exactly: midi)
+                    }).first else { continue }
+                    try outputService.sendNoteOff(
+                        note: note,
+                        channel: channel,
+                        destinationUniqueID: destinationUniqueID
+                    )
+                case let .controlChange(controller, value):
+                    let resolution = outputCapabilities.resolve(controllerNumber: controller, value: value)
+                    try outputService.sendControlChange(
+                        controller: controller,
+                        value: resolution.value,
+                        channel: channel,
+                        destinationUniqueID: destinationUniqueID
+                    )
+                case .allNotesOff:
+                    try outputService.sendAllNotesOff(
+                        channel: channel,
+                        destinationUniqueID: destinationUniqueID
+                    )
+                case .allSoundOff:
+                    try outputService.sendAllSoundOff(
+                        channel: channel,
+                        destinationUniqueID: destinationUniqueID
+                    )
+                }
+            } catch {
+                failureCount += 1
+            }
         }
+        if commands.isEmpty == false {
+            var metrics = PianoOutputMetricsAccumulator()
+            metrics.recordReset(
+                succeeded: failureCount == 0,
+                preventsStuckNotes: commands.contains { command in
+                    switch command {
+                    case .allNotesOff, .allSoundOff:
+                        true
+                    case .noteOff, .controlChange:
+                        false
+                    }
+                }
+            )
+            diagnosticsReporter?.recordOutputMetrics(metrics.snapshot(capability: .externalMIDI))
+        }
+        guard failureCount > 0 else { return }
+        diagnosticsReporter?.recordSystem(
+            severity: .error,
+            category: .midi,
+            stage: "coreMIDI.transportReset",
+            summary: "外部 MIDI 停止复位未完全发送",
+            reason: "failureCount=\(failureCount)"
+        )
+    }
+
+    private func ensureReady() throws {
+        guard ownsOutputLifecycle == false else { return }
+        try outputService.start()
+        ownsOutputLifecycle = true
+    }
+
+    private func recordControllerApproximations(in events: [PracticeSequencerMIDIEvent]) {
+        let count = events.reduce(into: 0) { count, event in
+            guard case let .controlChange(controller, value) = event.kind,
+                  outputCapabilities.resolve(controllerNumber: controller, value: value).approximation != nil
+            else { return }
+            count += 1
+        }
+        guard count > 0 else { return }
+        diagnosticsReporter?.recordSystem(
+            severity: .info,
+            category: .midi,
+            stage: "coreMIDI.controllerCapability",
+            summary: "外部 MIDI 控制器值已按输出能力量化",
+            reason: "approximationCount=\(count)"
+        )
     }
 }

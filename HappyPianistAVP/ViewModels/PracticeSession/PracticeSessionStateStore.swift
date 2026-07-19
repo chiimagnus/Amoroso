@@ -45,6 +45,18 @@ final class PracticeSessionStateStore {
         sendLocalControlOff: false
     )
     var roundGeneration = 0
+    var performancePlan: ScorePerformancePlan? {
+        didSet {
+            tempoMap = MusicXMLTempoMap(performanceEvents: performancePlan?.tempoEvents ?? [])
+            performanceEventIDByDescription = Dictionary(
+                uniqueKeysWithValues: (performancePlan?.noteEvents ?? []).map {
+                    ($0.id.description, $0.id)
+                }
+            )
+        }
+    }
+    private(set) var performanceEventIDByDescription: [String: ScorePerformanceNoteEventID] = [:]
+    var notationProjection: ScoreNotationProjection?
     var steps: [PracticeStep] = []
 
     var currentStepIndex: Int = 0 {
@@ -77,13 +89,11 @@ final class PracticeSessionStateStore {
     )
     var noteMatchTolerance: Int = 1
 
-    var tempoMap = MusicXMLTempoMap(tempoEvents: [])
+    private(set) var tempoMap = MusicXMLTempoMap(performanceEvents: [])
     var measureSpans: [MusicXMLMeasureSpan] = []
     var manualReplayGeneration = 0
     var isManualReplayPlaying = false
     var shouldResumeAudioRecognitionAfterManualReplay = false
-    var pedalTimeline: MusicXMLPedalTimeline?
-    var fermataTimeline: MusicXMLFermataTimeline?
     var attributeTimeline: MusicXMLAttributeTimeline?
     var autoplayTimeline: AutoplayPerformanceTimeline = .empty
     var highlightGuides: [PianoHighlightGuide] = []

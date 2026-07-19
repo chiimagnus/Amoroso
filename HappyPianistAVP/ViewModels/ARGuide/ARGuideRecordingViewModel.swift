@@ -30,12 +30,14 @@ final class ARGuideRecordingViewModel {
             self?.onMIDI2Event(event)
         }
     )
+    @ObservationIgnored private var playbackStopTask: Task<Void, Never>?
 
     init(
         takeLibraryViewModel: TakeLibraryViewModel? = nil,
         takePlaybackViewModel: TakePlaybackViewModel? = nil,
         onMIDI1Event: @escaping @MainActor (MIDI1InputEvent) -> Void = { _ in },
-        onMIDI2Event: @escaping @MainActor (MIDI2InputEvent) -> Void = { _ in }
+        onMIDI2Event: @escaping @MainActor (MIDI2InputEvent) -> Void = { _ in },
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         self.takeLibraryViewModel = takeLibraryViewModel ?? TakeLibraryViewModel()
         if let takePlaybackViewModel {
@@ -45,7 +47,10 @@ final class ARGuideRecordingViewModel {
             let playbackService: PracticeSequencerPlaybackServiceProtocol =
                 isRunningUnitTests
                     ? NoopPracticeSequencerPlaybackService()
-                    : AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2")
+                    : AVAudioSequencerPracticePlaybackService(
+                        soundFontResourceName: "SalC5Light2",
+                        diagnosticsReporter: diagnosticsReporter
+                    )
             self.takePlaybackViewModel = TakePlaybackViewModel(
                 controller: TakePlaybackController(playbackService: playbackService)
             )
@@ -96,9 +101,10 @@ final class ARGuideRecordingViewModel {
         )
     }
 
-    func startRecording(canRecord: Bool) {
+    func startRecording(canRecord: Bool) async {
         guard canRecord else { return }
-        takePlaybackViewModel.stop()
+        await playbackStopTask?.value
+        await takePlaybackViewModel.stop()
         midiRecordingState.startRecordingIfPossible(canRecord: canRecord)
     }
 
@@ -114,15 +120,17 @@ final class ARGuideRecordingViewModel {
         takeLibraryViewModel.rename(takeID: id, to: name)
     }
 
-    func deleteTake(id: UUID) {
+    func deleteTake(id: UUID) async {
+        await playbackStopTask?.value
         if takePlaybackViewModel.currentTakeID == id {
-            takePlaybackViewModel.stop()
+            await takePlaybackViewModel.stop()
         }
         takeLibraryViewModel.delete(takeID: id)
     }
 
-    func clearAllTakes() {
-        takePlaybackViewModel.stop()
+    func clearAllTakes() async {
+        await playbackStopTask?.value
+        await takePlaybackViewModel.stop()
         takeLibraryViewModel.clearAll()
     }
 
@@ -132,6 +140,11 @@ final class ARGuideRecordingViewModel {
 
     func stop() {
         midiRecordingState.stop()
-        takePlaybackViewModel.stop()
+        let previousStopTask = playbackStopTask
+        let takePlaybackViewModel = takePlaybackViewModel
+        playbackStopTask = Task {
+            await previousStopTask?.value
+            await takePlaybackViewModel.stop()
+        }
     }
 }

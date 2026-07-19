@@ -9,34 +9,49 @@ extension PracticeSessionViewModel {
         playbackControlService?.stopAutoplayTask()
     }
 
-    func stopAutoplayAudio() {
-        playbackControlService?.stopAutoplayAudio()
-    }
-
     func smoothNotationScrollTick() -> Double? {
         playbackControlService?.smoothNotationScrollTick()
     }
 
     func rebuildAutoplayTimeline() {
+        cancelAutoplayTimelineBuild()
         guard
             self.stateStore.isActiveRangeInvalid == false,
-            let pedalTimeline = self.pedalTimeline,
-            let fermataTimeline = self.fermataTimeline,
-            self.highlightGuides.isEmpty == false
+            let performancePlan = self.performancePlan
         else {
             self.autoplayTimeline = .empty
             return
         }
 
-        self.autoplayTimeline = AutoplayPerformanceTimeline.build(
-            guides: self.highlightGuides,
-            steps: self.steps,
-            pedalTimeline: pedalTimeline,
-            fermataTimeline: fermataTimeline,
-            tempoMap: self.tempoMap,
-            practiceHandMode: self.practiceHandMode,
-            activeRange: self.activeRange
-        )
+        self.autoplayTimeline = .empty
+        let generation = autoplayTimelineBuildGeneration
+        let guideProjection = self.highlightGuides
+        let stepProjection = self.steps
+        let tempoMap = self.tempoMap
+        let handMode = self.practiceHandMode
+        let activeRange = self.activeRange
+        autoplayTimelineBuildTask = Task { @MainActor [weak self] in
+            let timeline = await AutoplayPerformanceTimeline.buildOffMain(
+                plan: performancePlan,
+                guideProjection: guideProjection,
+                stepProjection: stepProjection,
+                tempoMap: tempoMap,
+                practiceHandMode: handMode,
+                activeRange: activeRange
+            )
+            guard let self,
+                  Task.isCancelled == false,
+                  self.autoplayTimelineBuildGeneration == generation
+            else { return }
+            self.autoplayTimeline = timeline
+            self.autoplayTimelineBuildTask = nil
+        }
+    }
+
+    func cancelAutoplayTimelineBuild() {
+        autoplayTimelineBuildGeneration &+= 1
+        autoplayTimelineBuildTask?.cancel()
+        autoplayTimelineBuildTask = nil
     }
 
     func startManualReplay(with plan: ManualReplayPlan) {

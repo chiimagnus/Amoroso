@@ -16,7 +16,7 @@ private final class FakeImmediatePlaybackService: PracticeSequencerPlaybackServi
         warmUpCallCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCallCount += 1
         isPlaying = false
     }
@@ -36,9 +36,8 @@ private final class FakeImmediatePlaybackService: PracticeSequencerPlaybackServi
         return loadedSequence?.durationSeconds ?? 0
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 

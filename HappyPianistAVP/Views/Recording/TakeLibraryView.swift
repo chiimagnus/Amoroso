@@ -82,7 +82,7 @@ struct TakeLibraryView: View {
                 totalDuration: totalDuration,
                 presentationViewModel: presentationViewModel,
                 onTogglePlayback: toggleCurrentPlayback,
-                onStopPlayback: { playbackViewModel.stop() },
+                onStopPlayback: { Task { await playbackViewModel.stop() } },
                 onCommitScrubbing: commitScrubbing
             )
         }
@@ -116,7 +116,7 @@ struct TakeLibraryView: View {
             titleVisibility: .visible
         ) {
             Button("清空", role: .destructive) {
-                playbackViewModel.stop()
+                Task { await playbackViewModel.stop() }
                 onClearAll()
             }
         } message: {
@@ -167,26 +167,32 @@ struct TakeLibraryView: View {
     }
 
     private func playOrPause(_ take: RecordingTake) {
-        do {
-            try playbackViewModel.playOrPause(take: take)
-        } catch {
-            presentError("播放失败：\(error.localizedDescription)")
+        Task {
+            do {
+                try await playbackViewModel.playOrPause(take: take)
+            } catch {
+                presentError("播放失败：\(error.localizedDescription)")
+            }
         }
     }
 
     private func toggleCurrentPlayback() {
-        do {
-            try playbackViewModel.toggleCurrentPlayback()
-        } catch {
-            presentError("播放失败：\(error.localizedDescription)")
+        Task {
+            do {
+                try await playbackViewModel.toggleCurrentPlayback()
+            } catch {
+                presentError("播放失败：\(error.localizedDescription)")
+            }
         }
     }
 
     private func commitScrubbing() {
-        do {
-            try playbackViewModel.commitScrubbing()
-        } catch {
-            presentError("定位播放位置失败：\(error.localizedDescription)")
+        Task {
+            do {
+                try await playbackViewModel.commitScrubbing()
+            } catch {
+                presentError("定位播放位置失败：\(error.localizedDescription)")
+            }
         }
     }
 

@@ -256,7 +256,8 @@ struct MusicXMLPedalEvent: Equatable {
     let measureNumber: Int
     let tick: Int
     let kind: MusicXMLPedalEventKind
-    let isDown: Bool?
+    var controller: MusicXMLPedalController = .damper
+    let value: MusicXMLControllerValue?
     let timeOnlyPasses: [Int]?
 }
 
@@ -417,16 +418,4 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         self.fingeringText = fingeringText
         self.dotCount = dotCount
     }
-}
-
-struct MusicXMLNoteSpan: Equatable, Identifiable {
-    var id: String {
-        "\(midiNote)-\(staff)-\(voice)-\(onTick)-\(offTick)"
-    }
-
-    let midiNote: Int
-    let staff: Int
-    let voice: Int
-    let onTick: Int
-    let offTick: Int
 }

@@ -28,7 +28,11 @@ struct LiveAppGraph {
         let parser: MusicXMLParserProtocol = MusicXMLParser()
         let stepBuilder: PracticeStepBuilderProtocol = PracticeStepBuilder()
         let practicePreparationService: PracticePreparationServiceProtocol =
-            PracticePreparationService(parser: parser, stepBuilder: stepBuilder)
+            PracticePreparationService(
+                diagnosticsReporter: diagnosticsReporter,
+                parser: parser,
+                stepBuilder: stepBuilder
+            )
         let songLibraryIndexStore = SongLibraryIndexStore()
         let songFileStore: SongFileStoreProtocol = SongFileStore()
         let audioImportService: AudioImportServiceProtocol = AudioImportService()
@@ -67,11 +71,18 @@ struct LiveAppGraph {
         }
         let makeSleeper: () -> SleeperProtocol = { TaskSleeper() }
         let makeLocalSamplerPlaybackService: () -> PracticeSequencerPlaybackServiceProtocol = {
-            AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2")
+            AVAudioSequencerPracticePlaybackService(
+                soundFontResourceName: "SalC5Light2",
+                diagnosticsReporter: diagnosticsReporter
+            )
         }
         let aiPlaybackServiceFactory = DuetAIPlaybackServiceFactory(
             makeLocalSamplerPlaybackService: {
-                AVAudioSequencerPracticePlaybackService(soundFontResourceName: "SalC5Light2", channel: 1)
+                AVAudioSequencerPracticePlaybackService(
+                    soundFontResourceName: "SalC5Light2",
+                    channel: 1,
+                    diagnosticsReporter: diagnosticsReporter
+                )
             },
             makeExternalMIDIPlaybackService: { destinationUniqueID in
                 CoreMIDIPracticePlaybackService(

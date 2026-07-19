@@ -1543,15 +1543,10 @@ private func makePracticeLaunchPreparedPractice(
     file: ImportedMusicXMLFile,
     includeMeasureSpans: Bool
 ) -> PreparedPractice {
-    PreparedPractice(
+    makeTestPreparedPractice(
         identity: PracticeSongIdentity(songID: songID, scoreRevision: songID.uuidString),
-        steps: [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])],
+        performanceNotes: [TestScorePerformanceNote(midiNote: 60, onTick: 0)],
         file: file,
-        tempoMap: MusicXMLTempoMap(tempoEvents: []),
-        pedalTimeline: nil,
-        fermataTimeline: nil,
-        attributeTimeline: nil,
-        highlightGuides: [],
         measureSpans: includeMeasureSpans ? [
             MusicXMLMeasureSpan(
                 partID: "P1",
@@ -1571,8 +1566,6 @@ private func makePracticeLaunchPreparedPractice(
                 startTick: 480,
                 endTick: 960
             ),
-        ] : [],
-        unsupportedNoteCount: 0,
-        scoreContext: makeTestPreparedPracticeScoreContext()
+        ] : []
     )
 }

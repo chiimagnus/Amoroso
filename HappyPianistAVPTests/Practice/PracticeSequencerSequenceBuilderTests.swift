@@ -14,15 +14,16 @@ func sequenceBuilderAppliesPauseBeforeSameTickAudioEvents() {
             AutoplayPerformanceTimeline.Event(id: 0, tick: 0, kind: .noteOn(midi: 60, velocity: 96)),
             AutoplayPerformanceTimeline.Event(id: 1, tick: 480, kind: .pauseSeconds(1.0)),
             AutoplayPerformanceTimeline.Event(id: 2, tick: 480, kind: .noteOff(midi: 60)),
-            AutoplayPerformanceTimeline.Event(id: 3, tick: 480, kind: .pedalUp),
-            AutoplayPerformanceTimeline.Event(id: 4, tick: 480, kind: .pedalDown),
+            AutoplayPerformanceTimeline.Event(id: 3, tick: 480, kind: .controlChange(controller: 64, value: 0)),
+            AutoplayPerformanceTimeline.Event(id: 4, tick: 480, kind: .controlChange(controller: 64, value: 127)),
             AutoplayPerformanceTimeline.Event(id: 5, tick: 480, kind: .noteOn(midi: 62, velocity: 96)),
             AutoplayPerformanceTimeline.Event(id: 6, tick: 960, kind: .noteOff(midi: 62)),
         ]
     )
 
     let builder = PracticeSequencerSequenceBuilder(midiChannel: 0)
-    let schedule = builder.buildAudioEventSchedule(timeline: timeline, tempoMap: tempoMap, startTick: 0)
+    let schedule = builder.buildPerformanceEventSchedule(timeline: timeline, tempoMap: tempoMap, startTick: 0)
+    let sequence = try? builder.buildSequence(from: schedule)
 
     #expect(schedule.map(\.kind) == [
         .noteOn(midi: 60, velocity: 96),
@@ -32,6 +33,7 @@ func sequenceBuilderAppliesPauseBeforeSameTickAudioEvents() {
         .noteOn(midi: 62, velocity: 96),
         .noteOff(midi: 62),
     ])
+    #expect(sequence?.events.map(\.kind) == schedule.map(\.kind))
 
     #expect(abs(schedule[0].timeSeconds - 0.0) < 1e-9)
 
@@ -56,7 +58,7 @@ func sequenceBuilderExportsMIDISMFData() throws {
     )
 
     let builder = PracticeSequencerSequenceBuilder(midiChannel: 0)
-    let schedule = builder.buildAudioEventSchedule(timeline: timeline, tempoMap: tempoMap, startTick: 0)
+    let schedule = builder.buildPerformanceEventSchedule(timeline: timeline, tempoMap: tempoMap, startTick: 0)
     let sequence = try builder.buildSequence(from: schedule)
 
     #expect(sequence.midiData.isEmpty == false)
@@ -64,38 +66,124 @@ func sequenceBuilderExportsMIDISMFData() throws {
 }
 
 @Test
-func sequenceBuilderInjectsInitialSustainPedalStateWhenStartingMidSong() {
+func sequenceBuilderConsumesControllerStateProjectedAtStartTick() {
     let tempoMap = MusicXMLTempoMap(
         tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: defaultTempoScope)]
     )
-    let timeline = AutoplayPerformanceTimeline(
-        events: [
-            AutoplayPerformanceTimeline.Event(id: 0, tick: 0, kind: .pedalDown),
-            AutoplayPerformanceTimeline.Event(id: 1, tick: 480, kind: .noteOn(midi: 60, velocity: 96)),
-            AutoplayPerformanceTimeline.Event(id: 2, tick: 960, kind: .noteOff(midi: 60)),
-        ]
-    )
+    let timeline = AutoplayPerformanceTimeline(events: [
+        .init(id: 0, tick: 480, kind: .controlChange(controller: 64, value: 127)),
+        .init(id: 1, tick: 480, kind: .noteOn(midi: 60, velocity: 96)),
+    ])
 
-    let builder = PracticeSequencerSequenceBuilder(midiChannel: 0)
-    let schedule = builder.buildAudioEventSchedule(
+    let schedule = PracticeSequencerSequenceBuilder().buildPerformanceEventSchedule(
         timeline: timeline,
         tempoMap: tempoMap,
-        startTick: 480,
-        initialSustainPedalDown: true
+        startTick: 480
     )
 
-    #expect(schedule.first?.kind == .controlChange(controller: 64, value: 127))
-    #expect(abs((schedule.first?.timeSeconds ?? -1) - 0.0) < 1e-9)
+    #expect(schedule.filter { $0.kind == .controlChange(controller: 64, value: 127) }.count == 1)
+}
+
+@Test
+func sequenceBuilderPreservesCanonicalPedalValuesAndReportsLocalQuantization() throws {
+    let tempoMap = MusicXMLTempoMap(
+        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: defaultTempoScope)]
+    )
+    let timeline = AutoplayPerformanceTimeline(events: [
+        .init(id: 0, sourceEventID: "off", tick: 480, kind: .noteOff(midi: 60)),
+        .init(id: 1, sourceEventID: "damper", tick: 480, kind: .controlChange(controller: 64, value: 54)),
+        .init(id: 2, sourceEventID: "sostenuto", tick: 480, kind: .controlChange(controller: 66, value: 80)),
+        .init(id: 3, sourceEventID: "soft", tick: 480, kind: .controlChange(controller: 67, value: 20)),
+        .init(id: 4, sourceEventID: "on", tick: 480, kind: .noteOn(midi: 62, velocity: 96)),
+    ])
+    let builder = PracticeSequencerSequenceBuilder(outputCapabilities: .localSampler)
+    let schedule = builder.buildPerformanceEventSchedule(
+        timeline: timeline,
+        tempoMap: tempoMap,
+        startTick: 0
+    )
+    let sequence = try builder.buildSequence(from: schedule)
+
+    #expect(sequence.events.map(\.kind) == [
+        .noteOff(midi: 60),
+        .controlChange(controller: 64, value: 54),
+        .controlChange(controller: 66, value: 80),
+        .controlChange(controller: 67, value: 20),
+        .noteOn(midi: 62, velocity: 96),
+    ])
+    #expect(sequence.outputApproximations == [
+        PerformanceOutputApproximation(controllerNumber: 64, sourceValue: 54, renderedValue: 0),
+        PerformanceOutputApproximation(controllerNumber: 66, sourceValue: 80, renderedValue: 127),
+        PerformanceOutputApproximation(controllerNumber: 67, sourceValue: 20, renderedValue: 0),
+    ])
+    #expect(PerformanceOutputCapabilities.externalMIDI.resolve(
+        controllerNumber: 64,
+        value: 54
+    ).approximation == nil)
+}
+
+@Test
+func sequenceBuilderPreservesSameTimeControllerSourceOrder() throws {
+    let schedule = [
+        PracticeSequencerMIDIEvent(
+            sourceEventID: "pedal-on",
+            timeSeconds: 0.5,
+            kind: .controlChange(controller: 64, value: 127)
+        ),
+        PracticeSequencerMIDIEvent(
+            sourceEventID: "pedal-off",
+            timeSeconds: 0.5,
+            kind: .controlChange(controller: 64, value: 0)
+        ),
+    ]
+
+    let sequence = try PracticeSequencerSequenceBuilder().buildSequence(from: schedule)
+
+    #expect(sequence.events == schedule)
+}
+
+@Test
+func sequenceBuilderKeepsPlanPauseBeforeClosingReplayBoundary() {
+    let tempoMap = MusicXMLTempoMap(
+        tempoEvents: [MusicXMLTempoEvent(tick: 0, quarterBPM: 120, scope: defaultTempoScope)]
+    )
+    let timeline = AutoplayPerformanceTimeline(events: [
+        .init(id: 0, sourceEventID: "note-1", tick: 0, kind: .noteOn(midi: 60, velocity: 96)),
+        .init(id: 1, sourceEventID: "pause-1", tick: 240, kind: .pauseSeconds(1)),
+        .init(id: 2, sourceEventID: "note-1", tick: 480, kind: .noteOff(midi: 60)),
+    ])
+
+    let schedule = PracticeSequencerSequenceBuilder().buildPerformanceEventSchedule(
+        timeline: timeline,
+        tempoMap: tempoMap,
+        startTick: 0,
+        endTick: 240
+    )
+
+    #expect(schedule.map(\.kind) == [
+        .noteOn(midi: 60, velocity: 96),
+        .noteOff(midi: 60),
+    ])
+    #expect(abs(schedule[1].timeSeconds - 1.25) < 1e-9)
+    #expect(schedule[1].sourceEventID == "note-1")
 }
 
 @Test
 func sequencerPerformanceSnapshotPreservesControllerAndTime() {
     let events = [
-        PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .controlChange(controller: 64, value: 127)),
-        PracticeSequencerMIDIEvent(timeSeconds: 0.5, kind: .noteOn(midi: 60, velocity: 80)),
+        PracticeSequencerMIDIEvent(
+            sourceEventID: "controller-1",
+            timeSeconds: 0,
+            kind: .controlChange(controller: 64, value: 127)
+        ),
+        PracticeSequencerMIDIEvent(
+            sourceEventID: "note-1",
+            timeSeconds: 0.5,
+            kind: .noteOn(midi: 60, velocity: 80)
+        ),
     ]
 
     let snapshot = PerformanceEventSnapshot().encode(events)
-    #expect(snapshot.contains("position=0|sourceEventID=unresolved|seconds=0|kind=cc:64:127"))
-    #expect(snapshot.contains("position=1|sourceEventID=unresolved|seconds=0.5|kind=noteOn:60:80"))
+    #expect(snapshot.contains("position=0|sourceEventID=controller-1|seconds=0|kind=cc:64:127"))
+    #expect(snapshot.contains("position=1|sourceEventID=note-1|seconds=0.5|kind=noteOn:60:80"))
 }

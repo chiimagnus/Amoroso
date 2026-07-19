@@ -98,7 +98,8 @@ final class ARGuideViewModel: PracticeLaunchApplying {
             },
             onMIDI2Event: { [weak ai] event in
                 ai?.recordMIDI2EventForPhraseRecordingIfNeeded(event)
-            }
+            },
+            diagnosticsReporter: diagnosticsReporter
         )
         practiceViewModel = ARGuidePracticeViewModel(
             appState: appState,
@@ -225,9 +226,8 @@ final class ARGuideViewModel: PracticeLaunchApplying {
         session.installPreparedSteps(
             prepared.steps,
             identity: prepared.identity,
-            tempoMap: prepared.tempoMap,
-            pedalTimeline: prepared.pedalTimeline,
-            fermataTimeline: prepared.fermataTimeline,
+            performancePlan: prepared.performancePlan,
+            notationProjection: prepared.notationProjection,
             attributeTimeline: prepared.attributeTimeline,
             highlightGuides: prepared.highlightGuides,
             measureSpans: prepared.measureSpans
@@ -449,7 +449,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     func playCurrentPracticeStepSound() {
-        practiceSessionViewModel.playCurrentStepSound()
+        practiceSessionViewModel.previewCurrentStepPitches()
     }
 
     func replayCurrentPracticeUnit() {
@@ -680,7 +680,6 @@ final class ARGuideViewModel: PracticeLaunchApplying {
 
     private func cleanUpPracticePresentation() {
         recordingViewModel.stop()
-        takePlaybackViewModel.stop()
         setPracticeAutoplayEnabled(false)
         hideVirtualPiano()
         setPracticeVirtualPerformerEnabled(false)
@@ -712,7 +711,7 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     func startRecording() {
-        recordingViewModel.startRecording(canRecord: canRecord)
+        Task { await recordingViewModel.startRecording(canRecord: canRecord) }
     }
 
     func stopRecording() {
@@ -728,11 +727,11 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     func deleteTake(id: UUID) {
-        recordingViewModel.deleteTake(id: id)
+        Task { await recordingViewModel.deleteTake(id: id) }
     }
 
     func clearAllTakes() {
-        recordingViewModel.clearAllTakes()
+        Task { await recordingViewModel.clearAllTakes() }
     }
 
     func makeMIDIExport(for take: RecordingTake) throws -> RecordingMIDIExport {

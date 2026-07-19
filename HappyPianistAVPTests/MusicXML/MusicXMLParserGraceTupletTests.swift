@@ -34,7 +34,8 @@ struct MusicXMLParserGraceTupletTests {
         #expect(score.notes[0].tick == 0)
         #expect(score.notes[1].tick == 0)
 
-        let steps = PracticeStepBuilder().buildSteps(from: score).steps
+        let plan = makeTestScorePerformancePlan(from: score)
+        let steps = PracticeStepBuilder().buildSteps(from: plan).steps
         #expect(steps.count == 1)
         #expect(steps.first?.notes.map(\.midiNote) == [60])
     }

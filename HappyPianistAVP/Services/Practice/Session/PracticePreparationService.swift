@@ -58,12 +58,15 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
     private let parser: MusicXMLParserProtocol
     private let stepBuilder: PracticeStepBuilderProtocol
     private let structureExpander: MusicXMLStructureExpander
+    private let diagnosticsReporter: any DiagnosticsReporting
 
     init(
+        diagnosticsReporter: any DiagnosticsReporting,
         parser: MusicXMLParserProtocol? = nil,
         stepBuilder: PracticeStepBuilderProtocol? = nil,
         structureExpander: MusicXMLStructureExpander = MusicXMLStructureExpander()
     ) {
+        self.diagnosticsReporter = diagnosticsReporter
         self.parser = parser ?? MusicXMLParser()
         self.stepBuilder = stepBuilder ?? PracticeStepBuilder()
         self.structureExpander = structureExpander
@@ -174,11 +177,6 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
 
         try Task.checkCancellation()
         let expressivityOptions = MusicXMLRealisticPlaybackDefaults.expressivityOptions
-        let buildResult = stepBuilder.buildSteps(
-            from: practiceScore,
-            expressivity: expressivityOptions,
-            handAssignments: handRouting.assignmentsBySourceNoteID
-        )
         let wordsSemantics = expressivityOptions.wordsSemanticsEnabled
             ? MusicXMLWordsSemanticsInterpreter().interpret(
                 wordsEvents: practiceScore.wordsEvents,
@@ -203,23 +201,77 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             keySignatureEvents: practiceScore.keySignatureEvents,
             clefEvents: practiceScore.clefEvents
         )
-        let noteSpans = MusicXMLNoteSpanBuilder().buildSpans(
-            from: practiceScore.notes,
+        let timingSchedule = ScoreTimingScheduleBuilder().build(
+            notes: practiceScore.notes,
             performanceTimingEnabled: MusicXMLRealisticPlaybackDefaults.performanceTimingEnabled,
+            graceEnabled: expressivityOptions.graceEnabled,
+            logicalInstruments: practiceScore.logicalInstruments,
+            arpeggiateEnabled: expressivityOptions.arpeggiateEnabled
+        )
+        let velocityResolver = MusicXMLVelocityResolver(
+            dynamicEvents: practiceScore.dynamicEvents,
+            wedgeEvents: practiceScore.wedgeEvents,
+            wedgeEnabled: expressivityOptions.wedgeEnabled
+        )
+        let identity = PracticeSongIdentity(songID: songID, scoreRevision: revision)
+        let planBuildClock = ContinuousClock()
+        let planBuildStarted = planBuildClock.now
+        let performancePlan = ScorePerformancePlanBuilder().build(
+            sourceIdentity: ScorePerformanceSourceIdentity(
+                songID: songID,
+                scoreRevision: revision,
+                logicalInstrumentID: selectedInstrument.id
+            ),
+            order: orderSelection,
+            logicalInstrument: selectedInstrument,
+            notes: practiceScore.notes,
+            timingSchedule: timingSchedule,
+            velocityResolver: velocityResolver,
             expressivity: expressivityOptions,
-            logicalInstruments: practiceScore.logicalInstruments
+            handAssignments: handRouting.assignmentsBySourceNoteID,
+            tempoMap: tempoMap,
+            pedalTimeline: pedalTimeline,
+            tempoAnnotations: wordsSemantics?.tempoAnnotations ?? [],
+            fermataTimeline: fermataTimeline
+        )
+        let planBuildDuration = planBuildStarted.duration(to: planBuildClock.now)
+        let buildResult = stepBuilder.buildSteps(from: performancePlan)
+        let notationProjection = ScoreNotationProjection(
+            plan: performancePlan,
+            sourceScore: sourceScore
         )
         let highlightGuides = PianoHighlightGuideBuilderService().buildGuides(
             input: PianoHighlightGuideBuildInput(
-                score: practiceScore,
-                steps: buildResult.steps,
-                noteSpans: noteSpans,
-                expressivity: expressivityOptions
+                plan: performancePlan,
+                sourceScore: sourceScore
             )
         )
 
         let measureSpans = practiceScore.measures.filter { $0.partID == structuralPartID }
 
+        try Task.checkCancellation()
+        let mismatchCounts = Self.projectionMismatchCounts(
+            plan: performancePlan,
+            steps: buildResult.steps,
+            highlightGuides: highlightGuides,
+            notationProjection: notationProjection
+        )
+        _ = await diagnosticsReporter.record(
+            PianoPerformancePlanBuildDiagnosticSample(
+                songID: songID,
+                scoreRevision: revision,
+                durationBucket: PianoPerformanceDurationBucket(duration: planBuildDuration),
+                noteEventCount: performancePlan.noteEvents.count,
+                tempoEventCount: performancePlan.tempoEvents.count,
+                controllerEventCount: performancePlan.controllerEvents.count,
+                annotationCount: performancePlan.annotations.count,
+                unsupportedNoteCount: buildResult.unsupportedNoteCount,
+                approximationCount: performancePlan.approximations.count,
+                stepMismatchCount: mismatchCounts.steps,
+                highlightMismatchCount: mismatchCounts.highlights,
+                notationMismatchCount: mismatchCounts.notation
+            ).diagnosticEvent
+        )
         try Task.checkCancellation()
         guard buildResult.steps.isEmpty == false else {
             throw PracticePreparationError.noPlayableNotes
@@ -228,12 +280,11 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
             throw PracticePreparationError.missingMeasureStructure
         }
         return PreparedPractice(
-            identity: PracticeSongIdentity(songID: songID, scoreRevision: revision),
+            identity: identity,
+            performancePlan: performancePlan,
+            notationProjection: notationProjection,
             steps: buildResult.steps,
             file: file,
-            tempoMap: tempoMap,
-            pedalTimeline: pedalTimeline,
-            fermataTimeline: fermataTimeline,
             attributeTimeline: attributeTimeline,
             highlightGuides: highlightGuides,
             measureSpans: measureSpans,
@@ -247,6 +298,72 @@ actor PracticePreparationService: PracticePreparationServiceProtocol {
                 handAssignments: handRouting.assignmentsBySourceNoteID
             )
         )
+    }
+
+    private struct StepProjectionIdentity: Hashable {
+        let tick: Int
+        let midiNote: Int
+        let staff: Int?
+        let voice: Int?
+    }
+
+    private struct ProjectionMismatchCounts {
+        let steps: Int
+        let highlights: Int
+        let notation: Int
+    }
+
+    private static func projectionMismatchCounts(
+        plan: ScorePerformancePlan,
+        steps: [PracticeStep],
+        highlightGuides: [PianoHighlightGuide],
+        notationProjection: ScoreNotationProjection
+    ) -> ProjectionMismatchCounts {
+        let playableEvents = plan.noteEvents.filter { (21 ... 108).contains($0.midiNote) }
+        let expectedSteps = Set(playableEvents.map {
+            StepProjectionIdentity(
+                tick: $0.performedOnTick,
+                midiNote: $0.midiNote,
+                staff: $0.staff,
+                voice: $0.voice
+            )
+        })
+        let projectedSteps = Set(steps.flatMap { step in
+            step.notes.map {
+                StepProjectionIdentity(
+                    tick: step.tick,
+                    midiNote: $0.midiNote,
+                    staff: $0.staff,
+                    voice: $0.voice
+                )
+            }
+        })
+        let expectedHighlightIDs = playableEvents.map { $0.id.description }
+        let projectedHighlightIDs = highlightGuides.flatMap(\.triggeredNotes).map(\.occurrenceID)
+        let expectedNotationIDs = Set(plan.noteEvents.map(\.id))
+        let projectedNotationIDs = Set(
+            notationProjection.performedOccurrences.flatMap(\.performanceEventIDs)
+        )
+
+        return ProjectionMismatchCounts(
+            steps: expectedSteps.symmetricDifference(projectedSteps).count,
+            highlights: cardinalityMismatchCount(
+                expected: expectedHighlightIDs,
+                projected: projectedHighlightIDs
+            ),
+            notation: expectedNotationIDs.symmetricDifference(projectedNotationIDs).count
+        )
+    }
+
+    private static func cardinalityMismatchCount<Value: Hashable>(
+        expected: [Value],
+        projected: [Value]
+    ) -> Int {
+        let expectedCounts = Dictionary(expected.map { ($0, 1) }, uniquingKeysWith: +)
+        let projectedCounts = Dictionary(projected.map { ($0, 1) }, uniquingKeysWith: +)
+        return Set(expectedCounts.keys).union(projectedCounts.keys).reduce(into: 0) { count, key in
+            count += abs(expectedCounts[key, default: 0] - projectedCounts[key, default: 0])
+        }
     }
 
     private static func fileAccessError(from error: Error) -> PracticePreparationError {

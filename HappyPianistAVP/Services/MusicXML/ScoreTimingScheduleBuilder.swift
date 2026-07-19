@@ -46,6 +46,7 @@ struct ScoreTimingScheduleBuilder {
             profile: interpretationProfile,
             entries: &entries
         )
+        // ponytail: fermata stays a single downstream pause directive; timing entries never stretch it again.
         let entryValues = entries.map(\.value)
         let ornamentSchedule = MusicXMLOrnamentScheduler().schedule(
             notes: notes,

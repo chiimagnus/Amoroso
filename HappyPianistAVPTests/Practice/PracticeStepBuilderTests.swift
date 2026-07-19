@@ -1,398 +1,196 @@
+import Foundation
 @testable import HappyPianistAVP
 import Testing
 
 @Test
-func buildStepsGroupsNotesByTickAndMergesHands() {
-    let sourceIDs = [
-        MusicXMLSourceNoteID(
-            partID: "P1", sourceMeasureIndex: 1, sourceMeasureNumberToken: "1",
-            staff: 1, voice: 1, sourceOrdinal: 0
-        ),
-        MusicXMLSourceNoteID(
-            partID: "P1", sourceMeasureIndex: 1, sourceMeasureNumberToken: "1",
-            staff: 1, voice: 1, sourceOrdinal: 1
-        ),
-        MusicXMLSourceNoteID(
-            partID: "P1", sourceMeasureIndex: 1, sourceMeasureNumberToken: "1",
-            staff: 2, voice: 2, sourceOrdinal: 2
-        ),
-        MusicXMLSourceNoteID(
-            partID: "P1", sourceMeasureIndex: 1, sourceMeasureNumberToken: "1",
-            staff: 1, voice: 1, sourceOrdinal: 3
-        ),
-    ]
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            sourceID: sourceIDs[0],
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 2,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1
-        ),
-        MusicXMLNoteEvent(
-            sourceID: sourceIDs[1],
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 2,
+func buildStepsGroupsPlanNotesByPerformedOnsetAndPreservesScoreFacts() throws {
+    let bassID = sourceNoteID(ordinal: 0, staff: 2, voice: 2)
+    let trebleID = sourceNoteID(ordinal: 1, staff: 1, voice: 1)
+    let laterID = sourceNoteID(ordinal: 2, staff: 1, voice: 1)
+    let plan = performancePlan(notes: [
+        performanceNote(
+            sourceID: trebleID,
             midiNote: 64,
-            isRest: false,
-            isChord: true,
-            tieStart: false,
-            tieStop: false,
+            performedOnTick: 120,
             staff: 1,
-            voice: 1
+            voice: 1,
+            velocity: 88,
+            handAssignment: ScoreHandAssignment(hand: .right, provenance: .score),
+            fingeringText: "2"
         ),
-        MusicXMLNoteEvent(
-            sourceID: sourceIDs[2],
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 2,
+        performanceNote(
+            sourceID: bassID,
             midiNote: 48,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
+            performedOnTick: 120,
             staff: 2,
-            voice: 2
+            voice: 2,
+            handAssignment: ScoreHandAssignment(hand: .left, provenance: .heuristic)
         ),
-        MusicXMLNoteEvent(
-            sourceID: sourceIDs[3],
-            partID: "P1",
-            measureNumber: 1,
-            tick: 2,
-            durationTicks: 2,
+        performanceNote(
+            sourceID: laterID,
             midiNote: 67,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
+            performedOnTick: 240,
             staff: 1,
-            voice: 1
+            voice: 1,
+            handAssignment: ScoreHandAssignment(hand: .right, provenance: .score)
         ),
     ])
 
-    let result = PracticeStepBuilder().buildSteps(
-        from: score,
-        expressivity: MusicXMLExpressivityOptions(),
-        handAssignments: [
-            sourceIDs[0]: ScoreHandAssignment(hand: .right, provenance: .score),
-            sourceIDs[1]: ScoreHandAssignment(hand: .right, provenance: .score),
-            sourceIDs[2]: ScoreHandAssignment(hand: .left, provenance: .score),
-            sourceIDs[3]: ScoreHandAssignment(hand: .right, provenance: .score),
-        ]
-    )
-    #expect(result.steps.count == 2)
-    #expect(result.steps[0].tick == 0)
-    #expect(result.steps[0].notes.map(\.midiNote) == [48, 60, 64])
-    #expect(result.steps[0].notes.map(\.hand) == [.left, .right, .right])
-    #expect(result.steps[1].tick == 2)
-    #expect(result.steps[1].notes.map(\.midiNote) == [67])
-    #expect(result.steps[1].notes.map(\.hand) == [.right])
+    let result = PracticeStepBuilder().buildSteps(from: plan)
+
+    #expect(result.unsupportedNoteCount == 0)
+    #expect(result.steps.map(\.tick) == [120, 240])
+    #expect(result.steps[0].notes.map(\.midiNote) == [48, 64])
+    #expect(result.steps[0].notes.map(\.hand) == [.left, .right])
+    #expect(result.steps[0].notes.map(\.sourceNoteIDs) == [[bassID], [trebleID]])
+    let treble = try #require(result.steps[0].notes.last)
+    #expect(treble.handAssignment.provenance == .score)
+    #expect(treble.velocity == 88)
+    #expect(treble.fingeringText == "2")
 }
 
 @Test
-func buildStepsFiltersRestAndOutOfRangeNotes() {
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 1,
-            midiNote: nil,
-            isRest: true,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: nil,
-            voice: nil
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 1,
-            midiNote: 10,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: nil,
-            voice: nil
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 1,
-            midiNote: 110,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: nil,
-            voice: nil
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 1,
-            durationTicks: 1,
-            midiNote: 72,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1
-        ),
+func buildStepsUsesEachPerformedOnsetAsAnInstantTarget() {
+    let plan = performancePlan(
+        notes: [
+            performanceNote(
+                sourceID: sourceNoteID(ordinal: 0),
+                midiNote: 60,
+                performedOnTick: 0,
+                performedOffTick: 480
+            ),
+            performanceNote(
+                sourceID: sourceNoteID(ordinal: 1),
+                midiNote: 64,
+                performedOnTick: 30,
+                performedOffTick: 300
+            ),
+        ],
+        controllers: [
+            ScorePerformanceControllerEvent(
+                sourceDirectionID: nil,
+                performedOccurrenceIndex: 0,
+                tick: 15,
+                controllerNumber: 64,
+                value: 127,
+                outputCapabilityRequirement: .continuousControlChange
+            ),
+        ]
+    )
+
+    let result = PracticeStepBuilder().buildSteps(from: plan)
+
+    #expect(result.steps.map(\.tick) == [0, 30])
+    #expect(result.steps.map { $0.notes.map(\.midiNote) } == [[60], [64]])
+    #expect(result.steps.flatMap(\.notes).allSatisfy { $0.onTickOffset == 0 })
+}
+
+@Test
+func buildStepsCountsAndFiltersNotesOutsidePianoRange() {
+    let plan = performancePlan(notes: [
+        performanceNote(sourceID: sourceNoteID(ordinal: 0), midiNote: 10, performedOnTick: 0),
+        performanceNote(sourceID: sourceNoteID(ordinal: 1), midiNote: 72, performedOnTick: 120),
+        performanceNote(sourceID: sourceNoteID(ordinal: 2), midiNote: 110, performedOnTick: 240),
     ])
 
-    let result = PracticeStepBuilder().buildSteps(from: score)
+    let result = PracticeStepBuilder().buildSteps(from: plan)
+
     #expect(result.unsupportedNoteCount == 2)
-    #expect(result.steps.count == 1)
-    #expect(result.steps[0].tick == 1)
+    #expect(result.steps.map(\.tick) == [120])
     #expect(result.steps[0].notes.map(\.midiNote) == [72])
 }
 
 @Test
-func buildStepsSkipsTieStopEvents() {
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 480,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            tieStart: true,
-            tieStop: false,
-            staff: 1,
-            voice: 1
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 480,
-            durationTicks: 480,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: true,
-            staff: 1,
-            voice: 1
-        ),
-    ])
-
-    let result = PracticeStepBuilder().buildSteps(from: score)
-    #expect(result.steps.count == 1)
-    #expect(result.steps[0].tick == 0)
-    #expect(result.steps[0].notes.map(\.midiNote) == [60])
-}
-
-@Test
-func buildStepsIncludesGraceNotesWhenEnabled() {
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 480,
-            durationTicks: 0,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            isGrace: true,
-            graceSlash: false,
-            graceStealTimePrevious: nil,
-            graceStealTimeFollowing: 0.25,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 480,
-            durationTicks: 480,
-            midiNote: 62,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1
-        ),
-    ])
-
-    let result = PracticeStepBuilder().buildSteps(
-        from: score,
-        expressivity: MusicXMLExpressivityOptions(graceEnabled: true)
+func buildStepsKeepsAllSourceContributorsForOnePhysicalTarget() {
+    let firstID = sourceNoteID(ordinal: 0)
+    let continuationID = sourceNoteID(ordinal: 1)
+    let note = performanceNote(
+        sourceID: firstID,
+        contributingSourceIDs: [firstID, continuationID],
+        midiNote: 60,
+        performedOnTick: 0,
+        performedOffTick: 960
     )
-    #expect(result.steps.map(\.tick) == [480])
-    #expect(result.steps[0].notes.map(\.midiNote) == [60, 62])
-    #expect(result.steps[0].notes.map(\.onTickOffset) == [0, 120])
-}
 
-@Test
-func buildStepsSetsOnTickOffsetsForArpeggiateChordWhenEnabled() {
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 480,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1,
-            arpeggiate: MusicXMLArpeggiate(numberToken: nil, directionToken: nil)
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 480,
-            midiNote: 64,
-            isRest: false,
-            isChord: true,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1,
-            arpeggiate: MusicXMLArpeggiate(numberToken: nil, directionToken: nil)
-        ),
-    ])
+    let result = PracticeStepBuilder().buildSteps(from: performancePlan(notes: [note]))
 
-    let result = PracticeStepBuilder().buildSteps(
-        from: score,
-        expressivity: MusicXMLExpressivityOptions(arpeggiateEnabled: true)
-    )
-    #expect(result.steps.count == 1)
-    #expect(result.steps[0].tick == 0)
-    #expect(result.steps[0].notes.map(\.midiNote) == [60, 64])
-    #expect(result.steps[0].notes[0].onTickOffset == 0)
-    #expect(result.steps[0].notes[1].onTickOffset == 30)
-}
-
-@Test
-func buildStepsCarriesFingeringTextIntoStepNotes() {
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 480,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1,
-            fingeringText: "1"
-        ),
-    ])
-
-    let result = PracticeStepBuilder().buildSteps(from: score)
     #expect(result.steps.count == 1)
     #expect(result.steps[0].notes.count == 1)
-    #expect(result.steps[0].notes[0].fingeringText == "1")
+    #expect(result.steps[0].notes[0].sourceNoteIDs == [firstID, continuationID])
 }
 
-@Test
-func buildStepsPreservesSameMidiAcrossStaffAndVoiceIdentities() {
-    let score = MusicXMLScore(notes: [
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 2,
-            midiNote: 60,
-            isRest: false,
-            isChord: false,
-            tieStart: false,
-            tieStop: false,
-            staff: 1,
-            voice: 1
+private func performancePlan(
+    notes: [ScorePerformanceNoteEvent],
+    controllers: [ScorePerformanceControllerEvent] = []
+) -> ScorePerformancePlan {
+    ScorePerformancePlan(
+        id: ScorePerformancePlanID(rawValue: "practice-step-test"),
+        sourceScoreIdentity: ScorePerformanceSourceIdentity(
+            songID: UUID(),
+            scoreRevision: "test",
+            logicalInstrumentID: "piano"
         ),
-        MusicXMLNoteEvent(
-            partID: "P1",
-            measureNumber: 1,
-            tick: 0,
-            durationTicks: 3,
-            midiNote: 60,
-            isRest: false,
-            isChord: true,
-            tieStart: false,
-            tieStop: false,
-            staff: 2,
-            voice: 2
-        ),
-    ])
-
-    let result = PracticeStepBuilder().buildSteps(from: score)
-
-    #expect(result.steps.count == 1)
-    #expect(result.steps[0].notes.count == 2)
-    #expect(result.steps[0].notes.map(\.midiNote) == [60, 60])
-    #expect(result.steps[0].notes.map { $0.staff ?? -1 } == [1, 2])
-    #expect(result.steps[0].notes.map { $0.voice ?? -1 } == [1, 2])
+        order: MusicXMLOrderSelection(requested: .written, applied: .written),
+        resolution: ScorePerformanceTickResolution(ticksPerQuarter: 480),
+        noteEvents: notes,
+        tempoEvents: [],
+        controllerEvents: controllers,
+        annotations: [],
+        approximations: []
+    )
 }
 
-@Test
-func stepAndSpanProjectionsShareCanonicalPerformedOnsets() {
-    let notes = [
-        MusicXMLNoteEvent(
-            partID: "P1", measureNumber: 1, tick: 480, durationTicks: 0, midiNote: 59,
-            isRest: false, isChord: false, isGrace: true,
-            graceStealTimeFollowing: 0.25,
-            tieStart: false, tieStop: false, staff: 1, voice: 1
+private func performanceNote(
+    sourceID: MusicXMLSourceNoteID,
+    contributingSourceIDs: [MusicXMLSourceNoteID]? = nil,
+    midiNote: Int,
+    performedOnTick: Int,
+    performedOffTick: Int? = nil,
+    staff: Int = 1,
+    voice: Int = 1,
+    velocity: UInt8 = 96,
+    handAssignment: ScoreHandAssignment = .unknown,
+    fingeringText: String? = nil
+) -> ScorePerformanceNoteEvent {
+    let performedID = MusicXMLPerformedNoteID(sourceID: sourceID, occurrenceIndex: 0)
+    let contributingSourceIDs = contributingSourceIDs ?? [sourceID]
+    return ScorePerformanceNoteEvent(
+        id: ScorePerformanceNoteEventID(performedNoteID: performedID, generatedOrdinal: nil),
+        sourceNoteID: sourceID,
+        performedNoteID: performedID,
+        contributingSourceNoteIDs: contributingSourceIDs,
+        contributingPerformedNoteIDs: contributingSourceIDs.map {
+            MusicXMLPerformedNoteID(sourceID: $0, occurrenceIndex: 0)
+        },
+        purpose: .source,
+        writtenOnTick: 0,
+        writtenOffTick: 480,
+        performedOnTick: performedOnTick,
+        performedOffTick: performedOffTick ?? performedOnTick + 480,
+        writtenPitch: nil,
+        midiNote: midiNote,
+        velocityResolution: ScorePerformanceVelocityResolution(
+            baseVelocity: Int(velocity),
+            curveVelocity: nil,
+            articulationDelta: 0,
+            unclampedVelocity: Int(velocity),
+            velocity: velocity
         ),
-        MusicXMLNoteEvent(
-            partID: "P1", measureNumber: 1, tick: 480, durationTicks: 480, midiNote: 60,
-            isRest: false, isChord: false,
-            tieStart: false, tieStop: false, staff: 1, voice: 1
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1", measureNumber: 1, tick: 960, durationTicks: 480, midiNote: 64,
-            isRest: false, isChord: false,
-            tieStart: false, tieStop: false, staff: 1, voice: 1,
-            arpeggiate: MusicXMLArpeggiate(numberToken: "1", directionToken: nil)
-        ),
-        MusicXMLNoteEvent(
-            partID: "P1", measureNumber: 1, tick: 960, durationTicks: 480, midiNote: 67,
-            isRest: false, isChord: true,
-            tieStart: false, tieStop: false, staff: 1, voice: 1,
-            arpeggiate: MusicXMLArpeggiate(numberToken: "1", directionToken: nil)
-        ),
-    ]
-    let score = MusicXMLScore(notes: notes)
-    let expressivity = MusicXMLExpressivityOptions(graceEnabled: true, arpeggiateEnabled: true)
-    let steps = PracticeStepBuilder().buildSteps(
-        from: score,
-        expressivity: expressivity,
-        handAssignments: [:]
-    ).steps
-    let spans = MusicXMLNoteSpanBuilder().buildSpans(from: notes, expressivity: expressivity)
-    let onsetByMIDINote = Dictionary(uniqueKeysWithValues: spans.map { ($0.midiNote, $0.onTick) })
+        staff: staff,
+        voice: voice,
+        handAssignment: handAssignment,
+        fingeringText: fingeringText,
+        timingProvenance: []
+    )
+}
 
-    for step in steps {
-        for note in step.notes {
-            #expect(onsetByMIDINote[note.midiNote] == step.tick + note.onTickOffset)
-        }
-    }
+private func sourceNoteID(ordinal: Int, staff: Int = 1, voice: Int = 1) -> MusicXMLSourceNoteID {
+    MusicXMLSourceNoteID(
+        partID: "P1",
+        sourceMeasureIndex: 0,
+        sourceMeasureNumberToken: "1",
+        staff: staff,
+        voice: voice,
+        sourceOrdinal: ordinal
+    )
 }

@@ -135,7 +135,7 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
         warmUpCallCount += 1
     }
 
-    func stop() {
+    func stop(resetCommands _: [PerformanceTransportCommand]) {
         stopCallCount += 1
     }
 
@@ -151,54 +151,16 @@ private final class FakeSequencerPlaybackService: PracticeSequencerPlaybackServi
         currentSecondsValue
     }
 
-    func playOneShot(noteOns _: [PracticeOneShotNoteOn], durationSeconds _: TimeInterval) throws {}
-    func startLiveNotes(midiNotes _: Set<Int>) throws {}
-    func stopLiveNotes(midiNotes _: Set<Int>) {}
+    func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {}
+    func execute(commands _: [PracticePlaybackCommand]) throws {}
     func stopAllLiveNotes() {}
 }
 
 @MainActor
 private final class FakePracticeSession: AIPerformancePracticeSessionProtocol {
-    var autoplayState: PracticeSessionAutoplayState = .off
-    var isManualReplayPlaying: Bool = false
-    var currentStep: PracticeStep?
-    var autoplayTimeline: AutoplayPerformanceTimeline = .empty
-    var tempoMap: MusicXMLTempoMap = .init(tempoEvents: [])
-    var pedalTimeline: MusicXMLPedalTimeline?
-    let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
-    let settingsProvider: any PracticeSessionSettingsProviderProtocol
+    let settingsProvider: any PracticeSessionSettingsProviderProtocol = FakeSettingsProvider()
 
-    private(set) var stopVirtualPianoInputCallCount = 0
-    private(set) var stopAudioRecognitionCallCount = 0
-    private(set) var prepareSuppressWindowCallCount = 0
-    private(set) var refreshAudioRecognitionCallCount = 0
-
-    init(
-        currentStep: PracticeStep?,
-        sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol,
-        settingsProvider: any PracticeSessionSettingsProviderProtocol = FakeSettingsProvider()
-    ) {
-        self.currentStep = currentStep
-        self.sequencerPlaybackService = sequencerPlaybackService
-        self.settingsProvider = settingsProvider
-    }
-
-    func stopVirtualPianoInput() {
-        stopVirtualPianoInputCallCount += 1
-    }
-
-    func stopAudioRecognition() {
-        stopAudioRecognitionCallCount += 1
-    }
-
-    func prepareAudioRecognitionSuppressWindowForPlayback() -> Date {
-        prepareSuppressWindowCallCount += 1
-        return .now
-    }
-
-    func refreshAudioRecognitionForCurrentState() {
-        refreshAudioRecognitionCallCount += 1
-    }
+    func refreshAudioRecognitionForCurrentState() {}
 }
 
 private struct FakeSettingsProvider: PracticeSessionSettingsProviderProtocol {
@@ -239,11 +201,7 @@ func enableDisableAreIdempotent() async {
         onStateChanged: { states.append($0) }
     )
 
-    let practicePlaybackService = FakeSequencerPlaybackService()
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: practicePlaybackService
-    )
+    let session = FakePracticeSession()
     service.updatePracticeSession(session)
 
     service.setEnabled(true)
@@ -291,11 +249,7 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
         onStateChanged: { states.append($0) }
     )
 
-    let playbackService = FakeSequencerPlaybackService()
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: playbackService
-    )
+    let session = FakePracticeSession()
     service.updatePracticeSession(session)
 
     service.setEnabled(true)
@@ -370,12 +324,8 @@ func shutdownPreventsFurtherEnable() async {
         onStateChanged: { _ in }
     )
 
-    let playbackService = FakeSequencerPlaybackService()
     service.updatePracticeSession(
-        FakePracticeSession(
-            currentStep: PracticeStep(tick: 0, notes: []),
-            sequencerPlaybackService: playbackService
-        )
+        FakePracticeSession()
     )
 
     service.setEnabled(true)
@@ -424,10 +374,7 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
         aiPlaybackServiceFactory: { aiPlaybackFactory },
         onStateChanged: { _ in }
     )
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: playbackService
-    )
+    let session = FakePracticeSession()
     service.updatePracticeSession(session)
 
     service.setEnabled(true)
@@ -495,10 +442,7 @@ func networkBackendRemainsSingleCandidate() async {
         aiPlaybackServiceFactory: { aiPlaybackFactory },
         onStateChanged: { _ in }
     )
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: playbackService
-    )
+    let session = FakePracticeSession()
     service.updatePracticeSession(session)
 
     service.setEnabled(true)
@@ -584,10 +528,7 @@ func localRuleCandidateSelectionPrefersHigherQualityWindow() async {
         aiPlaybackServiceFactory: { aiPlaybackFactory },
         onStateChanged: { states.append($0) }
     )
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: playbackService
-    )
+    let session = FakePracticeSession()
     service.updatePracticeSession(session)
 
     service.setEnabled(true)
@@ -679,10 +620,7 @@ func allRejectedCandidatesPreferSilenceWithRejectStatus() async {
         aiPlaybackServiceFactory: { aiPlaybackFactory },
         onStateChanged: { states.append($0) }
     )
-    let session = FakePracticeSession(
-        currentStep: PracticeStep(tick: 0, notes: []),
-        sequencerPlaybackService: playbackService
-    )
+    let session = FakePracticeSession()
     service.updatePracticeSession(session)
 
     service.setEnabled(true)

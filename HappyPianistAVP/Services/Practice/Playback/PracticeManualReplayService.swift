@@ -6,9 +6,11 @@ final class PracticeManualReplayService {
     private let sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol
     private let playbackSequenceBuilder: any PlaybackSequenceBuildingProtocol
     private let stateStore: PracticeSessionStateStore
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
     private weak var effectHandler: (any PracticeSessionEffectHandlerProtocol)?
 
     private var manualReplayTask: Task<Void, Never>?
+    private var pendingStopTask: Task<Void, Never>?
     private var hasShutdown = false
 
     init(
@@ -16,13 +18,15 @@ final class PracticeManualReplayService {
         sequencerPlaybackService: PracticeSequencerPlaybackServiceProtocol,
         playbackSequenceBuilder: any PlaybackSequenceBuildingProtocol,
         stateStore: PracticeSessionStateStore,
-        effectHandler: any PracticeSessionEffectHandlerProtocol
+        effectHandler: any PracticeSessionEffectHandlerProtocol,
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         self.sleeper = sleeper
         self.sequencerPlaybackService = sequencerPlaybackService
         self.playbackSequenceBuilder = playbackSequenceBuilder
         self.stateStore = stateStore
         self.effectHandler = effectHandler
+        self.diagnosticsReporter = diagnosticsReporter
     }
 
     func shutdown() {
@@ -33,6 +37,7 @@ final class PracticeManualReplayService {
 
     func startManualReplay(with plan: ManualReplayPlan) {
         guard stateStore.isActiveRangeInvalid == false else { return }
+        guard let performancePlan = stateStore.performancePlan else { return }
         let shouldResumeRecognitionWhenReplayEnds = stateStore.isManualReplayPlaying
             ? stateStore.shouldResumeAudioRecognitionAfterManualReplay
             : stateStore.isAudioRecognitionRunning
@@ -57,19 +62,24 @@ final class PracticeManualReplayService {
         let generation = stateStore.manualReplayGeneration
         let startIndex = effectiveStepRange.lowerBound
         let stepRangeSnapshot = effectiveStepRange
-        let stepsSnapshot = filteredStepsForPracticeHandMode(
-            stateStore.steps,
-            mode: stateStore.activeRoundConfiguration?.handMode ?? .both
-        )
+        let stepsSnapshot = stateStore.steps
         let tempoMapSnapshot = stateStore.tempoMap
+        let handModeSnapshot = stateStore.activeRoundConfiguration?.handMode ?? .both
+        let activeRangeSnapshot = stateStore.activeRange
+        let startTick = stepsSnapshot[startIndex].tick
+        let endTick = stepsSnapshot.indices.contains(stepRangeSnapshot.upperBound)
+            ? stepsSnapshot[stepRangeSnapshot.upperBound].tick
+            : stateStore.activeRange?.tickRange.upperBound
         let leadInSeconds: TimeInterval = 0.05
 
         stateStore.isManualReplayPlaying = true
         stateStore.currentStepIndex = startIndex
         setCurrentHighlightGuideForStepIndex(startIndex)
 
+        let pendingStopTask = self.pendingStopTask
         manualReplayTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            await pendingStopTask?.value
             var completedReplay = false
             defer {
                 if stateStore.manualReplayGeneration == generation {
@@ -88,8 +98,23 @@ final class PracticeManualReplayService {
                 }
             }
 
+            let timelineSnapshot = await AutoplayPerformanceTimeline.buildOffMain(
+                plan: performancePlan,
+                guideProjection: [],
+                stepProjection: [],
+                tempoMap: tempoMapSnapshot,
+                practiceHandMode: handModeSnapshot,
+                activeRange: activeRangeSnapshot,
+                transportStartTick: startTick
+            )
+            guard Task.isCancelled == false, stateStore.manualReplayGeneration == generation else { return }
+            timelineSnapshot.recordTransportDiagnostics(
+                using: diagnosticsReporter,
+                stage: "manualReplay.timeline"
+            )
+
             do {
-                try sequencerPlaybackService.warmUp()
+                try await sequencerPlaybackService.warmUp()
             } catch {
                 stateStore.recordPlaybackError(error)
                 return
@@ -99,10 +124,11 @@ final class PracticeManualReplayService {
 
             let sequence: PracticeSequencerSequence
             do {
-                sequence = try await playbackSequenceBuilder.buildManualReplaySequence(
-                    steps: stepsSnapshot,
+                sequence = try await playbackSequenceBuilder.buildPerformanceSequence(
+                    timeline: timelineSnapshot,
                     tempoMap: tempoMapSnapshot,
-                    stepRange: stepRangeSnapshot,
+                    startTick: startTick,
+                    endTick: endTick,
                     leadInSeconds: leadInSeconds
                 )
             } catch {
@@ -113,9 +139,9 @@ final class PracticeManualReplayService {
             guard Task.isCancelled == false, stateStore.manualReplayGeneration == generation else { return }
 
             do {
-                sequencerPlaybackService.stop()
-                try sequencerPlaybackService.load(sequence: sequence)
-                try sequencerPlaybackService.play(fromSeconds: 0)
+                await sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
+                try await sequencerPlaybackService.load(sequence: sequence)
+                try await sequencerPlaybackService.play(fromSeconds: 0)
             } catch {
                 stateStore.recordPlaybackError(error)
                 return
@@ -132,7 +158,7 @@ final class PracticeManualReplayService {
             while Task.isCancelled == false, stateStore.manualReplayGeneration == generation {
                 guard stateStore.isManualReplayPlaying else { break }
 
-                let nowSeconds = sequencerPlaybackService.currentSeconds()
+                let nowSeconds = await sequencerPlaybackService.currentSeconds()
 
                 if let stepIndex = cursor.advance(toSeconds: nowSeconds) {
                     stateStore.currentStepIndex = stepIndex
@@ -147,7 +173,7 @@ final class PracticeManualReplayService {
             }
 
             if Task.isCancelled == false, stateStore.manualReplayGeneration == generation {
-                sequencerPlaybackService.stop()
+                await sequencerPlaybackService.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
             }
 
             completedReplay = true
@@ -161,7 +187,13 @@ final class PracticeManualReplayService {
 
         if stateStore.isManualReplayPlaying {
             stateStore.isManualReplayPlaying = false
-            sequencerPlaybackService.stop()
+            let previousStopTask = pendingStopTask
+            pendingStopTask = Task { [sequencerPlaybackService] in
+                await previousStopTask?.value
+                await sequencerPlaybackService.stop(
+                    resetCommands: PerformanceTransportReducer.fullResetCommands
+                )
+            }
             if restoreAudioRecognition, stateStore.shouldResumeAudioRecognitionAfterManualReplay {
                 effectHandler?.handle(effect: .refreshAudioRecognition)
             }
@@ -178,15 +210,6 @@ final class PracticeManualReplayService {
         stateStore.currentHighlightGuideIndex = stateStore.strictTriggerGuideIndex(forStepIndex: stepIndex)
     }
 
-    private func filteredStepsForPracticeHandMode(_ steps: [PracticeStep], mode: PracticeHandMode) -> [PracticeStep] {
-        guard mode != .both else { return steps }
-        return steps.map { step in
-            PracticeStep(
-                tick: step.tick,
-                notes: step.notes.filter { note in mode.allows(hand: note.hand) }
-            )
-        }
-    }
 }
 
 private struct ManualReplayTimeCursor: Equatable {
