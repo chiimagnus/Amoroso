@@ -9,7 +9,7 @@ func pressDetectionReturnsEmptyWhenKeyboardGeometryIsNil() {
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: SIMD3<Float>(0.0, 0.0, 0.0))),
         keyboardGeometry: nil,
-        at: Date(timeIntervalSince1970: 0)
+        at: PerformanceMonotonicInstant(seconds: 0)
     )
     #expect(pressed.isEmpty)
 }
@@ -46,13 +46,13 @@ func pressDetectionTriggersWhenFingerCrossesWhiteKeySurfaceUsingKeyboardGeometry
     _ = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: prevWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 0)
+        at: PerformanceMonotonicInstant(seconds: 0)
     )
 
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 1)
+        at: PerformanceMonotonicInstant(seconds: 1)
     )
 
     #expect(pressed == [60])
@@ -90,13 +90,13 @@ func pressDetectionTriggersWhenFingerCrossesBlackKeySurfaceUsingKeyboardGeometry
     _ = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: prevWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 0)
+        at: PerformanceMonotonicInstant(seconds: 0)
     )
 
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 1)
+        at: PerformanceMonotonicInstant(seconds: 1)
     )
 
     #expect(pressed == [61])
@@ -145,13 +145,13 @@ func pressDetectionPrefersBlackKeyOverWhiteKeyWhenBothWouldBeHit() throws {
     _ = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: prevWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 0)
+        at: PerformanceMonotonicInstant(seconds: 0)
     )
 
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 1)
+        at: PerformanceMonotonicInstant(seconds: 1)
     )
 
     #expect(pressed == [61])
@@ -190,13 +190,13 @@ func pressDetectionUsesKeyboardLocalHitBoundsUnderYawUsingKeyboardGeometry() thr
     _ = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: prevWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 0)
+        at: PerformanceMonotonicInstant(seconds: 0)
     )
 
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 1)
+        at: PerformanceMonotonicInstant(seconds: 1)
     )
 
     #expect(pressed == [61])
@@ -234,17 +234,17 @@ func pressDetectionDoesNotReuseAStalePositionAfterAFingerDisappears() throws {
     _ = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: aboveWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 0)
+        at: PerformanceMonotonicInstant(seconds: 0)
     )
     _ = service.detectPressedNotes(
         fingerTips: .empty,
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 1)
+        at: PerformanceMonotonicInstant(seconds: 1)
     )
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: belowWorld)),
         keyboardGeometry: geometry,
-        at: Date(timeIntervalSince1970: 2)
+        at: PerformanceMonotonicInstant(seconds: 2)
     )
 
     #expect(pressed.isEmpty)

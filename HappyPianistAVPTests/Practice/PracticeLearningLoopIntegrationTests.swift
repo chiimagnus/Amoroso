@@ -156,7 +156,7 @@ private struct LearningLoopPressDetector: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: FingerTipsSnapshot,
         keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> Set<Int> {
         []
     }
@@ -167,7 +167,7 @@ private final class LearningLoopChordAccumulator: ChordAttemptAccumulatorProtoco
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
         tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         .insufficientEvidence
     }

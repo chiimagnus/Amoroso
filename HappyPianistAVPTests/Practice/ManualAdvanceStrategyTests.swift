@@ -114,14 +114,14 @@ private struct ManualAdvanceNoopPressDetectionService: PressDetectionServiceProt
     func detectPressedNotes(
         fingerTips _: FingerTipsSnapshot,
         keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> Set<Int> {
         []
     }
 }
 
 private final class ManualAdvanceNoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
-    func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], tolerance _: Int, at _: Date) -> StepAttemptMatchResult {
+    func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], tolerance _: Int, at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }
 

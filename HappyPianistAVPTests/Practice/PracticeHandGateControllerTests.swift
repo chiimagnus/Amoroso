@@ -16,7 +16,7 @@ private final class AlwaysMatchChordAttemptAccumulator: ChordAttemptAccumulatorP
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
         tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: true)
     }
@@ -48,7 +48,7 @@ func chordMatchAdvancesToNextStepViaEffect() {
 
     controller.registerChordAttemptIfNeeded(
         pressedNotes: [60],
-        at: .now,
+        at: .init(seconds: 1),
         practiceHandMode: .both
     )
 
@@ -78,7 +78,11 @@ func chordMatchDoesNotAdvanceWhileReady() {
         effectHandler: effectHandler
     )
 
-    controller.registerChordAttemptIfNeeded(pressedNotes: [60], at: .now, practiceHandMode: .both)
+    controller.registerChordAttemptIfNeeded(
+        pressedNotes: [60],
+        at: .init(seconds: 1),
+        practiceHandMode: .both
+    )
 
     #expect(effectHandler.effects.isEmpty)
 }

@@ -17,7 +17,7 @@ private final class AlwaysMatchChordAttemptAccumulator: ChordAttemptAccumulatorP
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
         tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: true)
     }
@@ -110,7 +110,7 @@ func virtualPianoPlaysLiveNotesWhenNotSuppressed() async {
     _ = controller.handleFingerTips(
         FingerTipsSnapshot.empty,
         keyboardGeometry: makeMinimalKeyboardGeometry(),
-        at: .now,
+        at: .init(seconds: 1),
         practiceHandMode: .both
     )
     await controller.waitForPendingPlayback()
@@ -151,7 +151,7 @@ func virtualPianoDoesNotPlayLiveNotesDuringAutoplay() async {
     _ = controller.handleFingerTips(
         FingerTipsSnapshot.empty,
         keyboardGeometry: makeMinimalKeyboardGeometry(),
-        at: .now,
+        at: .init(seconds: 1),
         practiceHandMode: .both
     )
     await controller.waitForPendingPlayback()

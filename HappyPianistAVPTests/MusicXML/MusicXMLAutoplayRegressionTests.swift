@@ -152,7 +152,7 @@ private struct RegressionNoopPressDetectionService: PressDetectionServiceProtoco
     func detectPressedNotes(
         fingerTips _: FingerTipsSnapshot,
         keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> Set<Int> {
         []
     }
@@ -163,7 +163,7 @@ private final class RegressionNoopChordAttemptAccumulator: ChordAttemptAccumulat
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
         tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }

@@ -48,7 +48,7 @@ func exactHitFallbackStillAdvancesStep() {
         calibration: PianoCalibration(a0: .zero, c8: SIMD3<Float>(1, 0, 0), planeHeight: 0)
     )
     viewModel.startGuidingIfReady()
-    _ = viewModel.handleFingerTipPositions(FingerTipsSnapshot.empty, at: Date())
+    _ = viewModel.handleFingerTipPositions(FingerTipsSnapshot.empty, at: .init(seconds: 1))
 
     #expect(viewModel.currentStepIndex == 1)
 }
@@ -129,7 +129,7 @@ private struct NoopPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: FingerTipsSnapshot,
         keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> Set<Int> {
         []
     }
@@ -149,7 +149,7 @@ private struct ConstantPressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips _: FingerTipsSnapshot,
         keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> Set<Int> {
         pressedNotes
     }
@@ -160,7 +160,7 @@ private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
         tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }
@@ -173,7 +173,7 @@ private final class AlwaysMatchChordAttemptAccumulator: ChordAttemptAccumulatorP
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
         tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: true)
     }

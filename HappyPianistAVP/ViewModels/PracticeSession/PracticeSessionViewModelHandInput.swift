@@ -5,7 +5,7 @@ extension PracticeSessionViewModel {
     func handleFingerTipPositions(
         _ fingerTips: FingerTipsSnapshot,
         isVirtualPiano: Bool = false,
-        at timestamp: Date = .now
+        at timestamp: PerformanceMonotonicInstant = PerformanceClock.live().now()
     ) -> Set<Int> {
         guard let keyboardGeometry = self.keyboardGeometry else { return [] }
 

@@ -56,7 +56,7 @@ final class VirtualPianoInputController {
     func handleFingerTips(
         _ fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry,
-        at timestamp: Date,
+        at timestamp: PerformanceMonotonicInstant,
         practiceHandMode: PracticeHandMode
     ) -> Set<Int> {
         let result = detector.detect(

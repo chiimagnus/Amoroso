@@ -52,7 +52,7 @@ final class PracticeHandGateController {
 
     func registerChordAttemptIfNeeded(
         pressedNotes: Set<Int>,
-        at timestamp: Date,
+        at timestamp: PerformanceMonotonicInstant,
         practiceHandMode: PracticeHandMode
     ) {
         guard pressedNotes.isEmpty == false else { return }

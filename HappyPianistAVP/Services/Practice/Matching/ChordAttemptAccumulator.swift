@@ -10,7 +10,7 @@ protocol ChordAttemptAccumulatorProtocol {
         pressedNotes: Set<Int>,
         expectedNotes: [Int],
         tolerance: Int,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult
 
     func registerHandSeparated(
@@ -18,7 +18,7 @@ protocol ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         tolerance: Int,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult
     func reset()
 }
@@ -29,7 +29,7 @@ extension ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         tolerance: Int,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         register(
             pressedNotes: pressedNotes,
@@ -61,7 +61,7 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         pressedNotes: Set<Int>,
         expectedNotes: [Int],
         tolerance: Int,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         registerHandSeparated(
             pressedNotes: pressedNotes,
@@ -69,7 +69,7 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
             expectedLeftNotes: [],
             tolerance: tolerance,
             onsetExpectation: .rolled,
-            at: PerformanceMonotonicInstant(seconds: timestamp.timeIntervalSinceReferenceDate)
+            at: timestamp
         )
     }
 
@@ -78,7 +78,7 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
         expectedRightNotes: [Int],
         expectedLeftNotes: [Int],
         tolerance: Int,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         registerHandSeparated(
             pressedNotes: pressedNotes,
@@ -86,7 +86,7 @@ final class ChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
             expectedLeftNotes: expectedLeftNotes,
             tolerance: tolerance,
             onsetExpectation: .rolled,
-            at: PerformanceMonotonicInstant(seconds: timestamp.timeIntervalSinceReferenceDate)
+            at: timestamp
         )
     }
 

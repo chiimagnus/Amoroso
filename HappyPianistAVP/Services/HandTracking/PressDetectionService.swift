@@ -5,14 +5,14 @@ protocol PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry?,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> Set<Int>
 }
 
 final class PressDetectionService: PressDetectionServiceProtocol {
     private let cooldownSeconds: TimeInterval
     private var lastFingerTips = FingerTipsSnapshot.empty
-    private var lastTriggerTimeByNote: [Int: Date] = [:]
+    private var lastTriggerTimeByNote: [Int: PerformanceMonotonicInstant] = [:]
     private var cachedGeometryID: UUID?
     private var hitTestIndex: PianoKeyHitTestIndex?
 
@@ -23,7 +23,7 @@ final class PressDetectionService: PressDetectionServiceProtocol {
     func detectPressedNotes(
         fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry?,
-        at timestamp: Date
+        at timestamp: PerformanceMonotonicInstant
     ) -> Set<Int> {
         guard let keyboardGeometry else {
             lastFingerTips = .empty
@@ -46,7 +46,7 @@ final class PressDetectionService: PressDetectionServiceProtocol {
             guard crossedPlane else { return }
 
             let isCoolingDown = lastTriggerTimeByNote[key.midiNote]
-                .map { timestamp.timeIntervalSince($0) < cooldownSeconds } ?? false
+                .map { timestamp.seconds - $0.seconds < cooldownSeconds } ?? false
             guard isCoolingDown == false else { return }
 
             pressed.insert(key.midiNote)

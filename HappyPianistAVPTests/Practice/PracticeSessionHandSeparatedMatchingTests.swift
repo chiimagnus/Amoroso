@@ -60,7 +60,7 @@ func audioAccumulatorRequiresBothHandsWhenEnabled() {
 @Test
 func chordAccumulatorRequiresBothHandsWithinSameWindow() {
     let accumulator = ChordAttemptAccumulator(windowSeconds: 1.0)
-    let t0 = Date()
+    let t0 = PerformanceMonotonicInstant(seconds: 1)
 
     let first = accumulator.registerHandSeparated(
         pressedNotes: [60],
@@ -76,7 +76,7 @@ func chordAccumulatorRequiresBothHandsWithinSameWindow() {
         expectedRightNotes: [60],
         expectedLeftNotes: [48],
         tolerance: 0,
-        at: t0.addingTimeInterval(0.1)
+        at: t0.advanced(by: 0.1)
     )
     #expect(second.isMatched)
 }
