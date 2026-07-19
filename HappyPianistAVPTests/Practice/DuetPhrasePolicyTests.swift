@@ -83,6 +83,41 @@ func duetPhrasePolicyShapeScheduleDropsHeldConflictsAndClipsHorizon() {
 }
 
 @Test
+func duetPhrasePolicyPreservesSameTimeControllerSourceOrder() {
+    let snapshot = DuetPhraseBuffer.Snapshot(
+        nowTimestampSeconds: 1,
+        promptNotes: [],
+        heldNotes: [],
+        heldNoteMIDIs: [],
+        lastUserEventTimestampSeconds: 0.9,
+        lastNoteOnTimestampSeconds: 0.9,
+        recentIOIMedianSeconds: 0.2,
+        recentVelocityTrend: 0,
+        recentNoteDensityPerSecond: 1,
+        activePitchCenter: nil
+    )
+    let shaped = DuetPhrasePolicy.shapeSchedule(
+        [
+            PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 60, velocity: 80)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.1, kind: .controlChange(controller: 64, value: 127)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.1, kind: .controlChange(controller: 64, value: 0)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.5, kind: .noteOff(midi: 60)),
+        ],
+        noteSnapshot: snapshot,
+        controlMode: .support,
+        horizonSeconds: 0.6
+    )
+
+    #expect(shaped.compactMap { event -> PracticeSequencerMIDIEvent.Kind? in
+        guard case .controlChange = event.kind else { return nil }
+        return event.kind
+    } == [
+        .controlChange(controller: 64, value: 127),
+        .controlChange(controller: 64, value: 0),
+    ])
+}
+
+@Test
 func duetPhrasePolicyShapeScheduleThinsSparseMode() {
     let snapshot = DuetPhraseBuffer.Snapshot(
         nowTimestampSeconds: 1.0,

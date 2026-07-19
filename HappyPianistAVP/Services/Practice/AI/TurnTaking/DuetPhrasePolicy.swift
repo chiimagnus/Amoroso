@@ -192,7 +192,7 @@ enum DuetPhrasePolicy {
         var noteOnIndex = 0
         var shaped: [PracticeSequencerMIDIEvent] = []
 
-        for event in schedule.sorted(by: sortEvents) {
+        for event in sortedEvents(schedule) {
             switch event.kind {
             case let .noteOn(midi, velocity):
                 guard event.timeSeconds < clippedHorizon else { continue }
@@ -275,7 +275,7 @@ enum DuetPhrasePolicy {
         }
 
         let guardedSchedule = applyQualityGuardrails(
-            to: shaped.sorted(by: sortEvents),
+            to: sortedEvents(shaped),
             noteSnapshot: noteSnapshot,
             horizonSeconds: clippedHorizon,
             controlMode: controlMode
@@ -290,7 +290,7 @@ enum DuetPhrasePolicy {
         guard schedule.isEmpty == false else { return [] }
 
         var openDepths: [Int: Int] = [:]
-        for event in schedule.sorted(by: sortEvents) {
+        for event in sortedEvents(schedule) {
             switch event.kind {
             case let .noteOn(midi, _):
                 openDepths[midi, default: 0] += 1
@@ -313,7 +313,7 @@ enum DuetPhrasePolicy {
                 )
             }
         }
-        return closed.sorted(by: sortEvents)
+        return sortedEvents(closed)
     }
 
     private static func maxMelodicLeap(_ events: [(time: TimeInterval, midi: Int)]) -> Int {
@@ -338,12 +338,18 @@ enum DuetPhrasePolicy {
         }
     }
 
-    private static func sortEvents(_ lhs: PracticeSequencerMIDIEvent, _ rhs: PracticeSequencerMIDIEvent) -> Bool {
-        if lhs.timeSeconds != rhs.timeSeconds { return lhs.timeSeconds < rhs.timeSeconds }
-        if eventPriority(lhs.kind) != eventPriority(rhs.kind) {
-            return eventPriority(lhs.kind) < eventPriority(rhs.kind)
-        }
-        return tieBreaker(lhs.kind) < tieBreaker(rhs.kind)
+    private static func sortedEvents(
+        _ events: [PracticeSequencerMIDIEvent]
+    ) -> [PracticeSequencerMIDIEvent] {
+        events.enumerated().sorted { lhs, rhs in
+            if lhs.element.timeSeconds != rhs.element.timeSeconds {
+                return lhs.element.timeSeconds < rhs.element.timeSeconds
+            }
+            if eventPriority(lhs.element.kind) != eventPriority(rhs.element.kind) {
+                return eventPriority(lhs.element.kind) < eventPriority(rhs.element.kind)
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
     }
 
     private static func eventPriority(_ kind: PracticeSequencerMIDIEvent.Kind) -> Int {
@@ -356,25 +362,6 @@ enum DuetPhrasePolicy {
             2
         case .noteOn:
             3
-        }
-    }
-
-    private static func tieBreaker(_ kind: PracticeSequencerMIDIEvent.Kind) -> Int {
-        switch kind {
-        case let .controlChange(controller, value):
-            Int(controller) * 256 + Int(value)
-        case let .noteOff(midi):
-            midi
-        case let .noteOn(midi, velocity):
-            midi * 256 + Int(velocity)
-        case let .pitchBend(value):
-            1_000_000 + Int(value)
-        case let .programChange(program):
-            2_000_000 + Int(program)
-        case let .channelPressure(value):
-            3_000_000 + Int(value)
-        case let .polyPressure(midi, value):
-            4_000_000 + midi * 256 + Int(value)
         }
     }
 
@@ -407,7 +394,7 @@ enum DuetPhrasePolicy {
         let velocityScale: Double = controlMode == .support ? 0.75 : 0.65
         var salvaged: [PracticeSequencerMIDIEvent] = []
 
-        for event in schedule.sorted(by: sortEvents) {
+        for event in sortedEvents(schedule) {
             switch event.kind {
             case let .noteOn(midi, velocity):
                 let keepThisNote = keptNoteOnCount.isMultiple(of: 2)
@@ -443,7 +430,7 @@ enum DuetPhrasePolicy {
             }
         }
 
-        return salvaged.sorted(by: sortEvents)
+        return sortedEvents(salvaged)
     }
 
     private static func maxRepeatedRunLength(_ values: [Int]) -> Int {
