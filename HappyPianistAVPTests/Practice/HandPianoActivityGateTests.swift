@@ -32,6 +32,39 @@ func nearKeyboardWithoutExactHitProducesBoostOnly() throws {
 
 @Test
 @MainActor
+func palmCrossingKeySurfaceCannotCreateContactOrActivity() throws {
+    let geometry = try makeKeyboardGeometry()
+    let palmAbove = PressDetectionService.transformPoint(
+        geometry.frame.worldFromKeyboard,
+        SIMD3<Float>(0, 0.02, -0.07)
+    )
+    let palmBelow = PressDetectionService.transformPoint(
+        geometry.frame.worldFromKeyboard,
+        SIMD3<Float>(0, -0.01, -0.07)
+    )
+    let above = FingerTipsSnapshot(right: HandTips(palm: palmAbove))
+    let below = FingerTipsSnapshot(right: HandTips(palm: palmBelow))
+
+    let virtualDetector = KeyContactDetectionService()
+    let realDetector = RealPianoContactDetectionService()
+    let gate = HandPianoActivityGate()
+    _ = gate.evaluate(fingerTips: above, keyboardGeometry: geometry, exactPressedNotes: [])
+
+    #expect(virtualDetector.detect(fingerTips: below, keyboardGeometry: geometry).down.isEmpty)
+    #expect(realDetector.detect(fingerTips: below, keyboardGeometry: geometry).down.isEmpty)
+    #expect(
+        gate.evaluate(fingerTips: below, keyboardGeometry: geometry, exactPressedNotes: [])
+            == HandGateState(
+                isNearKeyboard: false,
+                hasDownwardMotion: false,
+                exactPressedNotes: [],
+                confidenceBoost: 0
+            )
+    )
+}
+
+@Test
+@MainActor
 func exactHitFallbackStillAdvancesStep() {
     let viewModel = PracticeSessionViewModel(
         pressDetectionService: ConstantPressDetectionService(pressedNotes: [60]),
