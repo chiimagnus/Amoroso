@@ -31,7 +31,7 @@ struct PracticeStepView: View {
                 practiceHandMode: practiceHandMode,
                 scrollTickProvider: session.notationViewportTick
             )
-            .frame(height: 350)
+            .frame(minHeight: 350, maxHeight: .infinity)
 
             PianoKeyboard88View(
                 highlightByMIDINote: highlightByMIDINote,
