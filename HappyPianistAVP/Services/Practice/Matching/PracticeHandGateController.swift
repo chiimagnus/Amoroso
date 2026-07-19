@@ -41,12 +41,14 @@ final class PracticeHandGateController {
     func updateHandGateState(
         fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry,
-        exactPressedNotes: Set<Int>
+        exactPressedNotes: Set<Int>,
+        at timestamp: PerformanceMonotonicInstant
     ) {
         stateStore.handGateState = activityGate.evaluate(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: exactPressedNotes
+            exactPressedNotes: exactPressedNotes,
+            at: timestamp
         )
     }
 

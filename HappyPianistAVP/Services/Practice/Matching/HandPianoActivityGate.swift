@@ -16,23 +16,27 @@ final class HandPianoActivityGate {
     }
 
     private let nearDistance: Float
-    private let downwardThreshold: Float
-    private var lastFingerTips = FingerTipsSnapshot.empty
+    private let downwardVelocityThresholdMetersPerSecond: Float
+    private var motionEstimator = FingerMotionEstimator()
     private var cachedGeometryID: UUID?
     private var cachedBounds: KeyboardBounds?
 
-    init(nearDistance: Float = 0.06, downwardThreshold: Float = 0.004) {
+    init(
+        nearDistance: Float = 0.06,
+        downwardVelocityThresholdMetersPerSecond: Float = 0.08
+    ) {
         self.nearDistance = nearDistance
-        self.downwardThreshold = downwardThreshold
+        self.downwardVelocityThresholdMetersPerSecond = downwardVelocityThresholdMetersPerSecond
     }
 
     func evaluate(
         fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry?,
-        exactPressedNotes: Set<Int>
+        exactPressedNotes: Set<Int>,
+        at timestamp: PerformanceMonotonicInstant
     ) -> HandGateState {
         guard let keyboardGeometry else {
-            replacePreviousPositions(with: fingerTips)
+            motionEstimator.reset()
             return HandGateState(
                 isNearKeyboard: false,
                 hasDownwardMotion: false,
@@ -42,12 +46,24 @@ final class HandPianoActivityGate {
         }
 
         let keyboardFromWorld = keyboardGeometry.frame.keyboardFromWorld
+        if let cachedGeometryID, cachedGeometryID != keyboardGeometry.cacheID {
+            motionEstimator.reset()
+        }
         let bounds = bounds(for: keyboardGeometry)
         var isNearKeyboard = false
         var hasDownwardMotion = false
+        var observedFingerIDs: Set<TrackedFingerID> = []
 
         fingerTips.forEachFinger { fingerID, worldPoint in
+            observedFingerIDs.insert(fingerID)
             let localPoint = PressDetectionService.transformPoint(keyboardFromWorld, worldPoint)
+            let motion = motionEstimator.estimate(
+                fingerID: fingerID,
+                position: localPoint,
+                at: timestamp
+            )
+            guard motion.isPositionReliable else { return }
+
             if localPoint.y <= bounds.y.upperBound + nearDistance,
                localPoint.y >= bounds.y.lowerBound - nearDistance,
                bounds.x.contains(localPoint.x),
@@ -56,14 +72,14 @@ final class HandPianoActivityGate {
                 isNearKeyboard = true
             }
 
-            if let previous = lastFingerTips.position(for: fingerID) {
-                let previousLocal = PressDetectionService.transformPoint(keyboardFromWorld, previous)
-                if previousLocal.y - localPoint.y > downwardThreshold {
-                    hasDownwardMotion = true
-                }
+            if motion.hasValidMotion,
+               let normalVelocity = motion.normalVelocityMetersPerSecond,
+               normalVelocity < -downwardVelocityThresholdMetersPerSecond
+            {
+                hasDownwardMotion = true
             }
         }
-        lastFingerTips = fingerTips
+        motionEstimator.retainOnly(observedFingerIDs)
 
         let confidenceBoost: Double = if exactPressedNotes.isEmpty == false {
             0.10
@@ -84,11 +100,7 @@ final class HandPianoActivityGate {
     }
 
     func reset() {
-        lastFingerTips = .empty
-    }
-
-    private func replacePreviousPositions(with fingerTips: FingerTipsSnapshot) {
-        lastFingerTips = fingerTips
+        motionEstimator.reset()
     }
 
     private func bounds(for geometry: PianoKeyboardGeometry) -> KeyboardBounds {

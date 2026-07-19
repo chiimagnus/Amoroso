@@ -15,11 +15,13 @@ struct PianoKeyContactTracker {
     private var hitTestIndex: PianoKeyHitTestIndex?
     private var activeContacts: [TrackedFingerID: ActiveContact] = [:]
     private var retriggerAllowedAt: [TrackedFingerID: PerformanceMonotonicInstant] = [:]
+    private var motionEstimator = FingerMotionEstimator()
     private var nextSequence: UInt64 = 0
 
     mutating func reset() {
         activeContacts.removeAll(keepingCapacity: true)
         retriggerAllowedAt.removeAll(keepingCapacity: true)
+        motionEstimator.reset()
     }
 
     mutating func detect(
@@ -38,6 +40,7 @@ struct PianoKeyContactTracker {
                 retriggerDebounceSeconds: retriggerDebounceSeconds
             )
             replaceIndex(for: keyboardGeometry)
+            motionEstimator.reset()
             return ended
         }
 
@@ -45,11 +48,22 @@ struct PianoKeyContactTracker {
         let previousContacts = activeContacts
         var currentContacts: [TrackedFingerID: ActiveContact] = [:]
         var observations: [PianoKeyContactObservation] = []
+        var motionByFinger: [TrackedFingerID: FingerMotionEstimate] = [:]
+        var observedFingerIDs: Set<TrackedFingerID> = []
         currentContacts.reserveCapacity(previousContacts.count + 2)
         observations.reserveCapacity(previousContacts.count + 4)
+        motionByFinger.reserveCapacity(previousContacts.count + 2)
 
         fingerTips.forEachFinger { fingerID, worldPosition in
+            observedFingerIDs.insert(fingerID)
             let localPoint = Self.transformPoint(keyboardFromWorld, worldPosition)
+            let motion = motionEstimator.estimate(
+                fingerID: fingerID,
+                position: localPoint,
+                at: timestamp
+            )
+            motionByFinger[fingerID] = motion
+            guard motion.isPositionReliable else { return }
             guard let region = index.firstRegion(containingXZ: localPoint) else { return }
 
             let previous = previousContacts[fingerID]
@@ -92,9 +106,10 @@ struct PianoKeyContactTracker {
                     phase: phase,
                     midiNote: region.midiNote,
                     timestamp: timestamp,
-                    confidence: 1,
+                    confidence: motion.confidence,
                     worldPosition: worldPosition,
                     planeDistanceMeters: planeDistance,
+                    normalVelocityMetersPerSecond: motion.normalVelocityMetersPerSecond,
                     calibrationID: keyboardGeometry.cacheID
                 )
             )
@@ -107,12 +122,14 @@ struct PianoKeyContactTracker {
                     fingerID: fingerID,
                     fingerTips: fingerTips,
                     keyboardFromWorld: keyboardFromWorld,
+                    motion: motionByFinger[fingerID],
                     at: timestamp
                 )
             )
             retriggerAllowedAt[fingerID] = timestamp.advanced(by: max(0, retriggerDebounceSeconds))
         }
 
+        motionEstimator.retainOnly(observedFingerIDs)
         activeContacts = currentContacts
         return observations.sorted(by: Self.observationOrder)
     }
@@ -132,6 +149,7 @@ struct PianoKeyContactTracker {
                     fingerID: fingerID,
                     fingerTips: fingerTips,
                     keyboardFromWorld: nil,
+                    motion: nil,
                     at: timestamp
                 )
             )
@@ -145,6 +163,7 @@ struct PianoKeyContactTracker {
         fingerID: TrackedFingerID,
         fingerTips: FingerTipsSnapshot,
         keyboardFromWorld: simd_float4x4?,
+        motion: FingerMotionEstimate?,
         at timestamp: PerformanceMonotonicInstant
     ) -> PianoKeyContactObservation {
         let currentWorldPosition = fingerTips.position(for: fingerID)
@@ -157,9 +176,12 @@ struct PianoKeyContactTracker {
             phase: .ended,
             midiNote: previous.midiNote,
             timestamp: timestamp,
-            confidence: currentWorldPosition == nil ? 0 : 1,
+            confidence: currentWorldPosition == nil || motion?.isPositionReliable == false
+                ? 0
+                : motion?.confidence ?? 1,
             worldPosition: endedWorldPosition,
             planeDistanceMeters: planeDistance,
+            normalVelocityMetersPerSecond: motion?.normalVelocityMetersPerSecond,
             calibrationID: previous.calibrationID
         )
     }
@@ -172,6 +194,7 @@ struct PianoKeyContactTracker {
         confidence: Float,
         worldPosition: SIMD3<Float>,
         planeDistanceMeters: Float,
+        normalVelocityMetersPerSecond: Float?,
         calibrationID: UUID
     ) -> PianoKeyContactObservation {
         PianoKeyContactObservation(
@@ -182,7 +205,7 @@ struct PianoKeyContactTracker {
             confidence: confidence,
             worldPosition: worldPosition,
             planeDistanceMeters: planeDistanceMeters,
-            normalVelocityMetersPerSecond: nil,
+            normalVelocityMetersPerSecond: normalVelocityMetersPerSecond,
             calibrationID: calibrationID
         )
     }

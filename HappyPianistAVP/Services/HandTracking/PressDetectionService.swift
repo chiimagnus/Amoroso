@@ -11,7 +11,7 @@ protocol PressDetectionServiceProtocol {
 
 final class PressDetectionService: PressDetectionServiceProtocol {
     private let cooldownSeconds: TimeInterval
-    private var lastFingerTips = FingerTipsSnapshot.empty
+    private var motionEstimator = FingerMotionEstimator()
     private var lastTriggerTimeByNote: [Int: PerformanceMonotonicInstant] = [:]
     private var cachedGeometryID: UUID?
     private var hitTestIndex: PianoKeyHitTestIndex?
@@ -26,20 +26,33 @@ final class PressDetectionService: PressDetectionServiceProtocol {
         at timestamp: PerformanceMonotonicInstant
     ) -> Set<Int> {
         guard let keyboardGeometry else {
-            lastFingerTips = .empty
+            motionEstimator.reset()
+            lastTriggerTimeByNote.removeAll(keepingCapacity: true)
             return []
         }
 
+        if let cachedGeometryID, cachedGeometryID != keyboardGeometry.cacheID {
+            motionEstimator.reset()
+            lastTriggerTimeByNote.removeAll(keepingCapacity: true)
+        }
         let index = index(for: keyboardGeometry)
         let keyboardFromWorld = keyboardGeometry.frame.keyboardFromWorld
         var pressed: Set<Int> = []
+        var observedFingerIDs: Set<TrackedFingerID> = []
         pressed.reserveCapacity(4)
 
         fingerTips.forEachFinger { fingerID, currentPosition in
-            guard let previousPosition = lastFingerTips.position(for: fingerID) else { return }
-
-            let previousPoint = Self.transformPoint(keyboardFromWorld, previousPosition)
+            observedFingerIDs.insert(fingerID)
             let currentPoint = Self.transformPoint(keyboardFromWorld, currentPosition)
+            let motion = motionEstimator.estimate(
+                fingerID: fingerID,
+                position: currentPoint,
+                at: timestamp
+            )
+            guard motion.hasValidMotion,
+                  let previousPoint = motion.previousPosition,
+                  let normalVelocity = motion.normalVelocityMetersPerSecond,
+                  normalVelocity < 0 else { return }
             guard let key = index.firstRegion(containingXZ: currentPoint) else { return }
 
             let crossedPlane = previousPoint.y > key.surfaceLocalY && currentPoint.y <= key.surfaceLocalY
@@ -53,7 +66,7 @@ final class PressDetectionService: PressDetectionServiceProtocol {
             lastTriggerTimeByNote[key.midiNote] = timestamp
         }
 
-        lastFingerTips = fingerTips
+        motionEstimator.retainOnly(observedFingerIDs)
         return pressed
     }
 

@@ -93,7 +93,8 @@ final class VirtualPianoInputController {
         handGateController.updateHandGateState(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: activeMIDINotes
+            exactPressedNotes: activeMIDINotes,
+            at: timestamp
         )
 
         if startedMIDINotes.isEmpty == false {

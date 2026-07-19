@@ -33,7 +33,8 @@ extension PracticeSessionViewModel {
         handGateController?.updateHandGateState(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: detected
+            exactPressedNotes: detected,
+            at: timestamp
         )
 
         if detected.isEmpty == false {

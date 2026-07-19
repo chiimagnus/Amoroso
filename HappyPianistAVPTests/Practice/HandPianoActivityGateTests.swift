@@ -16,18 +16,70 @@ func nearKeyboardWithoutExactHitProducesBoostOnly() throws {
     _ = gate.evaluate(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: prevWorld)),
         keyboardGeometry: geometry,
-        exactPressedNotes: []
+        exactPressedNotes: [],
+        at: .init(seconds: 1)
     )
     let state = gate.evaluate(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        exactPressedNotes: []
+        exactPressedNotes: [],
+        at: .init(seconds: 1.05)
     )
 
     #expect(state.isNearKeyboard == true)
     #expect(state.hasDownwardMotion == true)
     #expect(state.exactPressedNotes.isEmpty)
     #expect(state.confidenceBoost > 0)
+}
+
+@Test
+func fingerMotionEstimatorUsesDeltaTimeAndRejectsInvalidSamples() {
+    let fingerID = TrackedFingerID(hand: .right, finger: .index)
+    var estimator = FingerMotionEstimator()
+
+    let initial = estimator.estimate(
+        fingerID: fingerID,
+        position: SIMD3<Float>(0, 0.05, 0),
+        at: .init(seconds: 1)
+    )
+    let moving = estimator.estimate(
+        fingerID: fingerID,
+        position: SIMD3<Float>(0, 0.03, 0),
+        at: .init(seconds: 1.05)
+    )
+    let accelerating = estimator.estimate(
+        fingerID: fingerID,
+        position: SIMD3<Float>(0, 0.00, 0),
+        at: .init(seconds: 1.10)
+    )
+
+    #expect(initial.status == .initializing)
+    #expect(abs((moving.normalVelocityMetersPerSecond ?? 0) + 0.4) < 0.0001)
+    #expect(abs((accelerating.normalVelocityMetersPerSecond ?? 0) + 0.6) < 0.0001)
+    #expect(abs((accelerating.normalAccelerationMetersPerSecondSquared ?? 0) + 4) < 0.001)
+
+    let stale = estimator.estimate(
+        fingerID: fingerID,
+        position: SIMD3<Float>(0, -0.01, 0),
+        at: .init(seconds: 2)
+    )
+    #expect(stale.status == .invalidInterval)
+    #expect(stale.normalVelocityMetersPerSecond == nil)
+
+    let jump = estimator.estimate(
+        fingerID: fingerID,
+        position: SIMD3<Float>(0.3, -0.01, 0),
+        at: .init(seconds: 2.05)
+    )
+    #expect(jump.status == .trackingJump)
+
+    let lowConfidence = estimator.estimate(
+        fingerID: fingerID,
+        position: .zero,
+        at: .init(seconds: 2.10),
+        confidence: 0.2
+    )
+    #expect(lowConfidence.status == .lowConfidence)
 }
 
 @Test
@@ -48,7 +100,12 @@ func palmCrossingKeySurfaceCannotCreateContactOrActivity() throws {
     let virtualDetector = KeyContactDetectionService()
     let realDetector = RealPianoContactDetectionService()
     let gate = HandPianoActivityGate()
-    _ = gate.evaluate(fingerTips: above, keyboardGeometry: geometry, exactPressedNotes: [])
+    _ = gate.evaluate(
+        fingerTips: above,
+        keyboardGeometry: geometry,
+        exactPressedNotes: [],
+        at: .init(seconds: 1)
+    )
 
     #expect(
         virtualDetector.detect(fingerTips: below, keyboardGeometry: geometry, at: .init(seconds: 1)).isEmpty
@@ -57,7 +114,12 @@ func palmCrossingKeySurfaceCannotCreateContactOrActivity() throws {
         realDetector.detect(fingerTips: below, keyboardGeometry: geometry, at: .init(seconds: 1)).isEmpty
     )
     #expect(
-        gate.evaluate(fingerTips: below, keyboardGeometry: geometry, exactPressedNotes: [])
+        gate.evaluate(
+            fingerTips: below,
+            keyboardGeometry: geometry,
+            exactPressedNotes: [],
+            at: .init(seconds: 1.05)
+        )
             == HandGateState(
                 isNearKeyboard: false,
                 hasDownwardMotion: false,

@@ -52,7 +52,7 @@ func pressDetectionTriggersWhenFingerCrossesWhiteKeySurfaceUsingKeyboardGeometry
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: PerformanceMonotonicInstant(seconds: 1)
+        at: PerformanceMonotonicInstant(seconds: 0.05)
     )
 
     #expect(pressed == [60])
@@ -96,7 +96,7 @@ func pressDetectionTriggersWhenFingerCrossesBlackKeySurfaceUsingKeyboardGeometry
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: PerformanceMonotonicInstant(seconds: 1)
+        at: PerformanceMonotonicInstant(seconds: 0.05)
     )
 
     #expect(pressed == [61])
@@ -151,7 +151,7 @@ func pressDetectionPrefersBlackKeyOverWhiteKeyWhenBothWouldBeHit() throws {
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: PerformanceMonotonicInstant(seconds: 1)
+        at: PerformanceMonotonicInstant(seconds: 0.05)
     )
 
     #expect(pressed == [61])
@@ -196,7 +196,7 @@ func pressDetectionUsesKeyboardLocalHitBoundsUnderYawUsingKeyboardGeometry() thr
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: currWorld)),
         keyboardGeometry: geometry,
-        at: PerformanceMonotonicInstant(seconds: 1)
+        at: PerformanceMonotonicInstant(seconds: 0.05)
     )
 
     #expect(pressed == [61])
@@ -239,12 +239,12 @@ func pressDetectionDoesNotReuseAStalePositionAfterAFingerDisappears() throws {
     _ = service.detectPressedNotes(
         fingerTips: .empty,
         keyboardGeometry: geometry,
-        at: PerformanceMonotonicInstant(seconds: 1)
+        at: PerformanceMonotonicInstant(seconds: 0.05)
     )
     let pressed = service.detectPressedNotes(
         fingerTips: FingerTipsSnapshot(right: HandTips(index: belowWorld)),
         keyboardGeometry: geometry,
-        at: PerformanceMonotonicInstant(seconds: 2)
+        at: PerformanceMonotonicInstant(seconds: 0.10)
     )
 
     #expect(pressed.isEmpty)

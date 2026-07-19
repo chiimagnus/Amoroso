@@ -120,6 +120,15 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             index: SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY, c4Key.hitCenterLocal.z)
         )
     )
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(
+            right: HandTips(
+                index: SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY + 0.02, c4Key.hitCenterLocal.z)
+            )
+        ),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 0.95)
+    )
     let result1 = service.detect(fingerTips: atSurface, keyboardGeometry: geometry, at: .init(seconds: 1))
     let started = try #require(result1.first)
     #expect(result1.startedMIDINotes == [60])
@@ -131,7 +140,7 @@ func keyContactDetectionStartedEndedHysteresis() throws {
     #expect(started.confidence == 1)
     #expect(started.worldPosition == atSurface.right.index)
     #expect(started.planeDistanceMeters == 0)
-    #expect(started.normalVelocityMetersPerSecond == nil)
+    #expect(abs((started.normalVelocityMetersPerSecond ?? 0) + 0.4) < 0.0001)
     #expect(started.calibrationID == geometry.cacheID)
 
     let betweenThresholds = FingerTipsSnapshot(
@@ -148,7 +157,7 @@ func keyContactDetectionStartedEndedHysteresis() throws {
     let result2 = service.detect(
         fingerTips: betweenThresholds,
         keyboardGeometry: geometry,
-        at: .init(seconds: 2)
+        at: .init(seconds: 1.05)
     )
     let held = try #require(result2.first)
     #expect(result2.activeMIDINotes == [60], "Between press/release threshold: should stay down (hysteresis)")
@@ -166,13 +175,13 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             )
         )
     )
-    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry, at: .init(seconds: 3))
+    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry, at: .init(seconds: 1.10))
     let ended = try #require(result3.first)
     #expect(result3.endedMIDINotes == [60])
     #expect(result3.activeMIDINotes.isEmpty)
     #expect(ended.phase == .ended)
     #expect(ended.id == started.id)
-    #expect(ended.timestamp == .init(seconds: 3))
+    #expect(ended.timestamp == .init(seconds: 1.10))
 }
 
 @MainActor
@@ -197,7 +206,7 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     let second = service.detect(
         fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
         keyboardGeometry: geometry,
-        at: .init(seconds: 2)
+        at: .init(seconds: 1.05)
     )
     #expect(second.activeMIDINotes == [60])
     #expect(second.first { $0.phase == .held }?.id == leftID)
@@ -206,7 +215,7 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     let released = service.detect(
         fingerTips: .empty,
         keyboardGeometry: geometry,
-        at: .init(seconds: 3)
+        at: .init(seconds: 1.10)
     )
     #expect(released.first?.phase == .ended)
     #expect(released.first?.id == leftID)
@@ -214,14 +223,14 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     let suppressedRetrigger = service.detect(
         fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
         keyboardGeometry: geometry,
-        at: .init(seconds: 3.01)
+        at: .init(seconds: 1.11)
     )
     #expect(suppressedRetrigger.isEmpty)
 
     let retriggered = service.detect(
         fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
         keyboardGeometry: geometry,
-        at: .init(seconds: 3.04)
+        at: .init(seconds: 1.14)
     )
     #expect(retriggered.first?.phase == .started)
     #expect(retriggered.first?.id != leftID)
@@ -230,7 +239,7 @@ func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
     let placementReset = service.detect(
         fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
         keyboardGeometry: replacementGeometry,
-        at: .init(seconds: 4)
+        at: .init(seconds: 1.20)
     )
     #expect(placementReset.count == 1)
     #expect(placementReset.first?.phase == .ended)
