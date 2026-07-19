@@ -27,19 +27,19 @@ struct GrandStaffNotationLayoutService {
 
     func makeLayout(
         projection: ScoreNotationProjection,
+        overlay: ScoreNotationProjection.Overlay = .empty,
         measureSpans: [MusicXMLMeasureSpan] = [],
         context: GrandStaffNotationContext? = nil,
-        tickRange: Range<Int>? = nil,
         halfWindowTicks: Int = 1920,
         scrollTick: Double? = nil
     ) -> GrandStaffNotationLayout {
         let sourceNotesByID = Dictionary(grouping: projection.sourceNotes, by: \.id)
             .compactMapValues { notes in notes.count == 1 ? notes[0] : nil }
-        let activeEventIDs = projection.activeState.occurrenceIDs
         let layoutNotes = projection.performedOccurrences.enumerated().compactMap { index, occurrence -> LayoutNote? in
-            guard tickRange?.contains(occurrence.writtenOnTick) ?? true else { return nil }
+            guard overlay.activeTickRange?.contains(occurrence.writtenOnTick) ?? true else { return nil }
             guard let source = sourceNotesByID[occurrence.sourceNoteID],
-                  source.isRest == false
+                  source.isRest == false,
+                  let midiNote = source.midiNote
             else {
                 return nil
             }
@@ -49,10 +49,10 @@ struct GrandStaffNotationLayoutService {
                 staffNumber: resolvedStaffNumber(source.staff),
                 voice: source.voice,
                 hand: occurrence.handAssignment.hand,
-                midiNote: source.midiNote ?? occurrence.midiNote,
+                midiNote: midiNote,
                 guideID: index + 1,
                 tick: occurrence.writtenOnTick,
-                isHighlighted: occurrence.performanceEventIDs.contains { activeEventIDs.contains($0) },
+                isHighlighted: occurrence.performanceEventIDs.contains { overlay.activeEventIDs.contains($0) },
                 fingeringText: source.fingeringText,
                 noteValue: noteValue(forDurationTicks: writtenDurationTicks),
                 durationTicks: writtenDurationTicks,

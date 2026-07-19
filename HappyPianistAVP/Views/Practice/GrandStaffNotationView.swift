@@ -2,10 +2,10 @@ import SwiftUI
 
 struct GrandStaffNotationView: View {
     let projection: ScoreNotationProjection
+    let overlay: ScoreNotationProjection.Overlay
     let measureSpans: [MusicXMLMeasureSpan]
     let context: GrandStaffNotationContext?
     let practiceHandMode: PracticeHandMode
-    let tickRange: Range<Int>?
     var scrollTickProvider: (() -> Double?)?
 
     private let fixedLineSpacing: CGFloat = 14
@@ -17,20 +17,20 @@ struct GrandStaffNotationView: View {
 
     init(
         projection: ScoreNotationProjection,
+        overlay: ScoreNotationProjection.Overlay = .empty,
         measureSpans: [MusicXMLMeasureSpan],
         context: GrandStaffNotationContext?,
         practiceHandMode: PracticeHandMode = .both,
-        tickRange: Range<Int>? = nil,
         scrollTickProvider: (() -> Double?)? = nil,
         layoutService: GrandStaffNotationLayoutService = GrandStaffNotationLayoutService(),
         viewportLayoutService: GrandStaffNotationViewportLayoutService = GrandStaffNotationViewportLayoutService(),
         renderer: GrandStaffNotationRenderer = GrandStaffNotationRenderer()
     ) {
         self.projection = projection
+        self.overlay = overlay
         self.measureSpans = measureSpans
         self.context = context
         self.practiceHandMode = practiceHandMode
-        self.tickRange = tickRange
         self.scrollTickProvider = scrollTickProvider
         presentationViewModel = GrandStaffNotationPresentationViewModel(
             layoutService: layoutService,
@@ -46,10 +46,10 @@ struct GrandStaffNotationView: View {
                 size: proxy.size,
                 lineSpacing: fixedLineSpacing,
                 projection: projection,
+                overlay: overlay,
                 measureSpans: measureSpans,
                 context: context,
                 practiceHandMode: practiceHandMode,
-                tickRange: tickRange,
                 scrollTick: scrollTickProvider?()
             )
             let viewportLayout = presentation.viewportLayout
@@ -100,7 +100,7 @@ struct GrandStaffNotationView: View {
 
     private var firstVisibleOccurrenceID: String? {
         projection.performedOccurrences.first {
-            tickRange?.contains($0.writtenOnTick) ?? true
+            overlay.activeTickRange?.contains($0.writtenOnTick) ?? true
         }?.id.description
     }
 

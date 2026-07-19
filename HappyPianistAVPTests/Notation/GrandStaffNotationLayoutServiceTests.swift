@@ -31,22 +31,27 @@ func layoutEmitsBarlinesForMeasureSpansStartAndEndTicks() {
 }
 
 @Test
-func notationProjectionKeepsSourceFactsOccurrenceLinksAndActiveState() throws {
+func notationProjectionKeepsSourceFactsAndOccurrenceLinksWhileOverlayStaysTransient() throws {
     let score = notationProjectionScore()
     let plan = makeTestScorePerformancePlan(from: score)
     let activeEvent = try #require(plan.noteEvents.first)
 
-    let projection = ScoreNotationProjection(
-        plan: plan,
-        sourceScore: score,
-        activeState: .init(occurrenceIDs: [activeEvent.id])
+    let projection = ScoreNotationProjection(plan: plan, sourceScore: score)
+    let overlay = ScoreNotationProjection.Overlay(
+        activeEventIDs: [activeEvent.id],
+        activeTickRange: 0 ..< 960
     )
 
     #expect(projection.sourceNotes.count == 2)
+    #expect(projection.sourceNotes.map(\.id) == score.notes.compactMap(\.sourceID))
+    #expect(projection.sourceNotes.map(\.staff) == score.notes.map { $0.staff ?? 1 })
+    #expect(projection.sourceNotes.map(\.voice) == score.notes.map { $0.voice ?? 1 })
     #expect(projection.performedOccurrences.count == 2)
     #expect(projection.performedOccurrences[0].sourceNoteID == projection.sourceNotes[0].id)
     #expect(projection.performedOccurrences[0].performanceEventIDs == [activeEvent.id])
-    #expect(projection.activeState.occurrenceIDs == [activeEvent.id])
+    #expect(overlay.activeEventIDs == [activeEvent.id])
+    #expect(overlay.activeTickRange == 0 ..< 960)
+    #expect(GrandStaffNotationLayoutService().makeLayout(projection: projection, overlay: overlay).items.count == 1)
 }
 
 @Test
@@ -54,13 +59,12 @@ func projectionLayoutUsesWrittenDurationAndAccidentalInsteadOfPerformanceOrMidi(
     let score = notationProjectionScore()
     let plan = makeTestScorePerformancePlan(from: score)
     let activeEvent = try #require(plan.noteEvents.first)
-    let projection = ScoreNotationProjection(
-        plan: plan,
-        sourceScore: score,
-        activeState: .init(occurrenceIDs: [activeEvent.id])
-    )
+    let projection = ScoreNotationProjection(plan: plan, sourceScore: score)
 
-    let layout = GrandStaffNotationLayoutService().makeLayout(projection: projection)
+    let layout = GrandStaffNotationLayoutService().makeLayout(
+        projection: projection,
+        overlay: .init(activeEventIDs: [activeEvent.id], activeTickRange: nil)
+    )
     let flat = try #require(layout.items.first { $0.midiNote == 61 })
     let sharp = try #require(layout.items.first { $0.midiNote == 60 })
 
@@ -78,17 +82,16 @@ func projectionLayoutKeepsEveryWrittenTieContributor() throws {
     let score = notationTieScore()
     let plan = makeTestScorePerformancePlan(from: score)
     let event = try #require(plan.noteEvents.first)
-    let projection = ScoreNotationProjection(
-        plan: plan,
-        sourceScore: score,
-        activeState: .init(occurrenceIDs: [event.id])
-    )
+    let projection = ScoreNotationProjection(plan: plan, sourceScore: score)
 
     #expect(plan.noteEvents.count == 1)
     #expect(projection.performedOccurrences.count == 2)
     #expect(projection.performedOccurrences.allSatisfy { $0.performanceEventIDs == [event.id] })
 
-    let items = GrandStaffNotationLayoutService().makeLayout(projection: projection).items
+    let items = GrandStaffNotationLayoutService().makeLayout(
+        projection: projection,
+        overlay: .init(activeEventIDs: [event.id], activeTickRange: nil)
+    ).items
     #expect(items.map(\.tick) == [0, 480])
     #expect(items.map(\.tieStart) == [true, false])
     #expect(items.map(\.tieStop) == [false, true])

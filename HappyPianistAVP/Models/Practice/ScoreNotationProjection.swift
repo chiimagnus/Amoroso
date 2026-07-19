@@ -26,30 +26,27 @@ struct ScoreNotationProjection: Equatable, Sendable {
         let writtenOnTick: Int
         let performedOnTick: Int
         let performedOffTick: Int
-        let midiNote: Int
         let handAssignment: ScoreHandAssignment
     }
 
-    struct ActiveState: Equatable, Sendable {
-        let occurrenceIDs: Set<ScorePerformanceNoteEventID>
+    struct Overlay: Equatable, Sendable {
+        let activeEventIDs: Set<ScorePerformanceNoteEventID>
+        let activeTickRange: Range<Int>?
 
-        static let empty = ActiveState(occurrenceIDs: [])
+        static let empty = Overlay(activeEventIDs: [], activeTickRange: nil)
     }
 
     let sourceNotes: [SourceNote]
     let performedOccurrences: [PerformedOccurrence]
-    let activeState: ActiveState
 
     static let empty = ScoreNotationProjection(
         sourceNotes: [],
-        performedOccurrences: [],
-        activeState: .empty
+        performedOccurrences: []
     )
 
     init(
         plan: ScorePerformancePlan,
-        sourceScore: MusicXMLScore,
-        activeState: ActiveState = .empty
+        sourceScore: MusicXMLScore
     ) {
         sourceNotes = sourceScore.notes.compactMap { note in
             guard let sourceID = note.sourceID else { return nil }
@@ -97,7 +94,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
                         writtenOnTick: min(existing.writtenOnTick, event.writtenOnTick + writtenOffset),
                         performedOnTick: min(existing.performedOnTick, event.performedOnTick),
                         performedOffTick: max(existing.performedOffTick, event.performedOffTick),
-                        midiNote: existing.midiNote,
                         handAssignment: existing.handAssignment
                     )
                 } else {
@@ -108,7 +104,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
                         writtenOnTick: event.writtenOnTick + writtenOffset,
                         performedOnTick: event.performedOnTick,
                         performedOffTick: event.performedOffTick,
-                        midiNote: event.midiNote,
                         handAssignment: event.handAssignment
                     )
                 }
@@ -118,24 +113,13 @@ struct ScoreNotationProjection: Equatable, Sendable {
             if lhs.writtenOnTick != rhs.writtenOnTick { return lhs.writtenOnTick < rhs.writtenOnTick }
             return lhs.id.description < rhs.id.description
         }
-        self.activeState = activeState
-    }
-
-    func activating(_ occurrenceIDs: Set<ScorePerformanceNoteEventID>) -> ScoreNotationProjection {
-        ScoreNotationProjection(
-            sourceNotes: sourceNotes,
-            performedOccurrences: performedOccurrences,
-            activeState: ActiveState(occurrenceIDs: occurrenceIDs)
-        )
     }
 
     private init(
         sourceNotes: [SourceNote],
-        performedOccurrences: [PerformedOccurrence],
-        activeState: ActiveState
+        performedOccurrences: [PerformedOccurrence]
     ) {
         self.sourceNotes = sourceNotes
         self.performedOccurrences = performedOccurrences
-        self.activeState = activeState
     }
 }

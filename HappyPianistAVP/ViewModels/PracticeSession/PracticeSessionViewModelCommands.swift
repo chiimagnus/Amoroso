@@ -25,12 +25,8 @@ extension PracticeSessionViewModel {
         return self.activeRange?.measureSpans ?? self.measureSpans
     }
 
-    var activeNotationProjection: ScoreNotationProjection? {
-        guard self.stateStore.isActiveRangeInvalid == false,
-              let notationProjection = self.notationProjection
-        else {
-            return nil
-        }
+    var activeNotationOverlay: ScoreNotationProjection.Overlay {
+        guard self.stateStore.isActiveRangeInvalid == false else { return .empty }
         let activeOccurrenceIDs = Set(
             (self.currentPianoHighlightGuide.map { $0.activeNotes + $0.triggeredNotes } ?? [])
                 .map(\.occurrenceID)
@@ -38,7 +34,10 @@ extension PracticeSessionViewModel {
         let activeEventIDs = Set(activeOccurrenceIDs.compactMap {
             self.stateStore.performanceEventIDByDescription[$0]
         })
-        return notationProjection.activating(activeEventIDs)
+        return ScoreNotationProjection.Overlay(
+            activeEventIDs: activeEventIDs,
+            activeTickRange: self.activeRange?.tickRange
+        )
     }
 
     var currentGrandStaffNotationContext: GrandStaffNotationContext? {

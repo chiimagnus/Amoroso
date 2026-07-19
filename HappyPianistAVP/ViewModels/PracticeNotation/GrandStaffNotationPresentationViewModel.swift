@@ -16,24 +16,24 @@ struct GrandStaffNotationPresentationViewModel {
         size: CGSize,
         lineSpacing: CGFloat,
         projection: ScoreNotationProjection,
+        overlay: ScoreNotationProjection.Overlay,
         measureSpans: [MusicXMLMeasureSpan],
         context: GrandStaffNotationContext?,
         practiceHandMode: PracticeHandMode,
-        tickRange: Range<Int>?,
         scrollTick: Double?
     ) -> GrandStaffNotationPresentation {
         let contentWidth = resolvedContentWidth(for: size, lineSpacing: lineSpacing)
         let halfWindowTicks = resolvedHalfWindowTicks(contentWidth: contentWidth, lineSpacing: lineSpacing)
         let staffStepBounds = resolvedStaffStepBounds(
             projection: projection,
-            tickRange: tickRange
+            activeTickRange: overlay.activeTickRange
         )
 
         let notationLayout = layoutService.makeLayout(
             projection: projection,
+            overlay: overlay,
             measureSpans: measureSpans,
             context: context,
-            tickRange: tickRange,
             halfWindowTicks: halfWindowTicks,
             scrollTick: scrollTick
         )
@@ -90,12 +90,12 @@ struct GrandStaffNotationPresentationViewModel {
 
     private func resolvedStaffStepBounds(
         projection: ScoreNotationProjection,
-        tickRange: Range<Int>?
+        activeTickRange: Range<Int>?
     ) -> GrandStaffNotationViewportLayoutService.StaffStepBounds {
         let sourceNotesByID = Dictionary(grouping: projection.sourceNotes, by: \.id)
             .compactMapValues { notes in notes.count == 1 ? notes[0] : nil }
         let occurrences = projection.performedOccurrences.filter {
-            tickRange?.contains($0.writtenOnTick) ?? true
+            activeTickRange?.contains($0.writtenOnTick) ?? true
         }
         guard occurrences.isEmpty == false else { return .default }
 
@@ -107,10 +107,8 @@ struct GrandStaffNotationPresentationViewModel {
         for occurrence in occurrences {
             guard let source = sourceNotesByID[occurrence.sourceNoteID] else { continue }
             let staffNumber = source.staff >= 2 ? 2 : 1
-            let step = layoutService.staffStep(
-                for: source.midiNote ?? occurrence.midiNote,
-                staffNumber: staffNumber
-            )
+            guard let midiNote = source.midiNote else { continue }
+            let step = layoutService.staffStep(for: midiNote, staffNumber: staffNumber)
             if staffNumber >= 2 {
                 minBassStep = min(minBassStep, step)
                 maxBassStep = max(maxBassStep, step)

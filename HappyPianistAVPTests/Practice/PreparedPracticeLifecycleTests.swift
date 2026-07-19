@@ -368,7 +368,7 @@ func sessionProjectsCurrentGuideActivityOntoAuthoritativeNotation() throws {
 
     session.startGuidingIfReady()
 
-    #expect(session.activeNotationProjection?.activeState.occurrenceIDs == [event.id])
+    #expect(session.activeNotationOverlay.activeEventIDs == [event.id])
 }
 
 @MainActor
