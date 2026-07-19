@@ -489,11 +489,11 @@ note value 读取 `ScoreNotationProjection.SourceNote.writtenDurationTicks`；st
 
 #### NOTATION-004：fingering 仅是单个文本，不足以支撑专业指法指导
 
-**严重度：P2｜证据：代码确认**
+**状态：已修复基础契约｜证据：代码确认**
 
-当前只保留有限 `fingeringText`，没有替换指、滑指、同音换指、左右手来源、多个候选、用户版本和编辑者来源。
+`MusicXMLFingering` 已保留多个指法、substitution、alternate、placement、hand、source identity，以及 score / teacher / user provenance，并以同一多值模型贯通 projection 与练习消费者。
 
-在手别真值未解决前，不应自动把该字段扩展成“专业指法纠正”。
+剩余边界：指法编辑与纠正策略尚未实现；显示层只消费这些事实，不据此改写音符或手别 identity。
 
 ### D. 演奏观察与即时判定
 

@@ -42,6 +42,15 @@ struct MusicXMLParserDelegateState {
         let placementToken: String?
     }
 
+    struct PendingFingering {
+        let sourceOrdinal: Int
+        let substitution: MusicXMLFingeringOption
+        let alternate: MusicXMLFingeringOption
+        let placementToken: String?
+        let hand: MusicXMLFingeringHand
+        var text: String?
+    }
+
     let normalizedTicksPerQuarter = 480
     let directionOffsetResolver = MusicXMLDirectionOffsetResolver(ticksPerQuarter: 480)
 
@@ -173,7 +182,8 @@ struct MusicXMLParserDelegateState {
     var currentPerformanceNotationIndexByElement: [String: Int] = [:]
     var isInNoteNotations = false
     var isInNoteOrnaments = false
-    var noteFingeringText: String?
+    var noteFingerings: [PendingFingering] = []
+    var currentFingeringIndex: Int?
     var isInTechnical = false
 
     var isInDirectionTypeMetronome = false

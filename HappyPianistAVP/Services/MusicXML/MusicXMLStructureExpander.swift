@@ -400,7 +400,7 @@ struct MusicXMLStructureExpander {
                         articulations: note.articulations,
                         arpeggiate: note.arpeggiate,
                         performanceNotations: note.performanceNotations,
-                        fingeringText: note.fingeringText
+                        fingerings: note.fingerings
                     )
                 )
             }

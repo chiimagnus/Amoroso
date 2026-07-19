@@ -98,7 +98,7 @@ private func note(sourceOrdinal: Int, midiNote: Int, staff: Int = 1) -> MusicXML
         dynamicsOverrideVelocity: nil,
         articulations: [],
         arpeggiate: nil,
-        fingeringText: nil
+        fingerings: []
     )
 }
 

@@ -113,7 +113,7 @@ struct GrandStaffNotationLayoutService {
                 guideID: occurrence.guideID,
                 tick: occurrence.tick,
                 isHighlighted: occurrence.isHighlighted,
-                fingeringText: source.fingeringText,
+                fingerings: source.fingerings,
                 chordID: MusicXMLPerformedNoteID(
                     sourceID: source.chordID,
                     occurrenceIndex: occurrence.performedID.occurrenceIndex
@@ -170,7 +170,7 @@ struct GrandStaffNotationLayoutService {
         let guideID: Int
         let tick: Int
         let isHighlighted: Bool
-        let fingeringText: String?
+        let fingerings: [MusicXMLFingering]
         let chordID: String
         let stem: MusicXMLStem
         let beams: [NotationFacts.BeamMembership]
@@ -211,7 +211,7 @@ struct GrandStaffNotationLayoutService {
                 staffStep: staffStep(for: note.writtenPitch, staffNumber: note.staffNumber),
                 displayedAccidental: note.displayedAccidental,
                 isHighlighted: note.isHighlighted,
-                fingeringText: note.fingeringText,
+                fingerings: note.fingerings,
                 noteValue: note.noteValue,
                 chordID: nil,
                 noteHeadXOffset: 0,
@@ -705,7 +705,7 @@ struct GrandStaffNotationLayoutService {
                     staffStep: item.staffStep,
                     displayedAccidental: item.displayedAccidental,
                     isHighlighted: item.isHighlighted,
-                    fingeringText: item.fingeringText,
+                    fingerings: item.fingerings,
                     noteValue: item.noteValue,
                     chordID: chordID,
                     noteHeadXOffset: item.noteHeadXOffset,
@@ -746,7 +746,7 @@ struct GrandStaffNotationLayoutService {
                             staffStep: existing.staffStep,
                             displayedAccidental: existing.displayedAccidental,
                             isHighlighted: existing.isHighlighted,
-                            fingeringText: existing.fingeringText,
+                            fingerings: existing.fingerings,
                             noteValue: existing.noteValue,
                             chordID: existing.chordID,
                             noteHeadXOffset: existing.noteHeadXOffset,
@@ -781,7 +781,7 @@ struct GrandStaffNotationLayoutService {
                         staffStep: existing.staffStep,
                         displayedAccidental: existing.displayedAccidental,
                         isHighlighted: existing.isHighlighted,
-                        fingeringText: existing.fingeringText,
+                        fingerings: existing.fingerings,
                         noteValue: existing.noteValue,
                         chordID: existing.chordID,
                         noteHeadXOffset: existing.noteHeadXOffset,

@@ -153,6 +153,29 @@ extension MusicXMLParserDelegate {
         return state.nextNoteNotationSourceOrdinal
     }
 
+    func recordFingering(attributes: [String: String]) {
+        guard state.isInNote, state.isInTechnical else { return }
+        state.noteFingerings.append(.init(
+            sourceOrdinal: nextNoteNotationSourceOrdinal(),
+            substitution: MusicXMLFingeringOption(sourceToken: attributes["substitution"]),
+            alternate: MusicXMLFingeringOption(sourceToken: attributes["alternate"]),
+            placementToken: normalizedNotationToken(attributes["placement"]),
+            hand: MusicXMLFingeringHand(sourceToken: attributes["hand"]),
+            text: nil
+        ))
+        state.currentFingeringIndex = state.noteFingerings.indices.last
+    }
+
+    func finalizeFingering(text: String) {
+        guard let index = state.currentFingeringIndex,
+              state.noteFingerings.indices.contains(index)
+        else {
+            return
+        }
+        state.noteFingerings[index].text = normalizedNotationToken(text)
+        state.currentFingeringIndex = nil
+    }
+
     func finalizePerformanceNotationText(elementName: String, text: String) {
         let rawElementToken = elementName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let index = state.currentPerformanceNotationIndexByElement.removeValue(forKey: rawElementToken),
@@ -290,6 +313,21 @@ extension MusicXMLParserDelegate {
                 attributes: pending.attributes
             )
         }
+        let fingerings = state.noteFingerings.compactMap { pending -> MusicXMLFingering? in
+            guard let text = pending.text else { return nil }
+            return MusicXMLFingering(
+                sourceID: MusicXMLFingeringSourceID(
+                    sourceNoteID: sourceID,
+                    sourceOrdinal: pending.sourceOrdinal
+                ),
+                text: text,
+                substitution: pending.substitution,
+                alternate: pending.alternate,
+                placementToken: pending.placementToken,
+                hand: pending.hand,
+                provenance: .score
+            )
+        }
 
         state.notes.append(
             MusicXMLNoteEvent(
@@ -322,7 +360,7 @@ extension MusicXMLParserDelegate {
                 articulations: state.noteArticulations,
                 arpeggiate: state.noteArpeggiate,
                 performanceNotations: performanceNotations,
-                fingeringText: state.noteFingeringText
+                fingerings: fingerings
             )
         )
 

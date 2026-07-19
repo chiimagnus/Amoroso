@@ -196,7 +196,7 @@ private extension ScorePerformancePlanBuilder {
             staff: note.staff ?? 1,
             voice: note.voice ?? 1,
             handAssignment: handAssignments[sourceNoteID] ?? .unknown,
-            fingeringText: note.fingeringText,
+            fingerings: note.fingerings,
             timingProvenance: timing.provenance.map(provenance)
         )
     }
@@ -264,7 +264,7 @@ private extension ScorePerformancePlanBuilder {
                 staff: primaryNote.staff ?? 1,
                 voice: primaryNote.voice ?? 1,
                 handAssignment: handAssignments[primarySourceID] ?? .unknown,
-                fingeringText: primaryNote.fingeringText,
+                fingerings: primaryNote.fingerings,
                 timingProvenance: [ScorePerformanceProvenance(
                     kind: .performanceNotation,
                     sourceIdentity: generated.sourceNotationID?.description,
@@ -441,7 +441,7 @@ private extension ScorePerformancePlanBuilder {
             staff: event.staff,
             voice: event.voice,
             handAssignment: event.handAssignment,
-            fingeringText: event.fingeringText,
+            fingerings: event.fingerings,
             timingProvenance: appendingUnique(event.timingProvenance, continuation.timingProvenance)
         )
     }

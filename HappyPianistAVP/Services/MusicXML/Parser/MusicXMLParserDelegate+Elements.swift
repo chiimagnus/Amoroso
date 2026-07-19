@@ -234,7 +234,8 @@ extension MusicXMLParserDelegate {
             state.currentPerformanceNotationIndexByElement = [:]
             state.isInNoteNotations = false
             state.isInNoteOrnaments = false
-            state.noteFingeringText = nil
+            state.noteFingerings = []
+            state.currentFingeringIndex = nil
             state.isInTechnical = false
         case "notations":
             if state.isInNote {
@@ -255,6 +256,8 @@ extension MusicXMLParserDelegate {
             if state.isInNote {
                 state.isInTechnical = true
             }
+        case "fingering":
+            recordFingering(attributes: attributeDict)
         case "fermata":
             if state.isInNote {
                 state.noteHasFermata = true
@@ -503,8 +506,7 @@ extension MusicXMLParserDelegate {
         case "technical" where state.isInNote:
             state.isInTechnical = false
         case "fingering" where state.isInNote && state.isInTechnical:
-            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            state.noteFingeringText = trimmed.isEmpty ? nil : trimmed
+            finalizeFingering(text: text)
         case "duration":
             if let duration = Int(text), duration >= 0 {
                 let normalizedDuration = normalizeDuration(duration)

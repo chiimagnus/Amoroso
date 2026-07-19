@@ -36,7 +36,7 @@ struct PianoHighlightGuideBuilderService {
                 velocity: event.velocity,
                 onTick: onTick,
                 offTick: offTick,
-                fingeringText: event.fingeringText,
+                fingerings: event.fingerings,
                 isGrace: event.timingProvenance.contains { $0.kind == .grace } || source?.isGrace == true,
                 tieStart: source?.startsTie ?? false,
                 tieStop: source?.stopsTie ?? false,

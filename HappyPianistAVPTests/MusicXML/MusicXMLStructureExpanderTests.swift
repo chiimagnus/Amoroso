@@ -427,7 +427,7 @@ func structureExpanderPreservesParsedNoteAndScoreFieldsWhenMaterializing() {
                 dynamicsOverrideVelocity: 88,
                 articulations: [.staccato],
                 arpeggiate: MusicXMLArpeggiate(numberToken: "1", directionToken: "up"),
-                fingeringText: "3"
+                fingerings: [MusicXMLFingering(text: "3", provenance: .score)]
             ),
             MusicXMLNoteEvent(
                 partID: "P1",
@@ -491,7 +491,7 @@ func structureExpanderPreservesParsedNoteAndScoreFieldsWhenMaterializing() {
     #expect(preserved?.dynamicsOverrideVelocity == 88)
     #expect(preserved?.articulations == [.staccato])
     #expect(preserved?.arpeggiate == MusicXMLArpeggiate(numberToken: "1", directionToken: "up"))
-    #expect(preserved?.fingeringText == "3")
+    #expect(preserved?.fingerings.map(\.text) == ["3"])
     #expect(expanded.dynamicEvents.isEmpty == false)
     #expect(expanded.wedgeEvents.isEmpty == false)
     #expect(expanded.fermataEvents.isEmpty == false)

@@ -18,7 +18,7 @@ func viewportLayoutKeepsExtremeNotesWithinCanvasBounds() {
             staffStep: staffStep,
             displayedAccidental: nil,
             isHighlighted: false,
-            fingeringText: nil,
+            fingerings: [],
             noteValue: .quarter,
             chordID: nil,
             noteHeadXOffset: 0,

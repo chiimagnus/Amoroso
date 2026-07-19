@@ -94,7 +94,7 @@ func expressivityPipelineParsesAndPlumbsKeySignalsEndToEnd() throws {
     let steps = PracticeStepBuilder().buildSteps(from: plan).steps
     #expect(steps.map(\.tick) == [0, 30])
     #expect(steps.flatMap(\.notes).map(\.midiNote) == [60, 64])
-    #expect(steps[0].notes.first(where: { $0.midiNote == 60 })?.fingeringText == "1")
+    #expect(steps[0].notes.first(where: { $0.midiNote == 60 })?.fingerings.map(\.text) == ["1"])
 
     let c4 = plan.noteEvents.first(where: { $0.midiNote == 60 })
     let e4 = plan.noteEvents.first(where: { $0.midiNote == 64 })

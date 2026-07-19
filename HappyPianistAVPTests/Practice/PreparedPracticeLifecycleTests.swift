@@ -335,7 +335,7 @@ func sessionProjectsCurrentGuideActivityOntoAuthoritativeNotation() throws {
                 velocity: event.velocity,
                 onTick: event.performedOnTick,
                 offTick: event.performedOffTick,
-                fingeringText: nil,
+                fingerings: [],
                 handAssignment: event.handAssignment
             ),
         ],

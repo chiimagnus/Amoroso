@@ -167,7 +167,7 @@ struct GrandStaffNotationItem: Equatable, Identifiable {
     let staffStep: Int
     let displayedAccidental: GrandStaffAccidental?
     let isHighlighted: Bool
-    let fingeringText: String?
+    let fingerings: [MusicXMLFingering]
     let noteValue: GrandStaffNoteValue
     let chordID: String?
     let noteHeadXOffset: Double

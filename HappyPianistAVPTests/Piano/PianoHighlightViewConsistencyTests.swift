@@ -31,7 +31,7 @@ func highlightGuide2DAnd3DUseSameMIDINoteSet() {
             velocity: 96,
             onTick: 0,
             offTick: 480,
-            fingeringText: nil,
+            fingerings: [],
             handAssignment: .unknown
         ),
         PianoHighlightNote(
@@ -42,7 +42,7 @@ func highlightGuide2DAnd3DUseSameMIDINoteSet() {
             velocity: 96,
             onTick: 0,
             offTick: 480,
-            fingeringText: nil,
+            fingerings: [],
             handAssignment: .unknown
         ),
     ]
@@ -95,7 +95,7 @@ func repeatedOccurrenceChangesBoth2DKeyViewIDAnd3DDescriptorID() {
         velocity: 96,
         onTick: 0,
         offTick: 1,
-        fingeringText: nil,
+        fingerings: [],
         handAssignment: .unknown
     )
     let geometry = makeGeometry(for: [60])

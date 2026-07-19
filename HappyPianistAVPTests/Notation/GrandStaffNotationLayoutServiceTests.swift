@@ -207,7 +207,7 @@ func projectionDeduplicatesGeneratedPerformanceEventsForOneWrittenOccurrence() t
             staff: sourceEvent.staff,
             voice: sourceEvent.voice,
             handAssignment: sourceEvent.handAssignment,
-            fingeringText: sourceEvent.fingeringText,
+            fingerings: sourceEvent.fingerings,
             timingProvenance: sourceEvent.timingProvenance
         )
     }

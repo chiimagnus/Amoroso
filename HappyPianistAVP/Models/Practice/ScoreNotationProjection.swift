@@ -66,7 +66,7 @@ struct ScoreNotationProjection: Equatable, Sendable {
         let beams: [BeamFact]
         let articulations: Set<MusicXMLArticulation>
         let arpeggiate: MusicXMLArpeggiate?
-        let fingeringText: String?
+        let fingerings: [MusicXMLFingering]
         let keySignature: KeySignatureFact?
         let meter: MusicXMLMeter?
         let clef: ClefFact?
@@ -133,7 +133,7 @@ struct ScoreNotationProjection: Equatable, Sendable {
                 beams: beamFactsBySourceID[sourceID] ?? [],
                 articulations: note.articulations,
                 arpeggiate: note.arpeggiate,
-                fingeringText: note.fingeringText,
+                fingerings: note.fingerings,
                 keySignature: Self.keySignatureFact(for: note, in: attributeTimeline),
                 meter: attributeTimeline.meter(
                     atTick: note.tick,

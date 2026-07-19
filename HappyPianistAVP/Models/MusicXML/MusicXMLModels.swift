@@ -440,7 +440,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
     let articulations: Set<MusicXMLArticulation>
     let arpeggiate: MusicXMLArpeggiate?
     let performanceNotations: [MusicXMLPerformanceNotation]
-    let fingeringText: String?
+    let fingerings: [MusicXMLFingering]
 
     var startsTie: Bool {
         ties.contains { $0.typeToken?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "start" }
@@ -480,7 +480,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         articulations: Set<MusicXMLArticulation> = [],
         arpeggiate: MusicXMLArpeggiate? = nil,
         performanceNotations: [MusicXMLPerformanceNotation] = [],
-        fingeringText: String? = nil
+        fingerings: [MusicXMLFingering] = []
     ) {
         self.sourceID = sourceID
         self.performedOccurrenceIndex = max(0, performedOccurrenceIndex)
@@ -512,7 +512,7 @@ struct MusicXMLNoteEvent: Equatable, Identifiable {
         self.articulations = articulations
         self.arpeggiate = arpeggiate
         self.performanceNotations = performanceNotations
-        self.fingeringText = fingeringText
+        self.fingerings = fingerings
     }
 }
 
