@@ -153,7 +153,9 @@ struct GrandStaffNotationLayoutService {
                     )
                 },
                 meter: source.meter,
-                noteValue: noteValue(for: source.writtenRhythm),
+                noteValue: isSupportedNotehead(source.noteheadToken)
+                    ? noteValue(for: source.writtenRhythm)
+                    : .unsupported(sourceTypeToken: source.noteheadToken),
                 durationTicks: writtenDurationTicks,
                 writtenPitch: writtenPitch,
                 clef: source.clef,
@@ -852,6 +854,11 @@ struct GrandStaffNotationLayoutService {
         case "32nd": .thirtySecond
         default: .unsupported(sourceTypeToken: sourceTypeToken)
         }
+    }
+
+    private func isSupportedNotehead(_ token: String?) -> Bool {
+        let normalized = token?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+        return normalized.isEmpty || normalized == "normal"
     }
 
     private func makeBarlineTicks(measureSpans: [MusicXMLMeasureSpan]) -> Set<Int> {

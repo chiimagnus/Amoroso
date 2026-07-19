@@ -153,6 +153,7 @@ struct MusicXMLParserDelegateState {
     var noteAccidentalToken: String?
     var noteOctave: Int?
     var noteDuration: Int?
+    var noteNoteheadToken: String?
     var noteStaff: Int?
     var noteVoice: Int?
     var noteTies: [PendingTie] = []

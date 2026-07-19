@@ -485,6 +485,71 @@ func unsupportedNotationUsesNeutralFallbacksWithoutChangingPerformanceFacts() th
 }
 
 @Test
+func parserAndProjectionPreserveUnsupportedNoteheadAndPerformanceNotationIdentity() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions></attributes>
+        <note>
+          <pitch><step>C</step><octave>4</octave></pitch>
+          <duration>1</duration><type>quarter</type><notehead>diamond</notehead>
+          <notations>
+            <ornaments><trill-mark/><mordent/></ornaments>
+            <glissando type="start" number="1">gliss.</glissando>
+            <breath-mark/>
+          </notations>
+        </note>
+      </measure></part>
+    </score-partwise>
+    """
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let sourceNote = try #require(score.notes.first)
+    let plan = makeTestScorePerformancePlan(from: score)
+    let originalEvents = plan.noteEvents
+    let projection = ScoreNotationProjection(plan: plan, sourceScore: score)
+    let projectedNote = try #require(projection.sourceNotes.first)
+    let layout = GrandStaffNotationLayoutService().makeLayout(projection: projection)
+    let item = try #require(layout.items.first)
+
+    #expect(sourceNote.noteheadToken == "diamond")
+    #expect(projectedNote.noteheadToken == "diamond")
+    #expect(projectedNote.performanceNotations.map(\.kind) == [
+        .trillMark,
+        .mordent,
+        .glissando,
+        .breathMark,
+    ])
+    #expect(projection.fallbacks.count == 5)
+    #expect(projection.fallbacks.contains {
+        $0.kind == .notehead && $0.sourceKindToken == "diamond"
+            && $0.reason == .unsupportedNoteheadToken
+            && $0.placeholderPolicy == .reserveRhythmicSpace
+    })
+    let markFallbacks = projection.fallbacks.filter { $0.reason == .unsupportedPerformanceNotation }
+    #expect(markFallbacks.count == 4)
+    #expect(Set(markFallbacks.compactMap(\.sourceNotationID)) == Set(sourceNote.performanceNotations.compactMap(\.sourceID)))
+    #expect(Set(markFallbacks.compactMap(\.sourceKindToken)) == [
+        "trill-mark",
+        "mordent",
+        "glissando",
+        "breath-mark",
+    ])
+    #expect(item.noteheadGlyphToken == nil)
+    #expect(item.xPosition.isFinite)
+    #expect(plan.noteEvents == originalEvents)
+
+    let samples = PianoPerformanceNotationFallbackDiagnosticSample.aggregated(from: projection.fallbacks)
+    #expect(Set(samples.compactMap(\.sourceKindToken)) == [
+        "diamond",
+        "trill-mark",
+        "mordent",
+        "glissando",
+        "breath-mark",
+    ])
+}
+
+@Test
 func spannersKeepNestedLevelsAndViewportContinuationSeparateByKind() throws {
     let score = notationRestAndSpannerScore()
     let layout = GrandStaffNotationLayoutService().makeLayout(

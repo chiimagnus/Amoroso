@@ -378,6 +378,7 @@ struct MusicXMLStructureExpander {
                         durationTicks: note.durationTicks,
                         writtenPitch: note.writtenPitch,
                         writtenRhythm: note.writtenRhythm,
+                        noteheadToken: note.noteheadToken,
                         midiNote: note.midiNote,
                         isRest: note.isRest,
                         isMeasureRest: note.isMeasureRest,

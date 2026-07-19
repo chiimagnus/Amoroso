@@ -208,6 +208,7 @@ extension MusicXMLParserDelegate {
             state.noteAccidentalToken = nil
             state.noteOctave = nil
             state.noteDuration = nil
+            state.noteNoteheadToken = nil
             state.noteType = nil
             state.noteDotCount = 0
             state.isInTimeModification = false
@@ -528,6 +529,9 @@ extension MusicXMLParserDelegate {
             }
         case "type" where state.isInNote:
             state.noteType = text
+        case "notehead" where state.isInNote:
+            let token = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            state.noteNoteheadToken = token.isEmpty ? nil : token
         case "actual-notes" where state.isInNote && state.isInTimeModification:
             state.noteTimeModificationActualNotes = Int(text)
         case "normal-notes" where state.isInNote && state.isInTimeModification:

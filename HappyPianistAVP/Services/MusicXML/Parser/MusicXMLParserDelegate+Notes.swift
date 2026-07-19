@@ -338,6 +338,7 @@ extension MusicXMLParserDelegate {
                 durationTicks: duration,
                 writtenPitch: writtenPitch,
                 writtenRhythm: writtenRhythm,
+                noteheadToken: state.noteNoteheadToken,
                 midiNote: midiNote,
                 isRest: state.noteIsRest,
                 isMeasureRest: state.noteIsMeasureRest,
