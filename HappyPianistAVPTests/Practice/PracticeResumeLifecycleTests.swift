@@ -48,6 +48,7 @@ func restoredPracticeStaysReadyAndSilentUntilExplicitStart() async throws {
     #expect(playback.playCount == 0)
 
     session.startGuidingIfReady()
+    await playback.waitForOneShot()
     #expect(session.state == .guiding(stepIndex: 1))
     #expect(playback.oneShotCount == 1)
 }
@@ -611,6 +612,15 @@ private actor FailingRepairRepository: PracticeProgressRepositoryProtocol {
 private final class CapturingResumePlaybackService: PracticeSequencerPlaybackServiceProtocol {
     private(set) var oneShotCount = 0
     private(set) var playCount = 0
+    private let oneShotEvents: AsyncStream<Void>
+    private let oneShotContinuation: AsyncStream<Void>.Continuation
+
+    init() {
+        (oneShotEvents, oneShotContinuation) = AsyncStream.makeStream(
+            bufferingPolicy: .bufferingNewest(1)
+        )
+    }
+
     func warmUp() throws {}
     func stop(resetCommands _: [PerformanceTransportCommand]) {}
     func load(sequence _: PracticeSequencerSequence) throws {}
@@ -624,6 +634,12 @@ private final class CapturingResumePlaybackService: PracticeSequencerPlaybackSer
 
     func playOneShot(commands _: [PracticePlaybackCommand], durationSeconds _: TimeInterval) throws {
         oneShotCount += 1
+        oneShotContinuation.yield()
+    }
+
+    func waitForOneShot() async {
+        var iterator = oneShotEvents.makeAsyncIterator()
+        _ = await iterator.next()
     }
 
     func execute(commands _: [PracticePlaybackCommand]) throws {}
