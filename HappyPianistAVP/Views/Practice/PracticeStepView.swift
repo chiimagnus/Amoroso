@@ -11,6 +11,7 @@ struct PracticeStepView: View {
     @State private var isAudioErrorAlertPresented = false
     @State private var isAutoplayErrorAlertPresented = false
     @State private var isSessionReplacementErrorAlertPresented = false
+    @State private var isRoundCompletionAlertPresented = false
     @State private var isTakeLibraryPresented = false
     @State private var isSettingsPresented = false
     @State private var practiceViewHeight: CGFloat = 640
@@ -39,23 +40,6 @@ struct PracticeStepView: View {
                 fingeringByMIDINote: fingeringByMIDINote
             )
             .aspectRatio(PianoKeyboard88View.aspectRatio, contentMode: .fit)
-
-            if session.state == .completed,
-               let summary = PracticeRoundSummaryViewModel(
-                   progress: session.sessionProgress,
-                   configuration: session.activeRoundConfiguration,
-                   passageOccurrences: session.activeRange?.measureSpans.map(\.occurrenceID) ?? [],
-                   isFullPassage: session.activeRange?.measureSpans.count == session.measureSpans.count
-               )
-            {
-                PracticeRoundSummaryView(
-                    summary: summary,
-                    onPrimaryAction: {
-                        if session.perform(summary.nextAction) == false { onPracticeFinished() }
-                    },
-                    onContinue: { onPracticeFinished() }
-                )
-            }
         }
         .containerRelativeFrame(.horizontal, count: 100, span: 95, spacing: 0)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -194,6 +178,21 @@ struct PracticeStepView: View {
         .onChange(of: session.latestFeedbackEvent) {
             viewModel.practiceFeedbackViewModel.present(session.latestFeedbackEvent)
         }
+        .onChange(of: session.state, initial: true) { _, state in
+            isRoundCompletionAlertPresented = state == .completed
+        }
+        .alert(
+            "这一轮练习完成",
+            isPresented: $isRoundCompletionAlertPresented,
+            presenting: roundSummary
+        ) { summary in
+            Button(summary.actionTitle) {
+                performRoundAction(summary.nextAction)
+            }
+            Button("返回曲库", action: onPracticeFinished)
+        } message: { summary in
+            Text(summary.detailText)
+        }
         .onChange(of: session.audioErrorMessage) {
             isAudioErrorAlertPresented = session.audioErrorMessage != nil
         }
@@ -265,6 +264,23 @@ struct PracticeStepView: View {
             get: { viewModel.aiPerformanceViewModel.isVirtualPerformerEnabled },
             set: { viewModel.setPracticeVirtualPerformerEnabled($0) }
         )
+    }
+
+    private var roundSummary: PracticeRoundSummaryViewModel? {
+        let session = viewModel.practiceSessionViewModel
+        guard session.state == .completed else { return nil }
+        return PracticeRoundSummaryViewModel(
+            progress: session.sessionProgress,
+            configuration: session.activeRoundConfiguration,
+            passageOccurrences: session.activeRange?.measureSpans.map(\.occurrenceID) ?? [],
+            isFullPassage: session.activeRange?.measureSpans.count == session.measureSpans.count
+        )
+    }
+
+    private func performRoundAction(_ action: PracticeNextAction) {
+        if viewModel.practiceSessionViewModel.perform(action) == false {
+            onPracticeFinished()
+        }
     }
 
     private var fingeringByMIDINote: [Int: String] {
