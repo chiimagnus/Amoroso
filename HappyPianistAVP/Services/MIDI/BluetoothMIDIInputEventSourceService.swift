@@ -1,4 +1,5 @@
 import CoreMIDI
+import Darwin
 import Foundation
 import os
 
@@ -22,6 +23,11 @@ enum BluetoothMIDIInputEventSourceServiceError: LocalizedError {
 final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtocol, Sendable {
     private static let streamBufferCapacity = 2048
     private static let allNotesOffController = 123
+    private static let hostTimeToSecondsScale: Double? = {
+        var timebase = mach_timebase_info_data_t()
+        guard mach_timebase_info(&timebase) == KERN_SUCCESS, timebase.denom != 0 else { return nil }
+        return Double(timebase.numer) / Double(timebase.denom) / 1_000_000_000
+    }()
 
     func midi1EventsStream() -> AsyncStream<MIDI1InputEvent> {
         midi1EventsBroadcaster.makeStream(bufferingPolicy: .bufferingNewest(Self.streamBufferCapacity))
@@ -268,13 +274,19 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
 
     fileprivate func handleUniversalMessage(
         _ message: MIDIUniversalMessage,
-        timeStamp _: MIDITimeStamp,
+        timeStamp: MIDITimeStamp,
         protocolID: MIDIProtocolID,
         srcConnRefCon: UnsafeMutableRawPointer?
     ) {
         guard stateLock.withLock({ $0.isRunning }) else { return }
         let receivedAt = Date.now
         let receivedAtUptimeSeconds = ProcessInfo.processInfo.systemUptime
+        let sourceTimestamp = Self.hostTimeToSecondsScale.flatMap { scale in
+            timeStamp == 0 ? nil : PerformanceSourceTimestamp(
+                clockID: "coremidi-host-time",
+                seconds: Double(timeStamp) * scale
+            )
+        }
         let source = sourceIdentity(from: srcConnRefCon)
         let group = Int(message.group)
 
@@ -298,7 +310,8 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                 group: group,
                 source: source,
                 receivedAt: receivedAt,
-                receivedAtUptimeSeconds: receivedAtUptimeSeconds
+                receivedAtUptimeSeconds: receivedAtUptimeSeconds,
+                sourceTimestamp: sourceTimestamp
             )
             if midi1EventsBroadcaster.yield(event) > 0 {
                 recoverMIDI1StreamAfterOverflow(
@@ -330,7 +343,8 @@ final class BluetoothMIDIInputEventSourceService: PracticeInputEventSourceProtoc
                 group: group,
                 source: source,
                 receivedAt: receivedAt,
-                receivedAtUptimeSeconds: receivedAtUptimeSeconds
+                receivedAtUptimeSeconds: receivedAtUptimeSeconds,
+                sourceTimestamp: sourceTimestamp
             )
             if midi2EventsBroadcaster.yield(event) > 0 {
                 recoverMIDI2StreamAfterOverflow(

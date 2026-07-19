@@ -1,7 +1,7 @@
 import Foundation
 
-struct MIDI2InputEvent: Equatable {
-    enum Kind: Equatable {
+struct MIDI2InputEvent: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
         case noteOn(note: Int, velocity16: UInt16)
         case noteOff(note: Int, velocity16: UInt16)
         case controlChange(controller: Int, value32: UInt32)
@@ -17,6 +17,7 @@ struct MIDI2InputEvent: Equatable {
     let source: MIDIInputSource
     let receivedAt: Date
     let receivedAtUptimeSeconds: TimeInterval
+    let sourceTimestamp: PerformanceSourceTimestamp?
 
     init(
         kind: Kind,
@@ -24,7 +25,8 @@ struct MIDI2InputEvent: Equatable {
         group: Int,
         source: MIDIInputSource,
         receivedAt: Date,
-        receivedAtUptimeSeconds: TimeInterval
+        receivedAtUptimeSeconds: TimeInterval,
+        sourceTimestamp: PerformanceSourceTimestamp? = nil
     ) {
         self.kind = Self.clamp(kind)
         self.channel = Self.clamp(channel, min: 1, max: 16)
@@ -32,6 +34,7 @@ struct MIDI2InputEvent: Equatable {
         self.source = source
         self.receivedAt = receivedAt
         self.receivedAtUptimeSeconds = max(0, receivedAtUptimeSeconds)
+        self.sourceTimestamp = sourceTimestamp
     }
 
     private static func clamp(_ kind: Kind) -> Kind {

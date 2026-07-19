@@ -39,6 +39,23 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
             let clamped = UInt32(max(0, min(127, value)))
             self.rawValue = clamped * (UInt32.max / 127) + clamped * (UInt32.max % 127) / 127
         }
+
+        init(midi2 value: UInt16) {
+            self.rawValue = UInt32(value) * 65_537
+        }
+
+        init(midi14 value: Int) {
+            let clamped = UInt32(max(0, min(16_383, value)))
+            self.rawValue = clamped * (UInt32.max / 16_383) + clamped * (UInt32.max % 16_383) / 16_383
+        }
+    }
+
+    enum Controller: Codable, Equatable, Sendable {
+        case controlChange(number: Int, value: NormalizedValue)
+        case pitchBend(value: NormalizedValue)
+        case programChange(program: Int)
+        case channelPressure(value: NormalizedValue)
+        case polyPressure(note: Int, value: NormalizedValue)
     }
 
     enum ContactPhase: String, Codable, Sendable {
@@ -50,7 +67,7 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
     enum Event: Codable, Equatable, Sendable {
         case noteOn(note: Int, velocity: NormalizedValue?)
         case noteOff(note: Int, releaseVelocity: NormalizedValue?)
-        case controller(number: Int, value: NormalizedValue)
+        case controller(Controller)
         case contact(id: String, keyCandidate: Int?, phase: ContactPhase)
         case targetAudioDetection(targetMIDINotes: [Int], isDetected: Bool)
     }

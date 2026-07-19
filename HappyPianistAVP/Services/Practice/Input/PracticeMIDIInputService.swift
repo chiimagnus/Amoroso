@@ -18,6 +18,7 @@ final class PracticeMIDIInputService {
 
     private var midi1EventsTask: Task<Void, Never>?
     private var midi2EventsTask: Task<Void, Never>?
+    private var observationAdapter = MIDIPerformanceObservationAdapter()
     private var hasShutdown = false
 
     init(
@@ -147,34 +148,29 @@ final class PracticeMIDIInputService {
     }
 
     private func handleMIDI1(_ event: MIDI1InputEvent) {
-        guard stateStore.isPracticeInputRunning else { return }
-        guard let snapshot = latestSnapshot else { return }
-        guard snapshot.autoplayState == .off else { return }
-        guard snapshot.isManualReplayPlaying == false else { return }
-        guard case .guiding = snapshot.practiceState else { return }
-        guard snapshot.expectedNotes.isEmpty == false else { return }
-
-        if let since = stateStore.practiceInputActiveSinceUptimeSeconds, event.receivedAtUptimeSeconds < since {
-            return
-        }
-
-        switch event.kind {
-        case let .noteOn(note, _):
-            let matchResult = matcher.registerNoteOn(note: note, at: event.receivedAt)
-            effectHandler?.handle(effect: .attemptEvaluated(matchResult))
-            if matchResult.isMatched {
-                effectHandler?.handle(effect: .advanceToNextStep)
-            }
-        case let .noteOff(note, _):
-            matcher.registerNoteOff(note: note, at: event.receivedAt)
-        case let .controlChange(controller, _) where controller == 120 || controller == 123:
-            resetMatcherAfterInputDiscontinuity(at: event.receivedAt)
-        default:
-            break
-        }
+        handle(
+            observationAdapter.observation(
+                for: event,
+                generation: UInt64(max(0, stateStore.practiceInputGeneration))
+            ),
+            projectedWallTimestamp: event.receivedAt
+        )
     }
 
     private func handleMIDI2(_ event: MIDI2InputEvent) {
+        handle(
+            observationAdapter.observation(
+                for: event,
+                generation: UInt64(max(0, stateStore.practiceInputGeneration))
+            ),
+            projectedWallTimestamp: event.receivedAt
+        )
+    }
+
+    private func handle(
+        _ observation: PerformanceObservation,
+        projectedWallTimestamp: Date
+    ) {
         guard stateStore.isPracticeInputRunning else { return }
         guard let snapshot = latestSnapshot else { return }
         guard snapshot.autoplayState == .off else { return }
@@ -182,21 +178,23 @@ final class PracticeMIDIInputService {
         guard case .guiding = snapshot.practiceState else { return }
         guard snapshot.expectedNotes.isEmpty == false else { return }
 
-        if let since = stateStore.practiceInputActiveSinceUptimeSeconds, event.receivedAtUptimeSeconds < since {
+        if let since = stateStore.practiceInputActiveSinceUptimeSeconds,
+           observation.timing.host.seconds < since
+        {
             return
         }
 
-        switch event.kind {
+        switch observation.event {
         case let .noteOn(note, _):
-            let matchResult = matcher.registerNoteOn(note: note, at: event.receivedAt)
+            let matchResult = matcher.registerNoteOn(note: note, at: projectedWallTimestamp)
             effectHandler?.handle(effect: .attemptEvaluated(matchResult))
             if matchResult.isMatched {
                 effectHandler?.handle(effect: .advanceToNextStep)
             }
         case let .noteOff(note, _):
-            matcher.registerNoteOff(note: note, at: event.receivedAt)
-        case let .controlChange(controller, _) where controller == 120 || controller == 123:
-            resetMatcherAfterInputDiscontinuity(at: event.receivedAt)
+            matcher.registerNoteOff(note: note, at: projectedWallTimestamp)
+        case let .controller(.controlChange(controller, _)) where controller == 120 || controller == 123:
+            resetMatcherAfterInputDiscontinuity(at: projectedWallTimestamp)
         default:
             break
         }
