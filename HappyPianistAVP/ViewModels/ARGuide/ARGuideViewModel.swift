@@ -859,36 +859,33 @@ final class ARGuideViewModel: PracticeLaunchApplying {
             calibrationGuideViewModel.handleHandUpdates()
 
         case .practice:
-            let nowUptime = ProcessInfo.processInfo.systemUptime
             placementViewModel.updateLatestFingerSnapshot(fingerTips)
 
             if isVirtualPianoEnabled {
                 if practiceSessionViewModel.keyboardGeometry != nil {
                     _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips, isVirtualPiano: true)
-                    recordPhraseIfNeeded(nowUptime: nowUptime)
+                    recordPhraseIfNeeded()
                 }
             } else {
                 _ = practiceSessionViewModel.handleFingerTipPositions(fingerTips)
-                recordPhraseIfNeeded(nowUptime: nowUptime)
-                recordTakeIfNeeded(nowUptime: nowUptime)
+                recordPhraseIfNeeded()
+                recordTakeIfNeeded()
             }
         }
     }
 
-    private func recordPhraseIfNeeded(nowUptime: TimeInterval) {
+    private func recordPhraseIfNeeded() {
         aiPerformanceViewModel.recordKeyContactForPhraseRecordingIfNeeded(
             usesBluetoothMIDIInput: selectedPianoMode?.usesBluetoothMIDIInput == true,
-            keyContact: practiceSessionViewModel.latestKeyContactResult,
-            nowUptimeSeconds: nowUptime
+            observations: practiceSessionViewModel.latestKeyContactObservations
         )
     }
 
-    private func recordTakeIfNeeded(nowUptime: TimeInterval) {
+    private func recordTakeIfNeeded() {
         recordingViewModel.recordTakeFromKeyContactIfNeeded(
             usesBluetoothMIDIInput: selectedPianoMode?.usesBluetoothMIDIInput == true,
             isVirtualPianoEnabled: isVirtualPianoEnabled,
-            keyContact: practiceSessionViewModel.latestKeyContactResult,
-            nowUptimeSeconds: nowUptime
+            observations: practiceSessionViewModel.latestKeyContactObservations
         )
     }
 

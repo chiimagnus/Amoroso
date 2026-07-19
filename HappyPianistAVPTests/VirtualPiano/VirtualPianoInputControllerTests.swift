@@ -27,9 +27,9 @@ private final class AlwaysMatchChordAttemptAccumulator: ChordAttemptAccumulatorP
 
 @MainActor
 private final class FakeKeyContactDetector: KeyContactDetectingProtocol {
-    var resultToReturn: KeyContactResult
+    var resultToReturn: [PianoKeyContactObservation]
 
-    init(resultToReturn: KeyContactResult) {
+    init(resultToReturn: [PianoKeyContactObservation]) {
         self.resultToReturn = resultToReturn
     }
 
@@ -37,8 +37,9 @@ private final class FakeKeyContactDetector: KeyContactDetectingProtocol {
 
     func detect(
         fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry
-    ) -> KeyContactResult {
+        keyboardGeometry _: PianoKeyboardGeometry,
+        at _: PerformanceMonotonicInstant
+    ) -> [PianoKeyContactObservation] {
         resultToReturn
     }
 }
@@ -97,7 +98,11 @@ func virtualPianoPlaysLiveNotesWhenNotSuppressed() async {
     )
 
     let detector = FakeKeyContactDetector(
-        resultToReturn: KeyContactResult(down: [60], started: [60], ended: [61])
+        resultToReturn: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            endedMIDINotes: [61]
+        )
     )
     let sequencer = FakeSequencerPlaybackService()
     let controller = VirtualPianoInputController(
@@ -138,7 +143,11 @@ func virtualPianoDoesNotPlayLiveNotesDuringAutoplay() async {
     )
 
     let detector = FakeKeyContactDetector(
-        resultToReturn: KeyContactResult(down: [60], started: [60], ended: [61])
+        resultToReturn: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            endedMIDINotes: [61]
+        )
     )
     let sequencer = FakeSequencerPlaybackService()
     let controller = VirtualPianoInputController(

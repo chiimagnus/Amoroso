@@ -1,12 +1,6 @@
 import Foundation
 import simd
 
-struct KeyContactResult: Equatable {
-    let down: Set<Int>
-    let started: Set<Int>
-    let ended: Set<Int>
-}
-
 @MainActor
 final class KeyContactDetectionService {
     static let pressThresholdMeters: Float = 0.002
@@ -20,11 +14,13 @@ final class KeyContactDetectionService {
 
     func detect(
         fingerTips: FingerTipsSnapshot,
-        keyboardGeometry: PianoKeyboardGeometry
-    ) -> KeyContactResult {
+        keyboardGeometry: PianoKeyboardGeometry,
+        at timestamp: PerformanceMonotonicInstant
+    ) -> [PianoKeyContactObservation] {
         tracker.detect(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
+            at: timestamp,
             pressThresholdMeters: Self.pressThresholdMeters,
             releaseThresholdMeters: Self.releaseThresholdMeters
         )

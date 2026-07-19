@@ -111,38 +111,42 @@ final class MIDIRecordingState {
     func recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: Bool,
         isVirtualPianoEnabled: Bool,
-        keyContact: KeyContactResult,
-        nowUptimeSeconds: TimeInterval
+        observations: [PianoKeyContactObservation]
     ) {
         guard usesBluetoothMIDIInput == false else { return }
         guard isVirtualPianoEnabled == false else { return }
         guard isRecording else { return }
 
-        for note in keyContact.started {
-            let observation = contactObservation(note: note, phase: .started, now: nowUptimeSeconds)
-            // ponytail: key-contact has no velocity before P9; 64 is only a MIDI playback projection.
-            takeRecorder.recordNoteOn(
-                note: note,
-                velocity: 64,
-                now: nowUptimeSeconds,
-                observation: observation
-            )
-        }
-        for note in keyContact.ended {
-            takeRecorder.recordNoteOff(
-                note: note,
-                now: nowUptimeSeconds,
-                observation: contactObservation(note: note, phase: .ended, now: nowUptimeSeconds)
-            )
+        for contact in observations {
+            guard let note = contact.keyCandidate.exactMIDINote else { continue }
+            let observation = performanceObservation(from: contact)
+            switch contact.phase {
+            case .started:
+                // ponytail: T7 replaces this projection with calibrated per-contact velocity.
+                takeRecorder.recordNoteOn(
+                    note: note,
+                    velocity: 64,
+                    now: contact.timestamp.seconds,
+                    observation: observation
+                )
+            case .ended:
+                takeRecorder.recordNoteOff(
+                    note: note,
+                    now: contact.timestamp.seconds,
+                    observation: observation
+                )
+            case .held:
+                break
+            }
         }
     }
 
-    private func contactObservation(
-        note: Int,
-        phase: PerformanceObservation.ContactPhase,
-        now: TimeInterval
-    ) -> PerformanceObservation {
-        let host = PerformanceMonotonicInstant(seconds: now)
+    private func performanceObservation(from contact: PianoKeyContactObservation) -> PerformanceObservation {
+        let phase: PerformanceObservation.ContactPhase = switch contact.phase {
+        case .started: .started
+        case .held: .held
+        case .ended: .ended
+        }
         let capabilities = PerformanceInputCapabilities(
             pitch: .degraded,
             onset: .observed,
@@ -150,10 +154,10 @@ final class MIDIRecordingState {
             velocity: .unavailable,
             controllers: .unavailable,
             polyphony: .observed,
-            hand: .unavailable,
-            finger: .unavailable,
-            position: .unavailable,
-            confidence: .unavailable
+            hand: .observed,
+            finger: .observed,
+            position: .observed,
+            confidence: .observed
         )
         return PerformanceObservation(
             source: PerformanceObservation.Source(
@@ -163,13 +167,19 @@ final class MIDIRecordingState {
                 capabilities: capabilities
             ),
             timing: PerformanceClockReading(
-                host: host,
+                host: contact.timestamp,
                 source: nil,
-                correctedHost: host,
+                correctedHost: contact.timestamp,
                 mapping: nil,
                 provenance: .hostOnly
             ),
-            event: .contact(id: "piano-key:\(note)", keyCandidate: note, phase: phase)
+            event: .contact(
+                id: "\(contact.hand)-\(contact.finger)-\(contact.id.sequence)",
+                keyCandidate: contact.keyCandidate.exactMIDINote,
+                phase: phase
+            ),
+            confidence: Double(contact.confidence),
+            calibrationReference: contact.calibrationID.uuidString
         )
     }
 

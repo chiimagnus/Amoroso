@@ -48,8 +48,7 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() throws {
     service.recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: false,
         isVirtualPianoEnabled: false,
-        keyContact: KeyContactResult(down: [], started: [60], ended: [60]),
-        nowUptimeSeconds: 1
+        observations: makeTestKeyContactObservations(startedMIDINotes: [60], endedMIDINotes: [60])
     )
     service.stopRecordingIfNeeded()
     #expect(recordedTakes.isEmpty)
@@ -58,8 +57,7 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() throws {
     service.recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: true,
         isVirtualPianoEnabled: false,
-        keyContact: KeyContactResult(down: [], started: [60], ended: [60]),
-        nowUptimeSeconds: 1
+        observations: makeTestKeyContactObservations(startedMIDINotes: [60], endedMIDINotes: [60])
     )
     service.stopRecordingIfNeeded()
     #expect(recordedTakes.isEmpty)
@@ -74,8 +72,7 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() throws {
     service.recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: false,
         isVirtualPianoEnabled: false,
-        keyContact: KeyContactResult(down: [], started: [60], ended: [60]),
-        nowUptimeSeconds: 1
+        observations: makeTestKeyContactObservations(startedMIDINotes: [60], endedMIDINotes: [60])
     )
     service.stopRecordingIfNeeded()
     #expect(recordedTakes.count == 1)

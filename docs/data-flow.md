@@ -152,11 +152,11 @@ active range 同时约束：
 | --- | --- | --- |
 | 真实钢琴（音频） | microphone -> recognition service -> `PerformanceObservation.targetAudioDetection` | 有限能力的目标集合证据与 typed outcome |
 | 真实钢琴（蓝牙 MIDI） | CoreMIDI -> bounded MIDI1/2 stream -> decoder -> `MIDIPerformanceObservationAdapter` | 保留 velocity/release/controller/source clock 的 deterministic matching |
-| 虚拟钢琴 | newest-only `FingerTipsSnapshot` -> indexed hand contact -> virtual input controller -> `PerformanceObservation.contact` | 虚拟按键 contact evidence |
+| 虚拟钢琴 | newest-only `FingerTipsSnapshot` -> indexed per-finger contact -> `PianoKeyContactObservation` -> virtual input controller | 带 contact identity、手/指、host 时间、位置、置信度与 calibration reference 的虚拟按键证据 |
 
 输入统一携带 source/capabilities、host 单调时间、可选 source clock mapping、channel/group、confidence 与 calibration reference；matcher、录音和后续评价只消费这一份 observation，不从 wall clock 或降精度回放事件反推证据。音频 host 时间取自 microphone tap 的采集时间并贯穿频谱、证据与 observation，异步处理时间不得覆盖它；音频只表达目标集合 detected/contradicted/mixed/unknown，不伪装成逐音多声部事件。
 
-手部 producer 只发布 typed snapshot；只有 thumb 到 little 五指可进入 contact、press cooldown 与 chord window，palm 仅保留为手势/活动上下文且不得产生命中。三者共享同一个 host 单调时间，琴键几何变化时重建一次 hit-test index，每帧仅查询相邻候选键。CoreMIDI 缓冲溢出会发布 All Notes Off，统一复位 matcher、AI 持音上下文，并只关闭录音中同 source/group/channel 的开放音符。自动播放、手动回放、AI 输出、paused、suspended 与非 guiding 状态不会生成用户 attempt。
+手部 producer 只发布 typed snapshot；只有 thumb 到 little 五指可进入 contact、press cooldown 与 chord window，palm 仅保留为手势/活动上下文且不得产生命中。逐指 contact 的 started、held、ended 共享稳定 identity，并保留 hand、finger、host 单调时间、置信度、位置、键面距离、法向速度与 calibration ID；录音投影不得用后续 wall/uptime 采样覆盖事件时间。琴键几何变化时重建一次 hit-test index，每帧仅查询相邻候选键。CoreMIDI 缓冲溢出会发布 All Notes Off，统一复位 matcher、AI 持音上下文，并只关闭录音中同 source/group/channel 的开放音符。自动播放、手动回放、AI 输出、paused、suspended 与非 guiding 状态不会生成用户 attempt。
 
 ## 练习事实与恢复
 

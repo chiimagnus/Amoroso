@@ -14,11 +14,13 @@ final class RealPianoContactDetectionService {
 
     func detect(
         fingerTips: FingerTipsSnapshot,
-        keyboardGeometry: PianoKeyboardGeometry
-    ) -> KeyContactResult {
+        keyboardGeometry: PianoKeyboardGeometry,
+        at timestamp: PerformanceMonotonicInstant
+    ) -> [PianoKeyContactObservation] {
         tracker.detect(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
+            at: timestamp,
             pressThresholdMeters: Self.pressThresholdMeters,
             releaseThresholdMeters: Self.releaseThresholdMeters
         )

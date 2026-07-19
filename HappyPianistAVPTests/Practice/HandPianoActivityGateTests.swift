@@ -50,8 +50,12 @@ func palmCrossingKeySurfaceCannotCreateContactOrActivity() throws {
     let gate = HandPianoActivityGate()
     _ = gate.evaluate(fingerTips: above, keyboardGeometry: geometry, exactPressedNotes: [])
 
-    #expect(virtualDetector.detect(fingerTips: below, keyboardGeometry: geometry).down.isEmpty)
-    #expect(realDetector.detect(fingerTips: below, keyboardGeometry: geometry).down.isEmpty)
+    #expect(
+        virtualDetector.detect(fingerTips: below, keyboardGeometry: geometry, at: .init(seconds: 1)).isEmpty
+    )
+    #expect(
+        realDetector.detect(fingerTips: below, keyboardGeometry: geometry, at: .init(seconds: 1)).isEmpty
+    )
     #expect(
         gate.evaluate(fingerTips: below, keyboardGeometry: geometry, exactPressedNotes: [])
             == HandGateState(

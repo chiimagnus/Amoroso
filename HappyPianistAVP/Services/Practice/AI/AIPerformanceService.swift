@@ -241,20 +241,26 @@ final class AIPerformanceService {
 
     func recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: Bool,
-        keyContact: KeyContactResult,
-        nowUptimeSeconds: TimeInterval
+        observations: [PianoKeyContactObservation]
     ) {
         guard usesBluetoothMIDIInput == false else { return }
         guard isEnabled else { return }
         syncBackendDiscoveryIfNeeded()
 
-        guard keyContact.started.isEmpty == false || keyContact.ended.isEmpty == false else { return }
-
-        for note in keyContact.started {
-            noteContext.recordNoteOn(midi: note, velocity: 90, timestampSeconds: nowUptimeSeconds)
-        }
-        for note in keyContact.ended {
-            noteContext.recordNoteOff(midi: note, timestampSeconds: nowUptimeSeconds, sustainIsDown: false)
+        for observation in observations {
+            guard let note = observation.keyCandidate.exactMIDINote else { continue }
+            switch observation.phase {
+            case .started:
+                noteContext.recordNoteOn(midi: note, velocity: 90, timestampSeconds: observation.timestamp.seconds)
+            case .ended:
+                noteContext.recordNoteOff(
+                    midi: note,
+                    timestampSeconds: observation.timestamp.seconds,
+                    sustainIsDown: false
+                )
+            case .held:
+                break
+            }
         }
     }
 

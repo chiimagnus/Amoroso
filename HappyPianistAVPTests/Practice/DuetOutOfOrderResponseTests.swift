@@ -118,8 +118,11 @@ func continuousDuetRequestsGenerationBeforeUserReleasesKey() async {
 
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: nowUptime
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: nowUptime)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()

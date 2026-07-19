@@ -200,13 +200,11 @@ final class ARGuideAIPerformanceViewModel {
 
     func recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: Bool,
-        keyContact: KeyContactResult,
-        nowUptimeSeconds: TimeInterval
+        observations: [PianoKeyContactObservation]
     ) {
         aiPerformanceService.recordKeyContactForPhraseRecordingIfNeeded(
             usesBluetoothMIDIInput: usesBluetoothMIDIInput,
-            keyContact: keyContact,
-            nowUptimeSeconds: nowUptimeSeconds
+            observations: observations
         )
     }
 

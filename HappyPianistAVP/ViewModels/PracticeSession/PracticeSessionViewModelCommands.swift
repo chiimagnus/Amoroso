@@ -526,7 +526,7 @@ extension PracticeSessionViewModel {
         self.keyboardGeometry = nil
         self.pressedNotes.removeAll()
         self.latestNoteOnMIDINotes.removeAll()
-        self.latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
+        self.latestKeyContactObservations = []
         virtualPianoInputController?.stop()
         realPianoContactDetectionService.reset()
         handPianoActivityGate.reset()
@@ -569,7 +569,7 @@ extension PracticeSessionViewModel {
 
         self.pressedNotes.removeAll()
         self.latestNoteOnMIDINotes.removeAll()
-        self.latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
+        self.latestKeyContactObservations = []
         virtualPianoInputController?.stop()
         realPianoContactDetectionService.reset()
         self.isSustainPedalDown = false

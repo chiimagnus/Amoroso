@@ -120,9 +120,19 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             index: SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY, c4Key.hitCenterLocal.z)
         )
     )
-    let result1 = service.detect(fingerTips: atSurface, keyboardGeometry: geometry)
-    #expect(result1.started.contains(60))
-    #expect(result1.down.contains(60))
+    let result1 = service.detect(fingerTips: atSurface, keyboardGeometry: geometry, at: .init(seconds: 1))
+    let started = try #require(result1.first)
+    #expect(result1.startedMIDINotes == [60])
+    #expect(result1.activeMIDINotes == [60])
+    #expect(started.phase == .started)
+    #expect(started.hand == .right)
+    #expect(started.finger == .index)
+    #expect(started.timestamp == .init(seconds: 1))
+    #expect(started.confidence == 1)
+    #expect(started.worldPosition == atSurface.right.index)
+    #expect(started.planeDistanceMeters == 0)
+    #expect(started.normalVelocityMetersPerSecond == nil)
+    #expect(started.calibrationID == geometry.cacheID)
 
     let betweenThresholds = FingerTipsSnapshot(
         right: HandTips(
@@ -135,10 +145,17 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             )
         )
     )
-    let result2 = service.detect(fingerTips: betweenThresholds, keyboardGeometry: geometry)
-    #expect(result2.down.contains(60), "Between press/release threshold: should stay down (hysteresis)")
-    #expect(result2.started.isEmpty)
-    #expect(result2.ended.isEmpty)
+    let result2 = service.detect(
+        fingerTips: betweenThresholds,
+        keyboardGeometry: geometry,
+        at: .init(seconds: 2)
+    )
+    let held = try #require(result2.first)
+    #expect(result2.activeMIDINotes == [60], "Between press/release threshold: should stay down (hysteresis)")
+    #expect(result2.startedMIDINotes.isEmpty)
+    #expect(result2.endedMIDINotes.isEmpty)
+    #expect(held.phase == .held)
+    #expect(held.id == started.id)
 
     let aboveRelease = FingerTipsSnapshot(
         right: HandTips(
@@ -149,9 +166,13 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             )
         )
     )
-    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry)
-    #expect(result3.ended.contains(60))
-    #expect(result3.down.isEmpty)
+    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry, at: .init(seconds: 3))
+    let ended = try #require(result3.first)
+    #expect(result3.endedMIDINotes == [60])
+    #expect(result3.activeMIDINotes.isEmpty)
+    #expect(ended.phase == .ended)
+    #expect(ended.id == started.id)
+    #expect(ended.timestamp == .init(seconds: 3))
 }
 
 @MainActor
@@ -182,8 +203,8 @@ func keyContactDetectionBlackKeyPriority() throws {
     let fingerTips = FingerTipsSnapshot(
         right: HandTips(index: SIMD3<Float>(overlapPointX, -0.001, blackKey.hitCenterLocal.z))
     )
-    let result = service.detect(fingerTips: fingerTips, keyboardGeometry: geometry)
-    #expect(result.down == [blackKey.midiNote])
+    let result = service.detect(fingerTips: fingerTips, keyboardGeometry: geometry, at: .init(seconds: 1))
+    #expect(result.activeMIDINotes == [blackKey.midiNote])
 }
 
 @MainActor
@@ -192,10 +213,8 @@ func keyContactDetectionNoFingerNoDown() {
     let service = KeyContactDetectionService()
     let geometry = makeTestKeyboardGeometry()
 
-    let result = service.detect(fingerTips: .empty, keyboardGeometry: geometry)
-    #expect(result.down.isEmpty)
-    #expect(result.started.isEmpty)
-    #expect(result.ended.isEmpty)
+    let result = service.detect(fingerTips: .empty, keyboardGeometry: geometry, at: .init(seconds: 1))
+    #expect(result.isEmpty)
 }
 
 @MainActor

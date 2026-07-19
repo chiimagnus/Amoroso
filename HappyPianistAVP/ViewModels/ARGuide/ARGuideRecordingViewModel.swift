@@ -90,14 +90,12 @@ final class ARGuideRecordingViewModel {
     func recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: Bool,
         isVirtualPianoEnabled: Bool,
-        keyContact: KeyContactResult,
-        nowUptimeSeconds: TimeInterval
+        observations: [PianoKeyContactObservation]
     ) {
         midiRecordingState.recordTakeFromKeyContactIfNeeded(
             usesBluetoothMIDIInput: usesBluetoothMIDIInput,
             isVirtualPianoEnabled: isVirtualPianoEnabled,
-            keyContact: keyContact,
-            nowUptimeSeconds: nowUptimeSeconds
+            observations: observations
         )
     }
 

@@ -6,8 +6,9 @@ protocol KeyContactDetectingProtocol: AnyObject {
     func reset()
     func detect(
         fingerTips: FingerTipsSnapshot,
-        keyboardGeometry: PianoKeyboardGeometry
-    ) -> KeyContactResult
+        keyboardGeometry: PianoKeyboardGeometry,
+        at timestamp: PerformanceMonotonicInstant
+    ) -> [PianoKeyContactObservation]
 }
 
 extension KeyContactDetectionService: KeyContactDetectingProtocol {}
@@ -48,7 +49,7 @@ final class VirtualPianoInputController {
             await sequencerPlaybackService.stopAllLiveNotes()
         }
         detector.reset()
-        stateStore.latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
+        stateStore.latestKeyContactObservations = []
         stateStore.pressedNotes.removeAll()
         stateStore.latestNoteOnMIDINotes.removeAll()
     }
@@ -61,20 +62,24 @@ final class VirtualPianoInputController {
     ) -> Set<Int> {
         let result = detector.detect(
             fingerTips: fingerTips,
-            keyboardGeometry: keyboardGeometry
+            keyboardGeometry: keyboardGeometry,
+            at: timestamp
         )
-        stateStore.latestKeyContactResult = result
-        stateStore.latestNoteOnMIDINotes = result.started
+        stateStore.latestKeyContactObservations = result
+        let activeMIDINotes = result.activeMIDINotes
+        let startedMIDINotes = result.startedMIDINotes
+        let endedMIDINotes = result.endedMIDINotes
+        stateStore.latestNoteOnMIDINotes = startedMIDINotes
 
         let shouldPlayLiveNotes = stateStore.autoplayState == .off && stateStore.isManualReplayPlaying == false
         if shouldPlayLiveNotes {
             enqueuePlayback(
-                commands: result.ended.sorted().map {
+                commands: endedMIDINotes.sorted().map {
                     PracticePlaybackCommand(
                         sourceEventID: "virtual-piano-\($0)",
                         kind: .noteOff(midi: $0)
                     )
-                } + result.started.sorted().map {
+                } + startedMIDINotes.sorted().map {
                     PracticePlaybackCommand(
                         sourceEventID: "virtual-piano-\($0)",
                         kind: .noteOn(midi: $0, velocity: 96)
@@ -83,22 +88,22 @@ final class VirtualPianoInputController {
             )
         }
 
-        stateStore.pressedNotes = result.down
+        stateStore.pressedNotes = activeMIDINotes
         handGateController.updateHandGateState(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: result.down
+            exactPressedNotes: activeMIDINotes
         )
 
-        if result.started.isEmpty == false {
+        if startedMIDINotes.isEmpty == false {
             handGateController.registerChordAttemptIfNeeded(
-                pressedNotes: result.started,
+                pressedNotes: startedMIDINotes,
                 at: timestamp,
                 practiceHandMode: practiceHandMode
             )
         }
 
-        return result.down
+        return activeMIDINotes
     }
 
     func waitForPendingPlayback() async {
