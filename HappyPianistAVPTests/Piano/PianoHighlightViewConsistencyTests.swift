@@ -110,16 +110,11 @@ func highlightGuide2D3DAndNotationUseSameMIDINoteSet() {
         projection: projection,
         overlay: .init(activeEventIDs: Set(plan.noteEvents.map(\.id)), activeTickRange: nil)
     )
-    let occurrencesByID = Dictionary(
-        uniqueKeysWithValues: projection.performedOccurrences.map { ($0.id.description, $0) }
-    )
-    let sourceNotesByID = Dictionary(uniqueKeysWithValues: projection.sourceNotes.map { ($0.id, $0) })
-    let notationMIDINotes = Set(layout.items.filter(\.isHighlighted).compactMap {
-        occurrencesByID[$0.occurrenceID].flatMap { sourceNotesByID[$0.sourceNoteID]?.midiNote }
-    })
+    let notationOccurrenceIDs = Set(layout.items.filter(\.isHighlighted).map(\.occurrenceID))
+    let plannedOccurrenceIDs = Set(plan.noteEvents.flatMap(\.contributingPerformedNoteIDs).map(\.description))
 
     #expect(guide.highlightedMIDINotes == Set(descriptors.map(\.midiNote)))
-    #expect(guide.highlightedMIDINotes == notationMIDINotes)
+    #expect(notationOccurrenceIDs == plannedOccurrenceIDs)
 }
 
 @Test

@@ -122,7 +122,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
         let writtenDurationTicks: Int
         let writtenPitch: MusicXMLWrittenPitch?
         let writtenRhythm: MusicXMLWrittenRhythm?
-        let midiNote: Int?
         let isRest: Bool
         let isPrintObjectVisible: Bool
         let staff: Int
@@ -148,8 +147,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
         let sourceNoteID: MusicXMLSourceNoteID
         let performanceEventIDs: [ScorePerformanceNoteEventID]
         let writtenOnTick: Int
-        let performedOnTick: Int
-        let performedOffTick: Int
         let handAssignment: ScoreHandAssignment
     }
 
@@ -213,7 +210,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
                 writtenDurationTicks: note.durationTicks,
                 writtenPitch: note.writtenPitch,
                 writtenRhythm: note.writtenRhythm,
-                midiNote: note.midiNote,
                 isRest: note.isRest,
                 isPrintObjectVisible: note.isPrintObjectVisible,
                 staff: note.staff ?? 1,
@@ -260,8 +256,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
                         sourceNoteID: existing.sourceNoteID,
                         performanceEventIDs: eventIDs,
                         writtenOnTick: min(existing.writtenOnTick, writtenOnTick),
-                        performedOnTick: min(existing.performedOnTick, event.performedOnTick),
-                        performedOffTick: max(existing.performedOffTick, event.performedOffTick),
                         handAssignment: existing.handAssignment
                     )
                 } else {
@@ -270,8 +264,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
                         sourceNoteID: sourceNoteID,
                         performanceEventIDs: [event.id],
                         writtenOnTick: writtenOnTick,
-                        performedOnTick: event.performedOnTick,
-                        performedOffTick: event.performedOffTick,
                         handAssignment: event.handAssignment
                     )
                 }
@@ -289,8 +281,6 @@ struct ScoreNotationProjection: Equatable, Sendable {
                 sourceNoteID: sourceID,
                 performanceEventIDs: [],
                 writtenOnTick: note.tick,
-                performedOnTick: note.tick,
-                performedOffTick: note.tick + note.durationTicks,
                 handAssignment: .unknown
             )
         }
