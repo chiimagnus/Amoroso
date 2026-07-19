@@ -2,19 +2,25 @@ import SwiftUI
 
 struct GrandStaffNotationRenderer {
     private let displayScale: CGFloat
+    private let differentiateWithoutColor: Bool
     private let engravingMetrics = GrandStaffEngravingMetrics()
     private let chordLayoutService = GrandStaffChordLayoutService()
 
-    init(displayScale: CGFloat = 1) {
+    init(displayScale: CGFloat = 1, differentiateWithoutColor: Bool = false) {
         self.displayScale = displayScale
+        self.differentiateWithoutColor = differentiateWithoutColor
     }
 
     func draw(
         presentation: GrandStaffNotationPresentation,
         in context: GraphicsContext,
-        displayScale: CGFloat
+        displayScale: CGFloat,
+        differentiateWithoutColor: Bool = false
     ) {
-        let renderer = GrandStaffNotationRenderer(displayScale: displayScale)
+        let renderer = GrandStaffNotationRenderer(
+            displayScale: displayScale,
+            differentiateWithoutColor: differentiateWithoutColor
+        )
         renderer.drawInternal(presentation, in: context)
     }
 
@@ -831,6 +837,16 @@ struct GrandStaffNotationRenderer {
                     )
                 }
             }
+            if rest.isHighlighted, differentiateWithoutColor {
+                drawHighlightIndicator(
+                    at: CGPoint(
+                        x: layout.xPosition(rest.xPosition),
+                        y: layout.yPosition(staffStep: rest.staffStep, staffNumber: rest.staffNumber)
+                    ),
+                    in: context,
+                    layout: layout
+                )
+            }
         }
     }
 
@@ -1063,6 +1079,9 @@ struct GrandStaffNotationRenderer {
             in: context,
             layout: layout
         )
+        if item.isHighlighted, differentiateWithoutColor {
+            drawHighlightIndicator(at: CGPoint(x: x, y: y), in: context, layout: layout)
+        }
 
         if let accidentalToken = item.displayedAccidental?.glyphToken,
            let accidentalXOffset = item.accidentalXOffsetStaffSpaces {
@@ -1101,6 +1120,30 @@ struct GrandStaffNotationRenderer {
         }
     }
 
+    private func drawHighlightIndicator(
+        at center: CGPoint,
+        in context: GraphicsContext,
+        layout: GrandStaffNotationViewportLayoutService.Layout
+    ) {
+        // ponytail: one outline serves every glyph; add glyph-specific shapes only if VoiceOver testing finds ambiguity.
+        let radius = layout.lineSpacing * 0.72
+        var path = Path()
+        path.move(to: CGPoint(x: center.x, y: center.y - radius))
+        path.addLine(to: CGPoint(x: center.x + radius, y: center.y))
+        path.addLine(to: CGPoint(x: center.x, y: center.y + radius))
+        path.addLine(to: CGPoint(x: center.x - radius, y: center.y))
+        path.closeSubpath()
+        context.stroke(
+            path,
+            with: .color(.primary.opacity(0.82)),
+            style: .init(
+                lineWidth: strokeWidth(0.12, layout: layout),
+                lineCap: .round,
+                lineJoin: .round
+            )
+        )
+    }
+
     private func drawGlyph(
         _ token: GrandStaffGlyphToken,
         baselineAt point: CGPoint,
@@ -1115,7 +1158,10 @@ struct GrandStaffNotationRenderer {
             .font(.custom("Bravura", fixedSize: layout.smuflFontSize * scale))
             .foregroundStyle(color.opacity(opacity))
         let resolved = context.resolve(text)
-        let proposal = CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
+        let proposal = CGSize(
+            width: max(1, layout.size.width),
+            height: max(1, layout.size.height)
+        )
         let size = resolved.measure(in: proposal)
         let x = centeredOnAdvance ? point.x - size.width / 2 : point.x
         context.draw(
