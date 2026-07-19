@@ -69,7 +69,9 @@ final class VirtualPianoInputController {
         let activeMIDINotes = result.activeMIDINotes
         let startedMIDINotes = result.startedMIDINotes
         let transportNoteOns = activeMIDINotes.subtracting(stateStore.pressedNotes)
-        let transportNoteOffs = stateStore.pressedNotes.subtracting(activeMIDINotes)
+        let transportNoteOffs = stateStore.pressedNotes
+            .union(result.endedMIDINotes)
+            .subtracting(activeMIDINotes)
         stateStore.latestNoteOnMIDINotes = startedMIDINotes
 
         let shouldPlayLiveNotes = stateStore.autoplayState == .off && stateStore.isManualReplayPlaying == false
