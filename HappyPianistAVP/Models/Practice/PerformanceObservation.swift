@@ -13,6 +13,19 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
         let kind: Kind
         let id: String
         let generation: UInt64
+        let capabilities: PerformanceInputCapabilities
+
+        init(
+            kind: Kind,
+            id: String,
+            generation: UInt64,
+            capabilities: PerformanceInputCapabilities? = nil
+        ) {
+            self.kind = kind
+            self.id = id
+            self.generation = generation
+            self.capabilities = capabilities ?? kind.defaultCapabilities
+        }
     }
 
     struct Timing: Codable, Equatable, Sendable {
