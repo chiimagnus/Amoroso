@@ -42,6 +42,30 @@ func layoutPositionsWrittenPitchUsingTheActiveClef() throws {
 }
 
 @Test
+func layoutOmitsPitchedNotesMarkedPrintObjectNo() throws {
+    let xml = """
+    <score-partwise version="4.0">
+      <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+      <part id="P1"><measure number="1">
+        <attributes><divisions>1</divisions></attributes>
+        <note print-object="no"><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+        <note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><type>quarter</type></note>
+      </measure></part>
+    </score-partwise>
+    """
+    let score = try MusicXMLParser().parse(data: Data(xml.utf8))
+    let projection = ScoreNotationProjection(
+        plan: makeTestScorePerformancePlan(from: score),
+        sourceScore: score
+    )
+    let layout = GrandStaffNotationLayoutService().makeLayout(projection: projection)
+
+    #expect(projection.sourceNotes.map(\.isPrintObjectVisible) == [false, true])
+    #expect(layout.items.count == 1)
+    #expect(layout.items.first?.occurrenceID == projection.performedOccurrences[1].id.description)
+}
+
+@Test
 func layoutEmitsBarlinesForMeasureSpansStartAndEndTicks() {
     let measureSpans = [
         MusicXMLMeasureSpan(partID: "P1", measureNumber: 1, sourceMeasureIndex: 1, sourceMeasureNumberToken: "1", occurrenceIndex: 0, startTick: 0, endTick: 480),

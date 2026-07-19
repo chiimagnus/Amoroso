@@ -125,6 +125,7 @@ struct GrandStaffNotationLayoutService {
         let unresolvedNotes = occurrences.compactMap { occurrence -> LayoutNote? in
             let source = occurrence.source
             guard source.isRest == false,
+                  source.isPrintObjectVisible,
                   let writtenPitch = source.writtenPitch
             else {
                 return nil
