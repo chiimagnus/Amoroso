@@ -225,7 +225,7 @@ PerformanceObservation
 -> Documents/TakeLibrary/takes.json
 ```
 
-`RecordingTakeRecorder` 按 source/group/channel/note/event identity 管理开放音符，保存原始 observation，并在回放边界才投影为 MIDI 7/14-bit 事件。target audio 因不具备可靠逐音 release/velocity，不进入 MIDI take。`TakePlaybackController` 复用 sequencer 回放；`RecordingMIDIExportService` 导出 `.mid`。
+录制开始时从当前 `PreparedPractice.performancePlan.sourceScoreIdentity` 固化曲谱身份；`RecordingTakeRecorder` 按 source/group/channel/note/event identity 管理开放音符，保存原始 observation，并在回放边界才投影为 MIDI 7/14-bit 事件。target audio 因不具备可靠逐音 release/velocity，不进入 MIDI take。`TakePlaybackController` 复用 sequencer 回放；`RecordingMIDIExportService` 导出 `.mid`。
 
 ## AI 对弹
 

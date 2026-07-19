@@ -80,12 +80,15 @@ final class MIDIRecordingState {
         }
     }
 
-    func startRecordingIfPossible(canRecord: Bool) {
+    func startRecordingIfPossible(
+        canRecord: Bool,
+        metadata: RecordingTakeMetadata = .unattributed
+    ) {
         guard canRecord else { return }
         let now = nowUptimeSeconds()
         recordingGeneration &+= 1
         midiRecordingAdapter.beginRecording()
-        takeRecorder.start(now: now)
+        takeRecorder.start(now: now, metadata: metadata)
         isRecording = true
         recordingStartDate = nowDate()
         notifyStateChanged()

@@ -711,7 +711,13 @@ final class ARGuideViewModel: PracticeLaunchApplying {
     }
 
     func startRecording() {
-        Task { await recordingViewModel.startRecording(canRecord: canRecord) }
+        let scoreIdentity = latestPreparedPractice?.performancePlan.sourceScoreIdentity
+        Task {
+            await recordingViewModel.startRecording(
+                canRecord: canRecord,
+                scoreIdentity: scoreIdentity
+            )
+        }
     }
 
     func stopRecording() {

@@ -101,11 +101,20 @@ final class ARGuideRecordingViewModel {
         )
     }
 
-    func startRecording(canRecord: Bool) async {
+    func startRecording(
+        canRecord: Bool,
+        scoreIdentity: ScorePerformanceSourceIdentity?
+    ) async {
         guard canRecord else { return }
         await playbackStopTask?.value
         await takePlaybackViewModel.stop()
-        midiRecordingState.startRecordingIfPossible(canRecord: canRecord)
+        midiRecordingState.startRecordingIfPossible(
+            canRecord: canRecord,
+            metadata: RecordingTakeMetadata(
+                scoreIdentity: scoreIdentity,
+                inputSources: RecordingTakeMetadata.unattributed.inputSources
+            )
+        )
     }
 
     func stopRecording() {

@@ -30,8 +30,13 @@ func shutdownIsIdempotentAndEmitsAtMostOneTake() {
 
 @Test
 @MainActor
-func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() {
+func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() throws {
     var recordedTakes: [RecordingTake] = []
+    let scoreIdentity = ScorePerformanceSourceIdentity(
+        songID: try #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111")),
+        scoreRevision: "sha256:test-score",
+        logicalInstrumentID: "P1:piano"
+    )
 
     let service = MIDIRecordingState(
         nowUptimeSeconds: { 0 },
@@ -59,7 +64,13 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() {
     service.stopRecordingIfNeeded()
     #expect(recordedTakes.isEmpty)
 
-    service.startRecordingIfPossible(canRecord: true)
+    service.startRecordingIfPossible(
+        canRecord: true,
+        metadata: RecordingTakeMetadata(
+            scoreIdentity: scoreIdentity,
+            inputSources: RecordingTakeMetadata.unattributed.inputSources
+        )
+    )
     service.recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: false,
         isVirtualPianoEnabled: false,
@@ -69,6 +80,7 @@ func recordTakeFromKeyContactRequiresRecordingAndNonBluetooth() {
     service.stopRecordingIfNeeded()
     #expect(recordedTakes.count == 1)
     #expect(recordedTakes[0].events.isEmpty == false)
+    #expect(recordedTakes[0].metadata.scoreIdentity == scoreIdentity)
     #expect(recordedTakes[0].metadata.inputSources.first?.kind == .realPianoContact)
     #expect(recordedTakes[0].metadata.inputSources.first?.capabilities.velocity == .unavailable)
     #expect(recordedTakes[0].events.allSatisfy { $0.observation?.source.kind == .realPianoContact })
