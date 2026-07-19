@@ -91,8 +91,7 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
             activeSourceGeneration = UInt64(max(0, stateStore.practiceInputGeneration))
             matcher.reset(
                 stepIndex: snapshot.currentStepIndex,
-                expectedNotes: snapshot.expectedNotes,
-                configuredAt: .now
+                expectedNotes: snapshot.expectedNotes
             )
             stateStore.practiceInputLastResetStepIndex = snapshot.currentStepIndex
         }
@@ -156,7 +155,7 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
         stateStore.practiceInputLastResetStepIndex = nil
         stateStore.practiceInputGeneration += 1
         observationAdapter.resetClockCalibration()
-        matcher.reset(stepIndex: -1, expectedNotes: [], configuredAt: .now)
+        matcher.reset(stepIndex: -1, expectedNotes: [])
     }
 
     var capabilities: PerformanceInputCapabilities {
@@ -171,14 +170,14 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
         guard let generation = acceptedGeneration(for: event.receivedAtUptimeSeconds) else { return }
         let observation = observationAdapter.observation(for: event, generation: generation)
         publish(observation)
-        handle(observation, projectedWallTimestamp: event.receivedAt)
+        handle(observation)
     }
 
     private func handleMIDI2(_ event: MIDI2InputEvent) {
         guard let generation = acceptedGeneration(for: event.receivedAtUptimeSeconds) else { return }
         let observation = observationAdapter.observation(for: event, generation: generation)
         publish(observation)
-        handle(observation, projectedWallTimestamp: event.receivedAt)
+        handle(observation)
     }
 
     private func acceptedGeneration(for hostUptimeSeconds: TimeInterval) -> UInt64? {
@@ -202,10 +201,7 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
         }
     }
 
-    private func handle(
-        _ observation: PerformanceObservation,
-        projectedWallTimestamp: Date
-    ) {
+    private func handle(_ observation: PerformanceObservation) {
         guard stateStore.isPracticeInputRunning else { return }
         guard let snapshot = latestSnapshot else { return }
         guard snapshot.autoplayState == .off else { return }
@@ -220,27 +216,26 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
         }
 
         switch observation.event {
-        case let .noteOn(note, _):
-            let matchResult = matcher.registerNoteOn(note: note, at: projectedWallTimestamp)
+        case .noteOn:
+            guard let matchResult = matcher.register(observation) else { return }
             effectHandler?.handle(effect: .attemptEvaluated(matchResult))
             if matchResult.isMatched {
                 effectHandler?.handle(effect: .advanceToNextStep)
             }
-        case let .noteOff(note, _):
-            matcher.registerNoteOff(note: note, at: projectedWallTimestamp)
+        case .noteOff:
+            _ = matcher.register(observation)
         case let .controller(.controlChange(controller, _)) where controller == 120 || controller == 123:
-            resetMatcherAfterInputDiscontinuity(at: projectedWallTimestamp)
+            resetMatcherAfterInputDiscontinuity()
         default:
             break
         }
     }
 
-    private func resetMatcherAfterInputDiscontinuity(at timestamp: Date) {
+    private func resetMatcherAfterInputDiscontinuity() {
         guard let snapshot = latestSnapshot else { return }
         matcher.reset(
             stepIndex: snapshot.currentStepIndex,
-            expectedNotes: snapshot.expectedNotes,
-            configuredAt: timestamp
+            expectedNotes: snapshot.expectedNotes
         )
         stateStore.practiceInputGeneration += 1
         stateStore.practiceInputActiveSinceUptimeSeconds = ProcessInfo.processInfo.systemUptime

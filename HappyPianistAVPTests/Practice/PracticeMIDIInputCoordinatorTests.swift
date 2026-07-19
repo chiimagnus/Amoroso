@@ -20,15 +20,11 @@ private final class CapturingMIDIPracticeStepMatcher: MIDIPracticeStepMatchingPr
 
     private(set) var resetCalls: [ResetCall] = []
 
-    func reset(stepIndex: Int, expectedNotes: [PracticeStepNote], configuredAt _: Date) {
+    func reset(stepIndex: Int, expectedNotes: [PracticeStepNote]) {
         resetCalls.append(ResetCall(stepIndex: stepIndex, expectedNotes: expectedNotes))
     }
 
-    func registerNoteOn(note _: Int, at _: Date) -> StepAttemptMatchResult {
-        .insufficientEvidence
-    }
-
-    func registerNoteOff(note _: Int, at _: Date) {}
+    func register(_: PerformanceObservation) -> StepAttemptMatchResult? { .insufficientEvidence }
 }
 
 @Test

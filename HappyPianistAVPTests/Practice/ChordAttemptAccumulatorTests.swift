@@ -3,44 +3,139 @@ import Foundation
 import Testing
 
 @Test
-func accumulatorMatchesChordWithinWindowAcrossMultiplePresses() {
-    let accumulator = ChordAttemptAccumulator(windowSeconds: 0.6)
-    var replay = PerformanceInputReplayCursor(events: [
-        PerformanceReplayEvent(instant: .init(seconds: 1_000), source: "midi", payload: Set([60])),
-        PerformanceReplayEvent(instant: .init(seconds: 1_000.2), source: "midi", payload: Set([64])),
-        PerformanceReplayEvent(instant: .init(seconds: 1_000.45), source: "midi", payload: Set([67])),
-    ])
-    var outcomes: [StepAttemptMatchResult] = []
+func simultaneousChordUsesActualOnsetSpread() {
+    let accumulator = ChordAttemptAccumulator(windowSeconds: 0.6, simultaneousSpreadSeconds: 0.08)
 
-    replay.replay { event in
-        outcomes.append(accumulator.register(
-            pressedNotes: event.payload,
-            expectedNotes: [60, 64, 67],
-            tolerance: 0,
-            at: event.instant.date
-        ))
-    }
+    let first = accumulator.registerHandSeparated(
+        pressedNotes: [60],
+        expectedRightNotes: [60, 64],
+        expectedLeftNotes: [],
+        tolerance: 0,
+        onsetExpectation: .simultaneous,
+        at: .init(seconds: 1)
+    )
+    let tooWide = accumulator.registerHandSeparated(
+        pressedNotes: [64],
+        expectedRightNotes: [60, 64],
+        expectedLeftNotes: [],
+        tolerance: 0,
+        onsetExpectation: .simultaneous,
+        at: .init(seconds: 1.2)
+    )
 
-    #expect(outcomes.map(\.isMatched) == [false, false, true])
+    #expect(first == .insufficientEvidence)
+    #expect(tooWide == .insufficientEvidence)
 }
 
 @Test
-func accumulatorResetsAfterWindowTimeout() {
-    let accumulator = ChordAttemptAccumulator(windowSeconds: 0.6)
-    let base = Date(timeIntervalSince1970: 2000)
+func rolledChordAcceptsOnsetsAcrossConfiguredSpan() {
+    let accumulator = ChordAttemptAccumulator(windowSeconds: 0.6, simultaneousSpreadSeconds: 0.08)
 
-    _ = accumulator.register(
+    _ = accumulator.registerHandSeparated(
         pressedNotes: [60],
-        expectedNotes: [60, 64],
+        expectedRightNotes: [60, 64, 67],
+        expectedLeftNotes: [],
         tolerance: 0,
-        at: base
+        onsetExpectation: .rolled,
+        at: .init(seconds: 1)
+    )
+    _ = accumulator.registerHandSeparated(
+        pressedNotes: [64],
+        expectedRightNotes: [60, 64, 67],
+        expectedLeftNotes: [],
+        tolerance: 0,
+        onsetExpectation: .rolled,
+        at: .init(seconds: 1.2)
+    )
+    let result = accumulator.registerHandSeparated(
+        pressedNotes: [67],
+        expectedRightNotes: [60, 64, 67],
+        expectedLeftNotes: [],
+        tolerance: 0,
+        onsetExpectation: .rolled,
+        at: .init(seconds: 1.45)
     )
 
-    let timedOut = accumulator.register(
-        pressedNotes: [64],
-        expectedNotes: [60, 64],
-        tolerance: 0,
-        at: base.addingTimeInterval(0.8)
-    )
-    #expect(timedOut.isMatched == false)
+    #expect(result == .matched)
 }
+
+@Test
+@MainActor
+func midiMatcherInfersRolledTargetFromScoreOffsets() {
+    let matcher = MIDIPracticeStepMatcher()
+    matcher.reset(stepIndex: 0, expectedNotes: [
+        PracticeStepNote(midiNote: 60, staff: 1, onTickOffset: 0, handAssignment: rightHand),
+        PracticeStepNote(midiNote: 64, staff: 1, onTickOffset: 120, handAssignment: rightHand),
+    ])
+
+    #expect(matcher.register(midiObservation(note: 60, seconds: 1)) == .insufficientEvidence)
+    #expect(matcher.register(midiObservation(note: 64, seconds: 1.4)) == .matched)
+}
+
+@Test
+@MainActor
+func midiMatcherRequiresObservedReleaseOnlyForRepeatedTarget() {
+    let matcher = MIDIPracticeStepMatcher()
+    let note = PracticeStepNote(midiNote: 60, staff: 1, handAssignment: rightHand)
+    matcher.reset(stepIndex: 0, expectedNotes: [note])
+    #expect(matcher.register(midiObservation(note: 60, seconds: 1)) == .matched)
+
+    matcher.reset(stepIndex: 1, expectedNotes: [note])
+    #expect(matcher.register(midiObservation(note: 60, seconds: 2, generation: 2)) == .insufficientEvidence)
+    _ = matcher.register(midiObservation(note: 60, seconds: 2.1, isOn: false, generation: 2))
+    #expect(matcher.register(midiObservation(note: 60, seconds: 2.2, generation: 2)) == .matched)
+}
+
+@Test
+@MainActor
+func midiMatcherDoesNotInventReleaseForIncapableSource() {
+    let matcher = MIDIPracticeStepMatcher()
+    let note = PracticeStepNote(midiNote: 60, staff: 1, handAssignment: rightHand)
+    matcher.reset(stepIndex: 0, expectedNotes: [note])
+    #expect(matcher.register(midiObservation(note: 60, seconds: 1, observesRelease: false)) == .matched)
+
+    matcher.reset(stepIndex: 1, expectedNotes: [note])
+    #expect(matcher.register(midiObservation(note: 60, seconds: 2, observesRelease: false)) == .matched)
+}
+
+private func midiObservation(
+    note: Int,
+    seconds: TimeInterval,
+    isOn: Bool = true,
+    observesRelease: Bool = true,
+    generation: UInt64 = 1
+) -> PerformanceObservation {
+    var capabilities = PerformanceInputCapabilities.midi
+    if observesRelease == false {
+        capabilities = PerformanceInputCapabilities(
+            pitch: capabilities.pitch,
+            onset: capabilities.onset,
+            release: .unavailable,
+            velocity: capabilities.velocity,
+            controllers: capabilities.controllers,
+            polyphony: capabilities.polyphony,
+            hand: capabilities.hand,
+            finger: capabilities.finger,
+            position: capabilities.position,
+            confidence: capabilities.confidence
+        )
+    }
+    let instant = PerformanceMonotonicInstant(seconds: seconds)
+    return PerformanceObservation(
+        source: .init(kind: .midi1, id: "test", generation: generation, capabilities: capabilities),
+        timing: PerformanceClockReading(
+            host: instant,
+            source: nil,
+            correctedHost: instant,
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: isOn
+            ? .noteOn(note: note, velocity: .init(midi1: 96))
+            : .noteOff(note: note, releaseVelocity: .init(midi1: 0)),
+        channel: 1,
+        group: 0
+    )
+}
+
+private let rightHand = ScoreHandAssignment(hand: .right, provenance: .score)
