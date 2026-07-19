@@ -8,7 +8,7 @@ struct GrandStaffNotationView: View {
     let practiceHandMode: PracticeHandMode
     var scrollTickProvider: (() -> Double?)?
 
-    private let fixedLineSpacing: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var lineSpacing: CGFloat = 14
     private let presentationViewModel: GrandStaffNotationPresentationViewModel
     private let renderer: GrandStaffNotationRenderer
 
@@ -46,7 +46,7 @@ struct GrandStaffNotationView: View {
             let scrollTick = scrollTickProvider?()
             let presentation = presentationViewModel.makePresentation(
                 size: proxy.size,
-                lineSpacing: fixedLineSpacing,
+                lineSpacing: lineSpacing,
                 projection: projection,
                 overlay: overlay,
                 measureSpans: measureSpans,

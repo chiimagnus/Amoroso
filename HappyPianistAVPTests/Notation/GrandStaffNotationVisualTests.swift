@@ -31,10 +31,21 @@ func grandStaffNotationAccessibleImageRendererMatchesVisualGolden() throws {
     )
     let goldenLines = try visualGoldenLines()
     let expected = goldenLines[1]
+    let dynamicTypeOnly = try visualSnapshot(
+        model: model,
+        dynamicTypeSize: .accessibility3,
+        differentiateWithoutColor: false
+    )
+    let standard = try visualSnapshot(
+        model: model,
+        dynamicTypeSize: .large,
+        differentiateWithoutColor: false
+    )
 
     #expect(accessible.description == expected)
     #expect(accessible.sampledInkPixelCount > 100)
     #expect(goldenLines[0].contains(accessible.hash) == false)
+    #expect(dynamicTypeOnly.hash != standard.hash)
 }
 
 private func visualGoldenLines() throws -> [String] {
@@ -101,7 +112,7 @@ private func visualSnapshot(
     let viewport = CGSize(width: 800, height: 320)
     let presentation = GrandStaffNotationPresentationViewModel().makePresentation(
         size: viewport,
-        lineSpacing: 14,
+        lineSpacing: dynamicTypeSize.isAccessibilitySize ? 22 : 14,
         projection: model.projection,
         overlay: model.overlay,
         measureSpans: model.score.measures,
