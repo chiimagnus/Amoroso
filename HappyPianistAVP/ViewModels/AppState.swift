@@ -116,7 +116,9 @@ final class AppState {
             let savedCalibration = try calibrationRepository.saveCalibration(
                 a0AnchorID: a0AnchorID,
                 c8AnchorID: c8AnchorID,
-                whiteKeyWidth: calibration?.whiteKeyWidth ?? storedCalibration?.whiteKeyWidth ?? 0.0235
+                whiteKeyWidth: calibration?.whiteKeyWidth ?? storedCalibration?.whiteKeyWidth ?? 0.0235,
+                touchCalibration: storedCalibration?.touchCalibration
+                    ?? PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio)
             )
             storedCalibration = savedCalibration
             calibration = nil

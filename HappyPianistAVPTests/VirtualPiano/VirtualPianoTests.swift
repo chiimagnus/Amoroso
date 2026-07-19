@@ -148,8 +148,8 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             index: SIMD3<Float>(
                 c4Key.hitCenterLocal.x,
                 c4Key.surfaceLocalY
-                    + (KeyContactDetectionService.pressThresholdMeters
-                        + KeyContactDetectionService.releaseThresholdMeters) / 2,
+                    + (service.calibration.planeOffsetMeters
+                        + service.calibration.releaseThresholdMeters) / 2,
                 c4Key.hitCenterLocal.z
             )
         )
@@ -170,7 +170,7 @@ func keyContactDetectionStartedEndedHysteresis() throws {
         right: HandTips(
             index: SIMD3<Float>(
                 c4Key.hitCenterLocal.x,
-                c4Key.surfaceLocalY + KeyContactDetectionService.releaseThresholdMeters + 0.001,
+                c4Key.surfaceLocalY + service.calibration.releaseThresholdMeters + 0.001,
                 c4Key.hitCenterLocal.z
             )
         )

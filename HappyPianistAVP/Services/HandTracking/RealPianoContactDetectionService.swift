@@ -3,11 +3,16 @@ import simd
 
 @MainActor
 final class RealPianoContactDetectionService {
-    static let pressThresholdMeters: Float = 0.004
-    static let releaseThresholdMeters: Float = 0.016
-    static let retriggerDebounceSeconds: TimeInterval = 0.03
-
+    let calibration: PianoTouchCalibration
     private var tracker = PianoKeyContactTracker()
+
+    init(
+        calibration: PianoTouchCalibration = PianoModeTouchCalibrationService.conservativeDefault(
+            for: .realAudio
+        )
+    ) {
+        self.calibration = calibration
+    }
 
     func reset() {
         tracker.reset()
@@ -22,9 +27,9 @@ final class RealPianoContactDetectionService {
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
             at: timestamp,
-            pressThresholdMeters: Self.pressThresholdMeters,
-            releaseThresholdMeters: Self.releaseThresholdMeters,
-            retriggerDebounceSeconds: Self.retriggerDebounceSeconds
+            pressThresholdMeters: calibration.planeOffsetMeters,
+            releaseThresholdMeters: calibration.releaseThresholdMeters,
+            retriggerDebounceSeconds: calibration.retriggerDebounceSeconds
         )
     }
 }

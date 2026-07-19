@@ -129,12 +129,14 @@ private final class InMemoryCalibrationRepository: CalibrationRepositoryProtocol
     func saveCalibration(
         a0AnchorID: UUID,
         c8AnchorID: UUID,
-        whiteKeyWidth: Float
+        whiteKeyWidth: Float,
+        touchCalibration: PianoTouchCalibration
     ) throws -> StoredWorldAnchorCalibration {
         let calibration = StoredWorldAnchorCalibration(
             a0AnchorID: a0AnchorID,
             c8AnchorID: c8AnchorID,
-            whiteKeyWidth: whiteKeyWidth
+            whiteKeyWidth: whiteKeyWidth,
+            touchCalibration: touchCalibration
         )
         stored = calibration
         return calibration
