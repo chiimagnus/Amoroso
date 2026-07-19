@@ -30,12 +30,19 @@ func coreMIDIOutputPacketListPreservesOrderedMessagesAndHostTimes() {
         TimestampedMIDI1Message(hostTime: 20_000, bytes: [0x80, 60, 0]),
     ]
 
-    let result = CoreMIDIOutputService.withPacketList(messages) { packetList in
+    let packets = CoreMIDIOutputService.withPacketList(messages) { packetList in
         packetMessages(in: packetList)
     }
 
-    #expect(result == messages)
-    #expect(result.allSatisfy { $0.hostTime != 0 })
+    #expect(packets.flatMap(\.bytes) == messages.flatMap(\.bytes))
+    #expect(
+        packets.flatMap { packet in
+            Array(repeating: packet.hostTime, count: packet.bytes.count)
+        } == messages.flatMap { message in
+            Array(repeating: message.hostTime, count: message.bytes.count)
+        }
+    )
+    #expect(packets.allSatisfy { $0.hostTime != 0 })
 }
 
 @Test
