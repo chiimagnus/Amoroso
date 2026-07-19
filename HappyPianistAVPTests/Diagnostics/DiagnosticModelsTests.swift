@@ -149,7 +149,7 @@ func pianoOutputMetricsAggregateTimingFailuresAndPrivacySafeFields() {
     #expect(snapshot.droppedCount == 2)
     #expect(snapshot.cancelledCount == 1)
     #expect(snapshot.resetFailedCount == 1)
-    #expect(snapshot.stuckNotePreventionCount == 1)
+    #expect(snapshot.stuckNotePreventionCount == 0)
     #expect(snapshot.submissionLatencyBuckets[.underTenMilliseconds] == 1)
     #expect(snapshot.submissionLatencyBuckets[.underFiftyMilliseconds] == 1)
     #expect(snapshot.acknowledgementLatencyBuckets[.underFiftyMilliseconds] == 1)
@@ -164,4 +164,9 @@ func pianoOutputMetricsAggregateTimingFailuresAndPrivacySafeFields() {
     #expect(event.reason.contains("cancelled=1"))
     #expect(event.reason.contains("/Users/") == false)
     #expect(event.reason.contains(".musicxml") == false)
+
+    metrics.recordReset(succeeded: true, preventsStuckNotes: true)
+    let successfulResetSnapshot = metrics.snapshot(capability: .externalMIDI)
+    #expect(successfulResetSnapshot.resetSucceededCount == 1)
+    #expect(successfulResetSnapshot.stuckNotePreventionCount == 1)
 }

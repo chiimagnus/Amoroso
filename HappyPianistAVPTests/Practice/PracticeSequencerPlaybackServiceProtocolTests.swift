@@ -190,7 +190,7 @@ func stopAttemptsEveryResetCommandAndPublishesResetFailure() async throws {
     #expect(metricEvents.contains { event in
         event.reason.contains("capability=localSampler")
             && event.reason.contains("resetFailed=1")
-            && event.reason.contains("stuckNotePrevention=1")
+            && event.reason.contains("stuckNotePrevention=0")
     })
     try await service.warmUp()
     #expect(await service.currentPlaybackState() == .ready)

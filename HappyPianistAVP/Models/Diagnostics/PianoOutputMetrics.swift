@@ -138,7 +138,7 @@ struct PianoOutputMetricsAccumulator: Sendable {
         } else {
             resetFailedCount += 1
         }
-        if preventsStuckNotes {
+        if succeeded && preventsStuckNotes {
             stuckNotePreventionCount += 1
         }
     }
