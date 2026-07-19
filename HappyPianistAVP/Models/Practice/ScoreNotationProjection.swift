@@ -1,6 +1,19 @@
 import Foundation
 
 struct ScoreNotationProjection: Equatable, Sendable {
+    struct TransposeFact: Equatable, Sendable {
+        let diatonic: Int?
+        let chromatic: Int
+        let octaveChange: Int
+        let isDouble: Bool
+    }
+
+    struct OctaveShiftFact: Equatable, Sendable {
+        let kind: MusicXMLOctaveShiftKind
+        let size: Int
+        let numberToken: String?
+    }
+
     struct SourceNote: Equatable, Sendable {
         let id: MusicXMLSourceNoteID
         let writtenOnTick: Int
@@ -17,6 +30,9 @@ struct ScoreNotationProjection: Equatable, Sendable {
         let arpeggiate: MusicXMLArpeggiate?
         let fingeringText: String?
         let dotCount: Int
+        let keySignatureFifths: Int
+        let transpose: TransposeFact?
+        let octaveShifts: [OctaveShiftFact]
     }
 
     struct PerformedOccurrence: Equatable, Sendable {
@@ -65,7 +81,10 @@ struct ScoreNotationProjection: Equatable, Sendable {
                 articulations: note.articulations,
                 arpeggiate: note.arpeggiate,
                 fingeringText: note.fingeringText,
-                dotCount: note.dotCount
+                dotCount: note.dotCount,
+                keySignatureFifths: Self.keySignatureFifths(for: note, in: sourceScore),
+                transpose: Self.transposeFact(for: note, in: sourceScore),
+                octaveShifts: Self.octaveShiftFacts(for: note, in: sourceScore)
             )
         }
         let sourceNotesByID = Dictionary(grouping: sourceNotes, by: \.id)
@@ -109,10 +128,79 @@ struct ScoreNotationProjection: Equatable, Sendable {
                 }
             }
         }
+        let linkedSourceNoteIDs = Set(occurrencesByID.values.map(\.sourceNoteID))
+        for source in sourceNotes where linkedSourceNoteIDs.contains(source.id) == false {
+            let performedID = MusicXMLPerformedNoteID(sourceID: source.id, occurrenceIndex: 0)
+            occurrencesByID[performedID] = PerformedOccurrence(
+                id: performedID,
+                sourceNoteID: source.id,
+                performanceEventIDs: [],
+                writtenOnTick: source.writtenOnTick,
+                performedOnTick: source.writtenOnTick,
+                performedOffTick: source.writtenOnTick + source.writtenDurationTicks,
+                handAssignment: .unknown
+            )
+        }
         performedOccurrences = occurrencesByID.values.sorted { lhs, rhs in
             if lhs.writtenOnTick != rhs.writtenOnTick { return lhs.writtenOnTick < rhs.writtenOnTick }
             return lhs.id.description < rhs.id.description
         }
+    }
+
+    private static func keySignatureFifths(for note: MusicXMLNoteEvent, in score: MusicXMLScore) -> Int {
+        score.keySignatureEvents
+            .filter { $0.tick <= note.tick && scope($0.scope, matches: note) }
+            .max { lhs, rhs in
+                lhs.tick == rhs.tick
+                    ? scopeSpecificity(lhs.scope) < scopeSpecificity(rhs.scope)
+                    : lhs.tick < rhs.tick
+            }?
+            .fifths ?? 0
+    }
+
+    private static func transposeFact(for note: MusicXMLNoteEvent, in score: MusicXMLScore) -> TransposeFact? {
+        score.transposeEvents
+            .filter { $0.tick <= note.tick && scope($0.scope, matches: note) }
+            .max { lhs, rhs in
+                lhs.tick == rhs.tick
+                    ? scopeSpecificity(lhs.scope) < scopeSpecificity(rhs.scope)
+                    : lhs.tick < rhs.tick
+            }
+            .map {
+                TransposeFact(
+                    diatonic: $0.diatonic,
+                    chromatic: $0.chromatic,
+                    octaveChange: $0.octaveChange,
+                    isDouble: $0.isDouble
+                )
+            }
+    }
+
+    private static func octaveShiftFacts(for note: MusicXMLNoteEvent, in score: MusicXMLScore) -> [OctaveShiftFact] {
+        let applicable = score.octaveShiftEvents
+            .filter { $0.tick <= note.tick && scope($0.scope, matches: note) }
+            .sorted { lhs, rhs in
+                lhs.tick == rhs.tick
+                    ? scopeSpecificity(lhs.scope) < scopeSpecificity(rhs.scope)
+                    : lhs.tick < rhs.tick
+            }
+        let latestByNumber = applicable.reduce(into: [String: MusicXMLOctaveShiftEvent]()) { result, event in
+            result[event.numberToken ?? "1"] = event
+        }
+        return latestByNumber.values
+            .filter { $0.kind != .stop }
+            .sorted { ($0.numberToken ?? "1") < ($1.numberToken ?? "1") }
+            .map { OctaveShiftFact(kind: $0.kind, size: $0.size, numberToken: $0.numberToken) }
+    }
+
+    private static func scope(_ scope: MusicXMLEventScope, matches note: MusicXMLNoteEvent) -> Bool {
+        scope.partID == note.partID &&
+            (scope.staff == nil || scope.staff == note.staff) &&
+            (scope.voice == nil || scope.voice == note.voice)
+    }
+
+    private static func scopeSpecificity(_ scope: MusicXMLEventScope) -> Int {
+        (scope.staff == nil ? 0 : 1) + (scope.voice == nil ? 0 : 1)
     }
 
     private init(

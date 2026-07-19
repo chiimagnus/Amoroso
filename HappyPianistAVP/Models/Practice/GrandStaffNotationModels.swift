@@ -14,6 +14,21 @@ enum GrandStaffStemDirection: Equatable {
     case down
 }
 
+struct GrandStaffAccidental: Equatable {
+    enum Kind: Equatable {
+        case sharp
+        case flat
+        case natural
+        case doubleSharp
+        case doubleFlat
+        case unsupported
+    }
+
+    let kind: Kind
+    let sourceToken: String?
+    let alter: Double
+}
+
 struct GrandStaffNotationLayout: Equatable {
     let items: [GrandStaffNotationItem]
     let chords: [GrandStaffNotationChord]
@@ -97,12 +112,11 @@ struct GrandStaffNotationItem: Equatable, Identifiable {
     let staffNumber: Int
     let voice: Int
     let hand: ScoreHand
-    let midiNote: Int
     let guideID: Int
     let tick: Int
     let xPosition: Double
     let staffStep: Int
-    let showsSharpAccidental: Bool
+    let displayedAccidental: GrandStaffAccidental?
     let isHighlighted: Bool
     let fingeringText: String?
     let noteValue: GrandStaffNoteValue

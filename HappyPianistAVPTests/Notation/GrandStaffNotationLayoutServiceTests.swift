@@ -65,16 +65,49 @@ func projectionLayoutUsesWrittenDurationAndAccidentalInsteadOfPerformanceOrMidi(
         projection: projection,
         overlay: .init(activeEventIDs: [activeEvent.id], activeTickRange: nil)
     )
-    let flat = try #require(layout.items.first { $0.midiNote == 61 })
-    let sharp = try #require(layout.items.first { $0.midiNote == 60 })
+    let flat = try #require(layout.items.first { $0.tick == 0 })
+    let sharp = try #require(layout.items.first { $0.tick == 960 })
 
     #expect(activeEvent.performedOffTick - activeEvent.performedOnTick == 480)
     #expect(flat.durationTicks == 960)
     #expect(flat.noteValue == .half)
-    #expect(flat.showsSharpAccidental == false)
+    #expect(flat.displayedAccidental?.kind == .flat)
     #expect(flat.isHighlighted)
-    #expect(sharp.showsSharpAccidental)
+    #expect(sharp.displayedAccidental?.kind == .sharp)
     #expect(sharp.isHighlighted == false)
+    #expect(flat.staffStep == -1)
+    #expect(sharp.staffStep == -2)
+}
+
+@Test
+func projectionResolvesKeyAndMeasureAccidentalStateWithoutLosingPitchTransforms() throws {
+    let score = accidentalStateScore()
+    let projection = ScoreNotationProjection(
+        plan: makeTestScorePerformancePlan(from: score),
+        sourceScore: score
+    )
+    let layout = GrandStaffNotationLayoutService().makeLayout(projection: projection)
+
+    #expect(layout.items.map { $0.displayedAccidental?.kind } == [
+        nil,
+        .natural,
+        nil,
+        .sharp,
+        .natural,
+        .unsupported,
+    ])
+    #expect(projection.sourceNotes.allSatisfy { $0.keySignatureFifths == 1 })
+    #expect(projection.sourceNotes.first?.transpose == .init(
+        diatonic: -1,
+        chromatic: -2,
+        octaveChange: 0,
+        isDouble: false
+    ))
+    #expect(projection.sourceNotes.first?.octaveShifts == [
+        .init(kind: .up, size: 8, numberToken: "1"),
+    ])
+    #expect(layout.items.last?.displayedAccidental?.sourceToken == "quarter-sharp")
+    #expect(layout.items.last?.displayedAccidental?.alter == 0.5)
 }
 
 @Test
@@ -146,7 +179,7 @@ func projectionDeduplicatesGeneratedPerformanceEventsForOneWrittenOccurrence() t
 
     #expect(projection.performedOccurrences.count == 1)
     #expect(occurrence.performanceEventIDs == generatedEvents.map(\.id))
-    #expect(item.midiNote == score.notes[0].midiNote)
+    #expect(item.staffStep == -1)
 }
 
 private func notationProjectionScore() -> MusicXMLScore {
@@ -188,7 +221,7 @@ private func notationProjectionScore() -> MusicXMLScore {
             tick: 960,
             durationTicks: 480,
             writtenPitch: MusicXMLWrittenPitch(step: "C", octave: 4, alter: 1, accidentalToken: "sharp"),
-            midiNote: 60,
+            midiNote: 61,
             isRest: false,
             isChord: false,
             tieStart: false,
@@ -197,6 +230,71 @@ private func notationProjectionScore() -> MusicXMLScore {
             voice: 1
         ),
     ])
+}
+
+private func accidentalStateScore() -> MusicXMLScore {
+    let pitches: [(measure: Int, tick: Int, pitch: MusicXMLWrittenPitch, midi: Int?)] = [
+        (0, 0, .init(step: "F", octave: 4, alter: 1), 66),
+        (0, 120, .init(step: "F", octave: 4, accidentalToken: "natural"), 65),
+        (0, 240, .init(step: "F", octave: 4), 65),
+        (0, 360, .init(step: "F", octave: 4, alter: 1), 66),
+        (1, 480, .init(step: "F", octave: 4), 65),
+        (1, 600, .init(step: "C", octave: 5, alter: 0.5, accidentalToken: "quarter-sharp"), nil),
+    ]
+    let notes = pitches.enumerated().map { ordinal, fixture in
+        MusicXMLNoteEvent(
+            sourceID: MusicXMLSourceNoteID(
+                partID: "P1",
+                sourceMeasureIndex: fixture.measure,
+                sourceMeasureNumberToken: String(fixture.measure + 1),
+                staff: 1,
+                voice: 1,
+                sourceOrdinal: ordinal
+            ),
+            partID: "P1",
+            measureNumber: fixture.measure + 1,
+            tick: fixture.tick,
+            durationTicks: 120,
+            writtenPitch: fixture.pitch,
+            midiNote: fixture.midi,
+            isRest: false,
+            isChord: false,
+            tieStart: false,
+            tieStop: false,
+            staff: 1,
+            voice: 1
+        )
+    }
+    return MusicXMLScore(
+        notes: notes,
+        keySignatureEvents: [
+            MusicXMLKeySignatureEvent(
+                tick: 0,
+                fifths: 1,
+                modeToken: "major",
+                scope: .init(partID: "P1", staff: nil, voice: nil)
+            ),
+        ],
+        transposeEvents: [
+            MusicXMLTransposeEvent(
+                tick: 0,
+                diatonic: -1,
+                chromatic: -2,
+                octaveChange: 0,
+                isDouble: false,
+                scope: .init(partID: "P1", staff: nil, voice: nil)
+            ),
+        ],
+        octaveShiftEvents: [
+            MusicXMLOctaveShiftEvent(
+                tick: 0,
+                kind: .up,
+                size: 8,
+                numberToken: "1",
+                scope: .init(partID: "P1", staff: 1, voice: nil)
+            ),
+        ]
+    )
 }
 
 private func notationTieScore() -> MusicXMLScore {

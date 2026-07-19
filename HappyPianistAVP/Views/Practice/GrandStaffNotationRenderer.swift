@@ -539,12 +539,23 @@ struct GrandStaffNotationRenderer {
         let noteColor = resolvedNoteColor(for: item)
         context.fill(path, with: .color(noteColor.opacity(baseOpacity * fadeScale)))
 
-        if item.showsSharpAccidental {
+        if let accidentalGlyph = accidentalGlyph(for: item.displayedAccidental) {
             let accidentalOpacity = min(1.0, 0.85 * fadeScale)
-            let accidental = Text("\u{E262}")
+            let accidental = Text(accidentalGlyph)
                 .font(.custom("Bravura", size: layout.lineSpacing * 1.05))
                 .foregroundStyle(noteColor.opacity(accidentalOpacity))
             context.draw(accidental, at: CGPoint(x: x - layout.noteWidth * 1.0, y: y))
+        }
+    }
+
+    private func accidentalGlyph(for accidental: GrandStaffAccidental?) -> String? {
+        switch accidental?.kind {
+        case .sharp: "\u{E262}"
+        case .flat: "\u{E260}"
+        case .natural: "\u{E261}"
+        case .doubleSharp: "\u{E263}"
+        case .doubleFlat: "\u{E264}"
+        case .unsupported, nil: nil
         }
     }
 

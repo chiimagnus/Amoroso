@@ -7,23 +7,19 @@ struct GrandStaffNotationLayoutService {
         let voice: Int
     }
 
+    private struct AccidentalMeasureKey: Hashable {
+        let partID: String
+        let sourceMeasureIndex: Int
+        let occurrenceIndex: Int
+        let staffNumber: Int
+    }
+
+    private struct AccidentalPitchKey: Hashable {
+        let step: String
+        let octave: Int
+    }
+
     private let visibleOverscan: Double = 0.18
-    private let trebleBottomLineMIDINote = 64
-    private let bassBottomLineMIDINote = 43
-    private let diatonicIndexByPitchClass: [Int: Int] = [
-        0: 0,
-        1: 0,
-        2: 1,
-        3: 1,
-        4: 2,
-        5: 3,
-        6: 3,
-        7: 4,
-        8: 4,
-        9: 5,
-        10: 5,
-        11: 6,
-    ]
 
     func makeLayout(
         projection: ScoreNotationProjection,
@@ -35,28 +31,30 @@ struct GrandStaffNotationLayoutService {
     ) -> GrandStaffNotationLayout {
         let sourceNotesByID = Dictionary(grouping: projection.sourceNotes, by: \.id)
             .compactMapValues { notes in notes.count == 1 ? notes[0] : nil }
-        let layoutNotes = projection.performedOccurrences.enumerated().compactMap { index, occurrence -> LayoutNote? in
+        let unresolvedNotes = projection.performedOccurrences.enumerated().compactMap { index, occurrence -> LayoutNote? in
             guard overlay.activeTickRange?.contains(occurrence.writtenOnTick) ?? true else { return nil }
             guard let source = sourceNotesByID[occurrence.sourceNoteID],
                   source.isRest == false,
-                  let midiNote = source.midiNote
+                  let writtenPitch = source.writtenPitch
             else {
                 return nil
             }
             let writtenDurationTicks = max(1, source.writtenDurationTicks)
             return LayoutNote(
+                performedID: occurrence.id,
                 occurrenceID: occurrence.id.description,
                 staffNumber: resolvedStaffNumber(source.staff),
                 voice: source.voice,
                 hand: occurrence.handAssignment.hand,
-                midiNote: midiNote,
                 guideID: index + 1,
                 tick: occurrence.writtenOnTick,
                 isHighlighted: occurrence.performanceEventIDs.contains { overlay.activeEventIDs.contains($0) },
                 fingeringText: source.fingeringText,
                 noteValue: noteValue(forDurationTicks: writtenDurationTicks),
                 durationTicks: writtenDurationTicks,
-                showsSharpAccidental: source.writtenPitch?.alter == 1,
+                writtenPitch: writtenPitch,
+                keySignatureFifths: source.keySignatureFifths,
+                displayedAccidental: nil,
                 isGrace: source.isGrace,
                 tieStart: source.tieStart,
                 tieStop: source.tieStop,
@@ -65,6 +63,7 @@ struct GrandStaffNotationLayoutService {
                 dotCount: source.dotCount
             )
         }
+        let layoutNotes = resolvingDisplayedAccidentals(unresolvedNotes)
 
         return makeLayout(
             notes: layoutNotes,
@@ -76,18 +75,20 @@ struct GrandStaffNotationLayoutService {
     }
 
     private struct LayoutNote {
+        let performedID: MusicXMLPerformedNoteID
         let occurrenceID: String
         let staffNumber: Int
         let voice: Int
         let hand: ScoreHand
-        let midiNote: Int
         let guideID: Int
         let tick: Int
         let isHighlighted: Bool
         let fingeringText: String?
         let noteValue: GrandStaffNoteValue
         let durationTicks: Int
-        let showsSharpAccidental: Bool
+        let writtenPitch: MusicXMLWrittenPitch
+        let keySignatureFifths: Int
+        var displayedAccidental: GrandStaffAccidental?
         let isGrace: Bool
         let tieStart: Bool
         let tieStop: Bool
@@ -111,12 +112,11 @@ struct GrandStaffNotationLayoutService {
                 staffNumber: note.staffNumber,
                 voice: note.voice,
                 hand: note.hand,
-                midiNote: note.midiNote,
                 guideID: note.guideID,
                 tick: note.tick,
                 xPosition: 0.5 + (Double(note.tick) - currentTick) / Double(safeHalfWindowTicks * 2),
-                staffStep: staffStep(for: note.midiNote, staffNumber: note.staffNumber),
-                showsSharpAccidental: note.showsSharpAccidental,
+                staffStep: staffStep(for: note.writtenPitch, staffNumber: note.staffNumber),
+                displayedAccidental: note.displayedAccidental,
                 isHighlighted: note.isHighlighted,
                 fingeringText: note.fingeringText,
                 noteValue: note.noteValue,
@@ -141,7 +141,7 @@ struct GrandStaffNotationLayoutService {
             if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
             if lhs.staffNumber != rhs.staffNumber { return lhs.staffNumber < rhs.staffNumber }
             if lhs.voice != rhs.voice { return lhs.voice < rhs.voice }
-            if lhs.midiNote != rhs.midiNote { return lhs.midiNote < rhs.midiNote }
+            if lhs.staffStep != rhs.staffStep { return lhs.staffStep < rhs.staffStep }
             return lhs.occurrenceID < rhs.occurrenceID
         }
 
@@ -163,9 +163,77 @@ struct GrandStaffNotationLayoutService {
         )
     }
 
-    func staffStep(for midiNote: Int, staffNumber: Int) -> Int {
-        let bottomLineMIDINote = (staffNumber >= 2) ? bassBottomLineMIDINote : trebleBottomLineMIDINote
-        return diatonicIndex(for: midiNote) - diatonicIndex(for: bottomLineMIDINote)
+    func staffStep(for writtenPitch: MusicXMLWrittenPitch, staffNumber: Int) -> Int {
+        let bottomLineIndex = staffNumber >= 2
+            ? writtenDiatonicIndex(step: "G", octave: 2)
+            : writtenDiatonicIndex(step: "E", octave: 4)
+        return writtenDiatonicIndex(step: writtenPitch.step, octave: writtenPitch.octave) - bottomLineIndex
+    }
+
+    private func resolvingDisplayedAccidentals(_ notes: [LayoutNote]) -> [LayoutNote] {
+        var accidentalState: [AccidentalMeasureKey: [AccidentalPitchKey: Double]] = [:]
+        return notes.sorted { lhs, rhs in
+            if lhs.tick != rhs.tick { return lhs.tick < rhs.tick }
+            if lhs.staffNumber != rhs.staffNumber { return lhs.staffNumber < rhs.staffNumber }
+            if lhs.voice != rhs.voice { return lhs.voice < rhs.voice }
+            return lhs.occurrenceID < rhs.occurrenceID
+        }.map { note in
+            let writtenPitch = note.writtenPitch
+            let performedID = note.performedID
+            let measureKey = AccidentalMeasureKey(
+                partID: performedID.sourceID.partID,
+                sourceMeasureIndex: performedID.sourceID.sourceMeasureIndex,
+                occurrenceIndex: performedID.occurrenceIndex,
+                staffNumber: note.staffNumber
+            )
+            let pitchKey = AccidentalPitchKey(step: writtenPitch.step, octave: writtenPitch.octave)
+            let expectedAlter = accidentalState[measureKey]?[pitchKey]
+                ?? keySignatureAlter(step: writtenPitch.step, fifths: note.keySignatureFifths)
+            var resolved = note
+            if writtenPitch.accidentalToken != nil || writtenPitch.alter != expectedAlter {
+                resolved.displayedAccidental = accidental(
+                    alter: writtenPitch.alter,
+                    sourceToken: writtenPitch.accidentalToken
+                )
+            }
+            accidentalState[measureKey, default: [:]][pitchKey] = writtenPitch.alter
+            return resolved
+        }
+    }
+
+    private func accidental(alter: Double, sourceToken: String?) -> GrandStaffAccidental {
+        let normalizedToken = sourceToken?.lowercased()
+        let kind: GrandStaffAccidental.Kind = switch normalizedToken {
+        case "sharp": .sharp
+        case "flat": .flat
+        case "natural": .natural
+        case "double-sharp", "sharp-sharp": .doubleSharp
+        case "flat-flat", "double-flat": .doubleFlat
+        case .some: .unsupported
+        case nil:
+            switch alter {
+            case 1: .sharp
+            case -1: .flat
+            case 0: .natural
+            case 2: .doubleSharp
+            case -2: .doubleFlat
+            default: .unsupported
+            }
+        }
+        return GrandStaffAccidental(kind: kind, sourceToken: sourceToken, alter: alter)
+    }
+
+    private func keySignatureAlter(step: String, fifths: Int) -> Double {
+        let clamped = max(-7, min(7, fifths))
+        let orderedSteps = clamped >= 0
+            ? ["F", "C", "G", "D", "A", "E", "B"]
+            : ["B", "E", "A", "D", "G", "C", "F"]
+        return orderedSteps.prefix(abs(clamped)).contains(step.uppercased()) ? (clamped >= 0 ? 1 : -1) : 0
+    }
+
+    private func writtenDiatonicIndex(step: String, octave: Int) -> Int {
+        let stepIndex = ["C": 0, "D": 1, "E": 2, "F": 3, "G": 4, "A": 5, "B": 6][step.uppercased()] ?? 0
+        return octave * 7 + stepIndex
     }
 
     func ledgerStaffSteps(for staffStep: Int) -> [Int] {
@@ -268,12 +336,11 @@ struct GrandStaffNotationLayoutService {
                     staffNumber: item.staffNumber,
                     voice: item.voice,
                     hand: item.hand,
-                    midiNote: item.midiNote,
                     guideID: item.guideID,
                     tick: item.tick,
                     xPosition: item.xPosition,
                     staffStep: item.staffStep,
-                    showsSharpAccidental: item.showsSharpAccidental,
+                    displayedAccidental: item.displayedAccidental,
                     isHighlighted: item.isHighlighted,
                     fingeringText: item.fingeringText,
                     noteValue: item.noteValue,
@@ -311,12 +378,11 @@ struct GrandStaffNotationLayoutService {
                             staffNumber: existing.staffNumber,
                             voice: existing.voice,
                             hand: existing.hand,
-                            midiNote: existing.midiNote,
                             guideID: existing.guideID,
                             tick: existing.tick,
                             xPosition: existing.xPosition,
                             staffStep: existing.staffStep,
-                            showsSharpAccidental: existing.showsSharpAccidental,
+                            displayedAccidental: existing.displayedAccidental,
                             isHighlighted: existing.isHighlighted,
                             fingeringText: existing.fingeringText,
                             noteValue: existing.noteValue,
@@ -354,12 +420,11 @@ struct GrandStaffNotationLayoutService {
                         staffNumber: existing.staffNumber,
                         voice: existing.voice,
                         hand: existing.hand,
-                        midiNote: existing.midiNote,
                         guideID: existing.guideID,
                         tick: existing.tick,
                         xPosition: existing.xPosition,
                         staffStep: existing.staffStep,
-                        showsSharpAccidental: existing.showsSharpAccidental,
+                        displayedAccidental: existing.displayedAccidental,
                         isHighlighted: existing.isHighlighted,
                         fingeringText: existing.fingeringText,
                         noteValue: existing.noteValue,
@@ -555,13 +620,4 @@ struct GrandStaffNotationLayoutService {
         return "\(staff)-\(voice)"
     }
 
-    private func diatonicIndex(for midiNote: Int) -> Int {
-        let pitchClass = normalizedPitchClass(for: midiNote)
-        let octave = (midiNote / 12) - 1
-        return octave * 7 + (diatonicIndexByPitchClass[pitchClass] ?? 0)
-    }
-
-    private func normalizedPitchClass(for midiNote: Int) -> Int {
-        ((midiNote % 12) + 12) % 12
-    }
 }
