@@ -23,6 +23,8 @@ final class MIDIRecordingState {
 
     private var isRecording = false
     private var recordingStartDate: Date?
+    private var recordingGeneration: UInt64 = 0
+    private var activeKeyContactIDsByMIDINote: [Int: Set<PianoKeyContactID>] = [:]
 
     init(
         nowUptimeSeconds: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
@@ -79,10 +81,16 @@ final class MIDIRecordingState {
         }
     }
 
-    func startRecordingIfPossible(canRecord: Bool) {
+    func startRecordingIfPossible(
+        canRecord: Bool,
+        metadata: RecordingTakeMetadata = .unattributed
+    ) {
         guard canRecord else { return }
         let now = nowUptimeSeconds()
-        takeRecorder.start(now: now)
+        recordingGeneration &+= 1
+        activeKeyContactIDsByMIDINote.removeAll(keepingCapacity: true)
+        midiRecordingAdapter.beginRecording()
+        takeRecorder.start(now: now, metadata: metadata)
         isRecording = true
         recordingStartDate = nowDate()
         notifyStateChanged()
@@ -96,6 +104,7 @@ final class MIDIRecordingState {
 
         isRecording = false
         recordingStartDate = nil
+        activeKeyContactIDsByMIDINote.removeAll(keepingCapacity: true)
         notifyStateChanged()
 
         guard take.events.isEmpty == false else { return }
@@ -105,19 +114,84 @@ final class MIDIRecordingState {
     func recordTakeFromKeyContactIfNeeded(
         usesBluetoothMIDIInput: Bool,
         isVirtualPianoEnabled: Bool,
-        keyContact: KeyContactResult,
-        nowUptimeSeconds: TimeInterval
+        observations: [PianoKeyContactObservation]
     ) {
         guard usesBluetoothMIDIInput == false else { return }
-        guard isVirtualPianoEnabled == false else { return }
         guard isRecording else { return }
+        let sourceKind: PerformanceObservation.Source.Kind = isVirtualPianoEnabled
+            ? .virtualPianoContact
+            : .realPianoContact
 
-        for note in keyContact.started {
-            takeRecorder.recordNoteOn(note: note, velocity: 90, now: nowUptimeSeconds)
+        for contact in observations {
+            guard let note = contact.keyCandidate.exactMIDINote else { continue }
+            let observation = performanceObservation(from: contact, sourceKind: sourceKind)
+            switch contact.phase {
+            case .started:
+                guard let velocity = contact.resolvedVelocity else { continue }
+                var activeContactIDs = activeKeyContactIDsByMIDINote[note, default: []]
+                let shouldRecordNoteOn = activeContactIDs.isEmpty
+                guard activeContactIDs.insert(contact.id).inserted else { continue }
+                activeKeyContactIDsByMIDINote[note] = activeContactIDs
+                guard shouldRecordNoteOn else { continue }
+                takeRecorder.recordNoteOn(
+                    note: note,
+                    velocity: Int(velocity),
+                    now: contact.timestamp.seconds,
+                    observation: observation
+                )
+            case .ended:
+                guard var activeContactIDs = activeKeyContactIDsByMIDINote[note],
+                      activeContactIDs.remove(contact.id) != nil
+                else { continue }
+                guard activeContactIDs.isEmpty else {
+                    activeKeyContactIDsByMIDINote[note] = activeContactIDs
+                    continue
+                }
+                activeKeyContactIDsByMIDINote.removeValue(forKey: note)
+                takeRecorder.recordNoteOff(
+                    note: note,
+                    now: contact.timestamp.seconds,
+                    observation: observation
+                )
+            case .held:
+                break
+            }
         }
-        for note in keyContact.ended {
-            takeRecorder.recordNoteOff(note: note, now: nowUptimeSeconds)
+    }
+
+    private func performanceObservation(
+        from contact: PianoKeyContactObservation,
+        sourceKind: PerformanceObservation.Source.Kind
+    ) -> PerformanceObservation {
+        let phase: PerformanceObservation.ContactPhase = switch contact.phase {
+        case .started: .started
+        case .held: .held
+        case .ended: .ended
         }
+        return PerformanceObservation(
+            source: PerformanceObservation.Source(
+                kind: sourceKind,
+                id: sourceKind == .virtualPianoContact
+                    ? "virtual-piano-key-contact"
+                    : "real-piano-key-contact",
+                generation: recordingGeneration,
+                capabilities: .handContact
+            ),
+            timing: PerformanceClockReading(
+                host: contact.timestamp,
+                source: nil,
+                correctedHost: contact.timestamp,
+                mapping: nil,
+                provenance: .hostOnly
+            ),
+            event: .contact(
+                id: "\(contact.hand)-\(contact.finger)-\(contact.id.sequence)",
+                keyCandidate: contact.keyCandidate.exactMIDINote,
+                phase: phase
+            ),
+            confidence: Double(contact.confidence),
+            calibrationReference: contact.calibrationID.uuidString
+        )
     }
 
     private func stopMIDISubscription() {

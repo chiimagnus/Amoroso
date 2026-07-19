@@ -1,18 +1,20 @@
 import Foundation
 import simd
 
-struct KeyContactResult: Equatable {
-    let down: Set<Int>
-    let started: Set<Int>
-    let ended: Set<Int>
-}
-
 @MainActor
 final class KeyContactDetectionService {
-    static let pressThresholdMeters: Float = 0.002
-    static let releaseThresholdMeters: Float = 0.008
-
+    let calibration: PianoTouchCalibration
+    private let velocityResolver: PianoTouchVelocityResolver
     private var tracker = PianoKeyContactTracker()
+
+    init(
+        calibration: PianoTouchCalibration = PianoModeTouchCalibrationService.conservativeDefault(
+            for: .virtualPiano
+        )
+    ) {
+        self.calibration = calibration
+        velocityResolver = PianoTouchVelocityResolver(calibration: calibration)
+    }
 
     func reset() {
         tracker.reset()
@@ -20,13 +22,18 @@ final class KeyContactDetectionService {
 
     func detect(
         fingerTips: FingerTipsSnapshot,
-        keyboardGeometry: PianoKeyboardGeometry
-    ) -> KeyContactResult {
+        keyboardGeometry: PianoKeyboardGeometry,
+        at timestamp: PerformanceMonotonicInstant
+    ) -> [PianoKeyContactObservation] {
         tracker.detect(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            pressThresholdMeters: Self.pressThresholdMeters,
-            releaseThresholdMeters: Self.releaseThresholdMeters
+            at: timestamp,
+            pressThresholdMeters: calibration.planeOffsetMeters,
+            releaseThresholdMeters: calibration.releaseThresholdMeters,
+            retriggerDebounceSeconds: calibration.retriggerDebounceSeconds,
+            calibrationID: calibration.id,
+            velocityResolver: velocityResolver
         )
     }
 }

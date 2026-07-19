@@ -121,8 +121,11 @@ func aiPlaybackDoesNotBlockSecondContinuousWindowRequest() async {
 
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: 0.0
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: 0)
+        )
     )
     nowUptime = 0.3
 
@@ -134,8 +137,11 @@ func aiPlaybackDoesNotBlockSecondContinuousWindowRequest() async {
 
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [64], started: [64], ended: []),
-        nowUptimeSeconds: 0.3
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [64],
+            startedMIDINotes: [64],
+            timestamp: .init(seconds: 0.3)
+        )
     )
     nowUptime = 0.7
 

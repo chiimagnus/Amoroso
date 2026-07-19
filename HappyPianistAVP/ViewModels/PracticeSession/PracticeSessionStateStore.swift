@@ -74,7 +74,7 @@ final class PracticeSessionStateStore {
     var keyboardGeometry: PianoKeyboardGeometry?
     var pressedNotes: Set<Int> = []
     var latestNoteOnMIDINotes: Set<Int> = []
-    var latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
+    var latestKeyContactObservations: [PianoKeyContactObservation] = []
     var isSustainPedalDown = false
     var audioRecognitionErrorMessage: String?
     var audioPlaybackErrorMessage: String?
@@ -87,8 +87,6 @@ final class PracticeSessionStateStore {
         exactPressedNotes: [],
         confidenceBoost: 0
     )
-    var noteMatchTolerance: Int = 1
-
     private(set) var tempoMap = MusicXMLTempoMap(performanceEvents: [])
     var measureSpans: [MusicXMLMeasureSpan] = []
     var manualReplayGeneration = 0

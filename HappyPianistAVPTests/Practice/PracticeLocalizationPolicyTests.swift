@@ -10,7 +10,8 @@ func practiceEntryBlockingReasonIsMissingImportedStepsFirst() {
     appState.storedCalibration = StoredWorldAnchorCalibration(
         a0AnchorID: UUID(),
         c8AnchorID: UUID(),
-        whiteKeyWidth: 0.0235
+        whiteKeyWidth: 0.0235,
+        touchCalibration: PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio)
     )
 
     let viewModel = ARGuideViewModel(appState: appState, practiceSetupState: practiceSetupState)
@@ -36,7 +37,8 @@ func practiceEntryBlockingReasonIsNilWhenPreconditionsAreReady() {
     appState.storedCalibration = StoredWorldAnchorCalibration(
         a0AnchorID: UUID(),
         c8AnchorID: UUID(),
-        whiteKeyWidth: 0.0235
+        whiteKeyWidth: 0.0235,
+        touchCalibration: PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio)
     )
     practiceSetupState.setImportedSteps(from: makeTestPreparedPractice())
 

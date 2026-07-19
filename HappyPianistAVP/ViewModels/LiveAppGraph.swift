@@ -65,7 +65,6 @@ struct LiveAppGraph {
             diagnostics: diagnosticsReporter
         )
 
-        let makePressDetectionService: () -> PressDetectionServiceProtocol = { PressDetectionService() }
         let makeChordAttemptAccumulator: () -> ChordAttemptAccumulatorProtocol = {
             ChordAttemptAccumulator()
         }
@@ -117,7 +116,12 @@ struct LiveAppGraph {
         )
         let makePracticeSessionViewModel: @MainActor (String?) -> PracticeSessionViewModel = {
             pianoModeID in
-            switch PianoModeID(rawValue: pianoModeID ?? "") {
+            let modeID = PianoModeID(rawValue: pianoModeID ?? "")
+            let touchCalibration = modeID == .virtualPiano
+                ? PianoModeTouchCalibrationService.conservativeDefault(for: .virtualPiano)
+                : appState.storedCalibration?.touchCalibration
+                    ?? PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio)
+            switch modeID {
             case .bluetoothMIDI:
                 let settingsProvider = UserDefaultsPracticeSessionSettingsProvider()
                 let routing = settingsProvider.soundRoutingSettings
@@ -137,7 +141,6 @@ struct LiveAppGraph {
                     }
 
                 return PracticeSessionViewModel(
-                    pressDetectionService: makePressDetectionService(),
                     chordAttemptAccumulator: makeChordAttemptAccumulator(),
                     sleeper: makeSleeper(),
                     sequencerPlaybackService: sequencerPlaybackService,
@@ -153,10 +156,10 @@ struct LiveAppGraph {
 
             case .virtualPiano:
                 return PracticeSessionViewModel(
-                    pressDetectionService: makePressDetectionService(),
                     chordAttemptAccumulator: makeChordAttemptAccumulator(),
                     sleeper: makeSleeper(),
                     sequencerPlaybackService: makeLocalSamplerPlaybackService(),
+                    keyContactDetectionService: KeyContactDetectionService(calibration: touchCalibration),
                     audioRecognitionService: nil,
                     practiceInputEventSource: nil,
                     audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
@@ -168,10 +171,12 @@ struct LiveAppGraph {
 
             default:
                 return PracticeSessionViewModel(
-                    pressDetectionService: makePressDetectionService(),
                     chordAttemptAccumulator: makeChordAttemptAccumulator(),
                     sleeper: makeSleeper(),
                     sequencerPlaybackService: makeLocalSamplerPlaybackService(),
+                    realPianoContactDetectionService: RealPianoContactDetectionService(
+                        calibration: touchCalibration
+                    ),
                     audioRecognitionService: makeAudioRecognitionService(),
                     practiceInputEventSource: nil,
                     audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
@@ -220,7 +225,8 @@ struct LiveAppGraph {
         )
         let pianoSetupCoordinator = PianoSetupCoordinator(
             practiceSetupState: appState.practiceSetupState,
-            pianoModeRegistry: registry
+            pianoModeRegistry: registry,
+            storedTouchCalibration: { appState.storedCalibration?.touchCalibration }
         )
 
         Task {

@@ -15,8 +15,7 @@ private final class AlwaysMatchChordAttemptAccumulator: ChordAttemptAccumulatorP
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: true)
     }
@@ -36,8 +35,6 @@ func chordMatchAdvancesToNextStepViaEffect() {
     store.acceptsPracticeAttempts = true
     store.autoplayState = .off
     store.isManualReplayPlaying = false
-    store.noteMatchTolerance = 1
-
     let effectHandler = CapturingEffectHandler()
     let controller = PracticeHandGateController(
         activityGate: HandPianoActivityGate(),
@@ -47,8 +44,8 @@ func chordMatchAdvancesToNextStepViaEffect() {
     )
 
     controller.registerChordAttemptIfNeeded(
-        pressedNotes: [60],
-        at: .now,
+        observations: [makeTestKeyContactObservation(midiNote: 60, phase: .started)],
+        at: .init(seconds: 1),
         practiceHandMode: .both
     )
 
@@ -78,7 +75,50 @@ func chordMatchDoesNotAdvanceWhileReady() {
         effectHandler: effectHandler
     )
 
-    controller.registerChordAttemptIfNeeded(pressedNotes: [60], at: .now, practiceHandMode: .both)
+    controller.registerChordAttemptIfNeeded(
+        observations: [makeTestKeyContactObservation(midiNote: 60, phase: .started)],
+        at: .init(seconds: 1),
+        practiceHandMode: .both
+    )
 
     #expect(effectHandler.effects.isEmpty)
+}
+
+@Test
+@MainActor
+func uncertainSpatialCandidatesDoNotAdvancePractice() {
+    for candidate in [PianoKeyCandidate.ambiguous([59, 60]), .unknown] {
+        let store = PracticeSessionStateStore()
+        store.steps = [PracticeStep(tick: 0, notes: [PracticeStepNote(midiNote: 60, staff: 1, handAssignment: .unknown)])]
+        store.state = .guiding(stepIndex: 0)
+        store.acceptsPracticeAttempts = true
+
+        let effectHandler = CapturingEffectHandler()
+        let controller = PracticeHandGateController(
+            activityGate: HandPianoActivityGate(),
+            chordAttemptAccumulator: AlwaysMatchChordAttemptAccumulator(),
+            stateStore: store,
+            effectHandler: effectHandler
+        )
+        let observation = PianoKeyContactObservation(
+            id: PianoKeyContactID(finger: TrackedFingerID(hand: .right, finger: .index), sequence: 1),
+            phase: .started,
+            keyCandidate: candidate,
+            timestamp: .init(seconds: 1),
+            confidence: 0.5,
+            worldPosition: .zero,
+            planeDistanceMeters: 0,
+            normalVelocityMetersPerSecond: nil,
+            resolvedVelocity: nil,
+            calibrationID: UUID()
+        )
+
+        controller.registerChordAttemptIfNeeded(
+            observations: [observation],
+            at: .init(seconds: 1),
+            practiceHandMode: .both
+        )
+
+        #expect(effectHandler.effects == [.attemptEvaluated(.insufficientEvidence)])
+    }
 }

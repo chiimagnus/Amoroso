@@ -85,10 +85,10 @@ private final class RecorderClock: Sendable {
 
     func makeClock() -> PracticeSessionRecorderClock {
         PracticeSessionRecorderClock(
-            monotonicMilliseconds: { [self] in
+            monotonic: PerformanceClock { [self] in
                 state.withLock { state in
                     state.monotonicReadCount += 1
-                    return state.monotonicMilliseconds
+                    return PerformanceMonotonicInstant(milliseconds: state.monotonicMilliseconds)
                 }
             },
             wallDate: { [self] in
@@ -97,6 +97,79 @@ private final class RecorderClock: Sendable {
             localDay: { [practiceDay] _ in practiceDay }
         )
     }
+}
+
+@Test
+func performanceClockSynchronizerCalibratesOffsetLatencyAndDrift() throws {
+    var synchronizer = PerformanceClockSynchronizer(maximumDriftRatio: 0.05)
+    let first = synchronizer.reading(
+        source: PerformanceSourceTimestamp(clockID: "midi", seconds: 10),
+        receivedAt: PerformanceMonotonicInstant(seconds: 12.1),
+        estimatedLatencySeconds: 0.1
+    )
+    let second = synchronizer.reading(
+        source: PerformanceSourceTimestamp(clockID: "midi", seconds: 20),
+        receivedAt: PerformanceMonotonicInstant(seconds: 22.2),
+        estimatedLatencySeconds: 0.1
+    )
+
+    #expect(first.correctedHost.seconds == 12)
+    #expect(second.mapping?.sampleCount == 2)
+    #expect(second.mapping?.provenance == .offsetAndDriftSamples)
+    #expect(try #require(second.mapping?.rate) > 1)
+    #expect(abs(second.correctedHost.seconds - 22.1) < 0.000_001)
+}
+
+@Test
+func performanceClockSynchronizerFallsBackToHostForUncalibratedSource() {
+    var synchronizer = PerformanceClockSynchronizer()
+    let reading = synchronizer.reading(
+        source: nil,
+        receivedAt: PerformanceMonotonicInstant(seconds: 3),
+        estimatedLatencySeconds: 0.25
+    )
+
+    #expect(reading.mapping == nil)
+    #expect(reading.provenance == .latencyEstimate)
+    #expect(reading.correctedHost.seconds == 2.75)
+}
+
+@Test
+func sessionRecorderKeepsRawObservationsInMemoryWithoutWritingProgressJSON() async throws {
+    let repository = RecorderRepository()
+    let clock = try RecorderClock()
+    let recorder = makeRecorder(repository: repository, clock: clock)
+    await beginActiveVisit(recorder: recorder)
+    await recorder.setGuiding(true)
+    let reading = PerformanceClockReading(
+        host: PerformanceMonotonicInstant(seconds: 2),
+        source: nil,
+        correctedHost: PerformanceMonotonicInstant(seconds: 2),
+        mapping: nil,
+        provenance: .hostOnly
+    )
+    let source = PerformanceObservation.Source(kind: .midi1, id: "endpoint:1", generation: 1)
+
+    await recorder.record(PerformanceObservation(
+        source: source,
+        timing: reading,
+        event: .noteOn(note: 64, velocity: .init(midi1: 100))
+    ))
+    await recorder.record(PerformanceObservation(
+        source: source,
+        timing: reading,
+        event: .noteOff(note: 64, releaseVelocity: .init(midi1: 40))
+    ))
+    _ = await recorder.checkpoint()
+
+    let snapshot = await recorder.observationSnapshot()
+    #expect(snapshot.map(\.event) == [
+        .noteOn(note: 64, velocity: .init(midi1: 100)),
+        .noteOff(note: 64, releaseVelocity: .init(midi1: 40)),
+    ])
+    let progressRecord = try #require(await repository.records().last)
+    let data = try JSONEncoder().encode(progressRecord)
+    #expect(String(decoding: data, as: UTF8.self).contains("endpoint:1") == false)
 }
 
 private actor RecorderSleeper: SleeperProtocol {

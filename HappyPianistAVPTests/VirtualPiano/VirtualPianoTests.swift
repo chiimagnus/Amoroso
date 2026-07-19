@@ -8,7 +8,6 @@ import Testing
 func virtualPianoToggleOffStopsAllLiveNotes() async {
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService
@@ -26,7 +25,6 @@ func virtualPianoToggleOffStopsAllLiveNotes() async {
 func autoplayEnabledStopsLiveNotes() async {
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService
@@ -48,7 +46,6 @@ func virtualPianoNoteOnTriggersLiveStart() async throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let chordAccumulator = RecordingChordAttemptAccumulator()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: chordAccumulator,
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService
@@ -63,10 +60,22 @@ func virtualPianoNoteOnTriggersLiveStart() async throws {
     viewModel.applyVirtualKeyboardGeometry(geometry)
 
     let c4Key = try #require(geometry.key(for: 60))
+    let aboveSurface = FingerTipsSnapshot(
+        right: HandTips(index: SIMD3<Float>(c4Key.hitCenterLocal.x, 0.02, c4Key.hitCenterLocal.z))
+    )
+    _ = viewModel.handleFingerTipPositions(
+        aboveSurface,
+        isVirtualPiano: true,
+        at: .init(seconds: 1)
+    )
     let fingerTips = FingerTipsSnapshot(
         right: HandTips(index: SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z))
     )
-    let detected = viewModel.handleFingerTipPositions(fingerTips, isVirtualPiano: true)
+    let detected = viewModel.handleFingerTipPositions(
+        fingerTips,
+        isVirtualPiano: true,
+        at: .init(seconds: 1.05)
+    )
     await Task.yield()
 
     #expect(detected.contains(60))
@@ -77,10 +86,8 @@ func virtualPianoNoteOnTriggersLiveStart() async throws {
 @MainActor
 @Test
 func physicalPianoPathUnaffectedByVirtualPiano() {
-    let pressDetection = NoopPressDetectionService()
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: pressDetection,
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService
@@ -120,38 +127,146 @@ func keyContactDetectionStartedEndedHysteresis() throws {
             index: SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY, c4Key.hitCenterLocal.z)
         )
     )
-    let result1 = service.detect(fingerTips: atSurface, keyboardGeometry: geometry)
-    #expect(result1.started.contains(60))
-    #expect(result1.down.contains(60))
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(
+            right: HandTips(
+                index: SIMD3<Float>(c4Key.hitCenterLocal.x, c4Key.surfaceLocalY + 0.02, c4Key.hitCenterLocal.z)
+            )
+        ),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 0.95)
+    )
+    let result1 = service.detect(fingerTips: atSurface, keyboardGeometry: geometry, at: .init(seconds: 1))
+    let started = try #require(result1.first)
+    #expect(result1.startedMIDINotes == [60])
+    #expect(result1.activeMIDINotes == [60])
+    #expect(started.phase == .started)
+    #expect(started.hand == .right)
+    #expect(started.finger == .index)
+    #expect(started.timestamp == .init(seconds: 1))
+    #expect(started.confidence == 1)
+    #expect(started.worldPosition == atSurface.right.index)
+    #expect(started.planeDistanceMeters == 0)
+    #expect(abs((started.normalVelocityMetersPerSecond ?? 0) + 0.4) < 0.0001)
+    #expect(started.calibrationID == service.calibration.id)
+    #expect(started.resolvedVelocity != nil)
 
     let betweenThresholds = FingerTipsSnapshot(
         right: HandTips(
             index: SIMD3<Float>(
                 c4Key.hitCenterLocal.x,
                 c4Key.surfaceLocalY
-                    + (KeyContactDetectionService.pressThresholdMeters
-                        + KeyContactDetectionService.releaseThresholdMeters) / 2,
+                    + (service.calibration.planeOffsetMeters
+                        + service.calibration.releaseThresholdMeters) / 2,
                 c4Key.hitCenterLocal.z
             )
         )
     )
-    let result2 = service.detect(fingerTips: betweenThresholds, keyboardGeometry: geometry)
-    #expect(result2.down.contains(60), "Between press/release threshold: should stay down (hysteresis)")
-    #expect(result2.started.isEmpty)
-    #expect(result2.ended.isEmpty)
+    let result2 = service.detect(
+        fingerTips: betweenThresholds,
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.05)
+    )
+    let held = try #require(result2.first)
+    #expect(result2.activeMIDINotes == [60], "Between press/release threshold: should stay down (hysteresis)")
+    #expect(result2.startedMIDINotes.isEmpty)
+    #expect(result2.endedMIDINotes.isEmpty)
+    #expect(held.phase == .held)
+    #expect(held.id == started.id)
 
     let aboveRelease = FingerTipsSnapshot(
         right: HandTips(
             index: SIMD3<Float>(
                 c4Key.hitCenterLocal.x,
-                c4Key.surfaceLocalY + KeyContactDetectionService.releaseThresholdMeters + 0.001,
+                c4Key.surfaceLocalY + service.calibration.releaseThresholdMeters + 0.001,
                 c4Key.hitCenterLocal.z
             )
         )
     )
-    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry)
-    #expect(result3.ended.contains(60))
-    #expect(result3.down.isEmpty)
+    let result3 = service.detect(fingerTips: aboveRelease, keyboardGeometry: geometry, at: .init(seconds: 1.10))
+    let ended = try #require(result3.first)
+    #expect(result3.endedMIDINotes == [60])
+    #expect(result3.activeMIDINotes.isEmpty)
+    #expect(ended.phase == .ended)
+    #expect(ended.id == started.id)
+    #expect(ended.timestamp == .init(seconds: 1.10))
+}
+
+@MainActor
+@Test
+func keyContactDetectionTracksSameKeyPerFingerAndDebouncesRetrigger() throws {
+    let service = KeyContactDetectionService()
+    let geometry = makeTestKeyboardGeometry()
+    let key = try #require(geometry.key(for: 60))
+    let position = SIMD3<Float>(key.hitCenterLocal.x, key.surfaceLocalY, key.hitCenterLocal.z)
+    let abovePosition = SIMD3<Float>(position.x, position.y + 0.02, position.z)
+
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(
+            left: HandTips(index: abovePosition),
+            right: HandTips(index: abovePosition)
+        ),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 0.95)
+    )
+
+    let first = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: position), right: HandTips(index: position)),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1)
+    )
+    #expect(first.count == 2)
+    #expect(first.allSatisfy { $0.phase == .started })
+    #expect(Set(first.map(\.id)).count == 2)
+    let leftID = try #require(first.first { $0.hand == .left }?.id)
+    let rightID = try #require(first.first { $0.hand == .right }?.id)
+
+    let second = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.05)
+    )
+    #expect(second.activeMIDINotes == [60])
+    #expect(second.first { $0.phase == .held }?.id == leftID)
+    #expect(second.first { $0.phase == .ended }?.id == rightID)
+
+    let released = service.detect(
+        fingerTips: .empty,
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.10)
+    )
+    #expect(released.first?.phase == .ended)
+    #expect(released.first?.id == leftID)
+
+    let suppressedRetrigger = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.11)
+    )
+    #expect(suppressedRetrigger.isEmpty)
+
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: abovePosition)),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.12)
+    )
+    let retriggered = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 1.14)
+    )
+    #expect(retriggered.first?.phase == .started)
+    #expect(retriggered.first?.id != leftID)
+
+    let replacementGeometry = PianoKeyboardGeometry(frame: geometry.frame, keys: geometry.keys)
+    let placementReset = service.detect(
+        fingerTips: FingerTipsSnapshot(left: HandTips(index: position)),
+        keyboardGeometry: replacementGeometry,
+        at: .init(seconds: 1.20)
+    )
+    #expect(placementReset.count == 1)
+    #expect(placementReset.first?.phase == .ended)
+    #expect(placementReset.first?.calibrationID == service.calibration.id)
 }
 
 @MainActor
@@ -182,8 +297,15 @@ func keyContactDetectionBlackKeyPriority() throws {
     let fingerTips = FingerTipsSnapshot(
         right: HandTips(index: SIMD3<Float>(overlapPointX, -0.001, blackKey.hitCenterLocal.z))
     )
-    let result = service.detect(fingerTips: fingerTips, keyboardGeometry: geometry)
-    #expect(result.down == [blackKey.midiNote])
+    _ = service.detect(
+        fingerTips: FingerTipsSnapshot(
+            right: HandTips(index: SIMD3<Float>(overlapPointX, 0.02, blackKey.hitCenterLocal.z))
+        ),
+        keyboardGeometry: geometry,
+        at: .init(seconds: 0.95)
+    )
+    let result = service.detect(fingerTips: fingerTips, keyboardGeometry: geometry, at: .init(seconds: 1))
+    #expect(result.activeMIDINotes == [blackKey.midiNote])
 }
 
 @MainActor
@@ -192,10 +314,8 @@ func keyContactDetectionNoFingerNoDown() {
     let service = KeyContactDetectionService()
     let geometry = makeTestKeyboardGeometry()
 
-    let result = service.detect(fingerTips: .empty, keyboardGeometry: geometry)
-    #expect(result.down.isEmpty)
-    #expect(result.started.isEmpty)
-    #expect(result.ended.isEmpty)
+    let result = service.detect(fingerTips: .empty, keyboardGeometry: geometry, at: .init(seconds: 1))
+    #expect(result.isEmpty)
 }
 
 @MainActor
@@ -203,7 +323,6 @@ func keyContactDetectionNoFingerNoDown() {
 func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService
@@ -233,7 +352,6 @@ func virtualPianoDoesNotTriggerLiveNotesDuringAutoplay() throws {
 func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() async throws {
     let playbackService = LiveNoteCapturingPlaybackService()
     let session = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService
@@ -251,11 +369,21 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() async thr
     session.applyVirtualKeyboardGeometry(geometry)
 
     let c4Key = try #require(geometry.key(for: 60))
+    let aboveKeyWorldPoint = transformPoint(
+        geometry.frame.worldFromKeyboard,
+        SIMD3<Float>(c4Key.hitCenterLocal.x, 0.02, c4Key.hitCenterLocal.z)
+    )
+    _ = session.handleFingerTipPositions(
+        FingerTipsSnapshot(right: HandTips(index: aboveKeyWorldPoint)),
+        isVirtualPiano: true,
+        at: .init(seconds: 1)
+    )
     let keyLocalPoint = SIMD3<Float>(c4Key.hitCenterLocal.x, -0.001, c4Key.hitCenterLocal.z)
     let keyWorldPoint = transformPoint(geometry.frame.worldFromKeyboard, keyLocalPoint)
     _ = session.handleFingerTipPositions(
         FingerTipsSnapshot(right: HandTips(index: keyWorldPoint)),
-        isVirtualPiano: true
+        isVirtualPiano: true,
+        at: .init(seconds: 1.05)
     )
     await Task.yield()
     #expect(playbackService.startedLiveNotes.contains(60))
@@ -270,7 +398,6 @@ func arGuideViewModelToggleOffClearsVirtualKeyboardAndStopsLiveNotes() async thr
 @Test
 func hidingVirtualPianoPreservesPlacedKeyboardForLaterPractice() async {
     let session = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: LiveNoteCapturingPlaybackService()
@@ -367,18 +494,8 @@ private final class LiveNoteCapturingPlaybackService: PracticeSequencerPlaybackS
     }
 }
 
-private struct NoopPressDetectionService: PressDetectionServiceProtocol {
-    func detectPressedNotes(
-        fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
-    ) -> Set<Int> {
-        []
-    }
-}
-
 private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
-    func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], tolerance _: Int, at _: Date) -> StepAttemptMatchResult {
+    func register(pressedNotes _: Set<Int>, expectedNotes _: [Int], at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }
 
@@ -391,7 +508,7 @@ private final class RecordingChordAttemptAccumulator: ChordAttemptAccumulatorPro
     private(set) var lastExpectedNotes: [Int] = []
     var shouldReturnMatched = false
 
-    func register(pressedNotes: Set<Int>, expectedNotes: [Int], tolerance _: Int, at _: Date) -> StepAttemptMatchResult {
+    func register(pressedNotes: Set<Int>, expectedNotes: [Int], at _: PerformanceMonotonicInstant) -> StepAttemptMatchResult {
         registerCallCount += 1
         lastPressedNotes = pressedNotes
         lastExpectedNotes = expectedNotes

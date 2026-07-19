@@ -8,6 +8,7 @@ func storedWorldAnchorCalibrationSupportsCodableRoundTrip() throws {
         a0AnchorID: #require(UUID(uuidString: "11111111-2222-3333-4444-555555555555")),
         c8AnchorID: #require(UUID(uuidString: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")),
         whiteKeyWidth: 0.031,
+        touchCalibration: PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio),
         generatedAt: Date(timeIntervalSince1970: 1_735_689_600)
     )
 
@@ -15,6 +16,17 @@ func storedWorldAnchorCalibrationSupportsCodableRoundTrip() throws {
     let decoded = try JSONDecoder().decode(StoredWorldAnchorCalibration.self, from: encoded)
 
     #expect(decoded == calibration)
+}
+
+@Test
+func storedWorldAnchorCalibrationRejectsLegacyPayloadWithoutTouchCalibration() throws {
+    let legacyJSON = Data(
+        #"{"a0AnchorID":"11111111-2222-3333-4444-555555555555","c8AnchorID":"AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE","whiteKeyWidth":0.031,"generatedAt":0}"#.utf8
+    )
+
+    #expect(throws: DecodingError.self) {
+        try JSONDecoder().decode(StoredWorldAnchorCalibration.self, from: legacyJSON)
+    }
 }
 
 @Test
@@ -47,6 +59,7 @@ func worldAnchorCalibrationStoreCanSaveAndLoadRoundTrip() throws {
         a0AnchorID: #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")),
         c8AnchorID: #require(UUID(uuidString: "FEDCBA98-7654-3210-FEDC-BA9876543210")),
         whiteKeyWidth: 0.027,
+        touchCalibration: PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio),
         generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
 
@@ -108,6 +121,7 @@ func worldAnchorCalibrationStoreQuarantinesCorruptFileAndAllowsRecalibration() t
         a0AnchorID: #require(UUID(uuidString: "01234567-89AB-CDEF-0123-456789ABCDEF")),
         c8AnchorID: #require(UUID(uuidString: "FEDCBA98-7654-3210-FEDC-BA9876543210")),
         whiteKeyWidth: 0.027,
+        touchCalibration: PianoModeTouchCalibrationService.conservativeDefault(for: .realAudio),
         generatedAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
     try store.save(replacement)

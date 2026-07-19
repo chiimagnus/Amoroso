@@ -217,7 +217,6 @@ func stalePreparedPracticeApplyCannotOverwriteNewerLaunch() async throws {
         delays: [firstID: .milliseconds(80), secondID: .milliseconds(5)]
     )
     let session = PracticeSessionViewModel(
-        pressDetectionService: LaunchLifecyclePressDetectionService(),
         chordAttemptAccumulator: LaunchLifecycleChordAccumulator(),
         sleeper: TaskSleeper(),
         progressCoordinator: PracticeProgressCoordinator(repository: repository)
@@ -550,7 +549,6 @@ private func makeLaunchLifecycleSession(
     repository: LaunchLifecycleRepository
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
-        pressDetectionService: LaunchLifecyclePressDetectionService(),
         chordAttemptAccumulator: LaunchLifecycleChordAccumulator(),
         sleeper: TaskSleeper(),
         progressCoordinator: PracticeProgressCoordinator(
@@ -690,22 +688,11 @@ private func makeLaunchRacePreparedPractice(songID: UUID) -> PreparedPractice {
     )
 }
 
-private struct LaunchLifecyclePressDetectionService: PressDetectionServiceProtocol {
-    func detectPressedNotes(
-        fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
-    ) -> Set<Int> {
-        []
-    }
-}
-
 private final class LaunchLifecycleChordAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         .insufficientEvidence
     }
@@ -747,8 +734,8 @@ private final class LaunchLifecycleRecorderClock: Sendable {
 
     func makeClock() -> PracticeSessionRecorderClock {
         PracticeSessionRecorderClock(
-            monotonicMilliseconds: { [self] in
-                state.withLock(\.monotonicMilliseconds)
+            monotonic: PerformanceClock { [self] in
+                PerformanceMonotonicInstant(milliseconds: state.withLock(\.monotonicMilliseconds))
             },
             wallDate: { [self] in
                 state.withLock(\.wallDate)
@@ -775,7 +762,6 @@ private final class LaunchLifecycleRecorderSessionProvider: @unchecked Sendable 
 
     func callAsFunction(_: String?) -> PracticeSessionViewModel {
         PracticeSessionViewModel(
-            pressDetectionService: LaunchLifecyclePressDetectionService(),
             chordAttemptAccumulator: LaunchLifecycleChordAccumulator(),
             sleeper: TaskSleeper(),
             sessionRecorder: recorder

@@ -6,24 +6,24 @@ import Testing
 @Test
 func fakeAudioRecognitionServiceEmitsEventToConsumer() async {
     let service = FakePracticeAudioRecognitionService()
-    let event = DetectedNoteEvent(
+    let event = makeTargetAudioEvidence(
         midiNote: 60,
         confidence: 0.9,
         onsetScore: 0.8,
         isOnset: true,
-        timestamp: Date(timeIntervalSince1970: 1000),
+        timestamp: .init(seconds: 1000),
         generation: 1
     )
 
-    let stream = service.events
-    let consumeTask = Task<DetectedNoteEvent?, Never> {
+    let stream = service.targetEvidence
+    let consumeTask = Task<TargetAudioEvidence?, Never> {
         for await next in stream {
             return next
         }
         return nil
     }
 
-    service.emitEvent(event)
+    service.emitEvidence(event)
     let received = await consumeTask.value
 
     #expect(received == event)
@@ -108,13 +108,13 @@ func staleGenerationEventDoesNotAdvanceStep() async {
     await settleTaskQueue()
     let generation = fakeService.startCalls.first?.generation ?? 0
 
-    fakeService.emitEvent(
-        DetectedNoteEvent(
+    fakeService.emitEvidence(
+        makeTargetAudioEvidence(
             midiNote: 60,
             confidence: 0.9,
             onsetScore: 0.8,
             isOnset: true,
-            timestamp: .now,
+            timestamp: .init(seconds: 1),
             generation: generation - 1
         )
     )
@@ -138,74 +138,18 @@ func matchingAudioEventAdvancesStep() async {
     await settleTaskQueue()
     let generation = fakeService.startCalls.first?.generation ?? 0
 
-    fakeService.emitEvent(
-        DetectedNoteEvent(
+    fakeService.emitEvidence(
+        makeTargetAudioEvidence(
             midiNote: 60,
             confidence: 0.92,
             onsetScore: 0.9,
             isOnset: true,
-            timestamp: Date().addingTimeInterval(0.8),
+            timestamp: .init(seconds: 1),
             generation: generation
         )
     )
     await settleTaskQueue()
 
-    #expect(viewModel.currentStepIndex == 1)
-}
-
-@Test
-@MainActor
-func suppressWindowBlocksThenAllowsAdvance() async {
-    let fakeService = FakePracticeAudioRecognitionService()
-    let playbackService = CapturingSequencerPlaybackService()
-    let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
-        chordAttemptAccumulator: NoopChordAttemptAccumulator(),
-        sleeper: TaskSleeper(),
-        sequencerPlaybackService: playbackService,
-        audioRecognitionService: fakeService
-    )
-    viewModel.installTestPerformanceNotes(
-        [
-            TestScorePerformanceNote(midiNote: 60, onTick: 0),
-            TestScorePerformanceNote(midiNote: 64, onTick: 10),
-        ])
-    viewModel.startGuidingIfReady()
-    await settleTaskQueue()
-    guard let startCall = fakeService.startCalls.first else {
-        #expect(Bool(false), "Expected audio recognition to start")
-        return
-    }
-    guard let suppressUntil = startCall.suppressUntil else {
-        #expect(Bool(false), "Expected suppressUntil to be set")
-        return
-    }
-    let generation = startCall.generation
-
-    fakeService.emitEvent(
-        DetectedNoteEvent(
-            midiNote: 60,
-            confidence: 0.9,
-            onsetScore: 0.8,
-            isOnset: true,
-            timestamp: suppressUntil.addingTimeInterval(-0.1),
-            generation: generation
-        )
-    )
-    await settleTaskQueue()
-    #expect(viewModel.currentStepIndex == 0)
-
-    fakeService.emitEvent(
-        DetectedNoteEvent(
-            midiNote: 60,
-            confidence: 0.9,
-            onsetScore: 0.8,
-            isOnset: true,
-            timestamp: suppressUntil.addingTimeInterval(0.2),
-            generation: generation
-        )
-    )
-    await settleTaskQueue()
     #expect(viewModel.currentStepIndex == 1)
 }
 
@@ -282,13 +226,13 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
 
     viewModel.setAutoplayEnabled(true)
     await settleTaskQueue()
-    fakeService.emitEvent(
-        DetectedNoteEvent(
+    fakeService.emitEvidence(
+        makeTargetAudioEvidence(
             midiNote: 60,
             confidence: 0.95,
             onsetScore: 0.9,
             isOnset: true,
-            timestamp: Date().addingTimeInterval(0.8),
+            timestamp: .init(seconds: 1),
             generation: generation
         )
     )
@@ -298,13 +242,13 @@ func autoplayIsolationBlocksAudioAdvanceUntilAutoplayOff() async {
     viewModel.setAutoplayEnabled(false)
     await settleTaskQueue()
     let resumedGeneration = fakeService.startCalls.last?.generation ?? generation
-    fakeService.emitEvent(
-        DetectedNoteEvent(
+    fakeService.emitEvidence(
+        makeTargetAudioEvidence(
             midiNote: 60,
             confidence: 0.95,
             onsetScore: 0.9,
             isOnset: true,
-            timestamp: Date().addingTimeInterval(1.6),
+            timestamp: .init(seconds: 2),
             generation: resumedGeneration
         )
     )
@@ -338,7 +282,6 @@ private func makeViewModel(
 ) -> PracticeSessionViewModel {
     let playbackService = CapturingSequencerPlaybackService()
     return PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService,
@@ -352,22 +295,11 @@ private func settleTaskQueue(iterations: Int = 4) async {
     }
 }
 
-private struct NoopPressDetectionService: PressDetectionServiceProtocol {
-    func detectPressedNotes(
-        fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
-    ) -> Set<Int> {
-        []
-    }
-}
-
 private final class NoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }
@@ -403,7 +335,6 @@ func startGuidingPassesPlaybackSuppressDeadlineIntoAudioServiceStart() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let playbackService = CapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService,
@@ -427,7 +358,6 @@ func microphonePermissionFailureDoesNotBlockPlaybackFallback() async {
     let fakeService = FakePracticeAudioRecognitionService()
     let playbackService = CapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: NoopPressDetectionService(),
         chordAttemptAccumulator: NoopChordAttemptAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playbackService,

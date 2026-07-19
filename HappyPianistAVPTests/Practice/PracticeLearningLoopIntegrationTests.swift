@@ -71,7 +71,6 @@ private func makeLearningLoopSession(
     coordinator: PracticeProgressCoordinator
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
-        pressDetectionService: LearningLoopPressDetector(),
         chordAttemptAccumulator: LearningLoopChordAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playback,
@@ -152,22 +151,11 @@ private final class LearningLoopPlaybackService: PracticeSequencerPlaybackServic
     func stopAllLiveNotes() {}
 }
 
-private struct LearningLoopPressDetector: PressDetectionServiceProtocol {
-    func detectPressedNotes(
-        fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
-    ) -> Set<Int> {
-        []
-    }
-}
-
 private final class LearningLoopChordAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         .insufficientEvidence
     }

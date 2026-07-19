@@ -8,6 +8,35 @@ enum PianoModeCatalogService {
     }
 }
 
+enum PianoModeTouchCalibrationService {
+    static func conservativeDefault(for modeID: PianoModeID?) -> PianoTouchCalibration {
+        switch modeID {
+        case .virtualPiano:
+            PianoTouchCalibration(
+                planeOffsetMeters: 0.002,
+                releaseHysteresisMeters: 0.006,
+                minimumStrikeSpeedMetersPerSecond: 0.08,
+                fullScaleStrikeSpeedMetersPerSecond: 1.2,
+                minimumVelocity: 28,
+                maximumVelocity: 118,
+                curveExponent: 0.7,
+                retriggerDebounceSeconds: 0.03
+            )
+        default:
+            PianoTouchCalibration(
+                planeOffsetMeters: 0.004,
+                releaseHysteresisMeters: 0.012,
+                minimumStrikeSpeedMetersPerSecond: 0.1,
+                fullScaleStrikeSpeedMetersPerSecond: 1.5,
+                minimumVelocity: 32,
+                maximumVelocity: 112,
+                curveExponent: 0.75,
+                retriggerDebounceSeconds: 0.03
+            )
+        }
+    }
+}
+
 final class PianoModeRegistryService: PianoModeRegistryProtocol {
     let modes: [any PianoModeProtocol]
 

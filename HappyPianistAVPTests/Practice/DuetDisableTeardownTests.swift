@@ -184,8 +184,11 @@ func disablingServiceDropsLateBackendResponses() async {
 
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: nowUptime
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: nowUptime)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()
@@ -237,8 +240,11 @@ func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: 0
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: 0)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()
@@ -246,8 +252,11 @@ func newInputReevaluatesContinuousResponseAgainstLatestContext() async {
 
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60, 62], started: [62], ended: []),
-        nowUptimeSeconds: nowUptime
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60, 62],
+            startedMIDINotes: [62],
+            timestamp: .init(seconds: nowUptime)
+        )
     )
     nowUptime = 0.3
     await backend.resume(with: .schedule([
@@ -289,8 +298,11 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: 0
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: 0)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()
@@ -299,8 +311,11 @@ func changingBackendDoesNotWaitForSuspendedOldBackend() async {
     selectedKind.value = .networkBonjourHTTPAriaV2
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60, 64], started: [64], ended: []),
-        nowUptimeSeconds: nowUptime
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60, 64],
+            startedMIDINotes: [64],
+            timestamp: .init(seconds: nowUptime)
+        )
     )
     nowUptime = 0.4
     await controlClock.advance()
@@ -339,8 +354,11 @@ func replacingPracticeSessionInvalidatesOldResponse() async {
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: 0
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: 0)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()
@@ -386,8 +404,11 @@ func silentContextDropsLateContinuousResponse() async {
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: 0
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: 0)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()
@@ -432,8 +453,11 @@ func disablingAndReenablingKeepsNewRequestTracked() async {
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [60], started: [60], ended: []),
-        nowUptimeSeconds: 0
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [60],
+            startedMIDINotes: [60],
+            timestamp: .init(seconds: 0)
+        )
     )
     nowUptime = 0.2
     await controlClock.advance()
@@ -443,8 +467,11 @@ func disablingAndReenablingKeepsNewRequestTracked() async {
     service.setEnabled(true)
     service.recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: false,
-        keyContact: KeyContactResult(down: [64], started: [64], ended: []),
-        nowUptimeSeconds: nowUptime
+        observations: makeTestKeyContactObservations(
+            activeMIDINotes: [64],
+            startedMIDINotes: [64],
+            timestamp: .init(seconds: nowUptime)
+        )
     )
     nowUptime = 0.4
     await controlClock.advance()

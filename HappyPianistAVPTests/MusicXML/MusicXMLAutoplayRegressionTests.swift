@@ -39,7 +39,6 @@ func realScoreAutoplaySkipCancelsPendingEventsWithAllNotesOff() async throws {
     let sleeper = RegressionControllableSleeper()
     let playbackService = RegressionCapturingSequencerPlaybackService()
     let viewModel = PracticeSessionViewModel(
-        pressDetectionService: RegressionNoopPressDetectionService(),
         chordAttemptAccumulator: RegressionNoopChordAttemptAccumulator(),
         sleeper: sleeper,
         sequencerPlaybackService: playbackService
@@ -148,22 +147,11 @@ private func waitForRegressionCondition(
     #expect(condition(), "Timed out waiting for: \(description)")
 }
 
-private struct RegressionNoopPressDetectionService: PressDetectionServiceProtocol {
-    func detectPressedNotes(
-        fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
-    ) -> Set<Int> {
-        []
-    }
-}
-
 private final class RegressionNoopChordAttemptAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         testAttemptOutcome(matched: false)
     }

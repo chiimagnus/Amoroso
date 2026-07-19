@@ -6,8 +6,9 @@ protocol KeyContactDetectingProtocol: AnyObject {
     func reset()
     func detect(
         fingerTips: FingerTipsSnapshot,
-        keyboardGeometry: PianoKeyboardGeometry
-    ) -> KeyContactResult
+        keyboardGeometry: PianoKeyboardGeometry,
+        at timestamp: PerformanceMonotonicInstant
+    ) -> [PianoKeyContactObservation]
 }
 
 extension KeyContactDetectionService: KeyContactDetectingProtocol {}
@@ -20,6 +21,7 @@ final class VirtualPianoInputController {
     private let stateStore: PracticeSessionStateStore
     private let handGateController: PracticeHandGateController
     private var playbackTask: Task<Void, Never>?
+    private var soundingContactByMIDINote: [Int: PianoKeyContactID] = [:]
     private var hasShutdown = false
 
     init(
@@ -48,71 +50,125 @@ final class VirtualPianoInputController {
             await sequencerPlaybackService.stopAllLiveNotes()
         }
         detector.reset()
-        stateStore.latestKeyContactResult = KeyContactResult(down: [], started: [], ended: [])
+        stateStore.latestKeyContactObservations = []
         stateStore.pressedNotes.removeAll()
         stateStore.latestNoteOnMIDINotes.removeAll()
+        soundingContactByMIDINote.removeAll()
     }
 
     func handleFingerTips(
         _ fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry,
-        at timestamp: Date,
+        at timestamp: PerformanceMonotonicInstant,
         practiceHandMode: PracticeHandMode
     ) -> Set<Int> {
         let result = detector.detect(
             fingerTips: fingerTips,
-            keyboardGeometry: keyboardGeometry
+            keyboardGeometry: keyboardGeometry,
+            at: timestamp
         )
-        stateStore.latestKeyContactResult = result
-        stateStore.latestNoteOnMIDINotes = result.started
+        stateStore.latestKeyContactObservations = result
+        let activeMIDINotes = result.activeMIDINotes
+        let startedMIDINotes = result.startedMIDINotes
+        stateStore.latestNoteOnMIDINotes = startedMIDINotes
 
         let shouldPlayLiveNotes = stateStore.autoplayState == .off && stateStore.isManualReplayPlaying == false
-        if shouldPlayLiveNotes {
-            enqueuePlayback(
-                commands: result.ended.sorted().map {
-                    PracticePlaybackCommand(
-                        sourceEventID: "virtual-piano-\($0)",
-                        kind: .noteOff(midi: $0)
-                    )
-                } + result.started.sorted().map {
-                    PracticePlaybackCommand(
-                        sourceEventID: "virtual-piano-\($0)",
-                        kind: .noteOn(midi: $0, velocity: 96)
-                    )
-                }
-            )
+        let liveNoteEvents = transportEvents(
+            from: result,
+            activeMIDINotes: activeMIDINotes,
+            at: timestamp,
+            allowsNoteOn: shouldPlayLiveNotes
+        )
+        if liveNoteEvents.isEmpty == false {
+            enqueuePlayback(liveNoteEvents: liveNoteEvents)
         }
 
-        stateStore.pressedNotes = result.down
+        stateStore.pressedNotes = activeMIDINotes
         handGateController.updateHandGateState(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: result.down
+            exactPressedNotes: activeMIDINotes,
+            at: timestamp
         )
 
-        if result.started.isEmpty == false {
-            handGateController.registerChordAttemptIfNeeded(
-                pressedNotes: result.started,
-                at: timestamp,
-                practiceHandMode: practiceHandMode
-            )
-        }
+        handGateController.registerChordAttemptIfNeeded(
+            observations: result,
+            at: timestamp,
+            practiceHandMode: practiceHandMode
+        )
 
-        return result.down
+        return activeMIDINotes
     }
 
     func waitForPendingPlayback() async {
         await playbackTask?.value
     }
 
-    private func enqueuePlayback(commands: [PracticePlaybackCommand]) {
-        guard commands.isEmpty == false else { return }
+    private func transportEvents(
+        from observations: [PianoKeyContactObservation],
+        activeMIDINotes: Set<Int>,
+        at timestamp: PerformanceMonotonicInstant,
+        allowsNoteOn: Bool
+    ) -> [PracticeLiveNoteEvent] {
+        var events: [PracticeLiveNoteEvent] = []
+        let endedByMIDI = Dictionary(
+            observations.lazy.compactMap { observation -> (Int, PianoKeyContactObservation)? in
+                guard observation.phase == .ended,
+                      let midiNote = observation.keyCandidate.exactMIDINote
+                else { return nil }
+                return (midiNote, observation)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        for midiNote in soundingContactByMIDINote.keys.sorted()
+        where allowsNoteOn == false || activeMIDINotes.contains(midiNote) == false {
+            guard let contactID = soundingContactByMIDINote.removeValue(forKey: midiNote) else { continue }
+            events.append(
+                PracticeLiveNoteEvent(
+                    contactID: contactID,
+                    midiNote: midiNote,
+                    phase: .noteOff,
+                    timestamp: endedByMIDI[midiNote]?.timestamp ?? timestamp
+                )
+            )
+        }
+
+        guard allowsNoteOn else { return events }
+        let startsByMIDI = Dictionary(
+            observations.lazy.compactMap { observation -> (Int, PianoKeyContactObservation)? in
+                guard observation.phase == .started,
+                      let midiNote = observation.keyCandidate.exactMIDINote,
+                      observation.resolvedVelocity != nil
+                else { return nil }
+                return (midiNote, observation)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
+        for midiNote in activeMIDINotes.sorted() where soundingContactByMIDINote[midiNote] == nil {
+            guard let observation = startsByMIDI[midiNote],
+                  let velocity = observation.resolvedVelocity
+            else { continue }
+            soundingContactByMIDINote[midiNote] = observation.id
+            events.append(
+                PracticeLiveNoteEvent(
+                    contactID: observation.id,
+                    midiNote: midiNote,
+                    phase: .noteOn(velocity: velocity),
+                    timestamp: observation.timestamp
+                )
+            )
+        }
+        return events
+    }
+
+    private func enqueuePlayback(liveNoteEvents: [PracticeLiveNoteEvent]) {
         let previousPlaybackTask = playbackTask
         let sequencerPlaybackService = sequencerPlaybackService
         playbackTask = Task {
             await previousPlaybackTask?.value
             do {
-                try await sequencerPlaybackService.execute(commands: commands)
+                try await sequencerPlaybackService.execute(liveNoteEvents: liveNoteEvents)
             } catch {
                 stateStore.recordPlaybackError(error)
             }

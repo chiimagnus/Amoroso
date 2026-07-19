@@ -40,10 +40,34 @@ func sequencerPlaybackServiceProtocolCarriesCanonicalCommandsAcrossActorBoundary
         PracticePlaybackCommand(sourceEventID: "pedal-1", kind: .controlChange(controller: 64, value: 96)),
     ]
     try await service.execute(commands: commands)
+    let contactID = PianoKeyContactID(
+        finger: TrackedFingerID(hand: .right, finger: .ring),
+        sequence: 7
+    )
+    try await service.execute(liveNoteEvents: [
+        PracticeLiveNoteEvent(
+            contactID: contactID,
+            midiNote: 72,
+            phase: .noteOn(velocity: 43),
+            timestamp: .init(seconds: 8.25)
+        ),
+        PracticeLiveNoteEvent(
+            contactID: contactID,
+            midiNote: 72,
+            phase: .noteOff,
+            timestamp: .init(seconds: 8.5)
+        ),
+    ])
     await service.stop(resetCommands: PerformanceTransportReducer.fullResetCommands)
 
     let snapshot = await service.snapshot()
-    #expect(snapshot.commands == commands)
+    #expect(snapshot.commands == commands + [
+        PracticePlaybackCommand(
+            sourceEventID: "hand-1-3-7",
+            kind: .noteOn(midi: 72, velocity: 43)
+        ),
+        PracticePlaybackCommand(sourceEventID: "hand-1-3-7", kind: .noteOff(midi: 72)),
+    ])
     #expect(snapshot.reset == PerformanceTransportReducer.fullResetCommands)
 }
 

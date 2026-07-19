@@ -26,6 +26,29 @@ struct PracticePlaybackCommand: Equatable, Sendable {
     let kind: PracticeSequencerMIDIEvent.Kind
 }
 
+struct PracticeLiveNoteEvent: Equatable, Sendable {
+    enum Phase: Equatable, Sendable {
+        case noteOn(velocity: UInt8)
+        case noteOff
+    }
+
+    let contactID: PianoKeyContactID
+    let midiNote: Int
+    let phase: Phase
+    let timestamp: PerformanceMonotonicInstant
+
+    fileprivate var playbackCommand: PracticePlaybackCommand {
+        let kind: PracticeSequencerMIDIEvent.Kind = switch phase {
+        case let .noteOn(velocity): .noteOn(midi: midiNote, velocity: velocity)
+        case .noteOff: .noteOff(midi: midiNote)
+        }
+        return PracticePlaybackCommand(
+            sourceEventID: "hand-\(contactID.finger.hand.rawValue)-\(contactID.finger.finger.rawValue)-\(contactID.sequence)",
+            kind: kind
+        )
+    }
+}
+
 protocol PracticeSequencerPlaybackServiceProtocol: AnyObject {
     func warmUp() async throws
     func stop(resetCommands: [PerformanceTransportCommand]) async
@@ -34,7 +57,14 @@ protocol PracticeSequencerPlaybackServiceProtocol: AnyObject {
     func currentSeconds() async -> TimeInterval
     func playOneShot(commands: [PracticePlaybackCommand], durationSeconds: TimeInterval) async throws
     func execute(commands: [PracticePlaybackCommand]) async throws
+    func execute(liveNoteEvents: [PracticeLiveNoteEvent]) async throws
     func stopAllLiveNotes() async
+}
+
+extension PracticeSequencerPlaybackServiceProtocol {
+    func execute(liveNoteEvents: [PracticeLiveNoteEvent]) async throws {
+        try await execute(commands: liveNoteEvents.map(\.playbackCommand))
+    }
 }
 
 struct PracticeAudioGraph {

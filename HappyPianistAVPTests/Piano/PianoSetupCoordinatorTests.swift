@@ -16,7 +16,8 @@ func resetPianoSetupClearsPracticeSetupState() {
     let registry = PianoModeRegistryService(modes: [])
     let coordinator = PianoSetupCoordinator(
         practiceSetupState: practiceSetupState,
-        pianoModeRegistry: registry
+        pianoModeRegistry: registry,
+        storedTouchCalibration: { nil }
     )
     coordinator.reset()
 
@@ -37,7 +38,8 @@ func setupReadinessUsesOnlySelectedModeRequirements() {
         practiceSetupState: state,
         pianoModeRegistry: PianoModeRegistryService(
             modes: PianoModeCatalogService.makeDefaultModes()
-        )
+        ),
+        storedTouchCalibration: { nil }
     )
 
     #expect(coordinator.isSetupReady == false)
@@ -56,4 +58,53 @@ func setupReadinessUsesOnlySelectedModeRequirements() {
     #expect(coordinator.isSetupReady == false)
     state.isVirtualPianoPlaced = true
     #expect(coordinator.isSetupReady)
+}
+
+@Test
+@MainActor
+func setupCoordinatorUsesStoredCalibrationForPhysicalPianoOnly() {
+    let stored = PianoTouchCalibration(
+        planeOffsetMeters: 0.006,
+        releaseHysteresisMeters: 0.01,
+        minimumStrikeSpeedMetersPerSecond: 0.2,
+        fullScaleStrikeSpeedMetersPerSecond: 2,
+        minimumVelocity: 40,
+        maximumVelocity: 120,
+        curveExponent: 1,
+        retriggerDebounceSeconds: 0.04
+    )
+    let state = PracticeSetupState()
+    let coordinator = PianoSetupCoordinator(
+        practiceSetupState: state,
+        pianoModeRegistry: PianoModeRegistryService(modes: PianoModeCatalogService.makeDefaultModes()),
+        storedTouchCalibration: { stored }
+    )
+
+    state.selectedPianoModeID = PianoModeID.realAudio.rawValue
+    #expect(coordinator.touchCalibration == stored)
+
+    state.selectedPianoModeID = PianoModeID.virtualPiano.rawValue
+    #expect(coordinator.touchCalibration.id != stored.id)
+    #expect(coordinator.touchCalibration.planeOffsetMeters == 0.002)
+}
+
+@Test
+func touchVelocityCurveIsDeterministicAndBounded() {
+    let calibration = PianoTouchCalibration(
+        planeOffsetMeters: 0.004,
+        releaseHysteresisMeters: 0.012,
+        minimumStrikeSpeedMetersPerSecond: 0.1,
+        fullScaleStrikeSpeedMetersPerSecond: 1.1,
+        minimumVelocity: 30,
+        maximumVelocity: 110,
+        curveExponent: 1,
+        retriggerDebounceSeconds: 0.03
+    )
+    let resolver = PianoTouchVelocityResolver(calibration: calibration)
+
+    #expect(resolver.resolve(normalVelocityMetersPerSecond: -0.09) == nil)
+    #expect(resolver.resolve(normalVelocityMetersPerSecond: -0.1) == 30)
+    #expect(resolver.resolve(normalVelocityMetersPerSecond: -0.6) == 70)
+    #expect(resolver.resolve(normalVelocityMetersPerSecond: -1.1) == 110)
+    #expect(resolver.resolve(normalVelocityMetersPerSecond: -4) == 110)
 }

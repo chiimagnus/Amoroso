@@ -72,7 +72,6 @@ private func historicalApplicationSession(
     repository: HistoricalApplicationRepository?
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
-        pressDetectionService: HistoricalApplicationPressDetectionService(),
         chordAttemptAccumulator: HistoricalApplicationChordAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: HistoricalApplicationPlaybackService(),
@@ -182,22 +181,11 @@ private actor HistoricalApplicationRepository: PracticeProgressRepositoryProtoco
     }
 }
 
-private struct HistoricalApplicationPressDetectionService: PressDetectionServiceProtocol {
-    func detectPressedNotes(
-        fingerTips _: FingerTipsSnapshot,
-        keyboardGeometry _: PianoKeyboardGeometry?,
-        at _: Date
-    ) -> Set<Int> {
-        []
-    }
-}
-
 private final class HistoricalApplicationChordAccumulator: ChordAttemptAccumulatorProtocol {
     func register(
         pressedNotes _: Set<Int>,
         expectedNotes _: [Int],
-        tolerance _: Int,
-        at _: Date
+        at _: PerformanceMonotonicInstant
     ) -> StepAttemptMatchResult {
         .insufficientEvidence
     }

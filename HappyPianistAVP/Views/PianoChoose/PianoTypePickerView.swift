@@ -45,7 +45,11 @@ struct PianoTypePickerView: View {
 #Preview("Piano Type Picker") {
     let pianoModeRegistry: PianoModeRegistryProtocol = PianoModeRegistryService(modes: [])
     let practiceSetupState = PracticeSetupState()
-    let pianoSetupCoordinator = PianoSetupCoordinator(practiceSetupState: practiceSetupState, pianoModeRegistry: pianoModeRegistry)
+    let pianoSetupCoordinator = PianoSetupCoordinator(
+        practiceSetupState: practiceSetupState,
+        pianoModeRegistry: pianoModeRegistry,
+        storedTouchCalibration: { nil }
+    )
 
     return PianoTypePickerView()
         .environment(pianoSetupCoordinator)

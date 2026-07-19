@@ -5,7 +5,7 @@ extension PracticeSessionViewModel {
     func handleFingerTipPositions(
         _ fingerTips: FingerTipsSnapshot,
         isVirtualPiano: Bool = false,
-        at timestamp: Date = .now
+        at timestamp: PerformanceMonotonicInstant = PerformanceClock.live().now()
     ) -> Set<Int> {
         guard let keyboardGeometry = self.keyboardGeometry else { return [] }
 
@@ -18,32 +18,29 @@ extension PracticeSessionViewModel {
             ) ?? []
         }
 
-        let detected = pressDetectionService.detectPressedNotes(
+        let observations = realPianoContactDetectionService.detect(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
             at: timestamp
         )
-        updateLatestNoteOnMIDINotes(detected)
-        self.latestKeyContactResult = realPianoContactDetectionService.detect(
-            fingerTips: fingerTips,
-            keyboardGeometry: keyboardGeometry
-        )
+        self.latestKeyContactObservations = observations
+        let activeMIDINotes = observations.activeMIDINotes
+        updateLatestNoteOnMIDINotes(observations.startedMIDINotes)
 
         handGateController?.updateHandGateState(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: detected
+            exactPressedNotes: activeMIDINotes,
+            at: timestamp
         )
 
-        if detected.isEmpty == false {
-            self.pressedNotes = detected
-            handGateController?.registerChordAttemptIfNeeded(
-                pressedNotes: detected,
-                at: timestamp,
-                practiceHandMode: practiceHandMode
-            )
-        }
+        self.pressedNotes = activeMIDINotes
+        handGateController?.registerChordAttemptIfNeeded(
+            observations: observations,
+            at: timestamp,
+            practiceHandMode: practiceHandMode
+        )
 
-        return detected
+        return activeMIDINotes
     }
 }

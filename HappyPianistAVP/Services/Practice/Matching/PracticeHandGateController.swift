@@ -41,21 +41,25 @@ final class PracticeHandGateController {
     func updateHandGateState(
         fingerTips: FingerTipsSnapshot,
         keyboardGeometry: PianoKeyboardGeometry,
-        exactPressedNotes: Set<Int>
+        exactPressedNotes: Set<Int>,
+        at timestamp: PerformanceMonotonicInstant
     ) {
         stateStore.handGateState = activityGate.evaluate(
             fingerTips: fingerTips,
             keyboardGeometry: keyboardGeometry,
-            exactPressedNotes: exactPressedNotes
+            exactPressedNotes: exactPressedNotes,
+            at: timestamp
         )
     }
 
     func registerChordAttemptIfNeeded(
-        pressedNotes: Set<Int>,
-        at timestamp: Date,
+        observations: [PianoKeyContactObservation],
+        at timestamp: PerformanceMonotonicInstant,
         practiceHandMode: PracticeHandMode
     ) {
-        guard pressedNotes.isEmpty == false else { return }
+        let startedContacts = observations.filter { $0.phase == .started }
+        guard startedContacts.isEmpty == false else { return }
+        let evidence = HandSeparatedNoteEvidence(startedContacts: startedContacts)
         guard stateStore.acceptsPracticeAttempts else { return }
         guard case .guiding = stateStore.state else { return }
         guard stateStore.autoplayState == .off else { return }
@@ -70,12 +74,18 @@ final class PracticeHandGateController {
         let expectedMIDINotes = Set(expectedNotes.map(\.midiNote)).sorted()
         guard expectedMIDINotes.isEmpty == false else { return }
 
+        if evidence.hasUncertainCandidate {
+            effectHandler?.handle(effect: .attemptEvaluated(.insufficientEvidence))
+            return
+        }
+        guard evidence.isEmpty == false else { return }
+
         let expectedByHand = uniqueMIDINotesByHand(notes: expectedNotes)
         let outcome = chordAttemptAccumulator.registerHandSeparated(
-            pressedNotes: pressedNotes,
+            evidence: evidence,
             expectedRightNotes: expectedByHand.right,
             expectedLeftNotes: expectedByHand.left,
-            tolerance: stateStore.noteMatchTolerance,
+            expectedUnassignedNotes: expectedByHand.unknown,
             at: timestamp
         )
 
