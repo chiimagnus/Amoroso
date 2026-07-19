@@ -95,14 +95,27 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
         self.diagnosticsReporter = diagnosticsReporter
     }
 
+    deinit {
+        _ = disposeResources()
+    }
+
     func start() throws {
         try ensureClientAndPort()
         refreshDestinations()
     }
 
     func stop() {
+        let callbacks = disposeResources()
+        callbacks.0?(nil)
+        callbacks.1?([])
+    }
+
+    private func disposeResources() -> (
+        (@Sendable (String?) -> Void)?,
+        (@Sendable ([MIDIDestinationInfo]) -> Void)?
+    ) {
         refreshScheduler.cancel()
-        let callbacks = stateLock.withLock { state in
+        return stateLock.withLock { state in
             if state.outputPortRef != 0 {
                 MIDIPortDispose(state.outputPortRef)
                 state.outputPortRef = 0
@@ -114,8 +127,6 @@ final class CoreMIDIOutputService: MIDIOutputSendingProtocol {
             state.destinationCache.removeAll(keepingCapacity: false)
             return (state.onLastErrorMessageChange, state.onDestinationListChange)
         }
-        callbacks.0?(nil)
-        callbacks.1?([])
     }
 
     func listDestinations() -> [MIDIDestinationInfo] {

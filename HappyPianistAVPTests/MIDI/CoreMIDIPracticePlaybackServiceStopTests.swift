@@ -484,6 +484,41 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
         })
     }
 
+    @Test func destinationRouteChangeResetsLiveOutputWithoutScheduler() async throws {
+        let output = FakePerformanceOutput()
+        let destinationUniqueID: Int32 = 667
+        let playback = await MainActor.run {
+            CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                outputService: output
+            )
+        }
+        try await MainActor.run {
+            try playback.execute(commands: [
+                PracticePlaybackCommand(
+                    sourceEventID: "live-note",
+                    kind: .noteOn(midi: 60, velocity: 80)
+                ),
+                PracticePlaybackCommand(
+                    sourceEventID: "live-pedal",
+                    kind: .controlChange(controller: 64, value: 127)
+                ),
+            ])
+        }
+
+        output.simulateDestinationDisconnect()
+
+        #expect(await waitUntil {
+            Array(output.callsSnapshot().suffix(5)) == [
+                .controlChange(controller: 64, value: 0, channel: 0, destination: destinationUniqueID),
+                .controlChange(controller: 66, value: 0, channel: 0, destination: destinationUniqueID),
+                .controlChange(controller: 67, value: 0, channel: 0, destination: destinationUniqueID),
+                .controlChange(controller: 123, value: 0, channel: 0, destination: destinationUniqueID),
+                .controlChange(controller: 120, value: 0, channel: 0, destination: destinationUniqueID),
+            ]
+        })
+    }
+
     @Test func playbackServiceTeardownFlushesAndSendsFullResetBatch() async throws {
         let output = FakePerformanceOutput()
         let destinationUniqueID: Int32 = 777
@@ -507,15 +542,45 @@ struct CoreMIDIPracticePlaybackServiceStopTests {
         }
 
         #expect(output.callsSnapshot().contains(.flush(destination: destinationUniqueID)))
-        #expect(output.timestampedBatchesSnapshot().contains { batch in
-            batch.messages.map(\.bytes) == [
-                [0xB2, 64, 0],
-                [0xB2, 66, 0],
-                [0xB2, 67, 0],
-                [0xB2, 123, 0],
-                [0xB2, 120, 0],
-            ]
-        })
+        #expect(Array(output.callsSnapshot().suffix(5)) == [
+            .controlChange(controller: 64, value: 0, channel: 2, destination: destinationUniqueID),
+            .controlChange(controller: 66, value: 0, channel: 2, destination: destinationUniqueID),
+            .controlChange(controller: 67, value: 0, channel: 2, destination: destinationUniqueID),
+            .controlChange(controller: 123, value: 0, channel: 2, destination: destinationUniqueID),
+            .controlChange(controller: 120, value: 0, channel: 2, destination: destinationUniqueID),
+        ])
+    }
+
+    @Test func playbackServiceTeardownResetsLiveOutputWithoutScheduler() async throws {
+        let output = FakePerformanceOutput()
+        let destinationUniqueID: Int32 = 778
+
+        try await MainActor.run {
+            var playback: CoreMIDIPracticePlaybackService? = CoreMIDIPracticePlaybackService(
+                destinationUniqueID: destinationUniqueID,
+                outputService: output,
+                channel: 3
+            )
+            try playback?.execute(commands: [
+                PracticePlaybackCommand(
+                    sourceEventID: "preview-note",
+                    kind: .noteOn(midi: 65, velocity: 70)
+                ),
+            ])
+            playback = nil
+        }
+
+        #expect(Array(output.callsSnapshot().suffix(5)) == [
+            .controlChange(controller: 64, value: 0, channel: 3, destination: destinationUniqueID),
+            .controlChange(controller: 66, value: 0, channel: 3, destination: destinationUniqueID),
+            .controlChange(controller: 67, value: 0, channel: 3, destination: destinationUniqueID),
+            .controlChange(controller: 123, value: 0, channel: 3, destination: destinationUniqueID),
+            .controlChange(controller: 120, value: 0, channel: 3, destination: destinationUniqueID),
+        ])
+        let callsAfterTeardown = output.callsSnapshot()
+        output.simulateDestinationDisconnect()
+        await Task.yield()
+        #expect(output.callsSnapshot() == callsAfterTeardown)
     }
 }
 
