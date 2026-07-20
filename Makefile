@@ -1,4 +1,4 @@
-# HappyPianistAVP visionOS build/test/run helpers.
+# HappyPianistAVP visionOS build/test/development helpers.
 # Uses Xcode's default DerivedData location so CLI and Xcode share build products.
 # Defaults are copied from config.yaml and can be overridden on the command line.
 
@@ -15,6 +15,12 @@ SIMULATOR_ID ?= 86364D5F-BCCF-48C5-AF79-8154E5689FA3
 SIMULATOR_NAME ?= Apple Vision Pro
 DEVICE_ID ?= A687F5B3-44BC-5C55-B5C4-22A807A27C6F
 
+XCODE_DEVELOPER_DIR ?= $(shell xcode-select -p 2>/dev/null)
+XCODE_CONTENTS_DIR ?= $(patsubst %/Developer,%,$(XCODE_DEVELOPER_DIR))
+DEVICE_HUB_APP ?= $(XCODE_CONTENTS_DIR)/Applications/DeviceHub.app
+SIMULATOR_APP ?= $(XCODE_DEVELOPER_DIR)/Applications/Simulator.app
+SIMULATOR_HOST_APP ?= $(firstword $(wildcard $(DEVICE_HUB_APP) $(SIMULATOR_APP)))
+
 # Test reports remain repository-local. Build products use Xcode's default:
 # ~/Library/Developer/Xcode/DerivedData/<project>-<hash>/
 RESULT_BUNDLE_DIR ?= .build/TestResults
@@ -25,6 +31,12 @@ PARALLEL_TESTING ?= NO
 ONLY_TESTING ?=
 XCODEBUILD_FLAGS ?=
 DEVICE_XCODEBUILD_FLAGS ?= -allowProvisioningUpdates
+
+# Keep development output focused on app-owned structured diagnostics.
+# Override these on the command line when deeper simulator logging is needed.
+LOG_STYLE ?= compact
+LOG_LEVEL ?= info
+LOG_PREDICATE ?= subsystem == "$(BUNDLE_ID)"
 
 SIMULATOR_DESTINATION = platform=visionOS Simulator,id=$(SIMULATOR_ID)
 DEVICE_DESTINATION = platform=visionOS,id=$(DEVICE_ID)
@@ -37,7 +49,7 @@ XCODEBUILD_COMMON = \
 	-scheme "$(SCHEME)" \
 	-configuration "$(CONFIGURATION)"
 
-.PHONY: help doctor config destinations clean build test run
+.PHONY: help doctor config destinations clean build test dev
 .PHONY: list\:simulator open\:simulator boot\:simulator shutdown\:simulator
 .PHONY: build\:simulator test\:simulator install\:simulator launch\:simulator
 .PHONY: run\:simulator terminate\:simulator logs\:simulator
@@ -48,10 +60,10 @@ help: ## Show available commands.
 	@printf '%s\n' \
 		'HappyPianistAVP visionOS Make targets' \
 		'' \
-		'Default Simulator shortcuts:' \
-		'  make build                  Alias for make build:simulator' \
-		'  make test                   Alias for make test:simulator' \
-		'  make run                    Alias for make run:simulator' \
+		'Development shortcuts:' \
+		'  make build                  Build for the configured Simulator' \
+		'  make test                   Run all tests on the configured Simulator' \
+		'  make dev                    Build, install, launch, then stream app logs only' \
 		'  make clean                  Run Xcode clean and remove local test reports' \
 		'' \
 		'Simulator:' \
@@ -81,20 +93,26 @@ help: ## Show available commands.
 		'  make test:simulator SIMULATOR_ID=<udid>' \
 		'  make run:device DEVICE_ID=<udid>' \
 		'  make test:simulator ONLY_TESTING=HappyPianistAVPTests/GrandStaffNotationVisualTests' \
-		'  make build:device CONFIGURATION=Release'
+		'  make build:device CONFIGURATION=Release' \
+		'  make dev LOG_LEVEL=debug    Include app debug diagnostics' \
+		'  make dev XCODEBUILD_FLAGS=-quiet  Reduce xcodebuild output'
 
 build: ## Build for the configured Vision Pro Simulator.
 	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'build:simulator'
 
-test: ## Run tests on the configured Vision Pro Simulator.
+test: ## Run all tests on the configured Vision Pro Simulator.
 	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'test:simulator'
 
-run: ## Build, install, and launch in Simulator.
+dev: ## Build, install, launch, then stream Simulator logs.
+	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'open:simulator'
 	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'run:simulator'
+	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'logs:simulator'
 
 doctor: ## Verify the required Apple command-line tools and project are present.
 	@command -v xcodebuild >/dev/null || { echo 'error: xcodebuild not found'; exit 1; }
 	@command -v xcrun >/dev/null || { echo 'error: xcrun not found'; exit 1; }
+	@command -v xcode-select >/dev/null || { echo 'error: xcode-select not found'; exit 1; }
+	@test -n "$(XCODE_DEVELOPER_DIR)" || { echo 'error: no active Xcode developer directory; run sudo xcode-select -s /Applications/Xcode.app/Contents/Developer'; exit 1; }
 	@test -d "$(PROJECT)" || { echo 'error: project not found: $(PROJECT)'; exit 1; }
 	@xcodebuild -version
 	@echo 'doctor: OK'
@@ -108,10 +126,18 @@ config: ## Print the resolved Make configuration.
 		'SIMULATOR_ID' '$(SIMULATOR_ID)' \
 		'DEVICE_ID' '$(DEVICE_ID)' \
 		'BUNDLE_ID' '$(BUNDLE_ID)' \
+		'XCODE_DEVELOPER_DIR' '$(XCODE_DEVELOPER_DIR)' \
+		'XCODE_CONTENTS_DIR' '$(XCODE_CONTENTS_DIR)' \
+		'DEVICE_HUB_APP' '$(DEVICE_HUB_APP)' \
+		'SIMULATOR_APP' '$(SIMULATOR_APP)' \
+		'SIMULATOR_HOST_APP' '$(SIMULATOR_HOST_APP)' \
 		'DERIVED_DATA' '~/Library/Developer/Xcode/DerivedData (Xcode default)' \
 		'RESULT_BUNDLE_DIR' '$(RESULT_BUNDLE_DIR)' \
 		'PARALLEL_TESTING' '$(PARALLEL_TESTING)' \
-		'ONLY_TESTING' '$(ONLY_TESTING)'
+		'ONLY_TESTING' '$(ONLY_TESTING)' \
+		'LOG_STYLE' '$(LOG_STYLE)' \
+		'LOG_LEVEL' '$(LOG_LEVEL)' \
+		'LOG_PREDICATE' '$(LOG_PREDICATE)'
 
 destinations: doctor ## Show destinations accepted by the AVP scheme.
 	xcodebuild -showdestinations -project "$(PROJECT)" -scheme "$(SCHEME)"
@@ -119,8 +145,16 @@ destinations: doctor ## Show destinations accepted by the AVP scheme.
 list\:simulator: ## List available visionOS Simulator devices.
 	xcrun simctl list devices available | grep -A 40 -E '^-- visionOS|Apple Vision Pro' || true
 
-open\:simulator: ## Open the Simulator app.
-	open -a Simulator
+open\:simulator: ## Open DeviceHub (new Xcode) or Simulator (older Xcode).
+	@test -n "$(SIMULATOR_HOST_APP)" || { \
+		echo 'error: neither DeviceHub.app nor Simulator.app was found'; \
+		echo 'checked: $(DEVICE_HUB_APP)'; \
+		echo 'checked: $(SIMULATOR_APP)'; \
+		echo 'hint: select the intended Xcode, for example:'; \
+		echo '  sudo xcode-select -s /Applications/Xcode-beta.app/Contents/Developer'; \
+		exit 1; \
+	}
+	open "$(SIMULATOR_HOST_APP)"
 
 boot\:simulator: ## Boot and wait for the configured Vision Pro Simulator.
 	@xcrun simctl boot "$(SIMULATOR_ID)" >/dev/null 2>&1 || true
@@ -167,11 +201,11 @@ run\:simulator: install\:simulator ## Build, install, and launch in Simulator.
 terminate\:simulator: ## Terminate the app in Simulator.
 	@xcrun simctl terminate "$(SIMULATOR_ID)" "$(BUNDLE_ID)" >/dev/null 2>&1 || true
 
-logs\:simulator: boot\:simulator ## Stream app logs from the configured Simulator.
+logs\:simulator: boot\:simulator ## Stream app-owned structured logs from the configured Simulator.
 	xcrun simctl spawn "$(SIMULATOR_ID)" log stream \
-		--style compact \
-		--level debug \
-		--predicate 'process == "$(APP_NAME)" OR subsystem == "$(BUNDLE_ID)"'
+		--style "$(LOG_STYLE)" \
+		--level "$(LOG_LEVEL)" \
+		--predicate '$(LOG_PREDICATE)'
 
 list\:device: ## List paired physical devices known to CoreDevice.
 	xcrun devicectl list devices
