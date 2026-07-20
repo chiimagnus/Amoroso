@@ -1,4 +1,5 @@
 # HappyPianistAVP visionOS build/test/run helpers.
+# Uses Xcode's default DerivedData location so CLI and Xcode share build products.
 # Defaults are copied from config.yaml and can be overridden on the command line.
 
 .DEFAULT_GOAL := help
@@ -14,7 +15,8 @@ SIMULATOR_ID ?= 86364D5F-BCCF-48C5-AF79-8154E5689FA3
 SIMULATOR_NAME ?= Apple Vision Pro
 DEVICE_ID ?= A687F5B3-44BC-5C55-B5C4-22A807A27C6F
 
-DERIVED_DATA_PATH ?= .build/DerivedData
+# Test reports remain repository-local. Build products use Xcode's default:
+# ~/Library/Developer/Xcode/DerivedData/<project>-<hash>/
 RESULT_BUNDLE_DIR ?= .build/TestResults
 SIMULATOR_RESULT_BUNDLE ?= $(RESULT_BUNDLE_DIR)/HappyPianistAVP-Simulator.xcresult
 DEVICE_RESULT_BUNDLE ?= $(RESULT_BUNDLE_DIR)/HappyPianistAVP-Device.xcresult
@@ -26,23 +28,21 @@ DEVICE_XCODEBUILD_FLAGS ?= -allowProvisioningUpdates
 
 SIMULATOR_DESTINATION = platform=visionOS Simulator,id=$(SIMULATOR_ID)
 DEVICE_DESTINATION = platform=visionOS,id=$(DEVICE_ID)
-SIMULATOR_APP_PATH = $(DERIVED_DATA_PATH)/Build/Products/$(CONFIGURATION)-xrsimulator/$(APP_NAME).app
-DEVICE_APP_PATH = $(DERIVED_DATA_PATH)/Build/Products/$(CONFIGURATION)-xros/$(APP_NAME).app
 TEST_SELECTION = $(if $(strip $(ONLY_TESTING)),-only-testing:$(ONLY_TESTING),)
 
+# Deliberately omit -derivedDataPath. This makes xcodebuild use the same default
+# DerivedData tree as Xcode for this project path.
 XCODEBUILD_COMMON = \
 	-project "$(PROJECT)" \
 	-scheme "$(SCHEME)" \
-	-configuration "$(CONFIGURATION)" \
-	-derivedDataPath "$(DERIVED_DATA_PATH)"
+	-configuration "$(CONFIGURATION)"
 
-.PHONY: help doctor config destinations clean \
-	build test run \
-	list\:simulator open\:simulator boot\:simulator shutdown\:simulator \
-	build\:simulator test\:simulator install\:simulator launch\:simulator \
-	run\:simulator terminate\:simulator logs\:simulator \
-	list\:device build\:device test\:device install\:device \
-	launch\:device run\:device console\:device
+.PHONY: help doctor config destinations clean build test run
+.PHONY: list\:simulator open\:simulator boot\:simulator shutdown\:simulator
+.PHONY: build\:simulator test\:simulator install\:simulator launch\:simulator
+.PHONY: run\:simulator terminate\:simulator logs\:simulator
+.PHONY: list\:device build\:device test\:device install\:device
+.PHONY: launch\:device run\:device console\:device
 
 help: ## Show available commands.
 	@printf '%s\n' \
@@ -52,7 +52,7 @@ help: ## Show available commands.
 		'  make build                  Alias for make build:simulator' \
 		'  make test                   Alias for make test:simulator' \
 		'  make run                    Alias for make run:simulator' \
-		'  make clean                  Remove local DerivedData and test results' \
+		'  make clean                  Run Xcode clean and remove local test reports' \
 		'' \
 		'Simulator:' \
 		'  make build:simulator' \
@@ -73,17 +73,24 @@ help: ## Show available commands.
 		'  make list:device' \
 		'  make config' \
 		'' \
+		'DerivedData:' \
+		'  Uses Xcode default: ~/Library/Developer/Xcode/DerivedData/' \
+		'  No -derivedDataPath override is passed to xcodebuild.' \
+		'' \
 		'Overrides:' \
 		'  make test:simulator SIMULATOR_ID=<udid>' \
 		'  make run:device DEVICE_ID=<udid>' \
 		'  make test:simulator ONLY_TESTING=HappyPianistAVPTests/GrandStaffNotationVisualTests' \
 		'  make build:device CONFIGURATION=Release'
 
-build: build\:simulator ## Build for the configured Vision Pro Simulator.
+build: ## Build for the configured Vision Pro Simulator.
+	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'build:simulator'
 
-test: test\:simulator ## Run tests on the configured Vision Pro Simulator.
+test: ## Run tests on the configured Vision Pro Simulator.
+	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'test:simulator'
 
-run: run\:simulator ## Build, install, and launch in Simulator.
+run: ## Build, install, and launch in Simulator.
+	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'run:simulator'
 
 doctor: ## Verify the required Apple command-line tools and project are present.
 	@command -v xcodebuild >/dev/null || { echo 'error: xcodebuild not found'; exit 1; }
@@ -101,7 +108,9 @@ config: ## Print the resolved Make configuration.
 		'SIMULATOR_ID' '$(SIMULATOR_ID)' \
 		'DEVICE_ID' '$(DEVICE_ID)' \
 		'BUNDLE_ID' '$(BUNDLE_ID)' \
-		'DERIVED_DATA_PATH' '$(DERIVED_DATA_PATH)' \
+		'DERIVED_DATA' '~/Library/Developer/Xcode/DerivedData (Xcode default)' \
+		'RESULT_BUNDLE_DIR' '$(RESULT_BUNDLE_DIR)' \
+		'PARALLEL_TESTING' '$(PARALLEL_TESTING)' \
 		'ONLY_TESTING' '$(ONLY_TESTING)'
 
 destinations: doctor ## Show destinations accepted by the AVP scheme.
@@ -140,8 +149,14 @@ test\:simulator: doctor boot\:simulator ## Run Swift Testing tests on visionOS S
 		test
 
 install\:simulator: build\:simulator boot\:simulator ## Install the built app in Simulator.
-	@test -d "$(SIMULATOR_APP_PATH)" || { echo 'error: app not found: $(SIMULATOR_APP_PATH)'; exit 1; }
-	xcrun simctl install "$(SIMULATOR_ID)" "$(SIMULATOR_APP_PATH)"
+	@APP_PATH="$$(xcodebuild $(XCODEBUILD_COMMON) \
+		-destination '$(SIMULATOR_DESTINATION)' \
+		CODE_SIGNING_ALLOWED=NO \
+		-showBuildSettings 2>/dev/null | \
+		awk -F ' = ' '/^[[:space:]]*TARGET_BUILD_DIR = / { dir=$$2 } /^[[:space:]]*FULL_PRODUCT_NAME = / { name=$$2 } END { if (dir != "" && name != "") print dir "/" name }')"; \
+		test -n "$$APP_PATH" && test -d "$$APP_PATH" || { echo "error: unable to locate built app: $$APP_PATH"; exit 1; }; \
+		echo "Installing $$APP_PATH"; \
+		xcrun simctl install "$(SIMULATOR_ID)" "$$APP_PATH"
 
 launch\:simulator: boot\:simulator ## Launch the installed app in Simulator.
 	xcrun simctl launch --terminate-running-process "$(SIMULATOR_ID)" "$(BUNDLE_ID)"
@@ -183,8 +198,14 @@ test\:device: doctor ## Build, sign, and run tests on the configured physical Vi
 		test
 
 install\:device: build\:device ## Install the signed app on the configured physical Vision Pro.
-	@test -d "$(DEVICE_APP_PATH)" || { echo 'error: app not found: $(DEVICE_APP_PATH)'; exit 1; }
-	xcrun devicectl device install app --device "$(DEVICE_ID)" "$(DEVICE_APP_PATH)"
+	@APP_PATH="$$(xcodebuild $(XCODEBUILD_COMMON) \
+		-destination '$(DEVICE_DESTINATION)' \
+		$(DEVICE_XCODEBUILD_FLAGS) \
+		-showBuildSettings 2>/dev/null | \
+		awk -F ' = ' '/^[[:space:]]*TARGET_BUILD_DIR = / { dir=$$2 } /^[[:space:]]*FULL_PRODUCT_NAME = / { name=$$2 } END { if (dir != "" && name != "") print dir "/" name }')"; \
+		test -n "$$APP_PATH" && test -d "$$APP_PATH" || { echo "error: unable to locate built app: $$APP_PATH"; exit 1; }; \
+		echo "Installing $$APP_PATH"; \
+		xcrun devicectl device install app --device "$(DEVICE_ID)" "$$APP_PATH"
 
 launch\:device: ## Launch the installed app on the configured physical Vision Pro.
 	@test -n "$(DEVICE_ID)" || { echo 'error: set DEVICE_ID=<vision-pro-udid>'; exit 1; }
@@ -196,5 +217,6 @@ run\:device: install\:device ## Build, install, and launch on the physical Visio
 console\:device: install\:device ## Launch on device and attach stdout/stderr until exit.
 	xcrun devicectl device process launch --console --device "$(DEVICE_ID)" "$(BUNDLE_ID)"
 
-clean: ## Remove Make-managed DerivedData and result bundles.
-	rm -rf "$(DERIVED_DATA_PATH)" "$(RESULT_BUNDLE_DIR)"
+clean: doctor ## Clean this scheme in Xcode's default DerivedData and remove local test reports.
+	xcodebuild $(XCODEBUILD_COMMON) clean
+	rm -rf "$(RESULT_BUNDLE_DIR)"
