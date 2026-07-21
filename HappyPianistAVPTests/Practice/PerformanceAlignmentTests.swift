@@ -489,6 +489,51 @@ func recordedTakeAlignmentValidatesScoreAndReportsGlobalSegmentDiagnostics() thr
 }
 
 @Test
+func recordedTakeReplaySortsEventsAndKeepsSegmentUpperBoundsExclusive() throws {
+    let first = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 0),
+        occurrenceIndex: 0,
+        onTick: 0
+    )
+    let second = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 1),
+        occurrenceIndex: 0,
+        midiNote: 64,
+        onTick: 480
+    )
+    let plan = makeAlignmentPlan(noteEvents: [first, second])
+    let take = RecordingTake(
+        name: "out-of-order",
+        metadata: .init(scoreIdentity: plan.sourceScoreIdentity, inputSources: []),
+        events: [
+            .init(
+                time: 0.5,
+                kind: .noteOn(midi: 64, velocity: 90),
+                observation: makeAlignmentObservation(generation: 1, note: 64, seconds: 0.5)
+            ),
+            .init(
+                time: 0,
+                kind: .noteOn(midi: 60, velocity: 90),
+                observation: makeAlignmentObservation(generation: 1, note: 60, seconds: 0)
+            ),
+        ]
+    )
+
+    let result = try RecordedTakeAligner().alignResult(
+        take: take,
+        plan: plan,
+        segmentTickRanges: [0 ..< 480, 480 ..< 960]
+    )
+
+    #expect(result.diagnostics.alignedCount == 2)
+    #expect(result.segments.count == 2)
+    #expect(result.segments.allSatisfy { segment in
+        segment.alignment.links.filter { if case .aligned = $0 { true } else { false } }.count == 1
+            && segment.alignment.links.contains { if case .extra = $0 { true } else { false } } == false
+    })
+}
+
+@Test
 func insufficientEvidenceIsUnknownAndLiveLinksStayProvisionalUntilCommitHorizon() throws {
     let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
     let plan = makeAlignmentPlan(noteEvents: [event])

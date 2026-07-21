@@ -42,7 +42,7 @@ struct RecordedTakeAligner: Sendable {
         plan: ScorePerformancePlan,
         activeTickRange: Range<Int>? = nil
     ) -> [PerformanceAlignmentCandidateSnapshot] {
-        let observations = take.alignmentObservations()
+        let observations = sortedObservations(from: take)
         return engine.candidates(
             plan: plan,
             observations: observations,
@@ -77,13 +77,14 @@ struct RecordedTakeAligner: Sendable {
         {
             throw RecordedTakeAlignmentError.scoreIdentityMismatch
         }
-        let observations = take.alignmentObservations()
+        let observations = sortedObservations(from: take)
         let global = replay(observations: observations, plan: plan, activeTickRange: nil)
         let segments = segmentTickRanges.map { range in
             let lowerSeconds = engine.performanceSeconds(plan: plan, atTick: range.lowerBound)
             let upperSeconds = engine.performanceSeconds(plan: plan, atTick: range.upperBound)
             let selected = observations.filter {
-                (lowerSeconds ... upperSeconds).contains($0.alignmentTimestamp.seconds)
+                lowerSeconds <= $0.alignmentTimestamp.seconds
+                    && $0.alignmentTimestamp.seconds < upperSeconds
             }
             return RecordedTakeAlignmentSegment(
                 tickRange: range,
@@ -131,6 +132,15 @@ struct RecordedTakeAligner: Sendable {
             sourceGeneration: 0,
             links: []
         )
+    }
+
+    private func sortedObservations(from take: RecordingTake) -> [PerformanceObservation] {
+        take.alignmentObservations().enumerated().sorted { lhs, rhs in
+            if lhs.element.alignmentTimestamp != rhs.element.alignmentTimestamp {
+                return lhs.element.alignmentTimestamp < rhs.element.alignmentTimestamp
+            }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
     }
 
     private static func linkCounts(
