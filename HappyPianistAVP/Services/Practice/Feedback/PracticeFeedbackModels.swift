@@ -13,11 +13,31 @@ enum PracticeNextAction: Equatable {
     case continuePassage
 }
 
+struct CoachingDecision: Equatable, Sendable {
+    let issue: MusicalIssue
+    let action: CoachingAction
+}
+
 struct PracticeFeedbackContext: Equatable {
     let passageFacts: [MeasurePracticeFacts]
     let passageSourceMeasureIDs: Set<PracticeSourceMeasureID>
     let configuration: PracticeRoundConfiguration
     let isFullPassage: Bool
+    let coachingDecision: CoachingDecision?
+
+    init(
+        passageFacts: [MeasurePracticeFacts],
+        passageSourceMeasureIDs: Set<PracticeSourceMeasureID>,
+        configuration: PracticeRoundConfiguration,
+        isFullPassage: Bool,
+        coachingDecision: CoachingDecision? = nil
+    ) {
+        self.passageFacts = passageFacts
+        self.passageSourceMeasureIDs = passageSourceMeasureIDs
+        self.configuration = configuration
+        self.isFullPassage = isFullPassage
+        self.coachingDecision = coachingDecision
+    }
 }
 
 enum PracticePassageCoverage {

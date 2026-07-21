@@ -67,3 +67,61 @@ func musicalIssueRetainsAssessmentEvidenceAndBoundsConfidence() {
     )
     #expect(unknownConfidence.confidence == nil)
 }
+
+@Test
+func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
+    let issue = makeCoachingIssue()
+    let handFocus = ScoreHandAssignment(
+        hand: .left,
+        provenance: .score,
+        confidence: 0.9
+    )
+    let completion = CoachingCompletionCondition(
+        target: .dimensionOutcome(dimension: .onset, outcome: .correct),
+        consecutiveAssessments: 0
+    )
+    let action = CoachingAction(
+        kind: .onsetAlignment,
+        scoreRange: issue.scoreRange,
+        tempoRatio: 0.2,
+        handFocus: handFocus,
+        voiceFocus: CoachingVoiceFocus(partID: "P1", staff: 2, voice: 1),
+        repeatCount: 0,
+        referenceUse: .manualReplay,
+        cueUse: .metronome,
+        completionCondition: completion
+    )
+    let decision = CoachingDecision(issue: issue, action: action)
+
+    #expect(action.tempoRatio == PracticeRoundConfiguration.supportedTempoRange.lowerBound)
+    #expect(action.handFocus == handFocus)
+    #expect(action.voiceFocus == CoachingVoiceFocus(partID: "P1", staff: 2, voice: 1))
+    #expect(action.repeatCount == 1)
+    #expect(action.referenceUse == .manualReplay)
+    #expect(action.cueUse == .metronome)
+    #expect(action.completionCondition.consecutiveAssessments == 1)
+    #expect(decision.issue == issue)
+    #expect(decision.action == action)
+}
+
+private func makeCoachingIssue() -> MusicalIssue {
+    let result = PerformanceAssessmentDimensionResult(
+        dimension: .onset,
+        outcome: .incorrect,
+        evidenceStatus: .observed,
+        sampleCount: 2,
+        confidence: 0.8,
+        evidence: []
+    )
+    return MusicalIssue(
+        kind: .onset,
+        scoreRange: 0 ..< 480,
+        dimensionResults: [result],
+        confidence: 0.8,
+        provenance: MusicalIssueProvenance(
+            planID: ScorePerformancePlanID(rawValue: "plan"),
+            sourceGeneration: 1,
+            rubricVersion: .capabilityAware
+        )
+    )
+}
