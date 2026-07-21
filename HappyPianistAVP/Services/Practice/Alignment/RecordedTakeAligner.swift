@@ -105,9 +105,7 @@ struct RecordedTakeAligner: Sendable {
             performanceStart: .init(seconds: 0),
             activeTickRange: activeTickRange
         )
-        for observation in observations {
-            _ = incremental.append(observation)
-        }
+        incremental.appendReplayObservations(observations)
         return incremental.finish() ?? PerformanceAlignment(
             planID: plan.id,
             sourceGeneration: 0,

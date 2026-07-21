@@ -64,20 +64,19 @@ struct IncrementalPerformanceAligner: Sendable {
     }
 
     mutating func append(_ observation: PerformanceObservation) -> PerformanceAlignment? {
-        guard state == .running,
-              observation.source.role != .systemPlayback,
-              acceptsGeneration(of: observation.source),
-              lastTimestamp.map({ observation.alignmentTimestamp >= $0 }) ?? true
-        else {
-            return nil
-        }
-        observations.append(observation)
-        lastTimestamp = observation.alignmentTimestamp
+        guard accept(observation) else { return nil }
         let snapshot = liveSnapshot()
         commitMatureLinks(from: snapshot, now: observation.alignmentTimestamp)
         trimBuffer()
         appendSnapshot = liveSnapshot()
         return appendSnapshot
+    }
+
+    mutating func appendReplayObservations(_ replayObservations: [PerformanceObservation]) {
+        // ponytail: offline replay needs only the final alignment; online append owns transient snapshots.
+        for observation in replayObservations {
+            _ = accept(observation)
+        }
     }
 
     mutating func seek(to performanceStart: PerformanceMonotonicInstant) {
@@ -195,6 +194,19 @@ struct IncrementalPerformanceAligner: Sendable {
         observations.removeAll(keepingCapacity: true)
         lastTimestamp = nil
         committedLinks.removeAll(keepingCapacity: true)
+    }
+
+    private mutating func accept(_ observation: PerformanceObservation) -> Bool {
+        guard state == .running,
+              observation.source.role != .systemPlayback,
+              acceptsGeneration(of: observation.source),
+              lastTimestamp.map({ observation.alignmentTimestamp >= $0 }) ?? true
+        else {
+            return false
+        }
+        observations.append(observation)
+        lastTimestamp = observation.alignmentTimestamp
+        return true
     }
 
     private mutating func acceptsGeneration(of source: PerformanceObservation.Source) -> Bool {
