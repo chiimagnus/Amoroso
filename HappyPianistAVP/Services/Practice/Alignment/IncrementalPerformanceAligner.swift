@@ -37,6 +37,7 @@ struct IncrementalPerformanceAligner: Sendable {
     private var observations: [PerformanceObservation] = []
     private var lastTimestamp: PerformanceMonotonicInstant?
     private var committedLinks: [ScorePerformanceNoteEventID: PerformanceAlignmentLink] = [:]
+    private var scoreEventOrder: [ScorePerformanceNoteEventID] = []
 
     var bufferedObservationCount: Int { observations.count }
 
@@ -57,6 +58,9 @@ struct IncrementalPerformanceAligner: Sendable {
         reset()
         self.plan = plan
         preparedPlan = engine.prepare(plan: plan, activeTickRange: activeTickRange)
+        scoreEventOrder = plan.noteEvents.compactMap { event in
+            activeTickRange?.contains(event.performedOnTick) ?? true ? event.id : nil
+        }
         self.generation = generation
         self.performanceStart = performanceStart
         state = .running
@@ -88,6 +92,9 @@ struct IncrementalPerformanceAligner: Sendable {
     mutating func rangeChange(_ range: Range<Int>?) {
         guard state == .running, let plan else { return }
         preparedPlan = engine.prepare(plan: plan, activeTickRange: range)
+        scoreEventOrder = plan.noteEvents.compactMap { event in
+            range?.contains(event.performedOnTick) ?? true ? event.id : nil
+        }
         clearRunEvidence()
     }
 
@@ -110,6 +117,7 @@ struct IncrementalPerformanceAligner: Sendable {
         discardedObservationCount = 0
         plan = nil
         preparedPlan = nil
+        scoreEventOrder.removeAll(keepingCapacity: true)
         generation = nil
         sourceGenerations.removeAll(keepingCapacity: true)
         performanceStart = .init(seconds: 0)
@@ -164,7 +172,7 @@ struct IncrementalPerformanceAligner: Sendable {
         return PerformanceAlignment(
             planID: alignment.planID,
             sourceGeneration: alignment.sourceGeneration,
-            links: committedLinks.values.sorted(by: Self.linkOrder) + live,
+            links: scoreEventOrder.compactMap { committedLinks[$0] } + live,
             controllerLinks: alignment.controllerLinks
         )
     }
@@ -221,9 +229,6 @@ struct IncrementalPerformanceAligner: Sendable {
         return true
     }
 
-    private static func linkOrder(_ lhs: PerformanceAlignmentLink, _ rhs: PerformanceAlignmentLink) -> Bool {
-        (lhs.scoreEventID?.description ?? "") < (rhs.scoreEventID?.description ?? "")
-    }
 }
 
 private extension PerformanceAlignmentLink {
