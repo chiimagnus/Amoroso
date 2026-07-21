@@ -177,3 +177,10 @@ enum StepAttemptMatchResult: Equatable {
         self == .matched
     }
 }
+
+enum PracticeSuccessSemantic: String, CaseIterable, Equatable, Hashable, Sendable {
+    case pitchStepCompletion
+    case passagePerformanceAssessment
+    case referencePlaybackCompletion
+    case creativeDuetExchange
+}

@@ -165,7 +165,7 @@ struct PracticeSessionRecord: Codable, Equatable {
     }
 }
 
-struct PracticeSourceMeasureID: Codable, Equatable, Hashable {
+struct PracticeSourceMeasureID: Codable, Equatable, Hashable, Sendable {
     let partID: String
     let sourceMeasureIndex: Int
     let sourceNumberToken: String?
@@ -177,7 +177,7 @@ struct PracticeSourceMeasureID: Codable, Equatable, Hashable {
     }
 }
 
-struct PracticeMeasureOccurrenceID: Codable, Equatable, Hashable {
+struct PracticeMeasureOccurrenceID: Codable, Equatable, Hashable, Sendable {
     let sourceMeasureID: PracticeSourceMeasureID
     let occurrenceIndex: Int
 

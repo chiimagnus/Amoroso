@@ -23,8 +23,10 @@
       "id": "ARCH-003",
       "plannedTask": "P11-T1",
       "fixtures": [],
-      "tests": [],
-      "evidenceStatus": "missingEvidence"
+      "tests": [
+        "HappyPianistAVPTests/Practice/PerformanceAssessmentTests.swift"
+      ],
+      "evidenceStatus": "characterizationPlanned"
     },
     {
       "id": "SCORE-001",
