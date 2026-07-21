@@ -64,7 +64,6 @@ struct RecordingInputSourceDescriptor: Codable, Equatable, Sendable {
 struct RecordingTakeMetadata: Codable, Equatable, Sendable {
     enum Provenance: String, Codable, Sendable {
         case recorded
-        case legacy
     }
 
     let provenance: Provenance
@@ -96,15 +95,6 @@ struct RecordingTakeMetadata: Codable, Equatable, Sendable {
         inputSources: [RecordingInputSourceDescriptor(
             kind: nil,
             id: "unattributed-recording",
-            capabilities: .recordingUnavailable
-        )]
-    )
-
-    static let legacy = Self(
-        provenance: .legacy,
-        inputSources: [RecordingInputSourceDescriptor(
-            kind: nil,
-            id: "legacy-unattributed",
             capabilities: .recordingUnavailable
         )]
     )
@@ -199,8 +189,8 @@ struct RecordingTake: Codable, Equatable, Identifiable, Sendable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        let sourceVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
-        guard (1 ... Self.currentSchemaVersion).contains(sourceVersion) else {
+        let sourceVersion = try container.decode(Int.self, forKey: .schemaVersion)
+        guard sourceVersion == Self.currentSchemaVersion else {
             throw RecordingTakeCodingError.unsupportedSchemaVersion(sourceVersion)
         }
 
@@ -208,10 +198,7 @@ struct RecordingTake: Codable, Equatable, Identifiable, Sendable {
         id = try container.decode(UUID.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
-        let decodedMetadata = try container.decodeIfPresent(
-            RecordingTakeMetadata.self,
-            forKey: .metadata
-        ) ?? .legacy
+        let decodedMetadata = try container.decode(RecordingTakeMetadata.self, forKey: .metadata)
         metadata = RecordingTakeMetadata(
             provenance: decodedMetadata.provenance,
             scoreIdentity: decodedMetadata.scoreIdentity,

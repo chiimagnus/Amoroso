@@ -12,7 +12,6 @@ struct PerformanceObservationReplayFixture: Decodable {
 
     let schemaVersion: Int
     let observations: [PerformanceObservation]
-    let legacyTake: RecordingTake
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -21,7 +20,6 @@ struct PerformanceObservationReplayFixture: Decodable {
             throw PerformanceObservationReplayFixtureError.unsupportedSchemaVersion(schemaVersion)
         }
         observations = try container.decode([PerformanceObservation].self, forKey: .observations)
-        legacyTake = try container.decode(RecordingTake.self, forKey: .legacyTake)
     }
 
     var replayEvents: [PerformanceReplayEvent<PerformanceObservation>] {
@@ -37,7 +35,6 @@ struct PerformanceObservationReplayFixture: Decodable {
     private enum CodingKeys: String, CodingKey {
         case schemaVersion
         case observations
-        case legacyTake
     }
 }
 

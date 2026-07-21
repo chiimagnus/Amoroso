@@ -73,24 +73,19 @@ func candidateEngineUsesCapabilitiesRangeGenerationAndPlanResolution() throws {
 }
 
 @Test
-func recordedTakeAlignerRebasesV2ObservationsAndKeepsLegacyCapabilityUnknown() throws {
+func recordedTakeAlignerRebasesTypedObservations() throws {
     let sourceID = makeAlignmentSourceID(ordinal: 0)
     let plan = makeAlignmentPlan(noteEvents: [makeAlignmentEvent(sourceID: sourceID, occurrenceIndex: 0)])
     let observation = makeAlignmentObservation(generation: 4, note: 60, seconds: 40)
-    let v2 = RecordingTake(
-        name: "v2",
+    let take = RecordingTake(
+        name: "typed",
+        metadata: .init(scoreIdentity: plan.sourceScoreIdentity, inputSources: []),
         events: [.init(time: 0, kind: .noteOn(midi: 60, velocity: 80), observation: observation)]
-    )
-    let legacy = RecordingTake(
-        name: "legacy",
-        events: [.init(time: 0, kind: .noteOn(midi: 61, velocity: 80))]
     )
 
     let aligner = RecordedTakeAligner()
-    #expect(aligner.candidateSnapshots(take: v2, plan: plan).first?.candidates.count == 1)
-    #expect(aligner.align(take: legacy, plan: plan).links.contains {
-        if case .unknown(_, .unavailablePitchEvidence) = $0 { true } else { false }
-    })
+    let snapshots = try aligner.candidateSnapshots(take: take, plan: plan)
+    #expect(snapshots.first?.candidates.count == 1)
 }
 
 @Test
@@ -422,19 +417,21 @@ func alignmentRejectsStaleAndSystemPlaybackAcrossNotesReleasesAndControllers() t
 }
 
 @Test
-func recordedTakeReplayUsesSameIncrementalStateMachineAsOnlineAlignment() {
+func recordedTakeReplayUsesSameIncrementalStateMachineAsOnlineAlignment() throws {
     let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
     let plan = makeAlignmentPlan(noteEvents: [event])
     let observation = makeAlignmentObservation(generation: 2, note: 60, seconds: 0)
     let take = RecordingTake(
         name: "take",
+        metadata: .init(scoreIdentity: plan.sourceScoreIdentity, inputSources: []),
         events: [.init(time: 0, kind: .noteOn(midi: 60, velocity: 90), observation: observation)]
     )
     var online = IncrementalPerformanceAligner()
     online.start(plan: plan, generation: 2, performanceStart: .init(seconds: 0))
     _ = online.append(observation)
+    let offline = try RecordedTakeAligner().alignResult(take: take, plan: plan)
 
-    #expect(online.finish() == RecordedTakeAligner().align(take: take, plan: plan))
+    #expect(online.finish() == offline.global)
 }
 
 @Test
@@ -485,6 +482,18 @@ func recordedTakeAlignmentValidatesScoreAndReportsGlobalSegmentDiagnostics() thr
     )
     #expect(throws: RecordedTakeAlignmentError.scoreIdentityMismatch) {
         try RecordedTakeAligner().alignResult(take: wrongTake, plan: plan)
+    }
+    let unattributed = RecordingTake(name: "unattributed", events: events)
+    #expect(throws: RecordedTakeAlignmentError.scoreIdentityMismatch) {
+        try RecordedTakeAligner().alignResult(take: unattributed, plan: plan)
+    }
+    let untyped = RecordingTake(
+        name: "untyped",
+        metadata: .init(scoreIdentity: plan.sourceScoreIdentity, inputSources: []),
+        events: [.init(time: 0, kind: .noteOn(midi: 60, velocity: 90))]
+    )
+    #expect(throws: RecordedTakeAlignmentError.missingObservation) {
+        try RecordedTakeAligner().alignResult(take: untyped, plan: plan)
     }
 }
 

@@ -217,13 +217,11 @@ struct RecordingTakeSequenceAdapter {
 }
 
 extension RecordingTake {
-    func alignmentObservations() -> [PerformanceObservation] {
-        events.compactMap { event in
-            if let observation = event.observation {
-                return observation.rebasedForAlignment(at: event.time)
-            }
-            return event.legacyAlignmentObservation(source: metadata.inputSources.first)
+    func alignmentObservations() -> [PerformanceObservation]? {
+        let observations = events.compactMap { event in
+            event.observation?.rebasedForAlignment(at: event.time)
         }
+        return observations.count == events.count ? observations : nil
     }
 }
 
@@ -249,61 +247,4 @@ private extension PerformanceObservation {
             calibrationReference: calibrationReference
         )
     }
-}
-
-private extension RecordingTakeEvent {
-    func legacyAlignmentObservation(
-        source descriptor: RecordingInputSourceDescriptor?
-    ) -> PerformanceObservation? {
-        let event: PerformanceObservation.Event = switch kind {
-        case let .noteOn(midi, velocity):
-            .noteOn(note: midi, velocity: .init(midi1: velocity))
-        case let .noteOff(midi):
-            .noteOff(note: midi, releaseVelocity: nil)
-        case let .controlChange(controller, value):
-            .controller(.controlChange(number: controller, value: .init(midi1: value)))
-        case let .pitchBend(value):
-            .controller(.pitchBend(value: .init(midi14: value)))
-        case let .programChange(program):
-            .controller(.programChange(program: program))
-        case let .channelPressure(value):
-            .controller(.channelPressure(value: .init(midi1: value)))
-        case let .polyPressure(midi, value):
-            .controller(.polyPressure(note: midi, value: .init(midi1: value)))
-        }
-        let source = PerformanceObservation.Source(
-            kind: descriptor?.kind ?? .midi1,
-            id: descriptor?.id ?? "legacy-unattributed",
-            generation: 0,
-            capabilities: descriptor?.capabilities ?? .alignmentUnavailable
-        )
-        let instant = PerformanceMonotonicInstant(seconds: time)
-        return PerformanceObservation(
-            id: id,
-            source: source,
-            timing: .init(
-                host: instant,
-                source: nil,
-                correctedHost: instant,
-                mapping: nil,
-                provenance: .hostOnly
-            ),
-            event: event
-        )
-    }
-}
-
-private extension PerformanceInputCapabilities {
-    static let alignmentUnavailable = Self(
-        pitch: .unavailable,
-        onset: .unavailable,
-        release: .unavailable,
-        velocity: .unavailable,
-        controllers: .unavailable,
-        polyphony: .unavailable,
-        hand: .unavailable,
-        finger: .unavailable,
-        position: .unavailable,
-        confidence: .unavailable
-    )
 }

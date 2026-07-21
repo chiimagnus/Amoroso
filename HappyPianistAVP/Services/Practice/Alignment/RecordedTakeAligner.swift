@@ -2,6 +2,7 @@ import Foundation
 
 enum RecordedTakeAlignmentError: Error, Equatable {
     case scoreIdentityMismatch
+    case missingObservation
 }
 
 struct RecordedTakeAlignmentSegment: Equatable, Sendable {
@@ -21,7 +22,6 @@ struct RecordedTakeAlignmentDiagnostics: Equatable, Sendable {
     let unknownCount: Int
     let controllerLinkCount: Int
     let performedOccurrenceCount: Int
-    let usedLegacyProjection: Bool
 }
 
 struct RecordedTakeAlignmentResult: Equatable, Sendable {
@@ -41,8 +41,8 @@ struct RecordedTakeAligner: Sendable {
         take: RecordingTake,
         plan: ScorePerformancePlan,
         activeTickRange: Range<Int>? = nil
-    ) -> [PerformanceAlignmentCandidateSnapshot] {
-        let observations = sortedObservations(from: take)
+    ) throws -> [PerformanceAlignmentCandidateSnapshot] {
+        let observations = try validatedObservations(from: take, plan: plan)
         return engine.candidates(
             plan: plan,
             observations: observations,
@@ -51,33 +51,12 @@ struct RecordedTakeAligner: Sendable {
         )
     }
 
-    func align(
-        take: RecordingTake,
-        plan: ScorePerformancePlan,
-        activeTickRange: Range<Int>? = nil
-    ) -> PerformanceAlignment {
-        (try? alignResult(
-            take: take,
-            plan: plan,
-            segmentTickRanges: activeTickRange.map { [$0] } ?? []
-        ).global) ?? PerformanceAlignment(
-            planID: plan.id,
-            sourceGeneration: 0,
-            links: []
-        )
-    }
-
     func alignResult(
         take: RecordingTake,
         plan: ScorePerformancePlan,
         segmentTickRanges: [Range<Int>] = []
     ) throws -> RecordedTakeAlignmentResult {
-        if let takeIdentity = take.metadata.scoreIdentity,
-           takeIdentity != plan.sourceScoreIdentity
-        {
-            throw RecordedTakeAlignmentError.scoreIdentityMismatch
-        }
-        let observations = sortedObservations(from: take)
+        let observations = try validatedObservations(from: take, plan: plan)
         let global = replay(observations: observations, plan: plan, activeTickRange: nil)
         let segments = segmentTickRanges.map { range in
             let lowerSeconds = engine.performanceSeconds(plan: plan, atTick: range.lowerBound)
@@ -106,8 +85,7 @@ struct RecordedTakeAligner: Sendable {
                 ambiguousCount: counts.ambiguous,
                 unknownCount: counts.unknown,
                 controllerLinkCount: global.controllerLinks.count,
-                performedOccurrenceCount: Set(plan.noteEvents.map(\.performedOccurrenceIndex)).count,
-                usedLegacyProjection: take.events.contains { $0.observation == nil }
+                performedOccurrenceCount: Set(plan.noteEvents.map(\.performedOccurrenceIndex)).count
             )
         )
     }
@@ -137,8 +115,17 @@ struct RecordedTakeAligner: Sendable {
         )
     }
 
-    private func sortedObservations(from take: RecordingTake) -> [PerformanceObservation] {
-        take.alignmentObservations().enumerated().sorted { lhs, rhs in
+    private func validatedObservations(
+        from take: RecordingTake,
+        plan: ScorePerformancePlan
+    ) throws -> [PerformanceObservation] {
+        guard take.metadata.scoreIdentity == plan.sourceScoreIdentity else {
+            throw RecordedTakeAlignmentError.scoreIdentityMismatch
+        }
+        guard let observations = take.alignmentObservations() else {
+            throw RecordedTakeAlignmentError.missingObservation
+        }
+        return observations.enumerated().sorted { lhs, rhs in
             if lhs.element.alignmentTimestamp != rhs.element.alignmentTimestamp {
                 return lhs.element.alignmentTimestamp < rhs.element.alignmentTimestamp
             }
