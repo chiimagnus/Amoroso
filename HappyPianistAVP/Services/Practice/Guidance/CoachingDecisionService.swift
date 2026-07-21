@@ -2,16 +2,24 @@ import Foundation
 
 struct CoachingDecisionService: Sendable {
     private let exercisePolicy: PracticeExercisePolicy
+    private let priorityPolicy: CoachingPriorityPolicy
 
-    init(exercisePolicy: PracticeExercisePolicy = PracticeExercisePolicy()) {
+    init(
+        exercisePolicy: PracticeExercisePolicy = PracticeExercisePolicy(),
+        priorityPolicy: CoachingPriorityPolicy = CoachingPriorityPolicy()
+    ) {
         self.exercisePolicy = exercisePolicy
+        self.priorityPolicy = priorityPolicy
     }
 
-    func decision(for assessment: PassagePerformanceAssessment) -> CoachingDecision? {
-        decisions(for: assessment).first
+    func decision(
+        for assessment: PassagePerformanceAssessment,
+        context: CoachingPriorityContext = CoachingPriorityContext()
+    ) -> CoachingDecision? {
+        priorityPolicy.primaryDecision(from: candidates(for: assessment), context: context)
     }
 
-    func decisions(for assessment: PassagePerformanceAssessment) -> [CoachingDecision] {
+    func candidates(for assessment: PassagePerformanceAssessment) -> [CoachingDecision] {
         issues(from: assessment).compactMap { issue in
             exercisePolicy.action(for: issue).map { CoachingDecision(issue: issue, action: $0) }
         }

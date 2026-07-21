@@ -172,7 +172,7 @@ func decisionServiceUsesMeasureEvidenceAndSkipsCorrectResults() {
         )]
     )
 
-    let decisions = CoachingDecisionService().decisions(for: assessment)
+    let decisions = CoachingDecisionService().candidates(for: assessment)
 
     #expect(decisions.map(\.issue.kind) == [.onset, .evidence])
     #expect(decisions.map(\.action.kind) == [.onsetAlignment, .evidenceCheck])
@@ -181,21 +181,124 @@ func decisionServiceUsesMeasureEvidenceAndSkipsCorrectResults() {
     #expect(decisions.contains { $0.issue.kind == .pitch } == false)
 }
 
+@Test
+func priorityPolicyRanksPrerequisitesSeverityConfidenceAndCoverage() {
+    guard
+        let evidence = makeDecision(
+            kind: .evidence,
+            dimension: .pedalTiming,
+            confidence: nil,
+            evidenceStatus: .insufficient,
+            scoreRange: 960 ..< 1_440
+        ),
+        let pitch = makeDecision(
+            kind: .pitch,
+            dimension: .exactPitch,
+            confidence: 0.5,
+            scoreRange: 0 ..< 480
+        ),
+        let phrase = makeDecision(
+            kind: .phrase,
+            dimension: .phraseContinuity,
+            confidence: 1,
+            scoreRange: 480 ..< 960
+        ),
+        let lowerConfidenceOnset = makeDecision(
+            kind: .onset,
+            dimension: .onset,
+            confidence: 0.6,
+            scoreRange: 480 ..< 960
+        ),
+        let higherConfidenceOnset = makeDecision(
+            kind: .onset,
+            dimension: .onset,
+            confidence: 0.9,
+            scoreRange: 960 ..< 1_440
+        ),
+        let degradedOnset = makeDecision(
+            kind: .onset,
+            dimension: .onset,
+            confidence: 0.9,
+            evidenceStatus: .degraded,
+            scoreRange: 1_440 ..< 1_920
+        )
+    else {
+        Issue.record("Expected actionable coaching decisions")
+        return
+    }
+    let policy = CoachingPriorityPolicy()
+
+    #expect(policy.primaryDecision(from: [pitch, evidence, phrase]) == evidence)
+    #expect(policy.primaryDecision(from: [phrase, pitch]) == pitch)
+    #expect(policy.primaryDecision(from: [lowerConfidenceOnset, higherConfidenceOnset]) == higherConfidenceOnset)
+    #expect(policy.primaryDecision(from: [degradedOnset, higherConfidenceOnset]) == higherConfidenceOnset)
+}
+
+@Test
+func priorityPolicyHonorsSkipAndStopsRepeatingUnimprovedAction() {
+    guard
+        let onset = makeDecision(
+            kind: .onset,
+            dimension: .onset,
+            confidence: 0.9,
+            scoreRange: 0 ..< 480
+        ),
+        let tempo = makeDecision(
+            kind: .tempo,
+            dimension: .tempoContinuity,
+            confidence: 0.8,
+            scoreRange: 480 ..< 960
+        )
+    else {
+        Issue.record("Expected actionable coaching decisions")
+        return
+    }
+    let policy = CoachingPriorityPolicy()
+
+    let skipped = policy.primaryDecision(
+        from: [onset, tempo],
+        context: CoachingPriorityContext(skippedDecisions: [CoachingDecisionSignature(onset)])
+    )
+    #expect(skipped == tempo)
+
+    let continued = policy.primaryDecision(
+        from: [onset, tempo],
+        context: CoachingPriorityContext(
+            previousDecision: tempo,
+            consecutiveUnimprovedAssessments: 1
+        )
+    )
+    #expect(continued == tempo)
+
+    let changed = policy.primaryDecision(
+        from: [onset, tempo],
+        context: CoachingPriorityContext(
+            previousDecision: onset,
+            consecutiveUnimprovedAssessments: 2
+        )
+    )
+    #expect(changed == tempo)
+}
+
 private func makeCoachingIssue(
     kind: MusicalIssueKind = .onset,
     dimension: PerformanceAssessmentDimension = .onset,
-    outcome: PracticeEvidenceOutcome = .incorrect
+    outcome: PracticeEvidenceOutcome = .incorrect,
+    confidence: Double? = 0.8,
+    evidenceStatus: PerformanceAssessmentEvidenceStatus = .observed,
+    scoreRange: Range<Int> = 0 ..< 480
 ) -> MusicalIssue {
     let result = makeDimension(
         dimension,
         outcome: outcome,
-        confidence: 0.8
+        confidence: confidence,
+        evidenceStatus: evidenceStatus
     )
     return MusicalIssue(
         kind: kind,
-        scoreRange: 0 ..< 480,
+        scoreRange: scoreRange,
         dimensionResults: [result],
-        confidence: 0.8,
+        confidence: confidence,
         provenance: MusicalIssueProvenance(
             planID: ScorePerformancePlanID(rawValue: "plan"),
             sourceGeneration: 1,
@@ -207,14 +310,36 @@ private func makeCoachingIssue(
 private func makeDimension(
     _ dimension: PerformanceAssessmentDimension,
     outcome: PracticeEvidenceOutcome,
-    confidence: Double?
+    confidence: Double?,
+    evidenceStatus: PerformanceAssessmentEvidenceStatus = .observed
 ) -> PerformanceAssessmentDimensionResult {
     PerformanceAssessmentDimensionResult(
         dimension: dimension,
         outcome: outcome,
-        evidenceStatus: .observed,
+        evidenceStatus: evidenceStatus,
         sampleCount: 2,
         confidence: confidence,
         evidence: []
     )
+}
+
+private func makeDecision(
+    kind: MusicalIssueKind,
+    dimension: PerformanceAssessmentDimension,
+    confidence: Double?,
+    evidenceStatus: PerformanceAssessmentEvidenceStatus = .observed,
+    scoreRange: Range<Int>
+) -> CoachingDecision? {
+    let outcome: PracticeEvidenceOutcome = kind == .evidence ? .insufficientEvidence : .incorrect
+    let issue = makeCoachingIssue(
+        kind: kind,
+        dimension: dimension,
+        outcome: outcome,
+        confidence: confidence,
+        evidenceStatus: evidenceStatus,
+        scoreRange: scoreRange
+    )
+    return PracticeExercisePolicy().action(for: issue).map {
+        CoachingDecision(issue: issue, action: $0)
+    }
 }
