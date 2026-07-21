@@ -56,7 +56,10 @@ struct PerformanceAlignmentEngine: Sendable {
     ) -> [PerformanceAlignmentCandidateSnapshot] {
         let timeMap = PlanTimeMap(plan: plan)
         let observedOnsets = observations.compactMap { observation -> (Int, TimeInterval)? in
-            guard let note = observation.alignmentOnsetMIDINote else { return nil }
+            guard observation.source.role != .systemPlayback,
+                  generation.map({ observation.source.generation == $0 }) ?? true,
+                  let note = observation.alignmentOnsetMIDINote
+            else { return nil }
             return (note, max(0, observation.alignmentTimestamp.seconds - performanceStart.seconds))
         }
         return observations.map { observation in
@@ -284,12 +287,21 @@ struct PerformanceAlignmentEngine: Sendable {
 
         let candidates = matching.map { event in
             let onsetDeviation = observedSeconds - timeMap.seconds(at: event.performedOnTick)
-            let chordPitches = Set(plan.noteEvents.lazy
-                .filter { $0.performedOnTick == event.performedOnTick }
-                .map(\.midiNote))
-            let chordOnsets = observedOnsets
-                .filter { chordPitches.contains($0.0) }
-                .map(\.1)
+            let chordEvents = plan.noteEvents.filter { $0.performedOnTick == event.performedOnTick }
+            let measuresChordSpread = chordEvents.count > 1
+                && chordEvents.contains { note in
+                    note.timingProvenance.contains { $0.kind == .arpeggio }
+                } == false
+            let chordSeconds = timeMap.seconds(at: event.performedOnTick)
+            let chordOnsets = measuresChordSpread ? chordEvents.compactMap { chordEvent in
+                observedOnsets
+                    .filter {
+                        $0.0 == chordEvent.midiNote
+                            && abs($0.1 - chordSeconds) <= configuration.candidateWindowSeconds
+                    }
+                    .min { abs($0.1 - chordSeconds) < abs($1.1 - chordSeconds) }?
+                    .1
+            } : []
             let chordSpread = (chordOnsets.max().flatMap { maximum in
                 chordOnsets.min().map { maximum - $0 }
             }) ?? 0
@@ -313,9 +325,11 @@ struct PerformanceAlignmentEngine: Sendable {
                     ),
                     .init(
                         dimension: .chordSpread,
-                        status: Self.evidenceStatus(observation.source.capabilities.polyphony),
-                        cost: chordCost,
-                        deviationSeconds: chordSpread
+                        status: measuresChordSpread
+                            ? Self.evidenceStatus(observation.source.capabilities.polyphony)
+                            : .notObserved,
+                        cost: measuresChordSpread ? chordCost : nil,
+                        deviationSeconds: measuresChordSpread ? chordSpread : nil
                     ),
                     .init(
                         dimension: .hand,

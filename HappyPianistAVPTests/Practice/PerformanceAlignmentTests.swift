@@ -135,6 +135,69 @@ func alignmentSeparatesExactPitchOnsetChordSpreadExtraAndMissing() {
 }
 
 @Test
+func chordSpreadUsesCurrentOccurrenceAndRespectsArpeggioProvenance() throws {
+    let repeatedEvents = [
+        makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0),
+        makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 1), occurrenceIndex: 0, midiNote: 64),
+        makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 1, onTick: 960),
+        makeAlignmentEvent(
+            sourceID: makeAlignmentSourceID(ordinal: 1),
+            occurrenceIndex: 1,
+            midiNote: 64,
+            onTick: 960
+        ),
+    ]
+    let repeated = PerformanceAlignmentEngine().align(
+        plan: makeAlignmentPlan(noteEvents: repeatedEvents),
+        observations: [
+            makeAlignmentObservation(generation: 1, note: 60, seconds: 0),
+            makeAlignmentObservation(generation: 1, note: 64, seconds: 0.08),
+            makeAlignmentObservation(generation: 1, note: 60, seconds: 1),
+            makeAlignmentObservation(generation: 1, note: 64, seconds: 1.08),
+        ],
+        performanceStart: .init(seconds: 0)
+    )
+    let spreads = repeated.links.flatMap { link -> [TimeInterval] in
+        guard case let .aligned(_, _, evidence) = link else { return [] }
+        return evidence.compactMap {
+            $0.dimension == .chordSpread ? $0.deviationSeconds : nil
+        }
+    }
+    #expect(spreads.count == 4)
+    #expect(spreads.allSatisfy { abs($0 - 0.08) < 0.000_001 })
+
+    let arpeggio = ScorePerformanceProvenance(kind: .arpeggio, sourceIdentity: "arp", detail: nil)
+    let arpeggiatedEvents = [
+        makeAlignmentEvent(
+            sourceID: makeAlignmentSourceID(ordinal: 2),
+            occurrenceIndex: 0,
+            timingProvenance: [arpeggio]
+        ),
+        makeAlignmentEvent(
+            sourceID: makeAlignmentSourceID(ordinal: 3),
+            occurrenceIndex: 0,
+            midiNote: 64,
+            timingProvenance: [arpeggio]
+        ),
+    ]
+    let arpeggiated = PerformanceAlignmentEngine().align(
+        plan: makeAlignmentPlan(noteEvents: arpeggiatedEvents),
+        observations: [
+            makeAlignmentObservation(generation: 1, note: 60, seconds: 0),
+            makeAlignmentObservation(generation: 1, note: 64, seconds: 0.4),
+        ],
+        performanceStart: .init(seconds: 0)
+    )
+    let arpeggioEvidence = try #require(arpeggiated.links.compactMap { link -> PerformanceAlignmentEvidence? in
+        guard case let .aligned(_, _, evidence) = link else { return nil }
+        return evidence.first { $0.dimension == .chordSpread }
+    }.first)
+    #expect(arpeggioEvidence.status == .notObserved)
+    #expect(arpeggioEvidence.cost == nil)
+    #expect(arpeggioEvidence.deviationSeconds == nil)
+}
+
+@Test
 func releaseDurationAndControllerEvidenceRespectCapabilities() throws {
     let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
     let controller = ScorePerformanceControllerEvent(
@@ -664,7 +727,8 @@ private func makeAlignmentEvent(
     occurrenceIndex: Int,
     midiNote: Int = 60,
     onTick: Int = 0,
-    handAssignment: ScoreHandAssignment = .init(hand: .right, provenance: .score)
+    handAssignment: ScoreHandAssignment = .init(hand: .right, provenance: .score),
+    timingProvenance: [ScorePerformanceProvenance] = []
 ) -> ScorePerformanceNoteEvent {
     let performedID = MusicXMLPerformedNoteID(
         sourceID: sourceID,
@@ -694,6 +758,6 @@ private func makeAlignmentEvent(
         voice: 1,
         handAssignment: handAssignment,
         fingerings: [],
-        timingProvenance: []
+        timingProvenance: timingProvenance
     )
 }
