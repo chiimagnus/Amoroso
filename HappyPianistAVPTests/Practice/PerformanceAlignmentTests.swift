@@ -279,13 +279,55 @@ func performedTimeSelectsRepeatedOccurrenceWithoutChangingSourceIdentity() throw
     #expect(score.performedOccurrenceIndex == 1)
 }
 
+@Test
+func incrementalAlignerRejectsStaleOutOfOrderAndSystemPlaybackAndResetsLifecycle() throws {
+    let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
+    let plan = makeAlignmentPlan(noteEvents: [event])
+    var aligner = IncrementalPerformanceAligner(
+        configuration: .init(maximumBufferedObservations: 32, commitHorizonSeconds: 0.1)
+    )
+    aligner.start(plan: plan, generation: 4, performanceStart: .init(seconds: 0))
+
+    #expect(aligner.append(makeAlignmentObservation(generation: 3, seconds: 0)) == nil)
+    let accepted = makeAlignmentObservation(generation: 4, seconds: 0.2)
+    #expect(aligner.append(accepted) != nil)
+    #expect(aligner.append(makeAlignmentObservation(generation: 4, seconds: 0.1)) == nil)
+    #expect(aligner.append(makeAlignmentObservation(
+        generation: 4,
+        seconds: 0.3,
+        role: .systemPlayback
+    )) == nil)
+    #expect(aligner.finish()?.links.contains { if case .aligned = $0 { true } else { false } } == true)
+    #expect(aligner.state == .finished)
+
+    aligner.reset()
+    #expect(aligner.state == .idle)
+}
+
+@Test
+func recordedTakeReplayUsesSameIncrementalStateMachineAsOnlineAlignment() {
+    let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
+    let plan = makeAlignmentPlan(noteEvents: [event])
+    let observation = makeAlignmentObservation(generation: 2, note: 60, seconds: 0)
+    let take = RecordingTake(
+        name: "take",
+        events: [.init(time: 0, kind: .noteOn(midi: 60, velocity: 90), observation: observation)]
+    )
+    var online = IncrementalPerformanceAligner()
+    online.start(plan: plan, generation: 2, performanceStart: .init(seconds: 0))
+    _ = online.append(observation)
+
+    #expect(online.finish() == RecordedTakeAligner().align(take: take, plan: plan))
+}
+
 private func makeAlignmentObservation(
     generation: UInt64,
     note: Int = 60,
     seconds: TimeInterval = 12,
     event: PerformanceObservation.Event? = nil,
     capabilities: PerformanceInputCapabilities? = nil,
-    hand: ScoreHand? = nil
+    hand: ScoreHand? = nil,
+    role: PerformanceObservation.Source.Role = .userPerformance
 ) -> PerformanceObservation {
     PerformanceObservation(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!,
@@ -293,7 +335,8 @@ private func makeAlignmentObservation(
             kind: .midi1,
             id: "midi:test",
             generation: generation,
-            capabilities: capabilities
+            capabilities: capabilities,
+            role: role
         ),
         timing: PerformanceClockReading(
             host: .init(seconds: seconds + 0.1),

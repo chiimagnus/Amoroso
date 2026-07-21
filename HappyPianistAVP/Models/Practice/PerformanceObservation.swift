@@ -2,6 +2,11 @@ import Foundation
 
 struct PerformanceObservation: Codable, Equatable, Sendable {
     struct Source: Codable, Equatable, Hashable, Sendable {
+        enum Role: String, Codable, Sendable {
+            case userPerformance
+            case systemPlayback
+        }
+
         enum Kind: String, Codable, Sendable {
             case midi1
             case midi2
@@ -14,17 +19,20 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
         let id: String
         let generation: UInt64
         let capabilities: PerformanceInputCapabilities
+        let role: Role?
 
         init(
             kind: Kind,
             id: String,
             generation: UInt64,
-            capabilities: PerformanceInputCapabilities? = nil
+            capabilities: PerformanceInputCapabilities? = nil,
+            role: Role = .userPerformance
         ) {
             self.kind = kind
             self.id = id
             self.generation = generation
             self.capabilities = capabilities ?? kind.defaultCapabilities
+            self.role = role
         }
     }
 
