@@ -164,16 +164,17 @@ shutdown\:simulator: ## Shut down the configured Simulator.
 	@xcrun simctl shutdown "$(SIMULATOR_ID)" >/dev/null 2>&1 || true
 
 build\:simulator: doctor ## Build HappyPianistAVP for visionOS Simulator.
-	xcodebuild $(XCODEBUILD_COMMON) \
+	@xcodebuild $(XCODEBUILD_COMMON) \
 		-destination '$(SIMULATOR_DESTINATION)' \
 		CODE_SIGNING_ALLOWED=NO \
 		$(XCODEBUILD_FLAGS) \
 		build
+	@echo 'build:simulator: BUILD SUCCEEDED'
 
 test\:simulator: doctor boot\:simulator ## Run Swift Testing tests on visionOS Simulator.
 	@mkdir -p "$(RESULT_BUNDLE_DIR)"
 	@rm -rf "$(SIMULATOR_RESULT_BUNDLE)"
-	xcodebuild $(XCODEBUILD_COMMON) \
+	@xcodebuild $(XCODEBUILD_COMMON) \
 		-destination '$(SIMULATOR_DESTINATION)' \
 		CODE_SIGNING_ALLOWED=NO \
 		-parallel-testing-enabled "$(PARALLEL_TESTING)" \
@@ -181,6 +182,7 @@ test\:simulator: doctor boot\:simulator ## Run Swift Testing tests on visionOS S
 		$(TEST_SELECTION) \
 		$(XCODEBUILD_FLAGS) \
 		test
+	@echo 'test:simulator: TEST SUCCEEDED'
 
 install\:simulator: build\:simulator boot\:simulator ## Install the built app in Simulator.
 	@APP_PATH="$$(xcodebuild $(XCODEBUILD_COMMON) \
@@ -212,17 +214,18 @@ list\:device: ## List paired physical devices known to CoreDevice.
 
 build\:device: doctor ## Build and sign HappyPianistAVP for the configured physical Vision Pro.
 	@test -n "$(DEVICE_ID)" || { echo 'error: set DEVICE_ID=<vision-pro-udid>'; exit 1; }
-	xcodebuild $(XCODEBUILD_COMMON) \
+	@xcodebuild $(XCODEBUILD_COMMON) \
 		-destination '$(DEVICE_DESTINATION)' \
 		$(DEVICE_XCODEBUILD_FLAGS) \
 		$(XCODEBUILD_FLAGS) \
 		build
+	@echo 'build:device: BUILD SUCCEEDED'
 
 test\:device: doctor ## Build, sign, and run tests on the configured physical Vision Pro.
 	@test -n "$(DEVICE_ID)" || { echo 'error: set DEVICE_ID=<vision-pro-udid>'; exit 1; }
 	@mkdir -p "$(RESULT_BUNDLE_DIR)"
 	@rm -rf "$(DEVICE_RESULT_BUNDLE)"
-	xcodebuild $(XCODEBUILD_COMMON) \
+	@xcodebuild $(XCODEBUILD_COMMON) \
 		-destination '$(DEVICE_DESTINATION)' \
 		-parallel-testing-enabled "$(PARALLEL_TESTING)" \
 		-resultBundlePath "$(DEVICE_RESULT_BUNDLE)" \
@@ -230,6 +233,7 @@ test\:device: doctor ## Build, sign, and run tests on the configured physical Vi
 		$(DEVICE_XCODEBUILD_FLAGS) \
 		$(XCODEBUILD_FLAGS) \
 		test
+	@echo 'test:device: TEST SUCCEEDED'
 
 install\:device: build\:device ## Install the signed app on the configured physical Vision Pro.
 	@APP_PATH="$$(xcodebuild $(XCODEBUILD_COMMON) \
