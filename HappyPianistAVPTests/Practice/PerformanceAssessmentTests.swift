@@ -99,6 +99,42 @@ func capabilityAwareRubricUsesATableForLiveAndRecordedSources() {
 }
 
 @Test
+func measureRubricUsesOnlyThatMeasuresInputCapabilities() throws {
+    let events = [
+        makeAssessmentEvent(ordinal: 0, onTick: 0, offTick: 480, sourceMeasureIndex: 0),
+        makeAssessmentEvent(ordinal: 1, onTick: 480, offTick: 960, sourceMeasureIndex: 1),
+    ]
+    let plan = makeAssessmentPlan(events: events)
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [
+            makeAlignedLink(
+                event: events[0],
+                observation: makeAssessmentObservation(time: 0.1, kind: .midi1),
+                onsetDeviation: 0.1
+            ),
+            makeAlignedLink(
+                event: events[1],
+                observation: makeAssessmentObservation(time: 0.6, kind: .targetAudio),
+                onsetDeviation: 0.1
+            ),
+        ]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let midiMeasure = try #require(assessment.measures.first {
+        $0.occurrenceID.sourceMeasureID.sourceMeasureIndex == 0
+    })
+    let audioMeasure = try #require(assessment.measures.first {
+        $0.occurrenceID.sourceMeasureID.sourceMeasureIndex == 1
+    })
+
+    #expect(midiMeasure.dimensions.first { $0.dimension == .onset }?.outcome == .incorrect)
+    #expect(audioMeasure.dimensions.first { $0.dimension == .onset }?.outcome == .correct)
+}
+
+@Test
 func evidenceCoverageReportsCoverageWithoutProducingATotalScore() {
     let dimensions = [
         PerformanceAssessmentDimensionResult(
@@ -886,12 +922,13 @@ private func makeAssessmentEvent(
     voice: Int = 1,
     handAssignment: ScoreHandAssignment = .unknown,
     fingerings: [MusicXMLFingering] = [],
-    timingProvenance: [ScorePerformanceProvenance] = []
+    timingProvenance: [ScorePerformanceProvenance] = [],
+    sourceMeasureIndex: Int = 0
 ) -> ScorePerformanceNoteEvent {
     let sourceID = MusicXMLSourceNoteID(
         partID: "P1",
-        sourceMeasureIndex: 0,
-        sourceMeasureNumberToken: "1",
+        sourceMeasureIndex: sourceMeasureIndex,
+        sourceMeasureNumberToken: String(sourceMeasureIndex + 1),
         staff: staff,
         voice: voice,
         sourceOrdinal: ordinal

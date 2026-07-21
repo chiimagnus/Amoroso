@@ -92,8 +92,7 @@ struct PerformanceAssessmentService: Sendable {
                 links: activeLinks,
                 controllerLinks: activeControllerLinks,
                 passageTickRange: resolvedTickRange,
-                timeMap: timeMap,
-                capabilities: capabilities
+                timeMap: timeMap
             )
         )
     }
@@ -1382,8 +1381,7 @@ struct PerformanceAssessmentService: Sendable {
         links: [PerformanceAlignmentLink],
         controllerLinks: [PerformanceAlignmentControllerLink],
         passageTickRange: Range<Int>,
-        timeMap: ScorePerformancePlanTimeMap,
-        capabilities: PerformanceInputCapabilities
+        timeMap: ScorePerformancePlanTimeMap
     ) -> [MeasurePerformanceAssessment] {
         // ponytail: the plan has no rest-only spans; pass prepared spans if rest assessment becomes relevant.
         let grouped = Dictionary(grouping: events) { event in
@@ -1413,6 +1411,10 @@ struct PerformanceAssessmentService: Sendable {
                 Self.belongs($0, tickRange: lower ..< upper)
             }
             let eventByID = Dictionary(uniqueKeysWithValues: measureEvents.map { ($0.id, $0) })
+            let measureCapabilities = inputCapabilities(
+                links: measureLinks,
+                controllerLinks: measureControllerLinks
+            )
             return MeasurePerformanceAssessment(
                 occurrenceID: occurrenceID,
                 tickRange: lower ..< upper,
@@ -1423,7 +1425,7 @@ struct PerformanceAssessmentService: Sendable {
                     controllerLinks: measureControllerLinks,
                     eventByID: eventByID,
                     timeMap: timeMap,
-                    capabilities: capabilities
+                    capabilities: measureCapabilities
                 )
             )
         }.sorted { lhs, rhs in
