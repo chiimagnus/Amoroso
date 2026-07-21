@@ -279,12 +279,52 @@ enum MeasurePerformanceMaturity: String, Codable, Equatable, Sendable {
     case mature
 }
 
+struct MeasurePerformanceMetricSummary: Codable, Equatable, Sendable {
+    let dimension: PerformanceAssessmentDimension
+    let outcome: PracticeEvidenceOutcome
+    let evidenceStatus: PerformanceAssessmentEvidenceStatus
+    let measurement: PerformanceAssessmentMeasurement?
+    let sampleCount: Int
+    let confidence: Double?
+
+    init(_ result: PerformanceAssessmentDimensionResult) {
+        dimension = result.dimension
+        outcome = result.outcome
+        evidenceStatus = result.evidenceStatus
+        measurement = result.measurement
+        sampleCount = result.sampleCount
+        confidence = result.confidence
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case dimension
+        case outcome
+        case evidenceStatus
+        case measurement
+        case sampleCount
+        case confidence
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        dimension = try container.decode(PerformanceAssessmentDimension.self, forKey: .dimension)
+        outcome = try container.decode(PracticeEvidenceOutcome.self, forKey: .outcome)
+        evidenceStatus = try container.decode(PerformanceAssessmentEvidenceStatus.self, forKey: .evidenceStatus)
+        measurement = try container.decodeIfPresent(PerformanceAssessmentMeasurement.self, forKey: .measurement)
+        sampleCount = max(0, try container.decode(Int.self, forKey: .sampleCount))
+        confidence = try container.decodeIfPresent(Double.self, forKey: .confidence).flatMap { value in
+            value.isFinite ? min(max(value, 0), 1) : nil
+        }
+    }
+}
+
 struct MeasurePerformanceMaturitySummary: Codable, Equatable, Sendable {
     let maturity: MeasurePerformanceMaturity
     let rubricVersion: String
     let assessedDimensionCount: Int
     let sampleCount: Int
     let evidenceCoverage: Double?
+    let metricSummaries: [MeasurePerformanceMetricSummary]
     let assessedAt: Date
 
     init(
@@ -293,6 +333,7 @@ struct MeasurePerformanceMaturitySummary: Codable, Equatable, Sendable {
         assessedDimensionCount: Int,
         sampleCount: Int,
         evidenceCoverage: Double?,
+        metricSummaries: [MeasurePerformanceMetricSummary] = [],
         assessedAt: Date
     ) {
         self.maturity = maturity
@@ -302,7 +343,34 @@ struct MeasurePerformanceMaturitySummary: Codable, Equatable, Sendable {
         self.evidenceCoverage = evidenceCoverage.flatMap { value in
             value.isFinite ? min(max(value, 0), 1) : nil
         }
+        self.metricSummaries = metricSummaries
         self.assessedAt = assessedAt
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case maturity
+        case rubricVersion
+        case assessedDimensionCount
+        case sampleCount
+        case evidenceCoverage
+        case metricSummaries
+        case assessedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            maturity: try container.decode(MeasurePerformanceMaturity.self, forKey: .maturity),
+            rubricVersion: try container.decode(String.self, forKey: .rubricVersion),
+            assessedDimensionCount: try container.decode(Int.self, forKey: .assessedDimensionCount),
+            sampleCount: try container.decode(Int.self, forKey: .sampleCount),
+            evidenceCoverage: try container.decodeIfPresent(Double.self, forKey: .evidenceCoverage),
+            metricSummaries: try container.decodeIfPresent(
+                [MeasurePerformanceMetricSummary].self,
+                forKey: .metricSummaries
+            ) ?? [],
+            assessedAt: try container.decode(Date.self, forKey: .assessedAt)
+        )
     }
 }
 
@@ -522,6 +590,9 @@ enum PracticeSessionRecordOrder {
 }
 
 struct PracticeProgressDocument: Codable, Equatable {
+    static let currentSchemaVersion = 2
+
+    let schemaVersion: Int
     var songs: [SongPracticeProgress]
     var scoreMetadata: [SongScorePracticeMetadata]
     var sessions: [PracticeSessionRecord]
@@ -531,8 +602,32 @@ struct PracticeProgressDocument: Codable, Equatable {
         scoreMetadata: [SongScorePracticeMetadata] = [],
         sessions: [PracticeSessionRecord] = []
     ) {
+        schemaVersion = Self.currentSchemaVersion
         self.songs = songs
         self.scoreMetadata = scoreMetadata
         self.sessions = sessions
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case songs
+        case scoreMetadata
+        case sessions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let storedVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        guard (1 ... Self.currentSchemaVersion).contains(storedVersion) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .schemaVersion,
+                in: container,
+                debugDescription: "Unsupported practice progress schema version"
+            )
+        }
+        schemaVersion = Self.currentSchemaVersion
+        songs = try container.decode([SongPracticeProgress].self, forKey: .songs)
+        scoreMetadata = try container.decode([SongScorePracticeMetadata].self, forKey: .scoreMetadata)
+        sessions = try container.decode([PracticeSessionRecord].self, forKey: .sessions)
     }
 }

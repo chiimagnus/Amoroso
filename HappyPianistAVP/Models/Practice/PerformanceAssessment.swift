@@ -26,7 +26,7 @@ struct PerformanceAssessmentEvidenceCoverage: Equatable, Sendable {
     }
 }
 
-enum PerformanceAssessmentDimension: String, CaseIterable, Equatable, Hashable, Sendable {
+enum PerformanceAssessmentDimension: String, Codable, CaseIterable, Equatable, Hashable, Sendable {
     case exactPitch
     case extraNotes
     case missingNotes
@@ -45,14 +45,14 @@ enum PerformanceAssessmentDimension: String, CaseIterable, Equatable, Hashable, 
     case phraseContinuity
 }
 
-enum PerformanceAssessmentEvidenceStatus: String, Equatable, Hashable, Sendable {
+enum PerformanceAssessmentEvidenceStatus: String, Codable, Equatable, Hashable, Sendable {
     case observed
     case degraded
     case notObserved
     case insufficient
 }
 
-enum PerformanceAssessmentMeasurementUnit: String, Equatable, Hashable, Sendable {
+enum PerformanceAssessmentMeasurementUnit: String, Codable, Equatable, Hashable, Sendable {
     case count
     case ratio
     case seconds
@@ -60,7 +60,7 @@ enum PerformanceAssessmentMeasurementUnit: String, Equatable, Hashable, Sendable
     case midi7Bit
 }
 
-struct PerformanceAssessmentMeasurement: Equatable, Sendable {
+struct PerformanceAssessmentMeasurement: Codable, Equatable, Sendable {
     let value: Double
     let unit: PerformanceAssessmentMeasurementUnit
 

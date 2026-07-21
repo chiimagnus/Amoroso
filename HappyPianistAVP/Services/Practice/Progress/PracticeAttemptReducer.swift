@@ -227,6 +227,7 @@ struct PracticeAttemptReducer {
                 assessedDimensionCount: dimensions.count,
                 sampleCount: dimensions.reduce(0) { $0 + $1.sampleCount },
                 evidenceCoverage: coverage.ratio,
+                metricSummaries: dimensions.map(MeasurePerformanceMetricSummary.init),
                 assessedAt: timestamp
             )
             if let index = progress.measureFacts.firstIndex(where: {

@@ -189,7 +189,7 @@ enum StepAttemptMatchResult: Equatable {
     }
 }
 
-enum PracticeEvidenceOutcome: String, Equatable, Hashable, Sendable {
+enum PracticeEvidenceOutcome: String, Codable, Equatable, Hashable, Sendable {
     case correct
     case incorrect
     case unknown
