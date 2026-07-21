@@ -12,7 +12,7 @@
 | 支持平台 | `xros`、`xrsimulator` |
 | SwiftPM | 本地 `RealityKitContent`、远程 `ZIPFoundation` 0.9.20 |
 
-仓库没有 macOS App target，也没有 `.github/workflows/`。Apple 平台验证以本地 `xcodebuild` 为准。
+仓库没有 macOS App target。`.github/workflows/swift-ci.yml` 会在 visionOS Simulator 上运行 `xcodebuild test`；本地 `xcodebuild` 仍是开发阶段验证与复现失败的真源。
 
 ## 依赖边界
 
@@ -36,21 +36,22 @@
 | `NSBonjourServices` | `_lpduet._tcp` 服务发现。 |
 | `NSAllowsLocalNetworking` | 本地 HTTP/WS 连接。 |
 | `UTImportedTypeDeclarations` | `.musicxml` 与 `.mxl`；`.xml` 通过文件 importer 接受。 |
-| `UIAppFonts` | 声明 `Bravura.otf`。 |
+| `UIAppFonts` | 声明 `Fonts/Bravura.otf`。 |
 
 权限只应在对应功能实际启用时请求。ARKit provider 只在沉浸空间内运行。
 
-## 外部资源
+## 资源边界
 
-源码归档不提交按曲目子目录组织的 `SeedScores/`；开发者可在本地将其放入 `HappyPianistAVP/Resources/`。内置曲谱以 `SeedScores` 下的相对路径作为唯一身份，MusicXML 与同目录 MP3 成对发现；不要把目录展平后再按 basename 去重。以下资源仍必须由开发者自行加入 App target：
+仓库包含 `HappyPianistAVP/Resources/Fonts/Bravura.otf`。源码不提交按曲目子目录组织的 `SeedScores/`；开发者可在本地将其放入 `HappyPianistAVP/Resources/`。内置曲谱以 `SeedScores` 下的相对路径作为唯一身份，MusicXML 与同目录 MP3 成对发现；不要把目录展平后再按 basename 去重。
+
+以下资源必须由开发者自行加入 App target：
 
 | 文件 | 消费方 | 缺失行为 |
 | --- | --- | --- |
-| `Bravura.otf` | `GrandStaffNotationRenderer` | 谱号、调号和拍号不能保证正确字形。 |
 | `SalC5Light2.sf2` | `AVAudioSequencerPracticePlaybackService` | 本地 sampler 返回“未找到音色文件”。 |
 | `AIDuetPerformanceRNN.mlpackage` 或 `.mlmodelc` | `PerformanceRNNCoreMLModelLoader` | 本地 CoreML 后端不可用。 |
 
-不要用 `Info.plist` 声明、代码中的资源名或旧测试记录代替实际 bundle 检查。
+依赖私有 `SeedScores` 或 CoreML 模型的集成测试在资源缺失时会跳过。不要用 `Info.plist` 声明、代码中的资源名、测试跳过或旧测试记录代替实际 bundle 检查。
 
 ## 练习设置
 

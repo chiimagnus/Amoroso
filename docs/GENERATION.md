@@ -4,11 +4,13 @@
 
 | Item | Value |
 | --- | --- |
-| Source snapshot | `HappyPianist-20260713-181406.zip` |
-| Commit hash | 不可用（源码归档不包含 Git 元数据） |
-| Generated at | 2026-07-13T19:32:15+09:00 |
+| Repository | `chiimagnus/Amoroso` |
+| Source branch | `main` |
+| Source commit | `98ecccb67a063f741c3a0dc8bf5c2a352e7b1d2f` |
+| Output branch | `docs/neat-freak-20260721` |
+| Generated at | 2026-07-21T04:32:08+09:00 |
 | Output language | Chinese |
-| Generation mode | Canonical documentation cleanup with `neat-freak` |
+| Generation mode | Canonical documentation reconciliation with `neat-freak` |
 
 ## Canonical pages
 
@@ -17,21 +19,24 @@
 - `docs/overview.md`
 - `docs/architecture.md`
 - `docs/data-flow.md`
+- `docs/piano-performance-quality.md`
 - `docs/configuration.md`
 - `docs/storage.md`
 - `docs/modules/happypianist-avp.md`
 - `docs/modules/happypianist-avp-practice.md`
 - `docs/testing/core-function-checklist.md`
+- `docs/testing/piano-performance-validation.md`
 
-## Removed or merged pages
+## Reconciliation summary
 
-- `docs/dependencies.md`：必要内容并入 `docs/configuration.md`。
-- `docs/glossary.md`：术语已在架构、数据流和模块页中就地解释。
-- 原三份 testing checklist：合并为 `docs/testing/core-function-checklist.md`。
+- Replaced archive-only metadata with the audited Git commit and branch.
+- Reconciled resource documentation with the checked-in Bravura font and omitted private SeedScores, SoundFont and CoreML model.
+- Reconciled practice and quality documentation with the current `ScorePerformancePlan`, `PerformanceObservation`, hand-contact velocity, continuous controller and MIDI look-ahead implementations.
+- Removed historical fixed-issue backlog from the canonical professional-quality page; retained current claims, remaining gaps and evidence gates.
 
 ## Coverage gaps
 
-- 源码归档不包含 Git 历史，因此无法记录原始仓库 HEAD。
-- 当前环境未使用 Xcode 重新验证这份源码。
-- 手部追踪、麦克风、Bluetooth MIDI、空间对齐与舒适度需要 Apple Vision Pro 真机。
-- 源码归档不包含 `Bravura.otf`、`SalC5Light2.sf2`、Performance RNN CoreML 模型与 Aria 权重。
+- The environment could inspect repository files through the connected GitHub service, but could not create a complete local clone because direct GitHub DNS access was unavailable.
+- `xcodebuild test`, visionOS Simulator and Apple Vision Pro were not run in this documentation pass.
+- Private `SeedScores`, `SalC5Light2.sf2`, the Performance RNN CoreML model and Aria weights were not available for resource integration or listening tests.
+- Hand tracking, microphone, Bluetooth MIDI, spatial alignment, output latency and comfort still require Apple Vision Pro and the target hardware.
