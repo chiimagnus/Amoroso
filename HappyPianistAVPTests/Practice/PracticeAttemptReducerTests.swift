@@ -309,6 +309,69 @@ struct PracticeAttemptReducerTests {
         #expect(facts.performanceMaturity?.assessedAt == timestamp)
     }
 
+    @Test func repeatedMeasureOccurrencesProduceOneConservativeMetricSummary() throws {
+        let fixture = try Fixture(requiredSuccesses: 2)
+        let sourceMeasureID = fixture.configuration.passage.start.sourceMeasureID
+        let correct = PerformanceAssessmentDimensionResult(
+            dimension: .exactPitch,
+            outcome: .correct,
+            evidenceStatus: .observed,
+            measurement: PerformanceAssessmentMeasurement(value: 0.5, unit: .ratio),
+            sampleCount: 2,
+            confidence: 0.8,
+            evidence: []
+        )
+        let incorrect = PerformanceAssessmentDimensionResult(
+            dimension: .exactPitch,
+            outcome: .incorrect,
+            evidenceStatus: .degraded,
+            measurement: PerformanceAssessmentMeasurement(value: 0.75, unit: .ratio),
+            sampleCount: 6,
+            confidence: 0.4,
+            evidence: []
+        )
+        let assessment = PassagePerformanceAssessment(
+            planID: .init(rawValue: "assessment-plan"),
+            sourceGeneration: 1,
+            tickRange: 0 ..< 1920,
+            rubricVersion: .capabilityAware,
+            dimensions: [incorrect],
+            measures: [
+                .init(
+                    occurrenceID: .init(sourceMeasureID: sourceMeasureID, occurrenceIndex: 0),
+                    tickRange: 0 ..< 960,
+                    dimensions: [correct]
+                ),
+                .init(
+                    occurrenceID: .init(sourceMeasureID: sourceMeasureID, occurrenceIndex: 1),
+                    tickRange: 960 ..< 1920,
+                    dimensions: [incorrect]
+                ),
+            ]
+        )
+        let progress = SongPracticeProgress(identity: fixture.identity, updatedAt: .distantPast)
+
+        let reduced = PracticeAttemptReducer().reducePerformanceAssessment(
+            progress: progress,
+            identity: fixture.identity,
+            configuration: fixture.configuration,
+            timestamp: .now,
+            assessment: assessment
+        )
+        let maturity = try #require(reduced.measureFacts.first?.performanceMaturity)
+        let metric = try #require(maturity.metricSummaries.first)
+
+        #expect(maturity.maturity == .developing)
+        #expect(maturity.assessedDimensionCount == 1)
+        #expect(maturity.sampleCount == 8)
+        #expect(maturity.metricSummaries.count == 1)
+        #expect(metric.dimension == .exactPitch)
+        #expect(metric.outcome == .incorrect)
+        #expect(metric.evidenceStatus == .degraded)
+        #expect(metric.measurement?.value == 0.6875)
+        #expect(metric.confidence == 0.5)
+    }
+
     @Test func legacyStableTokenDecodesOnlyAsPitchStepStability() throws {
         let state = try JSONDecoder().decode(
             MeasurePitchStepLearningState.self,
