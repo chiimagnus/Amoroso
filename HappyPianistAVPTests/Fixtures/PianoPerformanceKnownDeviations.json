@@ -1,6 +1,5 @@
 {
   "version": 1,
-  "sourceDocument": "docs/piano-performance-quality.md",
   "requirements": [
     {
       "id": "ARCH-001",
