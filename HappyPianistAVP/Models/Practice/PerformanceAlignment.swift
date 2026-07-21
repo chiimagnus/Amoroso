@@ -78,6 +78,20 @@ struct PerformanceAlignmentCandidate: Codable, Equatable, Sendable {
     }
 }
 
+enum PerformanceAlignmentNoCandidateReason: String, Codable, Equatable, Sendable {
+    case unsupportedObservation
+    case staleGeneration
+    case outsideActiveRange
+    case noTemporalCandidate
+    case noPitchCandidate
+}
+
+struct PerformanceAlignmentCandidateSnapshot: Codable, Equatable, Sendable {
+    let observation: PerformanceAlignmentObservationReference
+    let candidates: [PerformanceAlignmentCandidate]
+    let noCandidateReason: PerformanceAlignmentNoCandidateReason?
+}
+
 enum PerformanceAlignmentLink: Codable, Equatable, Sendable {
     case aligned(
         score: PerformanceAlignmentScoreReference,

@@ -50,18 +50,95 @@ func alignmentEvidenceRejectsNonFiniteValuesWithoutInventingEvidence() {
     #expect(evidence.deviationSeconds == nil)
 }
 
-private func makeAlignmentObservation(generation: UInt64) -> PerformanceObservation {
+@Test
+func candidateEngineUsesCapabilitiesRangeGenerationAndPlanResolution() throws {
+    let sourceID = makeAlignmentSourceID(ordinal: 0)
+    let event = makeAlignmentEvent(sourceID: sourceID, occurrenceIndex: 0)
+    let plan = makeAlignmentPlan(noteEvents: [event], ticksPerQuarter: 960)
+    let exact = makeAlignmentObservation(generation: 9, note: 60, seconds: 0)
+    let wrong = makeAlignmentObservation(generation: 9, note: 61, seconds: 0)
+    let stale = makeAlignmentObservation(generation: 8, note: 60, seconds: 0)
+
+    let snapshots = PerformanceAlignmentEngine().candidates(
+        plan: plan,
+        observations: [exact, wrong, stale],
+        performanceStart: .init(seconds: 0),
+        activeTickRange: 0 ..< 960,
+        generation: 9
+    )
+
+    #expect(snapshots[0].candidates.map(\.score.eventID) == [event.id])
+    #expect(snapshots[1].noCandidateReason == .noPitchCandidate)
+    #expect(snapshots[2].noCandidateReason == .staleGeneration)
+}
+
+@Test
+func recordedTakeAlignerRebasesV2ObservationsAndKeepsLegacyCapabilityUnknown() throws {
+    let sourceID = makeAlignmentSourceID(ordinal: 0)
+    let plan = makeAlignmentPlan(noteEvents: [makeAlignmentEvent(sourceID: sourceID, occurrenceIndex: 0)])
+    let observation = makeAlignmentObservation(generation: 4, note: 60, seconds: 40)
+    let v2 = RecordingTake(
+        name: "v2",
+        events: [.init(time: 0, kind: .noteOn(midi: 60, velocity: 80), observation: observation)]
+    )
+    let legacy = RecordingTake(
+        name: "legacy",
+        events: [.init(time: 0, kind: .noteOn(midi: 61, velocity: 80))]
+    )
+
+    let aligner = RecordedTakeAligner()
+    #expect(aligner.candidateSnapshots(take: v2, plan: plan).first?.candidates.count == 1)
+    #expect(aligner.candidateSnapshots(take: legacy, plan: plan).first?.candidates.count == 1)
+}
+
+private func makeAlignmentObservation(
+    generation: UInt64,
+    note: Int = 60,
+    seconds: TimeInterval = 12
+) -> PerformanceObservation {
     PerformanceObservation(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000123")!,
         source: .init(kind: .midi1, id: "midi:test", generation: generation),
         timing: PerformanceClockReading(
-            host: .init(seconds: 12.1),
+            host: .init(seconds: seconds + 0.1),
             source: nil,
-            correctedHost: .init(seconds: 12),
+            correctedHost: .init(seconds: seconds),
             mapping: nil,
             provenance: .latencyEstimate
         ),
-        event: .noteOn(note: 60, velocity: .init(midi1: 90))
+        event: .noteOn(note: note, velocity: .init(midi1: 90))
+    )
+}
+
+private func makeAlignmentSourceID(ordinal: Int) -> MusicXMLSourceNoteID {
+    MusicXMLSourceNoteID(
+        partID: "P1",
+        sourceMeasureIndex: 0,
+        sourceMeasureNumberToken: "1",
+        staff: 1,
+        voice: 1,
+        sourceOrdinal: ordinal
+    )
+}
+
+private func makeAlignmentPlan(
+    noteEvents: [ScorePerformanceNoteEvent],
+    ticksPerQuarter: Int = 480
+) -> ScorePerformancePlan {
+    ScorePerformancePlan(
+        id: .init(rawValue: "alignment-plan"),
+        sourceScoreIdentity: .init(
+            songID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            scoreRevision: "revision",
+            logicalInstrumentID: "piano"
+        ),
+        order: .init(requested: .performed, applied: .performed),
+        resolution: .init(ticksPerQuarter: ticksPerQuarter),
+        noteEvents: noteEvents,
+        tempoEvents: [],
+        controllerEvents: [],
+        annotations: [],
+        approximations: []
     )
 }
 
