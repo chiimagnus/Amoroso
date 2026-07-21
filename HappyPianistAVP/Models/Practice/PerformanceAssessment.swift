@@ -2,8 +2,28 @@ import Foundation
 
 struct PerformanceAssessmentRubricVersion: Equatable, Hashable, Sendable {
     static let initial = Self(rawValue: "performance-assessment-v1")
+    static let capabilityAware = Self(rawValue: "performance-assessment-v2")
 
     let rawValue: String
+}
+
+struct PerformanceAssessmentEvidenceCoverage: Equatable, Sendable {
+    let dimensionCount: Int
+    let observedCount: Int
+    let degradedCount: Int
+    let insufficientCount: Int
+
+    var ratio: Double? {
+        guard dimensionCount > 0 else { return nil }
+        return Double(observedCount + degradedCount) / Double(dimensionCount)
+    }
+
+    init(dimensions: [PerformanceAssessmentDimensionResult]) {
+        dimensionCount = dimensions.count
+        observedCount = dimensions.count(where: { $0.evidenceStatus == .observed })
+        degradedCount = dimensions.count(where: { $0.evidenceStatus == .degraded })
+        insufficientCount = dimensions.count(where: { $0.evidenceStatus == .insufficient })
+    }
 }
 
 enum PerformanceAssessmentDimension: String, CaseIterable, Equatable, Hashable, Sendable {
@@ -99,6 +119,10 @@ struct MeasurePerformanceAssessment: Equatable, Sendable {
     let occurrenceID: PracticeMeasureOccurrenceID
     let tickRange: Range<Int>
     let dimensions: [PerformanceAssessmentDimensionResult]
+
+    var evidenceCoverage: PerformanceAssessmentEvidenceCoverage {
+        PerformanceAssessmentEvidenceCoverage(dimensions: dimensions)
+    }
 }
 
 struct PassagePerformanceAssessment: Equatable, Sendable {
@@ -108,4 +132,8 @@ struct PassagePerformanceAssessment: Equatable, Sendable {
     let rubricVersion: PerformanceAssessmentRubricVersion
     let dimensions: [PerformanceAssessmentDimensionResult]
     let measures: [MeasurePerformanceAssessment]
+
+    var evidenceCoverage: PerformanceAssessmentEvidenceCoverage {
+        PerformanceAssessmentEvidenceCoverage(dimensions: dimensions)
+    }
 }

@@ -95,7 +95,7 @@ struct RecordingTakeMetadata: Codable, Equatable, Sendable {
         inputSources: [RecordingInputSourceDescriptor(
             kind: nil,
             id: "unattributed-recording",
-            capabilities: .recordingUnavailable
+            capabilities: .unavailable
         )]
     )
 
@@ -127,21 +127,6 @@ struct RecordingTakeMetadata: Codable, Equatable, Sendable {
             throw RecordingTakeCodingError.unsafeMetadata(field: field)
         }
     }
-}
-
-private extension PerformanceInputCapabilities {
-    static let recordingUnavailable = Self(
-        pitch: .unavailable,
-        onset: .unavailable,
-        release: .unavailable,
-        velocity: .unavailable,
-        controllers: .unavailable,
-        polyphony: .unavailable,
-        hand: .unavailable,
-        finger: .unavailable,
-        position: .unavailable,
-        confidence: .unavailable
-    )
 }
 
 enum RecordingTakeCodingError: Error, Equatable {

@@ -67,6 +67,72 @@ func dimensionResultSanitizesOnlyNumericBoundaries() {
 }
 
 @Test
+func capabilityAwareRubricUsesATableForLiveAndRecordedSources() {
+    let rubric = PerformanceAssessmentRubric()
+    let recordedMIDI = RecordingInputSourceDescriptor(
+        kind: .midi1,
+        id: "recorded-midi",
+        capabilities: .midi
+    ).capabilities
+    let rows: [(String, PerformanceInputCapabilities, Set<PerformanceAssessmentDimension>)] = [
+        (
+            "microphone",
+            .targetAudio,
+            [.duration, .release, .articulation, .velocity, .dynamicContour, .voicing, .pedalTiming, .pedalValue]
+        ),
+        ("midi", .midi, []),
+        ("hand", .handContact, [.pedalTiming, .pedalValue]),
+        ("recording", recordedMIDI, []),
+    ]
+
+    for (name, capabilities, unavailable) in rows {
+        for dimension in PerformanceAssessmentDimension.allCases {
+            #expect(
+                (rubric.evidence(for: dimension, capabilities: capabilities) == .unavailable)
+                    == unavailable.contains(dimension),
+                Comment(rawValue: "\(name):\(dimension.rawValue)")
+            )
+        }
+    }
+    #expect(rubric.tolerance(for: .onset, capabilities: .targetAudio) == 0.12)
+    #expect(rubric.tolerance(for: .onset, capabilities: .midi) == 0.08)
+}
+
+@Test
+func evidenceCoverageReportsCoverageWithoutProducingATotalScore() {
+    let dimensions = [
+        PerformanceAssessmentDimensionResult(
+            dimension: .exactPitch,
+            outcome: .correct,
+            evidenceStatus: .observed,
+            sampleCount: 1,
+            evidence: []
+        ),
+        PerformanceAssessmentDimensionResult(
+            dimension: .onset,
+            outcome: .correct,
+            evidenceStatus: .degraded,
+            sampleCount: 1,
+            evidence: []
+        ),
+        PerformanceAssessmentDimensionResult(
+            dimension: .tempoContinuity,
+            outcome: .insufficientEvidence,
+            evidenceStatus: .insufficient,
+            sampleCount: 0,
+            evidence: []
+        ),
+    ]
+    let coverage = PerformanceAssessmentEvidenceCoverage(dimensions: dimensions)
+
+    #expect(coverage.dimensionCount == 3)
+    #expect(coverage.observedCount == 1)
+    #expect(coverage.degradedCount == 1)
+    #expect(coverage.insufficientCount == 1)
+    #expect(coverage.ratio == 2.0 / 3)
+}
+
+@Test
 func assessmentKeepsUnknownAndInsufficientSeparateFromIncorrect() {
     let unknown = PerformanceAssessmentDimensionResult(
         dimension: .voicing,
@@ -227,12 +293,10 @@ func assessmentUsesGracePlanTimingAndDoesNotTreatArpeggioAsChordSpread() throws 
 
     let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
     let onset = try assessmentResult(.onset, in: assessment)
-    let chordSpread = try assessmentResult(.chordSpread, in: assessment)
 
     #expect(onset.sampleCount == 3)
     #expect(onset.outcome == .correct)
-    #expect(chordSpread.outcome == .unknown)
-    #expect(chordSpread.evidenceStatus == .notObserved)
+    #expect(assessment.dimensions.contains { $0.dimension == .chordSpread } == false)
 }
 
 @Test
@@ -381,10 +445,7 @@ func unavailableNoteOffCapabilityLeavesDurationReleaseAndArticulationNotObserved
         .release,
         .articulation,
     ] {
-        let result = try assessmentResult(dimension, in: assessment)
-        #expect(result.outcome == .unknown)
-        #expect(result.evidenceStatus == .notObserved)
-        #expect(result.sampleCount == 0)
+        #expect(assessment.dimensions.contains { $0.dimension == dimension } == false)
     }
 }
 
@@ -575,11 +636,9 @@ func unavailableVelocityCapabilityDoesNotScoreDynamicsAsZero() throws {
     )
 
     let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
-    let velocity = try assessmentResult(.velocity, in: assessment)
-
-    #expect(velocity.outcome == .unknown)
-    #expect(velocity.evidenceStatus == .notObserved)
-    #expect(velocity.measurement == nil)
+    #expect(assessment.dimensions.contains { $0.dimension == .velocity } == false)
+    #expect(assessment.dimensions.contains { $0.dimension == .dynamicContour } == false)
+    #expect(assessment.dimensions.contains { $0.dimension == .voicing } == false)
 }
 
 @Test
@@ -643,10 +702,7 @@ func unavailableControllerCapabilityLeavesPedalDimensionsNotObserved() throws {
 
     let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
     for dimension in [PerformanceAssessmentDimension.pedalTiming, .pedalValue] {
-        let result = try assessmentResult(dimension, in: assessment)
-        #expect(result.outcome == .unknown)
-        #expect(result.evidenceStatus == .notObserved)
-        #expect(result.sampleCount == 0)
+        #expect(assessment.dimensions.contains { $0.dimension == dimension } == false)
     }
 }
 
