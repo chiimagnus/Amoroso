@@ -131,75 +131,75 @@ struct PerformanceAssessmentService: Sendable {
                 dimension: .onset,
                 samples: onsetSamples,
                 unit: .seconds,
-                tolerance: rubric.tolerance(for: .onset, capabilities: capabilities),
+                capabilities: capabilities,
                 links: links
             ),
             timingResult(
                 dimension: .tempoRelativeTiming,
                 samples: tempoRelativeSamples,
                 unit: .normalized,
-                tolerance: rubric.tolerance(for: .tempoRelativeTiming, capabilities: capabilities),
+                capabilities: capabilities,
                 links: links
             ),
             chordSpreadResult(
                 events: events,
                 aligned: aligned,
                 links: links,
-                tolerance: rubric.tolerance(for: .chordSpread, capabilities: capabilities)
+                capabilities: capabilities
             ),
             durationResult(
                 aligned: aligned,
                 links: links,
                 timeMap: timeMap,
-                tolerance: rubric.tolerance(for: .duration, capabilities: capabilities)
+                capabilities: capabilities
             ),
             releaseResult(
                 aligned: aligned,
                 links: links,
-                tolerance: rubric.tolerance(for: .release, capabilities: capabilities)
+                capabilities: capabilities
             ),
             articulationResult(
                 aligned: aligned,
                 links: links,
                 timeMap: timeMap,
-                tolerance: rubric.tolerance(for: .articulation, capabilities: capabilities)
+                capabilities: capabilities
             ),
             velocityResult(
                 aligned: aligned,
                 links: links,
-                tolerance: rubric.tolerance(for: .velocity, capabilities: capabilities)
+                capabilities: capabilities
             ),
             dynamicContourResult(
                 aligned: aligned,
                 links: links,
-                tolerance: rubric.tolerance(for: .dynamicContour, capabilities: capabilities)
+                capabilities: capabilities
             ),
             voicingResult(
                 events: events,
                 aligned: aligned,
                 links: links,
-                tolerance: rubric.tolerance(for: .voicing, capabilities: capabilities)
+                capabilities: capabilities
             ),
             pedalTimingResult(
                 plan: plan,
                 links: controllerLinks,
-                tolerance: rubric.tolerance(for: .pedalTiming, capabilities: capabilities)
+                capabilities: capabilities
             ),
             pedalValueResult(
                 plan: plan,
                 links: controllerLinks,
-                tolerance: rubric.tolerance(for: .pedalValue, capabilities: capabilities)
+                capabilities: capabilities
             ),
             tempoContinuityResult(
                 plan: plan,
                 aligned: aligned,
                 timeMap: timeMap,
-                tolerance: rubric.tolerance(for: .tempoContinuity, capabilities: capabilities)
+                capabilities: capabilities
             ),
             phraseContinuityResult(
                 plan: plan,
                 aligned: aligned,
-                tolerance: rubric.tolerance(for: .phraseContinuity, capabilities: capabilities)
+                capabilities: capabilities
             ),
         ]
         return rubric.select(
@@ -336,7 +336,7 @@ struct PerformanceAssessmentService: Sendable {
         dimension: PerformanceAssessmentDimension,
         samples: [MetricSample],
         unit: PerformanceAssessmentMeasurementUnit,
-        tolerance: Double,
+        capabilities: PerformanceInputCapabilities,
         links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         guard samples.isEmpty == false else {
@@ -351,7 +351,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: dimension,
             samples: samples,
             measurement: PerformanceAssessmentMeasurement(value: mean, unit: unit),
-            passes: samples.allSatisfy { abs($0.value) <= tolerance }
+            passes: samples.allSatisfy {
+                rubric.accepts($0.value, for: dimension, capabilities: capabilities)
+            }
         )
     }
 
@@ -359,7 +361,7 @@ struct PerformanceAssessmentService: Sendable {
         events: [ScorePerformanceNoteEvent],
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        tolerance: TimeInterval
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let eligibleChords = Dictionary(grouping: events, by: \.performedOnTick)
             .filter { _, chord in
@@ -416,7 +418,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .chordSpread,
             outcome: hasIncompleteChord
                 ? .insufficientEvidence
-                : (samples.allSatisfy { $0.value <= tolerance }
+                : (samples.allSatisfy {
+                    rubric.accepts($0.value, for: .chordSpread, capabilities: capabilities)
+                }
                     ? .correct
                     : .incorrect),
             evidenceStatus: hasIncompleteChord ? .insufficient : aggregateStatus(samples.map(\.status)),
@@ -431,7 +435,7 @@ struct PerformanceAssessmentService: Sendable {
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
         timeMap: ScorePerformancePlanTimeMap,
-        tolerance: Double
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let samples = aligned.compactMap { note -> MetricSample? in
             guard let evidence = note.evidence.first(where: { $0.dimension == .duration }),
@@ -470,7 +474,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .duration,
             outcome: hasIncompleteEvidence
                 ? .insufficientEvidence
-                : (samples.allSatisfy { abs($0.value - 1) <= tolerance }
+                : (samples.allSatisfy {
+                    rubric.accepts($0.value, for: .duration, capabilities: capabilities)
+                }
                     ? .correct
                     : .incorrect),
             evidenceStatus: hasIncompleteEvidence ? .insufficient : aggregateStatus(samples.map(\.status)),
@@ -484,7 +490,7 @@ struct PerformanceAssessmentService: Sendable {
     private func releaseResult(
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        tolerance: TimeInterval
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let samples = aligned.compactMap { metricSample(for: $0, dimension: .release) }
         let hasIncompleteEvidence = aligned.contains { note in
@@ -506,7 +512,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .release,
             outcome: hasIncompleteEvidence
                 ? .insufficientEvidence
-                : (samples.allSatisfy { abs($0.value) <= tolerance }
+                : (samples.allSatisfy {
+                    rubric.accepts($0.value, for: .release, capabilities: capabilities)
+                }
                     ? .correct
                     : .incorrect),
             evidenceStatus: hasIncompleteEvidence ? .insufficient : aggregateStatus(samples.map(\.status)),
@@ -521,7 +529,7 @@ struct PerformanceAssessmentService: Sendable {
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
         timeMap: ScorePerformancePlanTimeMap,
-        tolerance: TimeInterval
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let lanes = Dictionary(grouping: aligned) { note in
             VoiceLane(
@@ -600,7 +608,11 @@ struct PerformanceAssessmentService: Sendable {
             outcome: hasIncompleteEvidence
                 ? .insufficientEvidence
                 : (samples.allSatisfy {
-                    abs($0.deviationSeconds) <= tolerance
+                    rubric.accepts(
+                        $0.deviationSeconds,
+                        for: .articulation,
+                        capabilities: capabilities
+                    )
                 } ? .correct : .incorrect),
             evidenceStatus: hasIncompleteEvidence
                 ? .insufficient
@@ -615,7 +627,7 @@ struct PerformanceAssessmentService: Sendable {
     private func velocityResult(
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        tolerance: Double
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let samples = aligned.compactMap { note -> MetricSample? in
             guard let performed = performedVelocity(note) else { return nil }
@@ -644,7 +656,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .velocity,
             outcome: incomplete
                 ? .insufficientEvidence
-                : (samples.allSatisfy { abs($0.value) <= tolerance }
+                : (samples.allSatisfy {
+                    rubric.accepts($0.value, for: .velocity, capabilities: capabilities)
+                }
                     ? .correct
                     : .incorrect),
             evidenceStatus: incomplete ? .insufficient : aggregateStatus(samples.map(\.status)),
@@ -658,7 +672,7 @@ struct PerformanceAssessmentService: Sendable {
     private func dynamicContourResult(
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        tolerance: Double
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let lanes = Dictionary(grouping: aligned) { note in
             VoiceLane(
@@ -721,7 +735,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .dynamicContour,
             outcome: incomplete
                 ? .insufficientEvidence
-                : (samples.allSatisfy { abs($0.value) <= tolerance }
+                : (samples.allSatisfy {
+                    rubric.accepts($0.value, for: .dynamicContour, capabilities: capabilities)
+                }
                     ? .correct
                     : .incorrect),
             evidenceStatus: incomplete ? .insufficient : aggregateStatus(samples.map(\.status)),
@@ -736,7 +752,7 @@ struct PerformanceAssessmentService: Sendable {
         events: [ScorePerformanceNoteEvent],
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        tolerance: Double
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let eligibleChords = Dictionary(grouping: events, by: \.performedOnTick)
             .filter { _, chord in
@@ -809,7 +825,9 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .voicing,
             outcome: incomplete
                 ? .insufficientEvidence
-                : (samples.allSatisfy { $0.value <= tolerance }
+                : (samples.allSatisfy {
+                    rubric.accepts($0.value, for: .voicing, capabilities: capabilities)
+                }
                     ? .correct
                     : .incorrect),
             evidenceStatus: incomplete ? .insufficient : .degraded,
@@ -823,7 +841,7 @@ struct PerformanceAssessmentService: Sendable {
     private func pedalTimingResult(
         plan: ScorePerformancePlan,
         links: [PerformanceAlignmentControllerLink],
-        tolerance: TimeInterval
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let isApproximation = plan.approximations.contains { $0.scope == .controller }
         var samples: [MetricSample] = []
@@ -875,7 +893,7 @@ struct PerformanceAssessmentService: Sendable {
         return PerformanceAssessmentDimensionResult(
             dimension: .pedalTiming,
             outcome: failures.isEmpty && samples.allSatisfy {
-                abs($0.value) <= tolerance
+                rubric.accepts($0.value, for: .pedalTiming, capabilities: capabilities)
             } ? .correct : .incorrect,
             evidenceStatus: isApproximation ? .degraded : aggregateStatus(samples.map(\.status) + [.observed]),
             measurement: worst.flatMap {
@@ -890,7 +908,7 @@ struct PerformanceAssessmentService: Sendable {
     private func pedalValueResult(
         plan: ScorePerformancePlan,
         links: [PerformanceAlignmentControllerLink],
-        tolerance: Double
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let isApproximation = plan.approximations.contains { $0.scope == .controller }
         var samples: [MetricSample] = []
@@ -927,7 +945,7 @@ struct PerformanceAssessmentService: Sendable {
         return PerformanceAssessmentDimensionResult(
             dimension: .pedalValue,
             outcome: failures.isEmpty && samples.allSatisfy {
-                $0.value <= tolerance
+                rubric.accepts($0.value, for: .pedalValue, capabilities: capabilities)
             } ? .correct : .incorrect,
             evidenceStatus: isApproximation ? .degraded : aggregateStatus(samples.map(\.status) + [.observed]),
             measurement: mean.flatMap {
@@ -943,7 +961,7 @@ struct PerformanceAssessmentService: Sendable {
         plan: ScorePerformancePlan,
         aligned: [AlignedNote],
         timeMap: ScorePerformancePlanTimeMap,
-        tolerance: Double
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let onsets = timedOnsets(aligned)
         let expressionBoundaries = Set(plan.annotations.compactMap { annotation in
@@ -987,14 +1005,16 @@ struct PerformanceAssessmentService: Sendable {
             dimension: .tempoContinuity,
             samples: samples,
             measurement: PerformanceAssessmentMeasurement(value: mean, unit: .normalized),
-            passes: samples.allSatisfy { abs($0.value) <= tolerance }
+            passes: samples.allSatisfy {
+                rubric.accepts($0.value, for: .tempoContinuity, capabilities: capabilities)
+            }
         )
     }
 
     private func phraseContinuityResult(
         plan: ScorePerformancePlan,
         aligned: [AlignedNote],
-        tolerance: TimeInterval
+        capabilities: PerformanceInputCapabilities
     ) -> PerformanceAssessmentDimensionResult {
         let phraseAnnotations = plan.annotations.filter { $0.kind == .phrase }
         let phraseBoundaries = Set(phraseAnnotations.map(\.tick))
@@ -1049,7 +1069,7 @@ struct PerformanceAssessmentService: Sendable {
             samples: samples,
             measurement: PerformanceAssessmentMeasurement(value: mean, unit: .seconds),
             passes: samples.allSatisfy {
-                abs($0.value) <= tolerance
+                rubric.accepts($0.value, for: .phraseContinuity, capabilities: capabilities)
             }
         )
     }

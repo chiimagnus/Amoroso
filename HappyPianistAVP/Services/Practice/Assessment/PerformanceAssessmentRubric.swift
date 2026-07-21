@@ -2,28 +2,30 @@ import Foundation
 
 struct PerformanceAssessmentRubric: Sendable {
     let version = PerformanceAssessmentRubricVersion.capabilityAware
+    private let targetProfile: PerformanceTargetProfile
 
-    func tolerance(
+    init(targetProfile: PerformanceTargetProfile = PerformanceTargetProfile()) {
+        self.targetProfile = targetProfile
+    }
+
+    func acceptableBands(
         for dimension: PerformanceAssessmentDimension,
         capabilities: PerformanceInputCapabilities
-    ) -> Double {
-        let base: Double = switch dimension {
-        case .onset: 0.08
-        case .tempoRelativeTiming: 0.2
-        case .chordSpread: 0.08
-        case .duration: 0.15
-        case .release: 0.08
-        case .articulation: 0.05
-        case .velocity: 12
-        case .dynamicContour: 8
-        case .voicing: 8
-        case .pedalTiming: 0.1
-        case .pedalValue: 0.1
-        case .tempoContinuity: 0.25
-        case .phraseContinuity: 0.1
-        case .exactPitch, .extraNotes, .missingNotes: 0
+    ) -> [PerformanceTargetBand] {
+        let configured = targetProfile.bands(for: dimension)
+        let isDegraded = evidence(for: dimension, capabilities: capabilities) == .degraded
+        guard configured.isEmpty == false else {
+            return [Self.genericBand(for: dimension, scale: isDegraded ? 1.5 : 1)]
         }
-        return evidence(for: dimension, capabilities: capabilities) == .degraded ? base * 1.5 : base
+        return isDegraded ? configured.map { $0.widened(by: 1.5) } : configured
+    }
+
+    func accepts(
+        _ value: Double,
+        for dimension: PerformanceAssessmentDimension,
+        capabilities: PerformanceInputCapabilities
+    ) -> Bool {
+        acceptableBands(for: dimension, capabilities: capabilities).contains { $0.contains(value) }
     }
 
     func select(
@@ -56,6 +58,38 @@ struct PerformanceAssessmentRubric: Sendable {
         case .pedalTiming, .pedalValue:
             capabilities.controllers
         }
+    }
+
+    private static func genericBand(
+        for dimension: PerformanceAssessmentDimension,
+        scale: Double
+    ) -> PerformanceTargetBand {
+        let bounds: (Double, Double) = switch dimension {
+        case .exactPitch: (1, 1)
+        case .extraNotes, .missingNotes: (0, 0)
+        case .onset: (-0.08 * scale, 0.08 * scale)
+        case .tempoRelativeTiming: (-0.2 * scale, 0.2 * scale)
+        case .chordSpread: (0, 0.08 * scale)
+        case .duration: (1 - (0.15 * scale), 1 + (0.15 * scale))
+        case .release: (-0.08 * scale, 0.08 * scale)
+        case .articulation: (-0.05 * scale, 0.05 * scale)
+        case .velocity: (-12 * scale, 12 * scale)
+        case .dynamicContour: (-8 * scale, 8 * scale)
+        case .voicing: (0, 8 * scale)
+        case .pedalTiming: (-0.1 * scale, 0.1 * scale)
+        case .pedalValue: (0, 0.1 * scale)
+        case .tempoContinuity: (-0.25 * scale, 0.25 * scale)
+        case .phraseContinuity: (-0.1 * scale, 0.1 * scale)
+        }
+        guard let band = PerformanceTargetBand(
+            dimension: dimension,
+            lowerBound: bounds.0,
+            upperBound: bounds.1,
+            provenance: .genericApproximation
+        ) else {
+            preconditionFailure("Invalid built-in performance target for \(dimension.rawValue)")
+        }
+        return band
     }
 }
 

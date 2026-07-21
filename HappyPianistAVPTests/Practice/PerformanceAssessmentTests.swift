@@ -94,8 +94,140 @@ func capabilityAwareRubricUsesATableForLiveAndRecordedSources() {
             )
         }
     }
-    #expect(rubric.tolerance(for: .onset, capabilities: .targetAudio) == 0.12)
-    #expect(rubric.tolerance(for: .onset, capabilities: .midi) == 0.08)
+    let degradedOnset = rubric.acceptableBands(for: .onset, capabilities: .targetAudio)
+    let observedOnset = rubric.acceptableBands(for: .onset, capabilities: .midi)
+    #expect(degradedOnset.first?.upperBound == 0.12)
+    #expect(observedOnset.first?.upperBound == 0.08)
+    #expect(observedOnset.first?.provenance == .genericApproximation)
+    #expect(rubric.acceptableBands(for: .chordSpread, capabilities: .targetAudio).first?.upperBound == 0.12)
+}
+
+@Test
+func targetProfilePreservesConfiguredProvenanceAndRejectsInvalidBands() throws {
+    let scoreDefault = try #require(PerformanceTargetBand(
+        dimension: .tempoContinuity,
+        lowerBound: -0.2,
+        upperBound: 0.2,
+        provenance: .scoreDefault,
+        sourceID: "score:rubato"
+    ))
+    let teacher = try #require(PerformanceTargetBand(
+        dimension: .voicing,
+        lowerBound: 2,
+        upperBound: 5,
+        provenance: .teacher,
+        sourceID: "teacher:balance-a"
+    ))
+    let user = try #require(PerformanceTargetBand(
+        dimension: .pedalTiming,
+        lowerBound: -0.05,
+        upperBound: 0.1,
+        provenance: .userConfirmed,
+        sourceID: "user:take-7"
+    ))
+    let profile = PerformanceTargetProfile(bands: [scoreDefault, teacher, user])
+
+    #expect(profile.bands(for: .tempoContinuity) == [scoreDefault])
+    #expect(profile.bands(for: .voicing) == [teacher])
+    #expect(profile.bands(for: .pedalTiming) == [user])
+    #expect(PerformanceTargetBand(
+        dimension: .onset,
+        lowerBound: .infinity,
+        upperBound: 1,
+        provenance: .teacher
+    ) == nil)
+    #expect(PerformanceTargetBand(
+        dimension: .onset,
+        lowerBound: 1,
+        upperBound: -1,
+        provenance: .teacher
+    ) == nil)
+}
+
+@Test
+func targetProfileAcceptsMultipleRubatoVoicingAndPedalInterpretations() throws {
+    let bands = try [
+        PerformanceTargetBand(
+            dimension: .tempoContinuity,
+            lowerBound: -0.4,
+            upperBound: -0.2,
+            provenance: .teacher,
+            sourceID: "teacher:rubato-a"
+        ),
+        PerformanceTargetBand(
+            dimension: .tempoContinuity,
+            lowerBound: 0.2,
+            upperBound: 0.4,
+            provenance: .teacher,
+            sourceID: "teacher:rubato-b"
+        ),
+        PerformanceTargetBand(
+            dimension: .voicing,
+            lowerBound: 0,
+            upperBound: 2,
+            provenance: .scoreDefault
+        ),
+        PerformanceTargetBand(
+            dimension: .voicing,
+            lowerBound: 5,
+            upperBound: 7,
+            provenance: .teacher
+        ),
+        PerformanceTargetBand(
+            dimension: .pedalTiming,
+            lowerBound: -0.2,
+            upperBound: -0.1,
+            provenance: .userConfirmed
+        ),
+        PerformanceTargetBand(
+            dimension: .pedalTiming,
+            lowerBound: 0.1,
+            upperBound: 0.2,
+            provenance: .userConfirmed
+        ),
+    ].map { try #require($0) }
+    let rubric = PerformanceAssessmentRubric(targetProfile: PerformanceTargetProfile(bands: bands))
+
+    #expect(rubric.accepts(-0.3, for: .tempoContinuity, capabilities: .midi))
+    #expect(rubric.accepts(0.3, for: .tempoContinuity, capabilities: .midi))
+    #expect(rubric.accepts(0, for: .tempoContinuity, capabilities: .midi) == false)
+    #expect(rubric.accepts(1, for: .voicing, capabilities: .midi))
+    #expect(rubric.accepts(6, for: .voicing, capabilities: .midi))
+    #expect(rubric.accepts(3, for: .voicing, capabilities: .midi) == false)
+    #expect(rubric.accepts(-0.15, for: .pedalTiming, capabilities: .midi))
+    #expect(rubric.accepts(0.15, for: .pedalTiming, capabilities: .midi))
+    #expect(rubric.accepts(0, for: .pedalTiming, capabilities: .midi) == false)
+}
+
+@Test
+func assessmentUsesInjectedTeacherTargetInsteadOfGenericTolerance() throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(
+            event: event,
+            observation: makeAssessmentObservation(time: 0.15, kind: .midi1),
+            onsetDeviation: 0.15
+        )]
+    )
+    let teacherBand = try #require(PerformanceTargetBand(
+        dimension: .onset,
+        lowerBound: 0.14,
+        upperBound: 0.16,
+        provenance: .teacher,
+        sourceID: "teacher:laid-back"
+    ))
+    let teacherService = PerformanceAssessmentService(rubric: PerformanceAssessmentRubric(
+        targetProfile: PerformanceTargetProfile(bands: [teacherBand])
+    ))
+
+    let generic = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let teacher = try #require(teacherService.assess(plan: plan, alignment: alignment))
+
+    #expect(try assessmentResult(.onset, in: generic).outcome == .incorrect)
+    #expect(try assessmentResult(.onset, in: teacher).outcome == .correct)
 }
 
 @Test
