@@ -95,6 +95,7 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
     let source: Source
     let timing: PerformanceClockReading
     let event: Event
+    let onsetVelocity: NormalizedValue?
     let channel: Int?
     let group: Int?
     let hand: ScoreHand?
@@ -107,6 +108,7 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
         source: Source,
         timing: PerformanceClockReading,
         event: Event,
+        onsetVelocity: NormalizedValue? = nil,
         channel: Int? = nil,
         group: Int? = nil,
         hand: ScoreHand? = nil,
@@ -118,6 +120,13 @@ struct PerformanceObservation: Codable, Equatable, Sendable {
         self.source = source
         self.timing = timing
         self.event = event
+        if let onsetVelocity {
+            self.onsetVelocity = onsetVelocity
+        } else if case let .noteOn(_, velocity) = event {
+            self.onsetVelocity = velocity
+        } else {
+            self.onsetVelocity = nil
+        }
         self.channel = channel.map { max(1, min(16, $0)) }
         self.group = group.map { max(0, min(15, $0)) }
         self.hand = hand

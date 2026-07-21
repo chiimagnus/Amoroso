@@ -432,6 +432,10 @@ struct PerformanceAlignmentEngine: Sendable {
                         status: .observed,
                         cost: 0
                     ),
+                    .init(
+                        dimension: .velocity,
+                        status: Self.evidenceStatus(observation.source.capabilities.velocity)
+                    ),
                 ]
             )
         }.sorted { lhs, rhs in

@@ -409,6 +409,180 @@ func availableReleaseCapabilityWithoutNoteOffIsInsufficientRatherThanWrong() thr
 }
 
 @Test
+func velocityAndDynamicContourFollowPlanTargetsIncludingAccentDelta() throws {
+    let events = [
+        makeAssessmentEvent(ordinal: 0, midiNote: 60, onTick: 0, offTick: 480, velocity: 60),
+        makeAssessmentEvent(
+            ordinal: 1,
+            midiNote: 62,
+            onTick: 480,
+            offTick: 960,
+            velocity: 90,
+            articulationDelta: 10
+        ),
+    ]
+    let plan = makeAssessmentPlan(events: events)
+
+    for (performedSecond, expectedOutcome) in [
+        (90, PracticeEvidenceOutcome.correct),
+        (65, PracticeEvidenceOutcome.incorrect),
+    ] {
+        let alignment = PerformanceAlignment(
+            planID: plan.id,
+            sourceGeneration: 7,
+            links: [
+                makeAlignedLink(
+                    event: events[0],
+                    observation: makeAssessmentObservation(time: 0, note: 60, velocity: 60),
+                    onsetDeviation: 0
+                ),
+                makeAlignedLink(
+                    event: events[1],
+                    observation: makeAssessmentObservation(time: 0.5, note: 62, velocity: performedSecond),
+                    onsetDeviation: 0
+                ),
+            ]
+        )
+
+        let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+        let contour = try assessmentResult(.dynamicContour, in: assessment)
+
+        #expect(contour.outcome == expectedOutcome)
+        #expect(contour.sampleCount == 1)
+        if expectedOutcome == .correct {
+            #expect(try assessmentResult(.velocity, in: assessment).outcome == .correct)
+            #expect(abs(contour.measurement?.value ?? 1) < 0.000_001)
+        } else {
+            #expect(abs((contour.measurement?.value ?? 0) + 25) < 0.000_001)
+        }
+    }
+}
+
+@Test
+func genericVoicingUsesTraceableVoiceHandAndFingeringInsteadOfHighestPitch() throws {
+    let rightHand = ScoreHandAssignment(hand: .right, provenance: .score)
+    let events = [
+        makeAssessmentEvent(
+            ordinal: 0,
+            midiNote: 60,
+            velocity: 100,
+            voice: 1,
+            handAssignment: rightHand,
+            fingerings: [.init(text: "1", hand: .right, provenance: .score)]
+        ),
+        makeAssessmentEvent(
+            ordinal: 1,
+            midiNote: 72,
+            velocity: 70,
+            voice: 2,
+            handAssignment: rightHand,
+            fingerings: [.init(text: "5", hand: .right, provenance: .teacher)]
+        ),
+    ]
+    let plan = makeAssessmentPlan(events: events)
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: events.map { event in
+            makeAlignedLink(
+                event: event,
+                observation: makeAssessmentObservation(
+                    time: 0,
+                    note: event.midiNote,
+                    velocity: Int(event.velocity)
+                ),
+                onsetDeviation: 0,
+                chordSpread: 0
+            )
+        }
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let voicing = try assessmentResult(.voicing, in: assessment)
+
+    #expect(voicing.outcome == .correct)
+    #expect(voicing.evidenceStatus == .degraded)
+    #expect(voicing.sampleCount == 1)
+    #expect(abs(voicing.measurement?.value ?? 1) < 0.000_001)
+}
+
+@Test
+func calibratedHandVelocitySurvivesCommittedAlignmentWithDegradedConfidence() throws {
+    let event = makeAssessmentEvent(velocity: 90)
+    let plan = makeAssessmentPlan(events: [event])
+    let observation = makeAssessmentObservation(
+        time: 0,
+        note: 60,
+        velocity: 90,
+        kind: .realPianoContact,
+        calibrationReference: "calibration-1"
+    )
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(event: event, observation: observation, onsetDeviation: 0)]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let velocity = try assessmentResult(.velocity, in: assessment)
+    let reference = PerformanceAlignmentObservationReference(observation: observation)
+
+    #expect(velocity.outcome == .correct)
+    #expect(velocity.evidenceStatus == .degraded)
+    #expect(velocity.confidence == 0.5)
+    #expect(reference.onsetVelocity != nil)
+    #expect(reference.calibrationReference == "calibration-1")
+}
+
+@Test
+func recordedTakeRebasingPreservesCalibratedHandVelocity() throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let observation = makeAssessmentObservation(
+        time: 40,
+        note: 60,
+        velocity: 88,
+        kind: .realPianoContact,
+        calibrationReference: "calibration-1"
+    )
+    let take = RecordingTake(
+        name: "hand-velocity",
+        metadata: .init(scoreIdentity: plan.sourceScoreIdentity, inputSources: []),
+        events: [.init(time: 0, kind: .noteOn(midi: 60, velocity: 88), observation: observation)]
+    )
+
+    let rebased = try #require(take.alignmentObservations()?.first)
+
+    #expect(rebased.alignmentTimestamp.seconds == 0)
+    #expect(rebased.onsetVelocity == observation.onsetVelocity)
+    #expect(rebased.calibrationReference == observation.calibrationReference)
+}
+
+@Test
+func unavailableVelocityCapabilityDoesNotScoreDynamicsAsZero() throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let observation = makeAssessmentObservation(
+        time: 0,
+        note: 60,
+        velocity: nil,
+        kind: .targetAudio
+    )
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(event: event, observation: observation, onsetDeviation: 0)]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let velocity = try assessmentResult(.velocity, in: assessment)
+
+    #expect(velocity.outcome == .unknown)
+    #expect(velocity.evidenceStatus == .notObserved)
+    #expect(velocity.measurement == nil)
+}
+
+@Test
 func analyzerImmediatelyPublishesAssessmentFromItsFinishedAlignment() async throws {
     let event = makeAssessmentEvent()
     let plan = makeAssessmentPlan(events: [event])
@@ -423,6 +597,7 @@ func analyzerImmediatelyPublishesAssessmentFromItsFinishedAlignment() async thro
     let assessment = try #require(snapshot.assessment)
     #expect(snapshot.alignment != nil)
     #expect(try assessmentResult(.exactPitch, in: assessment).outcome == .correct)
+    #expect(try assessmentResult(.velocity, in: assessment).outcome == .correct)
 }
 
 private func makeAssessmentEvent(
@@ -432,14 +607,20 @@ private func makeAssessmentEvent(
     offTick: Int = 480,
     writtenOffTick: Int? = nil,
     performedOffTick: Int? = nil,
+    velocity: UInt8 = 90,
+    articulationDelta: Int = 0,
+    staff: Int = 1,
+    voice: Int = 1,
+    handAssignment: ScoreHandAssignment = .unknown,
+    fingerings: [MusicXMLFingering] = [],
     timingProvenance: [ScorePerformanceProvenance] = []
 ) -> ScorePerformanceNoteEvent {
     let sourceID = MusicXMLSourceNoteID(
         partID: "P1",
         sourceMeasureIndex: 0,
         sourceMeasureNumberToken: "1",
-        staff: 1,
-        voice: 1,
+        staff: staff,
+        voice: voice,
         sourceOrdinal: ordinal
     )
     let performedID = MusicXMLPerformedNoteID(sourceID: sourceID, occurrenceIndex: 0)
@@ -457,16 +638,16 @@ private func makeAssessmentEvent(
         writtenPitch: nil,
         midiNote: midiNote,
         velocityResolution: .init(
-            baseVelocity: 90,
+            baseVelocity: Int(velocity) - articulationDelta,
             curveVelocity: nil,
-            articulationDelta: 0,
-            unclampedVelocity: 90,
-            velocity: 90
+            articulationDelta: articulationDelta,
+            unclampedVelocity: Int(velocity),
+            velocity: velocity
         ),
-        staff: 1,
-        voice: 1,
-        handAssignment: .unknown,
-        fingerings: [],
+        staff: staff,
+        voice: voice,
+        handAssignment: handAssignment,
+        fingerings: fingerings,
         timingProvenance: timingProvenance
     )
 }
@@ -499,12 +680,27 @@ private func makeAssessmentPlan(events: [ScorePerformanceNoteEvent]) -> ScorePer
 private func makeAssessmentObservation(
     id: UUID = UUID(),
     time: TimeInterval,
-    note: Int = 60
+    note: Int = 60,
+    velocity: Int? = 90,
+    kind: PerformanceObservation.Source.Kind = .midi1,
+    calibrationReference: String? = nil
 ) -> PerformanceObservation {
     let instant = PerformanceMonotonicInstant(seconds: time)
+    let event: PerformanceObservation.Event = switch kind {
+    case .midi1, .midi2:
+        .noteOn(note: note, velocity: velocity.map { .init(midi1: $0) })
+    case .targetAudio:
+        .targetAudioDetection(
+            targetMIDINotes: [note],
+            detectedMIDINotes: [note],
+            result: .detected
+        )
+    case .realPianoContact, .virtualPianoContact:
+        .contact(id: "contact", keyCandidate: note, phase: .started)
+    }
     return PerformanceObservation(
         id: id,
-        source: .init(kind: .midi1, id: "assessment-midi", generation: 7),
+        source: .init(kind: kind, id: "assessment-input", generation: 7),
         timing: .init(
             host: instant,
             source: nil,
@@ -512,7 +708,11 @@ private func makeAssessmentObservation(
             mapping: nil,
             provenance: .hostOnly
         ),
-        event: .noteOn(note: note, velocity: .init(midi1: 90))
+        event: event,
+        onsetVelocity: kind == .realPianoContact || kind == .virtualPianoContact
+            ? velocity.map { .init(midi1: $0) }
+            : nil,
+        calibrationReference: calibrationReference
     )
 }
 
@@ -524,7 +724,12 @@ private func makeAlignedLink(
     releaseDeviation: TimeInterval? = nil,
     releaseStatus: PerformanceAlignmentEvidenceStatus = .notObserved
 ) -> PerformanceAlignmentLink {
-    .aligned(
+    let velocityStatus: PerformanceAlignmentEvidenceStatus = switch observation.source.capabilities.velocity {
+    case .observed: .observed
+    case .degraded: .degraded
+    case .unavailable: .notObserved
+    }
+    return .aligned(
         score: .init(event: event),
         observation: .init(observation: observation),
         evidence: [
@@ -552,6 +757,10 @@ private func makeAlignedLink(
                 status: releaseStatus,
                 cost: releaseDeviation.map(abs),
                 deviationSeconds: releaseDeviation
+            ),
+            .init(
+                dimension: .velocity,
+                status: velocityStatus
             ),
         ]
     )

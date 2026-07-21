@@ -239,6 +239,7 @@ private extension PerformanceObservation {
                 provenance: .hostOnly
             ),
             event: event,
+            onsetVelocity: onsetVelocity,
             channel: channel,
             group: group,
             hand: hand,

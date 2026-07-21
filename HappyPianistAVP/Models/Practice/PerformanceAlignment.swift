@@ -10,6 +10,7 @@ enum PerformanceAlignmentEvidenceDimension: String, Codable, Equatable, Hashable
     case occurrence
     case hand
     case controller
+    case velocity
     case confidence
 }
 
@@ -58,6 +59,9 @@ struct PerformanceAlignmentObservationReference: Codable, Equatable, Sendable {
     let correctedTime: PerformanceMonotonicInstant
     let hand: ScoreHand?
     let finger: Int?
+    let onsetVelocity: PerformanceObservation.NormalizedValue?
+    let confidence: Double?
+    let calibrationReference: String?
 
     init(observation: PerformanceObservation) {
         observationID = observation.id
@@ -65,6 +69,9 @@ struct PerformanceAlignmentObservationReference: Codable, Equatable, Sendable {
         correctedTime = observation.alignmentTimestamp
         hand = observation.hand
         finger = observation.finger
+        onsetVelocity = observation.onsetVelocity
+        confidence = observation.confidence
+        calibrationReference = observation.calibrationReference
     }
 }
 

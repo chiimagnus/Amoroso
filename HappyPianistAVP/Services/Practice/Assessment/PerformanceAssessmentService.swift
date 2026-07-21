@@ -9,6 +9,9 @@ struct PerformanceAssessmentService: Sendable {
         let durationRatioTolerance: Double
         let releaseToleranceSeconds: TimeInterval
         let articulationToleranceSeconds: TimeInterval
+        let velocityTolerance: Double
+        let dynamicContourTolerance: Double
+        let voicingTolerance: Double
 
         init(
             onsetToleranceSeconds: TimeInterval = 0.08,
@@ -16,7 +19,10 @@ struct PerformanceAssessmentService: Sendable {
             tempoRelativeTolerance: Double = 0.2,
             durationRatioTolerance: Double = 0.15,
             releaseToleranceSeconds: TimeInterval = 0.08,
-            articulationToleranceSeconds: TimeInterval = 0.05
+            articulationToleranceSeconds: TimeInterval = 0.05,
+            velocityTolerance: Double = 12,
+            dynamicContourTolerance: Double = 8,
+            voicingTolerance: Double = 8
         ) {
             self.onsetToleranceSeconds = Self.nonnegative(onsetToleranceSeconds, fallback: 0.08)
             self.chordSpreadToleranceSeconds = Self.nonnegative(chordSpreadToleranceSeconds, fallback: 0.08)
@@ -27,6 +33,9 @@ struct PerformanceAssessmentService: Sendable {
                 articulationToleranceSeconds,
                 fallback: 0.05
             )
+            self.velocityTolerance = Self.nonnegative(velocityTolerance, fallback: 12)
+            self.dynamicContourTolerance = Self.nonnegative(dynamicContourTolerance, fallback: 8)
+            self.voicingTolerance = Self.nonnegative(voicingTolerance, fallback: 8)
         }
 
         private static func nonnegative(_ value: Double, fallback: Double) -> Double {
@@ -59,6 +68,11 @@ struct PerformanceAssessmentService: Sendable {
         let staff: Int
         let voice: Int
         let occurrenceIndex: Int
+    }
+
+    private struct VoicingRole: Hashable {
+        let hand: ScoreHand
+        let voice: Int
     }
 
     private let configuration: Configuration
@@ -153,6 +167,9 @@ struct PerformanceAssessmentService: Sendable {
             durationResult(aligned: aligned, links: links, timeMap: timeMap),
             releaseResult(aligned: aligned, links: links),
             articulationResult(aligned: aligned, links: links, timeMap: timeMap),
+            velocityResult(aligned: aligned, links: links),
+            dynamicContourResult(aligned: aligned, links: links),
+            voicingResult(events: events, aligned: aligned, links: links),
         ]
     }
 
@@ -556,6 +573,211 @@ struct PerformanceAssessmentService: Sendable {
         )
     }
 
+    private func velocityResult(
+        aligned: [AlignedNote],
+        links: [PerformanceAlignmentLink]
+    ) -> PerformanceAssessmentDimensionResult {
+        let samples = aligned.compactMap { note -> MetricSample? in
+            guard let performed = performedVelocity(note) else { return nil }
+            return MetricSample(
+                value: performed - Double(note.event.velocity),
+                status: velocityStatus(note),
+                evidence: [.note(
+                    score: note.score,
+                    observationID: note.observation.observationID,
+                    dimension: .velocity
+                )]
+            )
+        }
+        let incomplete = hasIncompleteVelocityEvidence(aligned)
+        guard samples.isEmpty == false else {
+            return unavailableResult(
+                dimension: .velocity,
+                alignmentDimension: .velocity,
+                links: links,
+                fallbackEvidence: evidenceLinks(aligned, dimension: .velocity),
+                forceInsufficient: incomplete
+            )
+        }
+        let mean = samples.map(\.value).reduce(0, +) / Double(samples.count)
+        return PerformanceAssessmentDimensionResult(
+            dimension: .velocity,
+            outcome: incomplete
+                ? .insufficientEvidence
+                : (samples.allSatisfy { abs($0.value) <= configuration.velocityTolerance }
+                    ? .correct
+                    : .incorrect),
+            evidenceStatus: incomplete ? .insufficient : aggregateStatus(samples.map(\.status)),
+            measurement: PerformanceAssessmentMeasurement(value: mean, unit: .midi7Bit),
+            sampleCount: samples.count,
+            confidence: confidence(for: samples),
+            evidence: samples.flatMap(\.evidence)
+        )
+    }
+
+    private func dynamicContourResult(
+        aligned: [AlignedNote],
+        links: [PerformanceAlignmentLink]
+    ) -> PerformanceAssessmentDimensionResult {
+        let lanes = Dictionary(grouping: aligned) { note in
+            VoiceLane(
+                partID: note.event.sourceNoteID.partID,
+                staff: note.event.staff,
+                voice: note.event.voice,
+                occurrenceIndex: note.event.performedOccurrenceIndex
+            )
+        }
+        var samples: [MetricSample] = []
+        var incomplete = false
+        for notes in lanes.values {
+            let ordered = notes.sorted { lhs, rhs in
+                if lhs.event.performedOnTick != rhs.event.performedOnTick {
+                    return lhs.event.performedOnTick < rhs.event.performedOnTick
+                }
+                return lhs.event.id.description < rhs.event.id.description
+            }
+            for (current, next) in zip(ordered, ordered.dropFirst())
+            where next.event.performedOnTick > current.event.performedOnTick {
+                guard let currentVelocity = performedVelocity(current),
+                      let nextVelocity = performedVelocity(next)
+                else {
+                    incomplete = incomplete
+                        || hasVelocityCapability(current)
+                        || hasVelocityCapability(next)
+                    continue
+                }
+                let performedDelta = nextVelocity - currentVelocity
+                let targetDelta = Double(next.event.velocity) - Double(current.event.velocity)
+                samples.append(MetricSample(
+                    value: performedDelta - targetDelta,
+                    status: aggregateStatus([velocityStatus(current), velocityStatus(next)]),
+                    evidence: [
+                        .note(
+                            score: current.score,
+                            observationID: current.observation.observationID,
+                            dimension: .velocity
+                        ),
+                        .note(
+                            score: next.score,
+                            observationID: next.observation.observationID,
+                            dimension: .velocity
+                        ),
+                    ]
+                ))
+            }
+        }
+        guard samples.isEmpty == false else {
+            return unavailableResult(
+                dimension: .dynamicContour,
+                alignmentDimension: .velocity,
+                links: links,
+                fallbackEvidence: evidenceLinks(aligned, dimension: .velocity),
+                forceInsufficient: incomplete
+            )
+        }
+        let mean = samples.map(\.value).reduce(0, +) / Double(samples.count)
+        return PerformanceAssessmentDimensionResult(
+            dimension: .dynamicContour,
+            outcome: incomplete
+                ? .insufficientEvidence
+                : (samples.allSatisfy { abs($0.value) <= configuration.dynamicContourTolerance }
+                    ? .correct
+                    : .incorrect),
+            evidenceStatus: incomplete ? .insufficient : aggregateStatus(samples.map(\.status)),
+            measurement: PerformanceAssessmentMeasurement(value: mean, unit: .midi7Bit),
+            sampleCount: samples.count,
+            confidence: confidence(for: samples),
+            evidence: samples.flatMap(\.evidence)
+        )
+    }
+
+    private func voicingResult(
+        events: [ScorePerformanceNoteEvent],
+        aligned: [AlignedNote],
+        links: [PerformanceAlignmentLink]
+    ) -> PerformanceAssessmentDimensionResult {
+        let eligibleChords = Dictionary(grouping: events, by: \.performedOnTick)
+            .filter { _, chord in
+                chord.count > 1 && chord.contains(where: Self.isArpeggiated) == false
+            }
+        let alignedByTick = Dictionary(grouping: aligned, by: \.event.performedOnTick)
+        var samples: [MetricSample] = []
+        var incomplete = false
+
+        for tick in eligibleChords.keys.sorted() {
+            let chordEvents = eligibleChords[tick] ?? []
+            let eventIDs = Set(chordEvents.map(\.id))
+            let notes = (alignedByTick[tick] ?? []).filter { eventIDs.contains($0.event.id) }
+            guard notes.count == chordEvents.count,
+                  notes.allSatisfy({ performedVelocity($0) != nil })
+            else {
+                incomplete = incomplete || notes.contains(where: hasVelocityCapability)
+                continue
+            }
+
+            let grouped = Dictionary(grouping: notes) { note in
+                VoicingRole(hand: explicitVoicingHand(note.event), voice: note.event.voice)
+            }
+            let values: [(performed: Double, target: Double)]
+            if grouped.count > 1 {
+                values = grouped.values.map { roleNotes in
+                    (
+                        performed: roleNotes.compactMap(performedVelocity).reduce(0, +)
+                            / Double(roleNotes.count),
+                        target: roleNotes.map { Double($0.event.velocity) }.reduce(0, +)
+                            / Double(roleNotes.count)
+                    )
+                }
+            } else {
+                values = notes.compactMap { note in
+                    performedVelocity(note).map { ($0, Double(note.event.velocity)) }
+                }
+            }
+            let performedCenter = values.map(\.performed).reduce(0, +) / Double(values.count)
+            let targetCenter = values.map(\.target).reduce(0, +) / Double(values.count)
+            let error = values.map {
+                abs(($0.performed - performedCenter) - ($0.target - targetCenter))
+            }.reduce(0, +) / Double(values.count)
+
+            samples.append(MetricSample(
+                value: error,
+                // ponytail: generic voice/hand balance stays degraded until P12 supplies teacher targets.
+                status: .degraded,
+                evidence: notes.map {
+                    .note(
+                        score: $0.score,
+                        observationID: $0.observation.observationID,
+                        dimension: .velocity
+                    )
+                }
+            ))
+        }
+
+        guard samples.isEmpty == false else {
+            return unavailableResult(
+                dimension: .voicing,
+                alignmentDimension: .velocity,
+                links: links,
+                fallbackEvidence: evidenceLinks(aligned, dimension: .velocity),
+                forceInsufficient: incomplete
+            )
+        }
+        let mean = samples.map(\.value).reduce(0, +) / Double(samples.count)
+        return PerformanceAssessmentDimensionResult(
+            dimension: .voicing,
+            outcome: incomplete
+                ? .insufficientEvidence
+                : (samples.allSatisfy { $0.value <= configuration.voicingTolerance }
+                    ? .correct
+                    : .incorrect),
+            evidenceStatus: incomplete ? .insufficient : .degraded,
+            measurement: PerformanceAssessmentMeasurement(value: mean, unit: .midi7Bit),
+            sampleCount: samples.count,
+            confidence: confidence(for: samples),
+            evidence: samples.flatMap(\.evidence)
+        )
+    }
+
     private func alignedNotes(
         links: [PerformanceAlignmentLink],
         eventByID: [ScorePerformanceNoteEventID: ScorePerformanceNoteEvent]
@@ -599,6 +821,50 @@ struct PerformanceAssessmentService: Sendable {
                 dimension: dimension
             )
         }
+    }
+
+    private func performedVelocity(_ note: AlignedNote) -> Double? {
+        guard hasVelocityCapability(note), let value = note.observation.onsetVelocity else { return nil }
+        return Double(value.rawValue) * 127 / Double(UInt32.max)
+    }
+
+    private func hasVelocityCapability(_ note: AlignedNote) -> Bool {
+        note.observation.source.capabilities.velocity != .unavailable
+    }
+
+    private func hasIncompleteVelocityEvidence(_ aligned: [AlignedNote]) -> Bool {
+        aligned.contains { hasVelocityCapability($0) && $0.observation.onsetVelocity == nil }
+    }
+
+    private func velocityStatus(_ note: AlignedNote) -> PerformanceAssessmentEvidenceStatus {
+        let status = note.evidence.first(where: { $0.dimension == .velocity })?.status
+            ?? alignmentStatus(note.observation.source.capabilities.velocity)
+        return assessmentStatus(status, event: note.event)
+    }
+
+    private func alignmentStatus(
+        _ capability: PerformanceInputCapabilities.Evidence
+    ) -> PerformanceAlignmentEvidenceStatus {
+        switch capability {
+        case .observed: .observed
+        case .degraded: .degraded
+        case .unavailable: .notObserved
+        }
+    }
+
+    private func explicitVoicingHand(_ event: ScorePerformanceNoteEvent) -> ScoreHand {
+        if event.handAssignment.hand != .unknown { return event.handAssignment.hand }
+        let fingeringHands = Set(event.fingerings.compactMap { fingering -> ScoreHand? in
+            switch fingering.provenance {
+            case .score, .teacher, .user:
+                switch fingering.hand {
+                case .left: .left
+                case .right: .right
+                case .unspecified, .unsupported: nil
+                }
+            }
+        })
+        return fingeringHands.count == 1 ? fingeringHands.first ?? .unknown : .unknown
     }
 
     private func result(

@@ -189,6 +189,7 @@ final class MIDIRecordingState {
                 keyCandidate: contact.keyCandidate.exactMIDINote,
                 phase: phase
             ),
+            onsetVelocity: contact.resolvedVelocity.map { .init(midi1: Int($0)) },
             hand: contact.hand.scoreHand,
             finger: Int(contact.finger.rawValue) + 1,
             confidence: Double(contact.confidence),
