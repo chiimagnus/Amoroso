@@ -88,7 +88,9 @@ func recordedTakeAlignerRebasesV2ObservationsAndKeepsLegacyCapabilityUnknown() t
 
     let aligner = RecordedTakeAligner()
     #expect(aligner.candidateSnapshots(take: v2, plan: plan).first?.candidates.count == 1)
-    #expect(aligner.candidateSnapshots(take: legacy, plan: plan).first?.candidates.count == 1)
+    #expect(aligner.align(take: legacy, plan: plan).links.contains {
+        if case .unknown(_, .unavailablePitchEvidence) = $0 { true } else { false }
+    })
 }
 
 @Test
@@ -369,6 +371,60 @@ func recordedTakeAlignmentValidatesScoreAndReportsGlobalSegmentDiagnostics() thr
     #expect(throws: RecordedTakeAlignmentError.scoreIdentityMismatch) {
         try RecordedTakeAligner().alignResult(take: wrongTake, plan: plan)
     }
+}
+
+@Test
+func insufficientEvidenceIsUnknownAndLiveLinksStayProvisionalUntilCommitHorizon() throws {
+    let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
+    let plan = makeAlignmentPlan(noteEvents: [event])
+    let unavailable = PerformanceInputCapabilities(
+        pitch: .unavailable,
+        onset: .observed,
+        release: .unavailable,
+        velocity: .unavailable,
+        controllers: .unavailable,
+        polyphony: .unavailable,
+        hand: .unavailable,
+        finger: .unavailable,
+        position: .unavailable,
+        confidence: .unavailable
+    )
+    let unknown = makeAlignmentObservation(
+        generation: 1,
+        note: 60,
+        seconds: 0,
+        capabilities: unavailable
+    )
+    let unknownResult = PerformanceAlignmentEngine().align(
+        plan: plan,
+        observations: [unknown],
+        performanceStart: .init(seconds: 0)
+    )
+    #expect(unknownResult.links.contains {
+        if case .unknown(_, .unavailablePitchEvidence) = $0 { true } else { false }
+    })
+
+    var incremental = IncrementalPerformanceAligner(
+        configuration: .init(maximumBufferedObservations: 32, commitHorizonSeconds: 0.2)
+    )
+    incremental.start(plan: plan, generation: 1, performanceStart: .init(seconds: 0))
+    let firstSnapshot = incremental.append(makeAlignmentObservation(
+        generation: 1,
+        note: 60,
+        seconds: 0
+    ))
+    let first = try #require(firstSnapshot)
+    #expect(first.links.contains { if case .provisional = $0 { true } else { false } })
+
+    _ = incremental.append(makeAlignmentObservation(
+        generation: 1,
+        note: 72,
+        seconds: 0.5
+    ))
+    let finalSnapshot = incremental.finish()
+    let final = try #require(finalSnapshot)
+    #expect(final.links.contains { if case .aligned = $0 { true } else { false } })
+    #expect(final.links.contains { if case .provisional = $0 { true } else { false } } == false)
 }
 
 private func makeAlignmentObservation(

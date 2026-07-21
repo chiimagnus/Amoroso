@@ -18,6 +18,7 @@ struct RecordedTakeAlignmentDiagnostics: Equatable, Sendable {
     let missingCount: Int
     let extraCount: Int
     let ambiguousCount: Int
+    let unknownCount: Int
     let controllerLinkCount: Int
     let performedOccurrenceCount: Int
     let usedLegacyProjection: Bool
@@ -102,6 +103,7 @@ struct RecordedTakeAligner: Sendable {
                 missingCount: counts.missing,
                 extraCount: counts.extra,
                 ambiguousCount: counts.ambiguous,
+                unknownCount: counts.unknown,
                 controllerLinkCount: global.controllerLinks.count,
                 performedOccurrenceCount: Set(plan.noteEvents.map(\.performedOccurrenceIndex)).count,
                 usedLegacyProjection: take.events.contains { $0.observation == nil }
@@ -133,13 +135,14 @@ struct RecordedTakeAligner: Sendable {
 
     private static func linkCounts(
         _ links: [PerformanceAlignmentLink]
-    ) -> (aligned: Int, missing: Int, extra: Int, ambiguous: Int) {
-        links.reduce(into: (0, 0, 0, 0)) { counts, link in
+    ) -> (aligned: Int, missing: Int, extra: Int, ambiguous: Int, unknown: Int) {
+        links.reduce(into: (0, 0, 0, 0, 0)) { counts, link in
             switch link {
             case .aligned: counts.0 += 1
             case .missing: counts.1 += 1
             case .extra: counts.2 += 1
             case .ambiguous: counts.3 += 1
+            case .unknown: counts.4 += 1
             case .provisional: break
             }
         }

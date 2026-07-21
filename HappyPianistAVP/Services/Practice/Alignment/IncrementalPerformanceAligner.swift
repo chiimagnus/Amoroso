@@ -193,7 +193,7 @@ private extension PerformanceAlignmentLink {
              let .missing(score, _),
              let .provisional(score, _, _):
             score.eventID
-        case .extra, .ambiguous:
+        case .extra, .ambiguous, .unknown:
             nil
         }
     }

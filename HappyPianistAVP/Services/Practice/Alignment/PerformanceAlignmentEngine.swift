@@ -79,12 +79,12 @@ struct PerformanceAlignmentEngine: Sendable {
         activeTickRange: Range<Int>? = nil,
         generation: UInt64? = nil
     ) -> PerformanceAlignment {
-        let noteOnObservations = observations.filter {
-            $0.alignmentOnsetMIDINote != nil
+        let relevantObservations = observations.filter {
+            $0.alignmentOnsetMIDINote != nil || $0.alignmentUnknownReason != nil
         }
         let snapshots = candidates(
             plan: plan,
-            observations: noteOnObservations,
+            observations: relevantObservations,
             performanceStart: performanceStart,
             activeTickRange: activeTickRange,
             generation: generation
@@ -96,8 +96,15 @@ struct PerformanceAlignmentEngine: Sendable {
         let eventByID = Dictionary(uniqueKeysWithValues: plan.noteEvents.map { ($0.id, $0) })
         var usedEvents: Set<ScorePerformanceNoteEventID> = []
         var links: [PerformanceAlignmentLink] = []
+        let observationByID = Dictionary(uniqueKeysWithValues: observations.map { ($0.id, $0) })
 
         for snapshot in snapshots {
+            if let observation = observationByID[snapshot.observation.observationID],
+               let reason = observation.alignmentUnknownReason
+            {
+                links.append(.unknown(observation: snapshot.observation, reason: reason))
+                continue
+            }
             let available = snapshot.candidates.filter { usedEvents.contains($0.score.eventID) == false }
             guard let best = available.first else {
                 links.append(.extra(
@@ -249,6 +256,9 @@ struct PerformanceAlignmentEngine: Sendable {
         }
 
         let pitchEvidence = observation.source.capabilities.pitch
+        guard pitchEvidence != .unavailable else {
+            return .init(observation: reference, candidates: [], noCandidateReason: .noPitchCandidate)
+        }
         let pitchMatching = pitchEvidence == .observed
             ? temporal.filter { $0.midiNote == observedNote }
             : temporal
@@ -459,6 +469,22 @@ private extension PerformanceObservation {
         case let .contact(_, keyCandidate, .started):
             keyCandidate
         default:
+            nil
+        }
+    }
+
+
+    var alignmentUnknownReason: PerformanceAlignmentUnknownReason? {
+        switch event {
+        case .noteOn where source.capabilities.pitch == .unavailable:
+            .unavailablePitchEvidence
+        case let .contact(_, keyCandidate, .started) where keyCandidate == nil:
+            .ambiguousKeyCandidate
+        case .targetAudioDetection:
+            .aggregateAudioEvidence
+        case .contact, .noteOff, .controller:
+            nil
+        case .noteOn:
             nil
         }
     }

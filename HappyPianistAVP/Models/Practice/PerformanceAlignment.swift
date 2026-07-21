@@ -116,6 +116,17 @@ enum PerformanceAlignmentLink: Codable, Equatable, Sendable {
         observation: PerformanceAlignmentObservationReference,
         candidates: [PerformanceAlignmentCandidate]
     )
+    case unknown(
+        observation: PerformanceAlignmentObservationReference,
+        reason: PerformanceAlignmentUnknownReason
+    )
+}
+
+enum PerformanceAlignmentUnknownReason: String, Codable, Equatable, Sendable {
+    case unavailablePitchEvidence
+    case ambiguousKeyCandidate
+    case aggregateAudioEvidence
+    case unsupportedObservation
 }
 
 struct PerformanceAlignmentControllerScoreReference: Codable, Equatable, Hashable, Sendable {
