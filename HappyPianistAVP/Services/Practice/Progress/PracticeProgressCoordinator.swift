@@ -43,6 +43,7 @@ actor PracticeProgressCoordinator {
     private var saveStatus: PracticeProgressSaveStatus = .idle
     private var lastAcceptedUpdatedAt: Date?
     private var claimedAssessmentIDs: Set<PracticeProgressAssessmentID> = []
+    private var pendingRevision: UInt64 = 0
 
     init(
         repository: any PracticeProgressRepositoryProtocol,
@@ -83,6 +84,7 @@ actor PracticeProgressCoordinator {
         timestamped.updatedAt = max(progress.updatedAt, clock.now())
         lastAcceptedUpdatedAt = timestamped.updatedAt
         pendingProgress = timestamped
+        pendingRevision &+= 1
         saveStatus = .pending
 
         delayedFlushTask?.cancel()
@@ -113,17 +115,22 @@ actor PracticeProgressCoordinator {
         guard let progress = pendingProgress, accepts(progress: progress, generation: generation) else {
             return saveStatus
         }
+        let revision = pendingRevision
 
         do {
             try await repository.upsert(progress)
             guard generation == currentGeneration else { return saveStatus }
-            pendingProgress = nil
-            saveStatus = .saved
+            if pendingRevision == revision {
+                pendingProgress = nil
+                saveStatus = .saved
+            } else {
+                saveStatus = .pending
+            }
         } catch {
             guard generation == currentGeneration else { return saveStatus }
             let message = error.localizedDescription
             let failureStatus = PracticeProgressSaveStatus.failed(message: message)
-            saveStatus = failureStatus
+            saveStatus = pendingRevision == revision ? failureStatus : .pending
             if let diagnosticsReporter {
                 _ = await diagnosticsReporter.record(
                     DiagnosticEvent(
@@ -146,8 +153,13 @@ actor PracticeProgressCoordinator {
 
     @discardableResult
     func finish(generation: Int) async -> PracticeProgressSaveStatus {
-        let status = await flush(generation: generation)
+        var status = await flush(generation: generation)
         guard generation == currentGeneration else { return status }
+        while pendingProgress != nil {
+            if case .failed = status { return status }
+            status = await flush(generation: generation)
+            guard generation == currentGeneration else { return status }
+        }
         if case .failed = status { return status }
         delayedFlushTask?.cancel()
         delayedFlushTask = nil
