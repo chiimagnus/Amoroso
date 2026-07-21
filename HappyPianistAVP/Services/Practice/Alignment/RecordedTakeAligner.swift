@@ -119,7 +119,7 @@ struct RecordedTakeAligner: Sendable {
         var incremental = IncrementalPerformanceAligner(engine: engine)
         incremental.start(
             plan: plan,
-            generation: observations.first?.source.generation ?? 0,
+            generation: nil,
             performanceStart: .init(seconds: 0),
             activeTickRange: activeTickRange
         )

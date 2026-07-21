@@ -409,6 +409,12 @@ extension PracticeSessionViewModel {
         stopAudioRecognition()
         let routingChanged = roundConfigurationController.applyPending()
         rebuildActiveRange()
+        if let performancePlan = self.performancePlan {
+            enqueueSessionRecorderEvent(.configureAnalysis(
+                plan: performancePlan,
+                activeTickRange: self.activeRange?.tickRange
+            ))
+        }
         self.currentStepIndex = self.activeRange?.firstStepIndex ?? 0
         self.state = self.steps.isEmpty ? .idle : .ready
         self.isRestoredSessionPaused = false
@@ -475,6 +481,10 @@ extension PracticeSessionViewModel {
         rebuildActiveRange()
         self.attributeTimeline = attributeTimeline
         self.highlightGuides = highlightGuides
+        enqueueSessionRecorderEvent(.configureAnalysis(
+            plan: performancePlan,
+            activeTickRange: self.activeRange?.tickRange
+        ))
         rebuildAutoplayTimeline()
         self.currentHighlightGuideIndex = nil
 
@@ -557,6 +567,7 @@ extension PracticeSessionViewModel {
         self.attemptReductionState = PracticeAttemptReductionState()
         self.latestFeedbackEvent = nil
         self.performancePlan = nil
+        enqueueSessionRecorderEvent(.resetAnalysis)
         self.notationProjection = nil
         self.steps = []
         self.measureSpans = []

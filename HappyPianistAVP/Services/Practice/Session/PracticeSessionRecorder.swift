@@ -86,6 +86,7 @@ actor PracticeSessionRecorder {
     private let sleeper: any SleeperProtocol
     private let checkpointInterval: Duration
     private let diagnosticsReporter: (any DiagnosticsReporting)?
+    private let performanceAnalyzer: PracticePerformanceAnalyzer?
 
     private var visit: VisitState?
     private var pendingRecord: PracticeSessionRecord?
@@ -102,13 +103,15 @@ actor PracticeSessionRecorder {
         clock: PracticeSessionRecorderClock = .live(),
         sleeper: any SleeperProtocol = TaskSleeper(),
         checkpointInterval: Duration = .seconds(30),
-        diagnosticsReporter: (any DiagnosticsReporting)? = nil
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil,
+        performanceAnalyzer: PracticePerformanceAnalyzer? = nil
     ) {
         self.repository = repository
         self.clock = clock
         self.sleeper = sleeper
         self.checkpointInterval = min(max(checkpointInterval, .milliseconds(1)), .seconds(30))
         self.diagnosticsReporter = diagnosticsReporter
+        self.performanceAnalyzer = performanceAnalyzer
     }
 
     @discardableResult
@@ -130,6 +133,7 @@ actor PracticeSessionRecorder {
         saveStatus = .idle
         didReportPendingFailure = false
         performanceObservations.removeAll(keepingCapacity: true)
+        await performanceAnalyzer?.reset()
         visit = VisitState(
             id: id,
             songID: songID,
@@ -197,6 +201,11 @@ actor PracticeSessionRecorder {
         visit.isGuiding = isGuiding
 
         self.visit = visit
+        if isGuiding {
+            await performanceAnalyzer?.beginRound(at: clock.monotonic.now())
+        } else {
+            _ = await performanceAnalyzer?.finishRound()
+        }
         queueCurrentRecord(persistedAt: firstCheckpointDate)
         refreshPeriodicCheckpoint()
         startPendingRecordPersistence()
@@ -234,6 +243,10 @@ actor PracticeSessionRecorder {
 
         cancelPeriodicCheckpoint()
         advance(&visit)
+        if visit.isGuiding {
+            visit.isGuiding = false
+            _ = await performanceAnalyzer?.finishRound()
+        }
         guard visit.practiceStartedAt != nil else {
             visit.isFinalized = true
             self.visit = visit
@@ -284,14 +297,16 @@ actor PracticeSessionRecorder {
         saveStatus = .idle
         didReportPendingFailure = false
         performanceObservations.removeAll(keepingCapacity: false)
+        await performanceAnalyzer?.reset()
         if let abandonedSessionID {
             await repository.abandonLiveSession(id: abandonedSessionID)
         }
     }
 
-    func record(_ observation: PerformanceObservation) {
+    func record(_ observation: PerformanceObservation) async {
         guard let visit, visit.practiceStartedAt != nil, visit.isFinalized == false else { return }
         performanceObservations.append(observation)
+        await performanceAnalyzer?.record(observation)
     }
 
     func observationSnapshot() -> [PerformanceObservation] {
@@ -301,6 +316,18 @@ actor PracticeSessionRecorder {
             }
             return lhs.offset < rhs.offset
         }.map(\.element)
+    }
+
+    func configureAnalysis(plan: ScorePerformancePlan, activeTickRange: Range<Int>?) async {
+        await performanceAnalyzer?.configure(plan: plan, activeTickRange: activeTickRange)
+    }
+
+    func resetAnalysis() async {
+        await performanceAnalyzer?.reset()
+    }
+
+    func analysisSnapshot() async -> PracticePerformanceAnalyzerSnapshot? {
+        await performanceAnalyzer?.snapshot()
     }
 
     private func advance(_ visit: inout VisitState) {

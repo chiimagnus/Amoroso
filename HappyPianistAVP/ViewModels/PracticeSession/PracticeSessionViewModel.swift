@@ -9,6 +9,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         case guiding(Bool)
         case settingsPresented(Bool)
         case checkpoint
+        case configureAnalysis(plan: ScorePerformancePlan, activeTickRange: Range<Int>?)
+        case resetAnalysis
     }
 
     let stateStore: PracticeSessionStateStore
@@ -199,12 +201,20 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
                 await sessionRecorder.setSettingsPresented(isPresented)
             case .checkpoint:
                 await sessionRecorder.checkpoint()
+            case let .configureAnalysis(plan, activeTickRange):
+                await sessionRecorder.configureAnalysis(plan: plan, activeTickRange: activeTickRange)
+            case .resetAnalysis:
+                await sessionRecorder.resetAnalysis()
             }
         }
     }
 
     func waitForSessionRecorderEvents() async {
         await sessionRecorderEventTask?.value
+    }
+
+    func performanceAnalysisSnapshot() async -> PracticePerformanceAnalyzerSnapshot? {
+        await sessionRecorder?.analysisSnapshot()
     }
 
     func handle(effect: PracticeSessionEffect) {

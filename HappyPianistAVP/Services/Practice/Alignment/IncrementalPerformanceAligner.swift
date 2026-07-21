@@ -1,6 +1,11 @@
 import Foundation
 
 struct IncrementalPerformanceAligner: Sendable {
+    private struct SourceIdentity: Hashable, Sendable {
+        let kind: String
+        let id: String
+    }
+
     enum State: Equatable, Sendable {
         case idle
         case running
@@ -22,8 +27,10 @@ struct IncrementalPerformanceAligner: Sendable {
     private let engine: PerformanceAlignmentEngine
     private let configuration: Configuration
     private(set) var state: State = .idle
+    private(set) var appendSnapshot: PerformanceAlignment?
     private var plan: ScorePerformancePlan?
-    private var generation: UInt64 = 0
+    private var generation: UInt64?
+    private var sourceGenerations: [SourceIdentity: UInt64] = [:]
     private var performanceStart = PerformanceMonotonicInstant(seconds: 0)
     private var activeTickRange: Range<Int>?
     private var observations: [PerformanceObservation] = []
@@ -40,7 +47,7 @@ struct IncrementalPerformanceAligner: Sendable {
 
     mutating func start(
         plan: ScorePerformancePlan,
-        generation: UInt64,
+        generation: UInt64?,
         performanceStart: PerformanceMonotonicInstant,
         activeTickRange: Range<Int>? = nil
     ) {
@@ -50,12 +57,13 @@ struct IncrementalPerformanceAligner: Sendable {
         self.performanceStart = performanceStart
         self.activeTickRange = activeTickRange
         state = .running
+        appendSnapshot = nil
     }
 
     mutating func append(_ observation: PerformanceObservation) -> PerformanceAlignment? {
         guard state == .running,
-              observation.source.generation == generation,
               observation.source.role != .systemPlayback,
+              acceptsGeneration(of: observation.source),
               lastTimestamp.map({ observation.alignmentTimestamp >= $0 }) ?? true
         else {
             return nil
@@ -65,7 +73,8 @@ struct IncrementalPerformanceAligner: Sendable {
         let snapshot = liveSnapshot()
         commitMatureLinks(from: snapshot, now: observation.alignmentTimestamp)
         trimBuffer()
-        return liveSnapshot()
+        appendSnapshot = liveSnapshot()
+        return appendSnapshot
     }
 
     mutating func seek(to performanceStart: PerformanceMonotonicInstant) {
@@ -90,13 +99,16 @@ struct IncrementalPerformanceAligner: Sendable {
             generation: generation
         )
         state = .finished
-        return mergingCommitted(into: final, includeMissing: true)
+        appendSnapshot = mergingCommitted(into: final, includeMissing: true)
+        return appendSnapshot
     }
 
     mutating func reset() {
         state = .idle
+        appendSnapshot = nil
         plan = nil
-        generation = 0
+        generation = nil
+        sourceGenerations.removeAll(keepingCapacity: true)
         performanceStart = .init(seconds: 0)
         activeTickRange = nil
         clearRunEvidence()
@@ -179,6 +191,18 @@ struct IncrementalPerformanceAligner: Sendable {
         observations.removeAll(keepingCapacity: true)
         lastTimestamp = nil
         committedLinks.removeAll(keepingCapacity: true)
+    }
+
+    private mutating func acceptsGeneration(of source: PerformanceObservation.Source) -> Bool {
+        if let generation {
+            return source.generation == generation
+        }
+        let identity = SourceIdentity(kind: source.kind.rawValue, id: source.id)
+        if let acceptedGeneration = sourceGenerations[identity] {
+            return source.generation == acceptedGeneration
+        }
+        sourceGenerations[identity] = source.generation
+        return true
     }
 
     private static func linkOrder(_ lhs: PerformanceAlignmentLink, _ rhs: PerformanceAlignmentLink) -> Bool {

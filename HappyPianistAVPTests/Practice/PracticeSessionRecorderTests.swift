@@ -197,14 +197,79 @@ private func makeRecorder(
     repository: RecorderRepository,
     clock: RecorderClock,
     sleeper: RecorderSleeper = RecorderSleeper(),
-    diagnosticsReporter: (any DiagnosticsReporting)? = nil
+    diagnosticsReporter: (any DiagnosticsReporting)? = nil,
+    performanceAnalyzer: PracticePerformanceAnalyzer? = nil
 ) -> PracticeSessionRecorder {
     PracticeSessionRecorder(
         repository: repository,
         clock: clock.makeClock(),
         sleeper: sleeper,
-        diagnosticsReporter: diagnosticsReporter
+        diagnosticsReporter: diagnosticsReporter,
+        performanceAnalyzer: performanceAnalyzer
     )
+}
+
+@Test
+func recorderFeedsConfiguredPlanAndObservationsToTransientAnalyzer() async throws {
+    let repository = RecorderRepository()
+    let clock = try RecorderClock()
+    let analyzer = PracticePerformanceAnalyzer()
+    let recorder = makeRecorder(
+        repository: repository,
+        clock: clock,
+        performanceAnalyzer: analyzer
+    )
+    let plan = makeTestScorePerformancePlan(notes: [
+        TestScorePerformanceNote(midiNote: 60, onTick: 0, offTick: 480),
+    ])
+    await beginActiveVisit(recorder: recorder, songID: plan.sourceScoreIdentity.songID)
+    await recorder.configureAnalysis(plan: plan, activeTickRange: nil)
+    await recorder.setGuiding(true)
+    let source = PerformanceObservation.Source(kind: .midi1, id: "midi:test", generation: 7)
+    let secondSource = PerformanceObservation.Source(kind: .midi2, id: "midi:second", generation: 2)
+    let instant = PerformanceMonotonicInstant(seconds: 0)
+    await recorder.record(PerformanceObservation(
+        source: source,
+        timing: .init(
+            host: instant,
+            source: nil,
+            correctedHost: instant,
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .noteOn(note: 60, velocity: .init(midi1: 90))
+    ))
+    await recorder.record(PerformanceObservation(
+        source: secondSource,
+        timing: .init(
+            host: .init(seconds: 0.1),
+            source: nil,
+            correctedHost: .init(seconds: 0.1),
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .noteOn(note: 60, velocity: .init(midi2: 40_000))
+    ))
+    await recorder.record(PerformanceObservation(
+        source: .init(kind: .midi1, id: "midi:test", generation: 6),
+        timing: .init(
+            host: .init(seconds: 0.2),
+            source: nil,
+            correctedHost: .init(seconds: 0.2),
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .noteOn(note: 60, velocity: .init(midi1: 90))
+    ))
+    _ = await recorder.finalize()
+
+    let snapshot = try #require(await recorder.analysisSnapshot())
+    #expect(snapshot.acceptedObservationCount == 2)
+    #expect(snapshot.rejectedObservationCount == 1)
+    #expect(snapshot.isRunning == false)
+    #expect(snapshot.alignment?.links.contains { if case .aligned = $0 { true } else { false } } == true)
+    let data = try JSONEncoder().encode(try #require(await repository.records().last))
+    #expect(String(decoding: data, as: UTF8.self).contains("alignment") == false)
 }
 
 @Test
