@@ -117,7 +117,10 @@ struct RecordedTakeAligner: Sendable {
         plan: ScorePerformancePlan,
         activeTickRange: Range<Int>?
     ) -> PerformanceAlignment {
-        var incremental = IncrementalPerformanceAligner(engine: engine)
+        var incremental = IncrementalPerformanceAligner(
+            engine: engine,
+            configuration: .init(maximumBufferedObservations: observations.count)
+        )
         incremental.start(
             plan: plan,
             generation: nil,

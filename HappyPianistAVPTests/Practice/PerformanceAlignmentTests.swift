@@ -534,6 +534,37 @@ func recordedTakeReplaySortsEventsAndKeepsSegmentUpperBoundsExclusive() throws {
 }
 
 @Test
+func recordedTakeAlignmentDoesNotTrimLongControllerSeries() throws {
+    let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
+    let plan = makeAlignmentPlan(noteEvents: [event])
+    let eventCount = 4_097
+    let events = (0 ..< eventCount).map { index in
+        let seconds = Double(index) / 1_000
+        let observation = makeAlignmentObservation(
+            generation: 1,
+            note: 0,
+            seconds: seconds,
+            event: .controller(.controlChange(number: 64, value: .init(midi1: index % 128)))
+        )
+        return RecordingTakeEvent(
+            time: seconds,
+            kind: .controlChange(controller: 64, value: index % 128),
+            observation: observation
+        )
+    }
+    let take = RecordingTake(
+        name: "long-controller-series",
+        metadata: .init(scoreIdentity: plan.sourceScoreIdentity, inputSources: []),
+        events: events
+    )
+
+    let result = try RecordedTakeAligner().alignResult(take: take, plan: plan)
+
+    #expect(result.global.controllerLinks.count == eventCount)
+    #expect(result.diagnostics.controllerLinkCount == eventCount)
+}
+
+@Test
 func insufficientEvidenceIsUnknownAndLiveLinksStayProvisionalUntilCommitHorizon() throws {
     let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
     let plan = makeAlignmentPlan(noteEvents: [event])
