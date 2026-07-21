@@ -29,7 +29,7 @@ DEVICE_RESULT_BUNDLE ?= $(RESULT_BUNDLE_DIR)/HappyPianistAVP-Device.xcresult
 
 PARALLEL_TESTING ?= NO
 ONLY_TESTING ?=
-XCODEBUILD_FLAGS ?=
+XCODEBUILD_FLAGS ?= -quiet
 DEVICE_XCODEBUILD_FLAGS ?= -allowProvisioningUpdates
 
 # Keep development output focused on app-owned structured diagnostics.
@@ -95,7 +95,7 @@ help: ## Show available commands.
 		'  make test:simulator ONLY_TESTING=HappyPianistAVPTests/GrandStaffNotationVisualTests' \
 		'  make build:device CONFIGURATION=Release' \
 		'  make dev LOG_LEVEL=debug    Include app debug diagnostics' \
-		'  make dev XCODEBUILD_FLAGS=-quiet  Reduce xcodebuild output'
+		'  make build XCODEBUILD_FLAGS=  Show full xcodebuild output (quiet is default)'
 
 build: ## Build for the configured Vision Pro Simulator.
 	@$(MAKE) --no-print-directory -f "$(firstword $(MAKEFILE_LIST))" 'build:simulator'
