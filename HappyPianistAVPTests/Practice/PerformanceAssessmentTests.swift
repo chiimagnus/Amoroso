@@ -266,6 +266,149 @@ func ambiguousAlignmentProducesInsufficientEvidenceInsteadOfWrongNotes() throws 
 }
 
 @Test
+func durationUsesPerformedTargetAndKeepsStaccatoRatioSeparateFromWrittenDuration() throws {
+    let event = makeAssessmentEvent(offTick: 480, performedOffTick: 240)
+    let plan = makeAssessmentPlan(events: [event])
+    let observation = makeAssessmentObservation(time: 0)
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(
+            event: event,
+            observation: observation,
+            onsetDeviation: 0,
+            releaseDeviation: 0,
+            releaseStatus: .observed
+        )]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let duration = try assessmentResult(.duration, in: assessment)
+    let release = try assessmentResult(.release, in: assessment)
+
+    #expect(duration.outcome == .correct)
+    #expect(duration.measurement?.unit == .ratio)
+    #expect(duration.measurement?.value == 1)
+    #expect(release.outcome == .correct)
+    #expect(release.measurement?.value == 0)
+}
+
+@Test
+func durationAndReleaseExposePrematureReleaseWithoutCollapsingTheirUnits() throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(
+            event: event,
+            observation: makeAssessmentObservation(time: 0),
+            onsetDeviation: 0,
+            releaseDeviation: -0.2,
+            releaseStatus: .observed
+        )]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    let duration = try assessmentResult(.duration, in: assessment)
+    let release = try assessmentResult(.release, in: assessment)
+
+    #expect(duration.outcome == .incorrect)
+    #expect(abs((duration.measurement?.value ?? 0) - 0.6) < 0.000_001)
+    #expect(release.outcome == .incorrect)
+    #expect(abs((release.measurement?.value ?? 0) + 0.2) < 0.000_001)
+}
+
+@Test
+func articulationPreservesLegatoOverlapAndGapDirection() throws {
+    let events = [
+        makeAssessmentEvent(ordinal: 0, midiNote: 60, onTick: 0, offTick: 480),
+        makeAssessmentEvent(ordinal: 1, midiNote: 62, onTick: 480, offTick: 960),
+    ]
+    let plan = makeAssessmentPlan(events: events)
+
+    for (nextOnset, expectedGap, expectedOutcome) in [
+        (0.48, -0.02, PracticeEvidenceOutcome.correct),
+        (0.62, 0.12, PracticeEvidenceOutcome.incorrect),
+    ] {
+        let alignment = PerformanceAlignment(
+            planID: plan.id,
+            sourceGeneration: 7,
+            links: [
+                makeAlignedLink(
+                    event: events[0],
+                    observation: makeAssessmentObservation(time: 0, note: 60),
+                    onsetDeviation: 0,
+                    releaseDeviation: 0,
+                    releaseStatus: .observed
+                ),
+                makeAlignedLink(
+                    event: events[1],
+                    observation: makeAssessmentObservation(time: nextOnset, note: 62),
+                    onsetDeviation: nextOnset - 0.5,
+                    releaseDeviation: 0,
+                    releaseStatus: .observed
+                ),
+            ]
+        )
+
+        let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+        let articulation = try assessmentResult(.articulation, in: assessment)
+
+        #expect(articulation.outcome == expectedOutcome)
+        #expect(abs((articulation.measurement?.value ?? 0) - expectedGap) < 0.000_001)
+        #expect(articulation.sampleCount == 1)
+    }
+}
+
+@Test
+func unavailableNoteOffCapabilityLeavesDurationReleaseAndArticulationNotObserved() throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(
+            event: event,
+            observation: makeAssessmentObservation(time: 0),
+            onsetDeviation: 0
+        )]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    for dimension in [
+        PerformanceAssessmentDimension.duration,
+        .release,
+        .articulation,
+    ] {
+        let result = try assessmentResult(dimension, in: assessment)
+        #expect(result.outcome == .unknown)
+        #expect(result.evidenceStatus == .notObserved)
+        #expect(result.sampleCount == 0)
+    }
+}
+
+@Test
+func availableReleaseCapabilityWithoutNoteOffIsInsufficientRatherThanWrong() throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let alignment = PerformanceAlignment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        links: [makeAlignedLink(
+            event: event,
+            observation: makeAssessmentObservation(time: 0),
+            onsetDeviation: 0,
+            releaseStatus: .observed
+        )]
+    )
+
+    let assessment = try #require(PerformanceAssessmentService().assess(plan: plan, alignment: alignment))
+    #expect(try assessmentResult(.duration, in: assessment).outcome == .insufficientEvidence)
+    #expect(try assessmentResult(.release, in: assessment).outcome == .insufficientEvidence)
+}
+
+@Test
 func analyzerImmediatelyPublishesAssessmentFromItsFinishedAlignment() async throws {
     let event = makeAssessmentEvent()
     let plan = makeAssessmentPlan(events: [event])
@@ -287,6 +430,8 @@ private func makeAssessmentEvent(
     midiNote: Int = 60,
     onTick: Int = 0,
     offTick: Int = 480,
+    writtenOffTick: Int? = nil,
+    performedOffTick: Int? = nil,
     timingProvenance: [ScorePerformanceProvenance] = []
 ) -> ScorePerformanceNoteEvent {
     let sourceID = MusicXMLSourceNoteID(
@@ -306,9 +451,9 @@ private func makeAssessmentEvent(
         contributingPerformedNoteIDs: [performedID],
         purpose: .source,
         writtenOnTick: onTick,
-        writtenOffTick: offTick,
+        writtenOffTick: writtenOffTick ?? offTick,
         performedOnTick: onTick,
-        performedOffTick: offTick,
+        performedOffTick: performedOffTick ?? offTick,
         writtenPitch: nil,
         midiNote: midiNote,
         velocityResolution: .init(
@@ -375,7 +520,9 @@ private func makeAlignedLink(
     event: ScorePerformanceNoteEvent,
     observation: PerformanceObservation,
     onsetDeviation: TimeInterval,
-    chordSpread: TimeInterval? = nil
+    chordSpread: TimeInterval? = nil,
+    releaseDeviation: TimeInterval? = nil,
+    releaseStatus: PerformanceAlignmentEvidenceStatus = .notObserved
 ) -> PerformanceAlignmentLink {
     .aligned(
         score: .init(event: event),
@@ -393,6 +540,18 @@ private func makeAlignedLink(
                 status: chordSpread == nil ? .notObserved : .observed,
                 cost: chordSpread,
                 deviationSeconds: chordSpread
+            ),
+            .init(
+                dimension: .release,
+                status: releaseStatus,
+                cost: releaseDeviation.map(abs),
+                deviationSeconds: releaseDeviation
+            ),
+            .init(
+                dimension: .duration,
+                status: releaseStatus,
+                cost: releaseDeviation.map(abs),
+                deviationSeconds: releaseDeviation
             ),
         ]
     )

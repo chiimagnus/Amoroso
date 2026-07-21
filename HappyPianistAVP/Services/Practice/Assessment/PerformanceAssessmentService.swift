@@ -6,15 +6,27 @@ struct PerformanceAssessmentService: Sendable {
         let onsetToleranceSeconds: TimeInterval
         let chordSpreadToleranceSeconds: TimeInterval
         let tempoRelativeTolerance: Double
+        let durationRatioTolerance: Double
+        let releaseToleranceSeconds: TimeInterval
+        let articulationToleranceSeconds: TimeInterval
 
         init(
             onsetToleranceSeconds: TimeInterval = 0.08,
             chordSpreadToleranceSeconds: TimeInterval = 0.08,
-            tempoRelativeTolerance: Double = 0.2
+            tempoRelativeTolerance: Double = 0.2,
+            durationRatioTolerance: Double = 0.15,
+            releaseToleranceSeconds: TimeInterval = 0.08,
+            articulationToleranceSeconds: TimeInterval = 0.05
         ) {
             self.onsetToleranceSeconds = Self.nonnegative(onsetToleranceSeconds, fallback: 0.08)
             self.chordSpreadToleranceSeconds = Self.nonnegative(chordSpreadToleranceSeconds, fallback: 0.08)
             self.tempoRelativeTolerance = Self.nonnegative(tempoRelativeTolerance, fallback: 0.2)
+            self.durationRatioTolerance = Self.nonnegative(durationRatioTolerance, fallback: 0.15)
+            self.releaseToleranceSeconds = Self.nonnegative(releaseToleranceSeconds, fallback: 0.08)
+            self.articulationToleranceSeconds = Self.nonnegative(
+                articulationToleranceSeconds,
+                fallback: 0.05
+            )
         }
 
         private static func nonnegative(_ value: Double, fallback: Double) -> Double {
@@ -33,6 +45,20 @@ struct PerformanceAssessmentService: Sendable {
         let value: Double
         let status: PerformanceAssessmentEvidenceStatus
         let evidence: [PerformanceAssessmentEvidenceLink]
+    }
+
+    private struct ArticulationSample {
+        let gapSeconds: TimeInterval
+        let deviationSeconds: TimeInterval
+        let status: PerformanceAssessmentEvidenceStatus
+        let evidence: [PerformanceAssessmentEvidenceLink]
+    }
+
+    private struct VoiceLane: Hashable {
+        let partID: String
+        let staff: Int
+        let voice: Int
+        let occurrenceIndex: Int
     }
 
     private let configuration: Configuration
@@ -124,6 +150,9 @@ struct PerformanceAssessmentService: Sendable {
                 links: links
             ),
             chordSpreadResult(events: events, aligned: aligned, links: links),
+            durationResult(aligned: aligned, links: links, timeMap: timeMap),
+            releaseResult(aligned: aligned, links: links),
+            articulationResult(aligned: aligned, links: links, timeMap: timeMap),
         ]
     }
 
@@ -345,6 +374,188 @@ struct PerformanceAssessmentService: Sendable {
         )
     }
 
+    private func durationResult(
+        aligned: [AlignedNote],
+        links: [PerformanceAlignmentLink],
+        timeMap: ScorePerformancePlanTimeMap
+    ) -> PerformanceAssessmentDimensionResult {
+        let samples = aligned.compactMap { note -> MetricSample? in
+            guard let evidence = note.evidence.first(where: { $0.dimension == .duration }),
+                  evidence.status != .notObserved,
+                  let deviation = evidence.deviationSeconds
+            else { return nil }
+            let target = timeMap.seconds(at: note.event.performedOffTick)
+                - timeMap.seconds(at: note.event.performedOnTick)
+            guard target > 0 else { return nil }
+            return MetricSample(
+                value: max(0, target + deviation) / target,
+                status: assessmentStatus(evidence.status, event: note.event),
+                evidence: [.note(
+                    score: note.score,
+                    observationID: note.observation.observationID,
+                    dimension: .duration
+                )]
+            )
+        }
+        let hasIncompleteEvidence = aligned.contains { note in
+            note.evidence.contains {
+                $0.dimension == .duration && $0.status != .notObserved && $0.deviationSeconds == nil
+            }
+        }
+        guard samples.isEmpty == false else {
+            return unavailableResult(
+                dimension: .duration,
+                alignmentDimension: .duration,
+                links: links,
+                fallbackEvidence: evidenceLinks(aligned, dimension: .duration),
+                forceInsufficient: hasIncompleteEvidence
+            )
+        }
+        let mean = samples.map(\.value).reduce(0, +) / Double(samples.count)
+        return PerformanceAssessmentDimensionResult(
+            dimension: .duration,
+            outcome: hasIncompleteEvidence
+                ? .insufficientEvidence
+                : (samples.allSatisfy { abs($0.value - 1) <= configuration.durationRatioTolerance }
+                    ? .correct
+                    : .incorrect),
+            evidenceStatus: hasIncompleteEvidence ? .insufficient : aggregateStatus(samples.map(\.status)),
+            measurement: PerformanceAssessmentMeasurement(value: mean, unit: .ratio),
+            sampleCount: samples.count,
+            confidence: confidence(for: samples),
+            evidence: samples.flatMap(\.evidence)
+        )
+    }
+
+    private func releaseResult(
+        aligned: [AlignedNote],
+        links: [PerformanceAlignmentLink]
+    ) -> PerformanceAssessmentDimensionResult {
+        let samples = aligned.compactMap { metricSample(for: $0, dimension: .release) }
+        let hasIncompleteEvidence = aligned.contains { note in
+            note.evidence.contains {
+                $0.dimension == .release && $0.status != .notObserved && $0.deviationSeconds == nil
+            }
+        }
+        guard samples.isEmpty == false else {
+            return unavailableResult(
+                dimension: .release,
+                alignmentDimension: .release,
+                links: links,
+                fallbackEvidence: evidenceLinks(aligned, dimension: .release),
+                forceInsufficient: hasIncompleteEvidence
+            )
+        }
+        let mean = samples.map(\.value).reduce(0, +) / Double(samples.count)
+        return PerformanceAssessmentDimensionResult(
+            dimension: .release,
+            outcome: hasIncompleteEvidence
+                ? .insufficientEvidence
+                : (samples.allSatisfy { abs($0.value) <= configuration.releaseToleranceSeconds }
+                    ? .correct
+                    : .incorrect),
+            evidenceStatus: hasIncompleteEvidence ? .insufficient : aggregateStatus(samples.map(\.status)),
+            measurement: PerformanceAssessmentMeasurement(value: mean, unit: .seconds),
+            sampleCount: samples.count,
+            confidence: confidence(for: samples),
+            evidence: samples.flatMap(\.evidence)
+        )
+    }
+
+    private func articulationResult(
+        aligned: [AlignedNote],
+        links: [PerformanceAlignmentLink],
+        timeMap: ScorePerformancePlanTimeMap
+    ) -> PerformanceAssessmentDimensionResult {
+        let lanes = Dictionary(grouping: aligned) { note in
+            VoiceLane(
+                partID: note.event.sourceNoteID.partID,
+                staff: note.event.staff,
+                voice: note.event.voice,
+                occurrenceIndex: note.event.performedOccurrenceIndex
+            )
+        }
+        var samples: [ArticulationSample] = []
+        var hasIncompleteEvidence = false
+
+        for notes in lanes.values {
+            let ordered = notes.sorted { lhs, rhs in
+                if lhs.event.performedOnTick != rhs.event.performedOnTick {
+                    return lhs.event.performedOnTick < rhs.event.performedOnTick
+                }
+                return lhs.event.id.description < rhs.event.id.description
+            }
+            for (current, next) in zip(ordered, ordered.dropFirst()) {
+                guard next.event.performedOnTick > current.event.performedOnTick,
+                      next.event.writtenOnTick <= current.event.writtenOffTick
+                else { continue }
+                guard let release = current.evidence.first(where: { $0.dimension == .release }),
+                      let onset = next.evidence.first(where: { $0.dimension == .onset }),
+                      release.status != .notObserved,
+                      onset.status != .notObserved
+                else { continue }
+                guard let releaseDeviation = release.deviationSeconds else {
+                    hasIncompleteEvidence = true
+                    continue
+                }
+
+                let targetDuration = timeMap.seconds(at: current.event.performedOffTick)
+                    - timeMap.seconds(at: current.event.performedOnTick)
+                let actualRelease = current.observation.correctedTime.seconds
+                    + max(0, targetDuration + releaseDeviation)
+                let actualGap = next.observation.correctedTime.seconds - actualRelease
+                let targetGap = timeMap.seconds(at: next.event.performedOnTick)
+                    - timeMap.seconds(at: current.event.performedOffTick)
+                samples.append(ArticulationSample(
+                    gapSeconds: actualGap,
+                    deviationSeconds: actualGap - targetGap,
+                    status: aggregateStatus([
+                        assessmentStatus(release.status, event: current.event),
+                        assessmentStatus(onset.status, event: next.event),
+                    ]),
+                    evidence: [
+                        .note(
+                            score: current.score,
+                            observationID: current.observation.observationID,
+                            dimension: .release
+                        ),
+                        .note(
+                            score: next.score,
+                            observationID: next.observation.observationID,
+                            dimension: .onset
+                        ),
+                    ]
+                ))
+            }
+        }
+
+        guard samples.isEmpty == false else {
+            return unavailableResult(
+                dimension: .articulation,
+                alignmentDimension: .release,
+                links: links,
+                fallbackEvidence: evidenceLinks(aligned, dimension: .release),
+                forceInsufficient: hasIncompleteEvidence
+            )
+        }
+        let meanGap = samples.map(\.gapSeconds).reduce(0, +) / Double(samples.count)
+        return PerformanceAssessmentDimensionResult(
+            dimension: .articulation,
+            outcome: hasIncompleteEvidence
+                ? .insufficientEvidence
+                : (samples.allSatisfy {
+                    abs($0.deviationSeconds) <= configuration.articulationToleranceSeconds
+                } ? .correct : .incorrect),
+            evidenceStatus: hasIncompleteEvidence
+                ? .insufficient
+                : aggregateStatus(samples.map(\.status)),
+            measurement: PerformanceAssessmentMeasurement(value: meanGap, unit: .seconds),
+            sampleCount: samples.count,
+            confidence: articulationConfidence(for: samples),
+            evidence: samples.flatMap(\.evidence)
+        )
+    }
+
     private func alignedNotes(
         links: [PerformanceAlignmentLink],
         eventByID: [ScorePerformanceNoteEventID: ScorePerformanceNoteEvent]
@@ -374,6 +585,20 @@ struct PerformanceAssessmentService: Sendable {
                 dimension: dimension
             )]
         )
+    }
+
+    private func evidenceLinks(
+        _ aligned: [AlignedNote],
+        dimension: PerformanceAlignmentEvidenceDimension
+    ) -> [PerformanceAssessmentEvidenceLink] {
+        aligned.compactMap { note in
+            guard note.evidence.contains(where: { $0.dimension == dimension }) else { return nil }
+            return .note(
+                score: note.score,
+                observationID: note.observation.observationID,
+                dimension: dimension
+            )
+        }
     }
 
     private func result(
@@ -455,6 +680,17 @@ struct PerformanceAssessmentService: Sendable {
     }
 
     private func confidence(for samples: [MetricSample]) -> Double? {
+        guard samples.isEmpty == false else { return nil }
+        return samples.map { sample in
+            switch sample.status {
+            case .observed: 1
+            case .degraded: 0.5
+            case .notObserved, .insufficient: 0
+            }
+        }.reduce(0, +) / Double(samples.count)
+    }
+
+    private func articulationConfidence(for samples: [ArticulationSample]) -> Double? {
         guard samples.isEmpty == false else { return nil }
         return samples.map { sample in
             switch sample.status {
