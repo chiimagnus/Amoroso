@@ -578,15 +578,18 @@ func contactReleasePairingIncludesSourceIdentity() throws {
         observations: observations,
         performanceStart: .init(seconds: 0)
     )
-    let durationByObservation = Dictionary(uniqueKeysWithValues: result.links.compactMap { link in
-        guard case let .aligned(_, observation, evidence) = link else { return nil }
-        return (observation.observationID, evidence.first {
-            $0.dimension == .duration
-        }?.deviationSeconds)
-    })
+    let durationByObservation: [UUID: TimeInterval] = Dictionary(
+        uniqueKeysWithValues: result.links.compactMap { link -> (UUID, TimeInterval)? in
+            guard case let .aligned(_, observation, evidence) = link else { return nil }
+            guard let duration = evidence.first(where: {
+                $0.dimension == .duration
+            })?.deviationSeconds else { return nil }
+            return (observation.observationID, duration)
+        }
+    )
 
-    #expect(abs((durationByObservation[firstOn.id] ?? nil) ?? 1) < 0.000_001)
-    #expect(abs((durationByObservation[secondOn.id] ?? nil) ?? 1) < 0.000_001)
+    #expect(abs(durationByObservation[firstOn.id] ?? 1) < 0.000_001)
+    #expect(abs(durationByObservation[secondOn.id] ?? 1) < 0.000_001)
 }
 
 @Test
@@ -785,7 +788,8 @@ func incrementalTrimPreservesCompleteFinalFacts() throws {
         _ = aligner.append(observation)
     }
 
-    let online = try #require(aligner.finish())
+    let finished = aligner.finish()
+    let online = try #require(finished)
     let offline = PerformanceAlignmentEngine().align(
         plan: plan,
         observations: observations,
@@ -831,7 +835,8 @@ func bufferTrimDiscardsIrrelevantControllersBeforeFreezingProvisionalNotes() thr
     let scarce = makeAlignmentObservation(generation: 1, seconds: 1)
     _ = aligner.append(scarce)
 
-    let online = try #require(aligner.finish())
+    let finished = aligner.finish()
+    let online = try #require(finished)
     let offline = engine.align(
         plan: plan,
         observations: [flexible, scarce],
@@ -878,7 +883,8 @@ func committedScoreEventsCannotBeRematched() throws {
     }
     _ = aligner.append(makeAlignmentObservation(generation: 1, seconds: 0.4))
 
-    let result = try #require(aligner.finish())
+    let finished = aligner.finish()
+    let result = try #require(finished)
     let aligned = result.links.compactMap { link -> ScorePerformanceNoteEventID? in
         guard case let .aligned(score, _, _) = link else { return nil }
         return score.eventID
@@ -913,11 +919,13 @@ func evictedOpenNoteKeepsReleaseEvidence() throws {
         event: .noteOff(note: 60, releaseVelocity: nil)
     ))
 
-    let result = try #require(aligner.finish())
-    let duration = try #require(result.links.compactMap { link -> TimeInterval? in
+    let finished = aligner.finish()
+    let result = try #require(finished)
+    let durations = result.links.compactMap { link -> TimeInterval? in
         guard case let .aligned(_, _, evidence) = link else { return nil }
         return evidence.first { $0.dimension == .duration }?.deviationSeconds
-    }.first)
+    }
+    let duration = try #require(durations.first)
     #expect(abs(duration) < 0.000_001)
 }
 
