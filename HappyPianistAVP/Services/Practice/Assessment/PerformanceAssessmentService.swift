@@ -735,6 +735,9 @@ struct PerformanceAssessmentService: Sendable {
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
+        let evidenceStatus: PerformanceAssessmentEvidenceStatus = rubric.usesGenericTarget(for: .voicing)
+            ? .degraded
+            : .observed
         let eligibleChords = Dictionary(grouping: events, by: \.performedOnTick)
             .filter { _, chord in
                 chord.count > 1 && chord.contains(where: Self.isArpeggiated) == false
@@ -780,8 +783,7 @@ struct PerformanceAssessmentService: Sendable {
 
             samples.append(MetricSample(
                 value: error,
-                // ponytail: generic voice/hand balance stays degraded until P12 supplies teacher targets.
-                status: .degraded,
+                status: evidenceStatus,
                 evidence: notes.map {
                     .note(
                         score: $0.score,
@@ -811,7 +813,7 @@ struct PerformanceAssessmentService: Sendable {
                 }
                     ? .correct
                     : .incorrect),
-            evidenceStatus: incomplete ? .insufficient : .degraded,
+            evidenceStatus: incomplete ? .insufficient : evidenceStatus,
             measurement: PerformanceAssessmentMeasurement(value: mean, unit: .midi7Bit),
             sampleCount: samples.count,
             confidence: confidence(for: samples),

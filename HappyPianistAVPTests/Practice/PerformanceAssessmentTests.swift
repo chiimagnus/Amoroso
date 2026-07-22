@@ -929,6 +929,20 @@ func genericVoicingUsesTraceableVoiceHandAndFingeringInsteadOfHighestPitch() thr
     #expect(voicing.evidenceStatus == .degraded)
     #expect(voicing.sampleCount == 1)
     #expect(abs(voicing.measurement?.value ?? 1) < 0.000_001)
+
+    let teacherBand = try #require(PerformanceTargetBand(
+        dimension: .voicing,
+        lowerBound: 0,
+        upperBound: 1,
+        provenance: .teacher,
+        sourceID: "teacher:voice-balance"
+    ))
+    let teacherAssessment = try #require(PerformanceAssessmentService(
+        rubric: PerformanceAssessmentRubric(
+            targetProfile: PerformanceTargetProfile(bands: [teacherBand])
+        )
+    ).assess(plan: plan, alignment: alignment, measureSpans: makeTestMeasureSpans(for: plan)))
+    #expect(try assessmentResult(.voicing, in: teacherAssessment).evidenceStatus == .observed)
 }
 
 @Test
