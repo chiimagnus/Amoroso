@@ -9,7 +9,11 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         case guiding(Bool)
         case settingsPresented(Bool)
         case checkpoint
-        case configureAnalysis(plan: ScorePerformancePlan, activeTickRange: Range<Int>?)
+        case configureAnalysis(
+            plan: ScorePerformancePlan,
+            measureSpans: [MusicXMLMeasureSpan],
+            activeTickRange: Range<Int>?
+        )
         case resetAnalysis
     }
 
@@ -226,8 +230,12 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
                 await sessionRecorder.setSettingsPresented(isPresented)
             case .checkpoint:
                 await sessionRecorder.checkpoint()
-            case let .configureAnalysis(plan, activeTickRange):
-                await sessionRecorder.configureAnalysis(plan: plan, activeTickRange: activeTickRange)
+            case let .configureAnalysis(plan, measureSpans, activeTickRange):
+                await sessionRecorder.configureAnalysis(
+                    plan: plan,
+                    measureSpans: measureSpans,
+                    activeTickRange: activeTickRange
+                )
             case .resetAnalysis:
                 await sessionRecorder.resetAnalysis()
             }

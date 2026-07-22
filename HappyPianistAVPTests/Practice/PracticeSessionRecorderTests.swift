@@ -219,7 +219,7 @@ func recorderFeedsConfiguredPlanAndObservationsToTransientAnalyzer() async throw
         TestScorePerformanceNote(midiNote: 60, onTick: 0, offTick: 480),
     ])
     await beginActiveVisit(recorder: recorder, songID: plan.sourceScoreIdentity.songID)
-    await recorder.configureAnalysis(plan: plan, activeTickRange: nil)
+    await recorder.configureAnalysis(plan: plan, measureSpans: makeTestMeasureSpans(for: plan), activeTickRange: nil)
     await recorder.setGuiding(true)
     let source = PerformanceObservation.Source(kind: .midi1, id: "midi:test", generation: 7)
     let secondSource = PerformanceObservation.Source(kind: .midi2, id: "midi:second", generation: 2)
@@ -288,7 +288,7 @@ func recorderStartsANewAnalyzerGenerationForEachGuidingRound() async throws {
         TestScorePerformanceNote(midiNote: 60, onTick: 0, offTick: 480),
     ])
     await beginActiveVisit(recorder: recorder, songID: plan.sourceScoreIdentity.songID)
-    await recorder.configureAnalysis(plan: plan, activeTickRange: nil)
+    await recorder.configureAnalysis(plan: plan, measureSpans: makeTestMeasureSpans(for: plan), activeTickRange: nil)
     let source = PerformanceObservation.Source(kind: .midi1, id: "midi:test", generation: 1)
 
     await recorder.setGuiding(true)

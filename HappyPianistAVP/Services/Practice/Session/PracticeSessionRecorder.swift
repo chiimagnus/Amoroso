@@ -304,8 +304,16 @@ actor PracticeSessionRecorder {
         await performanceAnalyzer.record(observation)
     }
 
-    func configureAnalysis(plan: ScorePerformancePlan, activeTickRange: Range<Int>?) async {
-        await performanceAnalyzer.configure(plan: plan, activeTickRange: activeTickRange)
+    func configureAnalysis(
+        plan: ScorePerformancePlan,
+        measureSpans: [MusicXMLMeasureSpan],
+        activeTickRange: Range<Int>?
+    ) async {
+        await performanceAnalyzer.configure(
+            plan: plan,
+            measureSpans: measureSpans,
+            activeTickRange: activeTickRange
+        )
     }
 
     func resetAnalysis() async {

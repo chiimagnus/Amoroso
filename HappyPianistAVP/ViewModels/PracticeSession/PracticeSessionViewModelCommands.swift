@@ -559,6 +559,7 @@ extension PracticeSessionViewModel {
         if let performancePlan = self.performancePlan {
             enqueueSessionRecorderEvent(.configureAnalysis(
                 plan: performancePlan,
+                measureSpans: self.measureSpans,
                 activeTickRange: self.activeRange?.tickRange
             ))
         }
@@ -630,6 +631,7 @@ extension PracticeSessionViewModel {
         self.highlightGuides = highlightGuides
         enqueueSessionRecorderEvent(.configureAnalysis(
             plan: performancePlan,
+            measureSpans: measureSpans,
             activeTickRange: self.activeRange?.tickRange
         ))
         rebuildAutoplayTimeline()

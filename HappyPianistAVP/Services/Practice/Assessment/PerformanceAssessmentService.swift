@@ -49,6 +49,7 @@ struct PerformanceAssessmentService: Sendable {
     func assess(
         plan: ScorePerformancePlan,
         alignment: PerformanceAlignment,
+        measureSpans: [MusicXMLMeasureSpan],
         tickRange: Range<Int>? = nil
     ) -> PassagePerformanceAssessment? {
         guard alignment.planID == plan.id else { return nil }
@@ -61,7 +62,7 @@ struct PerformanceAssessmentService: Sendable {
         let activeLinks = alignment.links.filter { link in
             Self.belongsToActiveRange(link, eventIDs: activeEventIDs)
         }
-        let resolvedTickRange = tickRange ?? Self.tickRange(for: activeEvents)
+        let resolvedTickRange = tickRange ?? Self.tickRange(for: measureSpans, events: activeEvents)
         let activeControllerLinks = alignment.controllerLinks.filter {
             Self.belongsToActiveRange($0, tickRange: tickRange)
         }
@@ -91,6 +92,7 @@ struct PerformanceAssessmentService: Sendable {
                 events: activeEvents,
                 links: activeLinks,
                 controllerLinks: activeControllerLinks,
+                measureSpans: measureSpans,
                 passageTickRange: resolvedTickRange,
                 timeMap: timeMap
             )
@@ -1400,43 +1402,32 @@ struct PerformanceAssessmentService: Sendable {
         events: [ScorePerformanceNoteEvent],
         links: [PerformanceAlignmentLink],
         controllerLinks: [PerformanceAlignmentControllerLink],
+        measureSpans: [MusicXMLMeasureSpan],
         passageTickRange: Range<Int>,
         timeMap: ScorePerformancePlanTimeMap
     ) -> [MeasurePerformanceAssessment] {
-        // ponytail: the plan has no rest-only spans; pass prepared spans if rest assessment becomes relevant.
-        let grouped = Dictionary(grouping: events) { event in
-            PracticeMeasureOccurrenceID(
-                sourceMeasureID: PracticeSourceMeasureID(
-                    partID: event.sourceNoteID.partID,
-                    sourceMeasureIndex: event.sourceNoteID.sourceMeasureIndex,
-                    sourceNumberToken: event.sourceNoteID.sourceMeasureNumberToken
-                ),
-                occurrenceIndex: event.performedOccurrenceIndex
-            )
+        let activeSpans = measureSpans.filter {
+            $0.startTick < passageTickRange.upperBound && $0.endTick > passageTickRange.lowerBound
         }
-        let hasSingleMeasure = grouped.count == 1
-        // ponytail: unmatched observations have no score tick; keep multi-measure locality insufficient until alignment supplies one.
-        let unlocalizedEvidence = hasSingleMeasure
-            ? [:]
-            : unlocalizedMeasureEvidence(links: links, controllerLinks: controllerLinks)
-        return grouped.compactMap { occurrenceID, measureEvents -> MeasurePerformanceAssessment? in
-            let eventIDs = Set(measureEvents.map(\.id))
-            let lower = max(
-                passageTickRange.lowerBound,
-                measureEvents.map(\.performedOnTick).min() ?? passageTickRange.lowerBound
-            )
-            let upper = min(
-                passageTickRange.upperBound,
-                measureEvents.map(Self.eventUpperTick).max()
-                    ?? passageTickRange.upperBound
-            )
+        let hasSingleMeasure = activeSpans.count == 1
+        let unlocalizedDimensions = hasSingleMeasure
+            ? []
+            : unlocalizedDimensions(links: links, controllerLinks: controllerLinks)
+        return activeSpans.compactMap { span -> MeasurePerformanceAssessment? in
+            let lower = max(passageTickRange.lowerBound, span.startTick)
+            let upper = min(passageTickRange.upperBound, span.endTick)
             guard lower < upper else { return nil }
+            let measureEvents = events.filter { (lower ..< upper).contains($0.performedOnTick) }
+            let eventIDs = Set(measureEvents.map(\.id))
             let measureLinks = hasSingleMeasure
                 ? links
                 : links.filter { Self.belongs($0, toAny: eventIDs) }
             let measureControllerLinks = hasSingleMeasure
                 ? controllerLinks
                 : controllerLinks.filter { Self.belongs($0, tickRange: lower ..< upper) }
+            guard measureEvents.isEmpty == false || measureControllerLinks.isEmpty == false else {
+                return nil
+            }
             let eventByID = Dictionary(uniqueKeysWithValues: measureEvents.map { ($0.id, $0) })
             let measureCapabilities = inputCapabilities(
                 links: measureLinks,
@@ -1450,14 +1441,11 @@ struct PerformanceAssessmentService: Sendable {
                 eventByID: eventByID,
                 timeMap: timeMap,
                 capabilities: measureCapabilities
-            )
+            ).filter { unlocalizedDimensions.contains($0.dimension) == false }
             return MeasurePerformanceAssessment(
-                occurrenceID: occurrenceID,
+                occurrenceID: span.occurrenceID,
                 tickRange: lower ..< upper,
-                dimensions: addingUnlocalizedEvidence(
-                    unlocalizedEvidence,
-                    to: measureDimensions
-                )
+                dimensions: measureDimensions
             )
         }.sorted { lhs, rhs in
             if lhs.tickRange.lowerBound != rhs.tickRange.lowerBound {
@@ -1471,73 +1459,29 @@ struct PerformanceAssessmentService: Sendable {
         }
     }
 
-    private func unlocalizedMeasureEvidence(
+    private func unlocalizedDimensions(
         links: [PerformanceAlignmentLink],
         controllerLinks: [PerformanceAlignmentControllerLink]
-    ) -> [PerformanceAssessmentDimension: [PerformanceAssessmentEvidenceLink]] {
-        var result: [PerformanceAssessmentDimension: [PerformanceAssessmentEvidenceLink]] = [:]
+    ) -> Set<PerformanceAssessmentDimension> {
+        var result: Set<PerformanceAssessmentDimension> = []
         for link in links {
             switch link {
-            case let .extra(observation, _, _):
-                result[.extraNotes, default: []].append(
-                    .unmatchedObservation(observationID: observation.observationID)
-                )
-            case let .unknown(observation, reason):
-                let evidence = PerformanceAssessmentEvidenceLink.unknownObservation(
-                    observationID: observation.observationID,
-                    reason: reason
-                )
-                for dimension in PerformanceAssessmentDimension.allCases
-                where rubric.evidence(for: dimension, capabilities: observation.source.capabilities) != .unavailable
-                    && dimension != .pedalTiming
-                    && dimension != .pedalValue
-                {
-                    result[dimension, default: []].append(evidence)
-                }
+            case .extra:
+                result.insert(.extraNotes)
+            case let .unknown(observation, _):
+                result.formUnion(PerformanceAssessmentDimension.allCases.filter {
+                    $0 != .pedalTiming
+                        && $0 != .pedalValue
+                        && rubric.evidence(for: $0, capabilities: observation.source.capabilities) != .unavailable
+                })
             case .aligned, .missing, .ambiguous, .provisional:
-                continue
+                break
             }
         }
-        for link in controllerLinks {
-            guard case let .extra(observation) = link else { continue }
-            let evidence = PerformanceAssessmentEvidenceLink.unmatchedObservation(
-                observationID: observation.observationID
-            )
-            result[.pedalTiming, default: []].append(evidence)
-            result[.pedalValue, default: []].append(evidence)
+        if controllerLinks.contains(where: { if case .extra = $0 { true } else { false } }) {
+            result.formUnion([.pedalTiming, .pedalValue])
         }
         return result
-    }
-
-    private func addingUnlocalizedEvidence(
-        _ evidenceByDimension: [PerformanceAssessmentDimension: [PerformanceAssessmentEvidenceLink]],
-        to dimensions: [PerformanceAssessmentDimensionResult]
-    ) -> [PerformanceAssessmentDimensionResult] {
-        guard evidenceByDimension.isEmpty == false else { return dimensions }
-        let existing = Dictionary(uniqueKeysWithValues: dimensions.map { ($0.dimension, $0) })
-        return PerformanceAssessmentDimension.allCases.compactMap { dimension in
-            guard let unresolved = evidenceByDimension[dimension], unresolved.isEmpty == false else {
-                return existing[dimension]
-            }
-            guard let result = existing[dimension] else {
-                return PerformanceAssessmentDimensionResult(
-                    dimension: dimension,
-                    outcome: .insufficientEvidence,
-                    evidenceStatus: .insufficient,
-                    sampleCount: 0,
-                    evidence: unresolved
-                )
-            }
-            return PerformanceAssessmentDimensionResult(
-                dimension: dimension,
-                outcome: result.outcome == .incorrect ? .incorrect : .insufficientEvidence,
-                evidenceStatus: .insufficient,
-                measurement: result.measurement,
-                sampleCount: result.sampleCount,
-                confidence: result.confidence,
-                evidence: result.evidence + unresolved
-            )
-        }
     }
 
     private static func belongsToActiveRange(
@@ -1597,6 +1541,19 @@ struct PerformanceAssessmentService: Sendable {
         guard let lower = events.map(\.performedOnTick).min() else { return 0 ..< 0 }
         let upper = events.map(Self.eventUpperTick).max() ?? lower
         return lower ..< upper
+    }
+
+    private static func tickRange(
+        for measureSpans: [MusicXMLMeasureSpan],
+        events: [ScorePerformanceNoteEvent]
+    ) -> Range<Int> {
+        guard let first = measureSpans.min(by: { $0.startTick < $1.startTick }),
+              let last = measureSpans.max(by: { $0.endTick < $1.endTick }),
+              first.startTick < last.endTick
+        else {
+            return tickRange(for: events)
+        }
+        return first.startTick ..< last.endTick
     }
 
     private static func eventUpperTick(_ event: ScorePerformanceNoteEvent) -> Int {

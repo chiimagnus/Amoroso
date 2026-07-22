@@ -15,6 +15,7 @@ actor PracticePerformanceAnalyzer {
     private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let assessmentService: PerformanceAssessmentService
     private var plan: ScorePerformancePlan?
+    private var measureSpans: [MusicXMLMeasureSpan] = []
     private var activeTickRange: Range<Int>?
     private var roundStart: PerformanceMonotonicInstant?
     private var aligner: IncrementalPerformanceAligner?
@@ -33,9 +34,14 @@ actor PracticePerformanceAnalyzer {
         self.assessmentService = assessmentService
     }
 
-    func configure(plan: ScorePerformancePlan, activeTickRange: Range<Int>?) {
+    func configure(
+        plan: ScorePerformancePlan,
+        measureSpans: [MusicXMLMeasureSpan],
+        activeTickRange: Range<Int>?
+    ) {
         reset()
         self.plan = plan
+        self.measureSpans = measureSpans
         self.activeTickRange = activeTickRange
     }
 
@@ -94,6 +100,7 @@ actor PracticePerformanceAnalyzer {
 
     func reset() {
         plan = nil
+        measureSpans = []
         activeTickRange = nil
         roundStart = nil
         aligner = nil
@@ -112,6 +119,7 @@ actor PracticePerformanceAnalyzer {
         latestAssessment = assessmentService.assess(
             plan: plan,
             alignment: latestAlignment,
+            measureSpans: measureSpans,
             tickRange: activeTickRange
         )
     }
