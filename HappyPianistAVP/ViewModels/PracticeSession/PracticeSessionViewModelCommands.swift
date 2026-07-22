@@ -226,6 +226,7 @@ extension PracticeSessionViewModel {
         setCurrentHighlightGuideForStepIndex(self.currentStepIndex)
         self.state = self.steps.isEmpty ? .idle : .ready
         self.isRestoredSessionPaused = self.steps.isEmpty == false
+        configurePerformanceAnalysisForActiveRound()
         rebuildAutoplayTimeline()
         refreshAudioRecognitionForCurrentState()
     }
@@ -235,6 +236,7 @@ extension PracticeSessionViewModel {
         setCurrentHighlightGuideForStepIndex(self.currentStepIndex)
         self.state = self.steps.isEmpty ? .idle : .ready
         self.isRestoredSessionPaused = false
+        configurePerformanceAnalysisForActiveRound()
         rebuildAutoplayTimeline()
         refreshAudioRecognitionForCurrentState()
     }
@@ -558,14 +560,7 @@ extension PracticeSessionViewModel {
         stopAudioRecognition()
         let routingChanged = roundConfigurationController.applyPending()
         rebuildActiveRange()
-        if let performancePlan = self.performancePlan {
-            enqueueSessionRecorderEvent(.configureAnalysis(
-                plan: performancePlan,
-                measureSpans: self.measureSpans,
-                activeTickRange: self.activeRange?.tickRange,
-                tempoScale: self.activeRoundConfiguration?.tempoScale ?? 1
-            ))
-        }
+        configurePerformanceAnalysisForActiveRound()
         self.currentStepIndex = self.activeRange?.firstStepIndex ?? 0
         self.state = self.steps.isEmpty ? .idle : .ready
         self.isRestoredSessionPaused = false
@@ -577,6 +572,16 @@ extension PracticeSessionViewModel {
         refreshAudioRecognitionForCurrentState()
         refreshPracticeInputForCurrentState()
         return routingChanged
+    }
+
+    private func configurePerformanceAnalysisForActiveRound() {
+        guard let performancePlan = self.performancePlan else { return }
+        enqueueSessionRecorderEvent(.configureAnalysis(
+            plan: performancePlan,
+            measureSpans: self.measureSpans,
+            activeTickRange: self.activeRange?.tickRange,
+            tempoScale: self.activeRoundConfiguration?.tempoScale ?? 1
+        ))
     }
 
     func rebuildActiveRange() {
@@ -632,12 +637,7 @@ extension PracticeSessionViewModel {
         rebuildActiveRange()
         self.attributeTimeline = attributeTimeline
         self.highlightGuides = highlightGuides
-        enqueueSessionRecorderEvent(.configureAnalysis(
-            plan: performancePlan,
-            measureSpans: measureSpans,
-            activeTickRange: self.activeRange?.tickRange,
-            tempoScale: self.activeRoundConfiguration?.tempoScale ?? 1
-        ))
+        configurePerformanceAnalysisForActiveRound()
         rebuildAutoplayTimeline()
         self.currentHighlightGuideIndex = nil
 
