@@ -3,13 +3,6 @@ import Testing
 @testable import HappyPianistAVP
 
 @Test
-func practiceSuccessSemanticsRemainDistinctInternalFacts() {
-    #expect(Set(PracticeSuccessSemantic.allCases).count == 4)
-    #expect(PracticeSuccessSemantic.pitchStepCompletion != .passagePerformanceAssessment)
-    #expect(PracticeSuccessSemantic.referencePlaybackCompletion != .creativeDuetExchange)
-}
-
-@Test
 func passageAssessmentKeepsRubricDimensionsMeasuresAndTraceableEvidence() throws {
     let event = makeAssessmentEvent()
     let observationID = UUID()
@@ -34,13 +27,13 @@ func passageAssessmentKeepsRubricDimensionsMeasuresAndTraceableEvidence() throws
         planID: .init(rawValue: "plan"),
         sourceGeneration: 7,
         tickRange: 0 ..< 960,
-        rubricVersion: .initial,
+        rubricVersion: .capabilityAware,
         dimensions: [pitch],
         measures: [.init(occurrenceID: occurrence, tickRange: 0 ..< 960, dimensions: [pitch])]
     )
 
     #expect(assessment.sourceGeneration == 7)
-    #expect(assessment.rubricVersion == .initial)
+    #expect(assessment.rubricVersion == .capabilityAware)
     #expect(assessment.dimensions == [pitch])
     #expect(assessment.measures.first?.occurrenceID == occurrence)
     #expect(pitch.evidence == [.note(

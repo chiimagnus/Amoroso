@@ -433,8 +433,7 @@ extension PracticeSessionViewModel {
                 lifecycleGeneration: lifecycleGeneration
             ) else { return }
 
-            if let snapshot,
-               let assessment = snapshot.assessment,
+            if let assessment = snapshot.assessment,
                assessment.planID == planID
             {
                 let assessmentID = PracticeProgressAssessmentID(

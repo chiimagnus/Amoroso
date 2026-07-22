@@ -172,7 +172,7 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
     #expect(decision.issue.kind == .evidence)
     #expect(decision.action.kind == .evidenceCheck)
     #expect(session.latestFeedbackEvent?.kind == .roundSummaryReady)
-    #expect(try #require(await recorder.analysisSnapshot()).isRunning == false)
+    #expect(await recorder.analysisSnapshot().isRunning == false)
 
     let issuedEvent = try #require(await diagnosticsReporter.events.first {
         $0.stage == PianoPerformanceDiagnosticStage.coaching.rawValue

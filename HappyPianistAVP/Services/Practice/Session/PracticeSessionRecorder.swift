@@ -312,7 +312,7 @@ actor PracticeSessionRecorder {
         await performanceAnalyzer.reset()
     }
 
-    func analysisSnapshot() async -> PracticePerformanceAnalyzerSnapshot? {
+    func analysisSnapshot() async -> PracticePerformanceAnalyzerSnapshot {
         await performanceAnalyzer.snapshot()
     }
 

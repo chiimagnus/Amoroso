@@ -259,7 +259,7 @@ func recorderFeedsConfiguredPlanAndObservationsToTransientAnalyzer() async throw
     ))
     _ = await recorder.finalize()
 
-    let snapshot = try #require(await recorder.analysisSnapshot())
+    let snapshot = await recorder.analysisSnapshot()
     #expect(snapshot.roundGeneration == 1)
     #expect(snapshot.acceptedObservationCount == 2)
     #expect(snapshot.rejectedObservationCount == 1)
@@ -304,7 +304,7 @@ func recorderStartsANewAnalyzerGenerationForEachGuidingRound() async throws {
         event: .noteOn(note: 60, velocity: .init(midi1: 90))
     ))
     await recorder.setGuiding(false)
-    let first = try #require(await recorder.analysisSnapshot())
+    let first = await recorder.analysisSnapshot()
 
     clock.advance(milliseconds: 1_000)
     await recorder.setGuiding(true)
@@ -320,7 +320,7 @@ func recorderStartsANewAnalyzerGenerationForEachGuidingRound() async throws {
         event: .noteOn(note: 60, velocity: .init(midi1: 90))
     ))
     await recorder.setGuiding(false)
-    let second = try #require(await recorder.analysisSnapshot())
+    let second = await recorder.analysisSnapshot()
 
     #expect(first.roundGeneration == 1)
     #expect(first.acceptedObservationCount == 1)
