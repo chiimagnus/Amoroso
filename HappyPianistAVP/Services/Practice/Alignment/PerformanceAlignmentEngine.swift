@@ -43,6 +43,57 @@ struct PerformanceAlignmentEngine: Sendable {
         let seconds: TimeInterval
     }
 
+    private struct FlowEdge {
+        let to: Int
+        let reverseIndex: Int
+        var capacity: Int
+        let cost: Double
+    }
+
+    private struct HeapItem {
+        let distance: Double
+        let node: Int
+    }
+
+    private struct MinHeap {
+        private var items: [HeapItem] = []
+
+        mutating func push(_ item: HeapItem) {
+            items.append(item)
+            var index = items.count - 1
+            while index > 0 {
+                let parent = (index - 1) / 2
+                guard Self.precedes(items[index], items[parent]) else { break }
+                items.swapAt(index, parent)
+                index = parent
+            }
+        }
+
+        mutating func pop() -> HeapItem? {
+            guard items.isEmpty == false else { return nil }
+            if items.count == 1 { return items.removeLast() }
+            let result = items[0]
+            items[0] = items.removeLast()
+            var index = 0
+            while true {
+                let left = index * 2 + 1
+                guard left < items.count else { break }
+                let right = left + 1
+                let child = right < items.count && Self.precedes(items[right], items[left])
+                    ? right
+                    : left
+                guard Self.precedes(items[child], items[index]) else { break }
+                items.swapAt(index, child)
+                index = child
+            }
+            return result
+        }
+
+        private static func precedes(_ lhs: HeapItem, _ rhs: HeapItem) -> Bool {
+            lhs.distance != rhs.distance ? lhs.distance < rhs.distance : lhs.node < rhs.node
+        }
+    }
+
     fileprivate struct TimedNote: Sendable {
         let event: ScorePerformanceNoteEvent
         let seconds: TimeInterval
@@ -210,9 +261,29 @@ struct PerformanceAlignmentEngine: Sendable {
             generation: generation,
             releaseMeasurements: releaseMeasurements
         )
-        var usedEvents: Set<ScorePerformanceNoteEventID> = []
-        var links: [PerformanceAlignmentLink] = []
         let observationByID = Dictionary(uniqueKeysWithValues: acceptedObservations.map { ($0.id, $0) })
+        var ambiguousSnapshots: [PerformanceAlignmentCandidateSnapshot] = []
+        let assignableSnapshots = snapshots.filter { snapshot in
+            guard observationByID[snapshot.observation.observationID]?.alignmentUnknownReason == nil,
+                  let best = snapshot.candidates.first
+            else { return false }
+            let tied = snapshot.candidates.prefix { candidate in
+                candidate.totalCost - best.totalCost <= configuration.ambiguityCostTolerance
+            }
+            if tied.count > 1 {
+                ambiguousSnapshots.append(snapshot)
+                return false
+            }
+            return true
+        }
+        let assignedEventByObservation = optimalAssignments(assignableSnapshots)
+        let assignedEvents = Set(assignedEventByObservation.values)
+        let ambiguousCoveredEvents = Self.maximumAmbiguousCoverage(
+            snapshots: ambiguousSnapshots,
+            excluding: assignedEvents
+        )
+        let usedEvents = assignedEvents.union(ambiguousCoveredEvents)
+        var links: [PerformanceAlignmentLink] = []
 
         for snapshot in snapshots {
             if let observation = observationByID[snapshot.observation.observationID],
@@ -221,8 +292,7 @@ struct PerformanceAlignmentEngine: Sendable {
                 links.append(.unknown(observation: snapshot.observation, reason: reason))
                 continue
             }
-            let available = snapshot.candidates.filter { usedEvents.contains($0.score.eventID) == false }
-            guard let best = available.first else {
+            guard let best = snapshot.candidates.first else {
                 links.append(.extra(
                     observation: snapshot.observation,
                     evidence: [.init(
@@ -233,18 +303,30 @@ struct PerformanceAlignmentEngine: Sendable {
                 ))
                 continue
             }
-            let tied = available.prefix { candidate in
+            let tied = snapshot.candidates.prefix { candidate in
                 candidate.totalCost - best.totalCost <= configuration.ambiguityCostTolerance
             }
             if tied.count > 1 {
                 links.append(.ambiguous(observation: snapshot.observation, candidates: Array(tied)))
                 continue
             }
-            usedEvents.insert(best.score.eventID)
+            guard let assignedEvent = assignedEventByObservation[snapshot.observation.observationID],
+                  let assigned = snapshot.candidates.first(where: { $0.score.eventID == assignedEvent })
+            else {
+                links.append(.extra(
+                    observation: snapshot.observation,
+                    evidence: [.init(
+                        dimension: .pitch,
+                        status: .observed,
+                        cost: configuration.unmatchedCost
+                    )]
+                ))
+                continue
+            }
             links.append(.aligned(
-                score: best.score,
+                score: assigned.score,
                 observation: snapshot.observation,
-                evidence: best.evidence
+                evidence: assigned.evidence
             ))
         }
 
@@ -275,6 +357,121 @@ struct PerformanceAlignmentEngine: Sendable {
                 timeMap: preparedPlan.timeMap
             )
         )
+    }
+
+    private func optimalAssignments(
+        _ snapshots: [PerformanceAlignmentCandidateSnapshot]
+    ) -> [UUID: ScorePerformanceNoteEventID] {
+        guard snapshots.isEmpty == false else { return [:] }
+        let scoreIDs = Array(Set(snapshots.flatMap { $0.candidates.map(\.score.eventID) }))
+            .sorted { $0.description < $1.description }
+        let scoreIndex = Dictionary(uniqueKeysWithValues: scoreIDs.enumerated().map { ($0.element, $0.offset) })
+        let source = 0
+        let observationOffset = 1
+        let scoreOffset = observationOffset + snapshots.count
+        let sink = scoreOffset + scoreIDs.count
+        var graph = Array(repeating: [FlowEdge](), count: sink + 1)
+
+        func addEdge(_ from: Int, _ to: Int, _ capacity: Int, _ cost: Double) {
+            let forward = FlowEdge(to: to, reverseIndex: graph[to].count, capacity: capacity, cost: cost)
+            let reverse = FlowEdge(to: from, reverseIndex: graph[from].count, capacity: 0, cost: -cost)
+            graph[from].append(forward)
+            graph[to].append(reverse)
+        }
+
+        for observationIndex in snapshots.indices {
+            addEdge(source, observationOffset + observationIndex, 1, 0)
+            for candidate in snapshots[observationIndex].candidates {
+                guard let index = scoreIndex[candidate.score.eventID] else { continue }
+                addEdge(observationOffset + observationIndex, scoreOffset + index, 1, candidate.totalCost)
+            }
+        }
+        for index in scoreIDs.indices {
+            addEdge(scoreOffset + index, sink, 1, 0)
+        }
+
+        var potential = Array(repeating: 0.0, count: graph.count)
+        while true {
+            var distance = Array(repeating: Double.infinity, count: graph.count)
+            var previousNode = Array(repeating: -1, count: graph.count)
+            var previousEdge = Array(repeating: -1, count: graph.count)
+            var heap = MinHeap()
+            distance[source] = 0
+            heap.push(.init(distance: 0, node: source))
+
+            while let current = heap.pop() {
+                guard current.distance <= distance[current.node] else { continue }
+                for edgeIndex in graph[current.node].indices {
+                    let edge = graph[current.node][edgeIndex]
+                    guard edge.capacity > 0 else { continue }
+                    let reducedCost = max(0, edge.cost + potential[current.node] - potential[edge.to])
+                    let candidateDistance = current.distance + reducedCost
+                    guard candidateDistance < distance[edge.to] else { continue }
+                    distance[edge.to] = candidateDistance
+                    previousNode[edge.to] = current.node
+                    previousEdge[edge.to] = edgeIndex
+                    heap.push(.init(distance: candidateDistance, node: edge.to))
+                }
+            }
+            guard distance[sink].isFinite else { break }
+            for node in graph.indices where distance[node].isFinite {
+                potential[node] += distance[node]
+            }
+            var node = sink
+            while node != source {
+                let from = previousNode[node]
+                let edgeIndex = previousEdge[node]
+                guard from >= 0, edgeIndex >= 0 else { break }
+                let reverseIndex = graph[from][edgeIndex].reverseIndex
+                graph[from][edgeIndex].capacity -= 1
+                graph[node][reverseIndex].capacity += 1
+                node = from
+            }
+        }
+
+        var result: [UUID: ScorePerformanceNoteEventID] = [:]
+        for observationIndex in snapshots.indices {
+            let node = observationOffset + observationIndex
+            for edge in graph[node] where edge.to >= scoreOffset && edge.to < sink && edge.capacity == 0 {
+                result[snapshots[observationIndex].observation.observationID] = scoreIDs[edge.to - scoreOffset]
+                break
+            }
+        }
+        return result
+    }
+
+    private static func maximumAmbiguousCoverage(
+        snapshots: [PerformanceAlignmentCandidateSnapshot],
+        excluding unavailable: Set<ScorePerformanceNoteEventID>
+    ) -> Set<ScorePerformanceNoteEventID> {
+        var observationByEvent: [ScorePerformanceNoteEventID: UUID] = [:]
+        let snapshotByObservation = Dictionary(uniqueKeysWithValues: snapshots.map {
+            ($0.observation.observationID, $0)
+        })
+
+        func assign(
+            _ snapshot: PerformanceAlignmentCandidateSnapshot,
+            visited: inout Set<ScorePerformanceNoteEventID>
+        ) -> Bool {
+            for candidate in snapshot.candidates where unavailable.contains(candidate.score.eventID) == false {
+                let eventID = candidate.score.eventID
+                guard visited.insert(eventID).inserted else { continue }
+                if let currentObservation = observationByEvent[eventID],
+                   let current = snapshotByObservation[currentObservation]
+                {
+                    guard assign(current, visited: &visited) else { continue }
+                }
+                observationByEvent[eventID] = snapshot.observation.observationID
+                return true
+            }
+            return false
+        }
+
+        for snapshot in snapshots {
+            var visited: Set<ScorePerformanceNoteEventID> = []
+            _ = assign(snapshot, visited: &visited)
+        }
+        return Set(observationByEvent.keys)
     }
 
     private func controllerLinks(

@@ -232,6 +232,58 @@ func unisonChordSpreadUsesDistinctObservations() {
 }
 
 @Test
+func ambiguityConsumesOneMissingCandidate() {
+    let first = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 0),
+        occurrenceIndex: 0
+    )
+    let second = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 1),
+        occurrenceIndex: 0
+    )
+    let result = PerformanceAlignmentEngine().align(
+        plan: makeAlignmentPlan(noteEvents: [first, second]),
+        observations: [makeAlignmentObservation(generation: 1, seconds: 0)],
+        performanceStart: .init(seconds: 0)
+    )
+
+    #expect(result.links.filter { if case .ambiguous = $0 { true } else { false } }.count == 1)
+    #expect(result.links.filter { if case .missing = $0 { true } else { false } }.count == 1)
+}
+
+@Test
+func globalAssignmentDoesNotStealScarceCandidate() {
+    let first = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 0),
+        occurrenceIndex: 0,
+        onTick: 0
+    )
+    let second = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 1),
+        occurrenceIndex: 0,
+        onTick: 960
+    )
+    let result = PerformanceAlignmentEngine(configuration: .init(
+        candidateWindowSeconds: 0.7
+    )).align(
+        plan: makeAlignmentPlan(noteEvents: [first, second]),
+        observations: [
+            makeAlignmentObservation(generation: 1, seconds: 0.6),
+            makeAlignmentObservation(generation: 1, seconds: 1),
+        ],
+        performanceStart: .init(seconds: 0)
+    )
+    let aligned = result.links.compactMap { link -> ScorePerformanceNoteEventID? in
+        guard case let .aligned(score, _, _) = link else { return nil }
+        return score.eventID
+    }
+
+    #expect(Set(aligned) == Set([first.id, second.id]))
+    #expect(result.links.contains { if case .extra = $0 { true } else { false } } == false)
+    #expect(result.links.contains { if case .missing = $0 { true } else { false } } == false)
+}
+
+@Test
 func unavailableCapabilitiesNeverFilterCandidatesOrContributeCosts() throws {
     let unavailable = PerformanceInputCapabilities(
         pitch: .observed,
