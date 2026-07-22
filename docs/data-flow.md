@@ -228,19 +228,26 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  A[typed attempt] --> B[Feedback Event]
-  C[Measure Facts] --> D[Hotspot Policy]
-  D --> E[One Next Action]
-  B --> F[Non-modal Cue]
-  B --> G[RealityKit Restoration Effect]
-  C --> H[Round Summary]
-  C --> I[Measure Map]
+  A[typed attempt] --> B[Assessment]
+  B --> C[Coaching Decision]
+  C --> D[One Next Action]
+  D -->|accepted| E[Next assessment]
+  E --> F[Anonymous before/after metric]
+  B --> G[Measure Facts]
+  G --> H[Progress JSON]
+  A --> I[Feedback Event]
+  I --> J[Non-modal Cue]
+  I --> K[RealityKit Restoration Effect]
+  G --> L[Round Summary]
+  G --> M[Measure Map]
 ```
 
 反馈是事实的派生表现：
 
 - 一次只选择一个主要卡点和一个下一步。
 - 无证据时不制造问题。
+- 执行建议只记录匿名 decision accepted；只有下一轮 assessment 才用同一 ID 关联聚合 before/after metric 并判断 completion，点击本身不代表改善。诊断不含逐音事件、原谱正文或输入 payload。
+- assessment 只把安全的小节 maturity/metric summaries 归约为 measure facts；coaching decision 与其测量关联只存在于当前运行期。
 - cue、summary、map 与空间效果不写入 progress JSON。
 - 换曲、restart、进入后台、关闭窗口和退出沉浸空间会清理反馈 presentation。
 

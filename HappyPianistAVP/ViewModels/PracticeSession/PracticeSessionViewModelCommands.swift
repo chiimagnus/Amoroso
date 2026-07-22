@@ -824,6 +824,7 @@ extension PracticeSessionViewModel {
 
     @discardableResult
     func perform(_ action: PracticeNextAction) -> Bool {
+        let coachingDecision = self.currentCoachingDecision
         switch action {
         case let .retryMeasure(id):
             retryMeasure(id)
@@ -850,10 +851,20 @@ extension PracticeSessionViewModel {
             _ = applyPendingRoundConfiguration()
             startGuidingIfReady()
         }
+        if let coachingDecision {
+            enqueueCoachingDisposition {
+                await $0.accept(coachingDecision)
+            }
+        }
         return true
     }
 
     func skip() {
+        if let coachingDecision = self.currentCoachingDecision {
+            enqueueCoachingDisposition {
+                await $0.skip(coachingDecision)
+            }
+        }
         self.currentCoachingDecision = nil
         if self.state == .ready {
             startGuidingIfReady()
@@ -865,6 +876,17 @@ extension PracticeSessionViewModel {
 
         advanceToNextManualUnit()
         startAutoplayTaskIfNeeded()
+    }
+
+    private func enqueueCoachingDisposition(
+        _ operation: @escaping @Sendable (CoachingDecisionService) async -> Void
+    ) {
+        let previousTask = sessionRecorderEventTask
+        let coachingDecisionService = self.coachingDecisionService
+        sessionRecorderEventTask = Task { @MainActor in
+            await previousTask?.value
+            await operation(coachingDecisionService)
+        }
     }
 
     func replayCurrentUnit() {

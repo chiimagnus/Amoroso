@@ -81,7 +81,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         roundDefaultsStore: (any PracticeRoundDefaultsStoreProtocol)? = nil,
         progressCoordinator: PracticeProgressCoordinator? = nil,
         sessionRecorder: PracticeSessionRecorder? = nil,
-        coachingDecisionService: CoachingDecisionService = CoachingDecisionService(),
+        coachingDecisionService: CoachingDecisionService? = nil,
         diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         stateStore = PracticeSessionStateStore()
@@ -103,6 +103,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         self.progressCoordinator = progressCoordinator
         self.sessionRecorder = sessionRecorder
         self.coachingDecisionService = coachingDecisionService
+            ?? CoachingDecisionService(diagnosticsReporter: diagnosticsReporter)
         self.diagnosticsReporter = diagnosticsReporter
         roundConfigurationController = PracticeRoundConfigurationController(
             stateStore: stateStore,

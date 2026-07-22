@@ -1,26 +1,80 @@
 import Foundation
 
 actor CoachingDecisionService {
+    private enum Disposition {
+        case pending
+        case accepted
+    }
+
+    private struct TrackedDecision {
+        let id: UUID
+        let decision: CoachingDecision
+        let before: PianoPerformanceCoachingMetricSnapshot
+        var disposition: Disposition
+    }
+
     private let exercisePolicy: PracticeExercisePolicy
     private let priorityPolicy: CoachingPriorityPolicy
+    private let diagnosticsReporter: (any DiagnosticsReporting)?
+    private var trackedDecision: TrackedDecision?
 
     init(
         exercisePolicy: PracticeExercisePolicy = PracticeExercisePolicy(),
-        priorityPolicy: CoachingPriorityPolicy = CoachingPriorityPolicy()
+        priorityPolicy: CoachingPriorityPolicy = CoachingPriorityPolicy(),
+        diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         self.exercisePolicy = exercisePolicy
         self.priorityPolicy = priorityPolicy
+        self.diagnosticsReporter = diagnosticsReporter
     }
 
     func decision(
         for assessment: PassagePerformanceAssessment,
         scoreEvents: [ScorePerformanceNoteEvent] = [],
         context: CoachingPriorityContext = CoachingPriorityContext()
-    ) -> CoachingDecision? {
-        priorityPolicy.primaryDecision(
+    ) async -> CoachingDecision? {
+        await remeasureAcceptedDecision(with: assessment)
+        let decision = priorityPolicy.primaryDecision(
             from: candidates(for: assessment, scoreEvents: scoreEvents),
             context: context
         )
+        if let decision,
+           let before = metric(
+               in: decision.issue.dimensionResults,
+               for: decision.action.completionCondition.target
+           )
+        {
+            let tracked = TrackedDecision(
+                id: UUID(),
+                decision: decision,
+                before: before,
+                disposition: .pending
+            )
+            trackedDecision = tracked
+            await report(tracked, outcome: .issued)
+        } else {
+            trackedDecision = nil
+        }
+        return decision
+    }
+
+    func accept(_ decision: CoachingDecision) async {
+        guard var trackedDecision,
+              trackedDecision.decision == decision,
+              trackedDecision.disposition == .pending
+        else { return }
+        trackedDecision.disposition = .accepted
+        self.trackedDecision = trackedDecision
+        await report(trackedDecision, outcome: .accepted)
+    }
+
+    func skip(_ decision: CoachingDecision) async {
+        guard let trackedDecision,
+              trackedDecision.decision == decision,
+              trackedDecision.disposition == .pending
+        else { return }
+        self.trackedDecision = nil
+        await report(trackedDecision, outcome: .skipped)
     }
 
     func candidates(
@@ -47,6 +101,92 @@ actor CoachingDecisionService {
                 )
             )
         }
+    }
+
+    private func remeasureAcceptedDecision(
+        with assessment: PassagePerformanceAssessment
+    ) async {
+        guard let trackedDecision,
+              trackedDecision.disposition == .accepted
+        else { return }
+        guard assessment.planID == trackedDecision.decision.issue.provenance.planID else {
+            self.trackedDecision = nil
+            return
+        }
+        let after = metric(
+            in: assessmentDimensions(
+                assessment,
+                scoreRange: trackedDecision.decision.action.scoreRange
+            ),
+            for: trackedDecision.decision.action.completionCondition.target
+        )
+        self.trackedDecision = nil
+        await report(
+            trackedDecision,
+            outcome: .remeasured,
+            after: after,
+            completionMet: after.map {
+                completes(trackedDecision.decision.action.completionCondition.target, with: $0)
+            }
+        )
+    }
+
+    private func assessmentDimensions(
+        _ assessment: PassagePerformanceAssessment,
+        scoreRange: Range<Int>
+    ) -> [PerformanceAssessmentDimensionResult] {
+        let measureDimensions = assessment.measures
+            .filter { $0.tickRange == scoreRange }
+            .flatMap(\.dimensions)
+        if measureDimensions.isEmpty == false {
+            return measureDimensions
+        }
+        return assessment.tickRange == scoreRange ? assessment.dimensions : []
+    }
+
+    private func metric(
+        in dimensions: [PerformanceAssessmentDimensionResult],
+        for target: CoachingCompletionTarget
+    ) -> PianoPerformanceCoachingMetricSnapshot? {
+        let targetDimension = switch target {
+        case let .dimensionOutcome(dimension, _), let .evidenceAvailable(dimension):
+            dimension
+        }
+        return dimensions.first { $0.dimension == targetDimension }
+            .map(PianoPerformanceCoachingMetricSnapshot.init)
+    }
+
+    private func completes(
+        _ target: CoachingCompletionTarget,
+        with metric: PianoPerformanceCoachingMetricSnapshot
+    ) -> Bool {
+        switch target {
+        case let .dimensionOutcome(_, outcome):
+            metric.outcome == outcome
+        case .evidenceAvailable:
+            metric.evidenceStatus == .observed || metric.evidenceStatus == .degraded
+        }
+    }
+
+    private func report(
+        _ trackedDecision: TrackedDecision,
+        outcome: PianoPerformanceCoachingDiagnosticOutcome,
+        after: PianoPerformanceCoachingMetricSnapshot? = nil,
+        completionMet: Bool? = nil
+    ) async {
+        guard let diagnosticsReporter else { return }
+        _ = await diagnosticsReporter.record(PianoPerformanceCoachingDiagnosticSample(
+            decisionID: trackedDecision.id,
+            outcome: outcome,
+            issueKind: trackedDecision.decision.issue.kind,
+            confidenceBucket: PianoPerformanceConfidenceBucket(
+                trackedDecision.decision.issue.confidence
+            ),
+            actionKind: trackedDecision.decision.action.kind,
+            before: trackedDecision.before,
+            after: after,
+            completionMet: completionMet
+        ).diagnosticEvent)
     }
 
     private func assessmentScopes(

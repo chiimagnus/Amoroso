@@ -69,6 +69,7 @@ func revisionMismatchDoesNotRestoreOldScoreProgress() async {
 @Test
 func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async throws {
     let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "assessment-r1")
+    let diagnosticsReporter = InMemoryDiagnosticsReporter()
     let progressRepository = LearningLoopRepository()
     let progressCoordinator = PracticeProgressCoordinator(
         repository: progressRepository,
@@ -84,7 +85,8 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
     let session = makeLearningLoopSession(
         playback: LearningLoopPlaybackService(),
         coordinator: progressCoordinator,
-        recorder: recorder
+        recorder: recorder,
+        diagnosticsReporter: diagnosticsReporter
     )
     session.songIdentity = identity
     session.installTestPerformanceNotes(
@@ -132,13 +134,77 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
     #expect(session.latestFeedbackEvent?.kind == .roundSummaryReady)
     #expect(try #require(await recorder.analysisSnapshot()).isRunning == false)
 
+    let issuedEvent = try #require(await diagnosticsReporter.events.first {
+        $0.stage == PianoPerformanceDiagnosticStage.coaching.rawValue
+            && $0.reason.contains("outcome=issued")
+    })
+    let decisionID = try #require(issuedEvent.operationID)
+    #expect(issuedEvent.persistence == .systemOnly)
+    #expect(issuedEvent.reason.contains("action=evidenceCheck"))
+    #expect(issuedEvent.reason.contains("beforeDimension="))
+    #expect(issuedEvent.reason.contains("note=") == false)
+
+    #expect(session.perform(.retryMeasure(learningLoopSpan().occurrenceID.sourceMeasureID)))
+    await session.waitForSessionRecorderEvents()
+    let acceptedEvents = await diagnosticsReporter.events.filter { $0.operationID == decisionID }
+    #expect(acceptedEvents.contains { $0.reason.contains("outcome=accepted") })
+    #expect(acceptedEvents.contains { $0.reason.contains("outcome=remeasured") } == false)
+
+    let retryInstant = PerformanceClock.live().now()
+    await recorder.record(PerformanceObservation(
+        source: .init(kind: .midi1, id: "midi:integration", generation: 1),
+        timing: .init(
+            host: retryInstant,
+            source: nil,
+            correctedHost: retryInstant,
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .noteOn(note: 60, velocity: .init(midi1: 90))
+    ))
+    let releaseInstant = retryInstant.advanced(by: 0.5)
+    await recorder.record(PerformanceObservation(
+        source: .init(kind: .midi1, id: "midi:integration", generation: 1),
+        timing: .init(
+            host: releaseInstant,
+            source: nil,
+            correctedHost: releaseInstant,
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .noteOff(note: 60, releaseVelocity: .init(midi1: 32))
+    ))
+    session.recordAttemptOutcome(matchedLearningLoopOutcome())
+    session.advanceToNextStep()
+    await session.waitForSessionRecorderEvents()
+
+    let remeasuredEvent = try #require(await diagnosticsReporter.events.first {
+        $0.operationID == decisionID && $0.reason.contains("outcome=remeasured")
+    })
+    #expect(remeasuredEvent.reason.contains("afterDimension="))
+    #expect(remeasuredEvent.reason.contains("after=unavailable") == false)
+    let remeasuredSummary = try #require(
+        session.sessionProgress?.measureFacts.first?.performanceMaturity
+    )
+    #expect(remeasuredSummary != firstSummary)
+
     session.recordPassageCompletion()
     await session.waitForSessionRecorderEvents()
-    #expect(session.sessionProgress?.measureFacts.first?.performanceMaturity == firstSummary)
+    #expect(session.sessionProgress?.measureFacts.first?.performanceMaturity == remeasuredSummary)
 
     #expect(await session.flushProgress() == .saved)
     let saved = try #require(await progressRepository.progress(for: identity))
-    #expect(saved.measureFacts.first?.performanceMaturity == firstSummary)
+    #expect(saved.measureFacts.first?.performanceMaturity == remeasuredSummary)
+
+    let followupDecision = try #require(session.currentCoachingDecision)
+    let followupIssuedEvent = try #require(await diagnosticsReporter.events.last {
+        $0.operationID != decisionID && $0.reason.contains("outcome=issued")
+    })
+    await session.coachingDecisionService.skip(followupDecision)
+    #expect(await diagnosticsReporter.events.contains {
+        $0.operationID == followupIssuedEvent.operationID
+            && $0.reason.contains("outcome=skipped")
+    })
 
     session.recordPassageRestart()
     #expect(session.currentCoachingDecision == nil)
@@ -148,14 +214,16 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
 private func makeLearningLoopSession(
     playback: LearningLoopPlaybackService,
     coordinator: PracticeProgressCoordinator,
-    recorder: PracticeSessionRecorder? = nil
+    recorder: PracticeSessionRecorder? = nil,
+    diagnosticsReporter: (any DiagnosticsReporting)? = nil
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
         chordAttemptAccumulator: LearningLoopChordAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playback,
         progressCoordinator: coordinator,
-        sessionRecorder: recorder
+        sessionRecorder: recorder,
+        diagnosticsReporter: diagnosticsReporter
     )
 }
 
