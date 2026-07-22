@@ -54,3 +54,36 @@ func duetQualityRegressionShapingOutcomesRemainStable() {
         #expect(shaped.isEmpty)
     }
 }
+
+@Test
+func improvQualityRubricDefaultFixtureIsVersionedAndEvidenceAware() {
+    let fixture = ImprovQualityRubric.defaultFixture
+    let assessment = ImprovQualityRubric().assess(
+        fixture.response,
+        responseLatencySeconds: fixture.responseLatencySeconds
+    )
+
+    #expect(assessment.thresholdVersion == ImprovQualityRubric.Thresholds.v1.version)
+    #expect(assessment.band == .acceptable)
+    #expect(ImprovQualityRubric.Dimension.allCases.allSatisfy { assessment.dimensions[$0] != nil })
+    #expect(assessment.dimensions[.harmonicFit] == .notObserved)
+    #expect(assessment.dimensions[.cadence] == .notObserved)
+    #expect(assessment.dimensions[.responseLatency] == .pass)
+}
+
+@Test
+func improvQualityRubricRejectsUnusableResponseBeforePlayback() {
+    let invalidResponse = [
+        PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 12, velocity: 90)),
+        PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 12)),
+    ]
+    let assessment = ImprovQualityRubric().assess(invalidResponse)
+    #expect(assessment.band == .reject)
+    #expect(assessment.reasons.contains(.outOfPianoRegister))
+
+    let schedule = ImprovScheduleBuilder().buildSchedule(
+        from: [.note(note: 12, velocity: 90, time: 0, duration: 0.2)],
+        leadInSeconds: 0
+    )
+    #expect(schedule.isEmpty)
+}
