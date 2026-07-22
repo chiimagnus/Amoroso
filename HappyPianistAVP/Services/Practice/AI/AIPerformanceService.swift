@@ -54,6 +54,9 @@ final class AIPerformanceService {
     private var noteContext = DuetPhraseBuffer()
     private var ccContext = DuetPhraseEventBuffer()
     private var activeKeyContactIDsByMIDINote: [Int: Set<PianoKeyContactID>] = [:]
+    private var midiObservationAdapter = MIDIPerformanceObservationAdapter()
+    private let keyContactObservationAdapter = PianoKeyContactPerformanceObservationAdapter()
+    private let phraseObservationAdapter = PerformanceObservationPhraseAdapter()
     private var controlEstimator = DuetTurnTakingCore()
 
     private var controlLoopTask: Task<Void, Never>?
@@ -114,9 +117,7 @@ final class AIPerformanceService {
            isEnabled
         {
             invalidateGeneration()
-            noteContext.reset()
-            ccContext.reset()
-            activeKeyContactIDsByMIDINote.removeAll(keepingCapacity: true)
+            resetPhraseInput()
             controlEstimator.reset()
             latestSchedule = []
             latestCandidateDiagnostics = nil
@@ -148,9 +149,7 @@ final class AIPerformanceService {
             lastWindowRequestTimestampSeconds = nil
             isGenerating = false
             isAIPlaybackActive = false
-            noteContext.reset()
-            ccContext.reset()
-            activeKeyContactIDsByMIDINote.removeAll(keepingCapacity: true)
+            resetPhraseInput()
             controlEstimator.reset()
             latestSchedule = []
             lastImprovStatusText = nil
@@ -168,9 +167,7 @@ final class AIPerformanceService {
         isEnabled = true
         activationID += 1
         lastWindowRequestTimestampSeconds = nil
-        noteContext.reset()
-        ccContext.reset()
-        activeKeyContactIDsByMIDINote.removeAll(keepingCapacity: true)
+        resetPhraseInput()
         controlEstimator.reset()
         latestSchedule = []
         lastImprovStatusText = "AI 即兴：连续共演模式已启用"
@@ -183,107 +180,106 @@ final class AIPerformanceService {
     func recordMIDI1EventForPhraseRecordingIfNeeded(_ event: MIDI1InputEvent) {
         guard isEnabled else { return }
         syncBackendDiscoveryIfNeeded()
-
-        switch event.kind {
-        case let .noteOn(note, velocity):
-            noteContext.recordNoteOn(midi: note, velocity: velocity, timestampSeconds: event.receivedAtUptimeSeconds)
-        case let .noteOff(note, _):
-            noteContext.recordNoteOff(
-                midi: note,
-                timestampSeconds: event.receivedAtUptimeSeconds,
-                sustainIsDown: ccContext.sustainValue >= 64
+        recordPhraseObservation(
+            midiObservationAdapter.observation(
+                for: event,
+                generation: UInt64(max(0, activationID))
             )
-        case let .controlChange(controller, value):
-            let wasSustainDown = ccContext.sustainValue >= 64
-            ccContext.recordControlChange(controller: controller, value: value, timestampSeconds: event.receivedAtUptimeSeconds)
-            if controller == 120 || controller == 123 {
-                noteContext.reset()
-                ccContext.reset()
-            } else if controller == 64, wasSustainDown, value < 64 {
-                noteContext.releaseSustainedNotes(timestampSeconds: event.receivedAtUptimeSeconds)
-            }
-        default:
-            return
-        }
+        )
     }
 
     func recordMIDI2EventForPhraseRecordingIfNeeded(_ event: MIDI2InputEvent) {
         guard isEnabled else { return }
         syncBackendDiscoveryIfNeeded()
-
-        switch event.kind {
-        case let .noteOn(note, velocity16):
-            noteContext.recordNoteOn(
-                midi: note,
-                velocity: MIDI2ValueMapping.value16To7Bit(velocity16),
-                timestampSeconds: event.receivedAtUptimeSeconds
+        recordPhraseObservation(
+            midiObservationAdapter.observation(
+                for: event,
+                generation: UInt64(max(0, activationID))
             )
-        case let .noteOff(note, _):
-            noteContext.recordNoteOff(
-                midi: note,
-                timestampSeconds: event.receivedAtUptimeSeconds,
-                sustainIsDown: ccContext.sustainValue >= 64
-            )
-        case let .controlChange(controller, value32):
-            let value = MIDI2ValueMapping.value32To7Bit(value32)
-            let wasSustainDown = ccContext.sustainValue >= 64
-            ccContext.recordControlChange(
-                controller: controller,
-                value: value,
-                timestampSeconds: event.receivedAtUptimeSeconds
-            )
-            if controller == 120 || controller == 123 {
-                noteContext.reset()
-                ccContext.reset()
-            } else if controller == 64, wasSustainDown, value < 64 {
-                noteContext.releaseSustainedNotes(timestampSeconds: event.receivedAtUptimeSeconds)
-            }
-        default:
-            return
-        }
+        )
     }
 
     func recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: Bool,
+        isVirtualPianoEnabled: Bool = false,
         observations: [PianoKeyContactObservation]
     ) {
         guard usesBluetoothMIDIInput == false else { return }
         guard isEnabled else { return }
         syncBackendDiscoveryIfNeeded()
 
-        for observation in observations {
-            guard let note = observation.keyCandidate.exactMIDINote else { continue }
-            switch observation.phase {
+        let sourceKind: PerformanceObservation.Source.Kind = isVirtualPianoEnabled
+            ? .virtualPianoContact
+            : .realPianoContact
+        let generation = UInt64(max(0, activationID))
+
+        for contact in observations {
+            guard let note = contact.keyCandidate.exactMIDINote else { continue }
+            switch contact.phase {
             case .started:
-                guard let velocity = observation.resolvedVelocity else { continue }
                 var activeContactIDs = activeKeyContactIDsByMIDINote[note, default: []]
                 let shouldRecordNoteOn = activeContactIDs.isEmpty
-                guard activeContactIDs.insert(observation.id).inserted else { continue }
+                guard activeContactIDs.insert(contact.id).inserted else { continue }
                 activeKeyContactIDsByMIDINote[note] = activeContactIDs
                 guard shouldRecordNoteOn else { continue }
-                noteContext.recordNoteOn(
-                    midi: note,
-                    velocity: Int(velocity),
-                    timestampSeconds: observation.timestamp.seconds
+                recordPhraseObservation(
+                    keyContactObservationAdapter.observation(
+                        from: contact,
+                        sourceKind: sourceKind,
+                        generation: generation
+                    )
                 )
             case .ended:
                 guard var activeContactIDs = activeKeyContactIDsByMIDINote[note],
-                      activeContactIDs.remove(observation.id) != nil
+                      activeContactIDs.remove(contact.id) != nil
                 else { continue }
                 guard activeContactIDs.isEmpty else {
                     activeKeyContactIDsByMIDINote[note] = activeContactIDs
                     continue
                 }
                 activeKeyContactIDsByMIDINote.removeValue(forKey: note)
-                noteContext.recordNoteOff(
-                    midi: note,
-                    timestampSeconds: observation.timestamp.seconds,
-                    sustainIsDown: false
+                recordPhraseObservation(
+                    keyContactObservationAdapter.observation(
+                        from: contact,
+                        sourceKind: sourceKind,
+                        generation: generation
+                    )
                 )
             case .held:
                 break
             }
         }
+    }
+
+    private func recordPhraseObservation(_ observation: PerformanceObservation) {
+        guard let event = phraseObservationAdapter.phraseEvent(from: observation) else { return }
+        recordPhraseEvent(event)
+    }
+
+    private func recordPhraseEvent(_ event: PerformanceObservationPhraseAdapter.PhraseEvent) {
+        switch event.kind {
+        case .noteOn, .noteOff:
+            noteContext.record(event, sustainIsDown: ccContext.sustainValue >= 64)
+        case let .controlChange(controller, value):
+            let wasSustainDown = ccContext.sustainValue >= 64
+            ccContext.record(event)
+            if controller == 64, wasSustainDown, value < 64 {
+                noteContext.releaseSustainedNotes(timestampSeconds: event.timestamp.seconds)
+            }
+        case .allNotesOff:
+            clearPhraseContext()
+        }
+    }
+
+    private func resetPhraseInput() {
+        clearPhraseContext()
+        midiObservationAdapter.resetClockCalibration()
+    }
+
+    private func clearPhraseContext() {
+        noteContext.reset()
+        ccContext.reset()
+        activeKeyContactIDsByMIDINote.removeAll(keepingCapacity: true)
     }
 
     private func notifyStateChanged() {
@@ -380,7 +376,7 @@ final class AIPerformanceService {
             )
             let phrase = CreativeDuetPhrase(
                 events: promptEvents,
-                provenance: .observed(from: promptEvents)
+                provenance: noteSnapshot.phraseProvenance.merging(ccSnapshot.phraseProvenance)
             )
             if phrase.events.contains(where: { $0.type == .note }) {
                 await requestContinuousWindow(

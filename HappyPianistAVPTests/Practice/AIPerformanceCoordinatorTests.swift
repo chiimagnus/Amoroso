@@ -662,9 +662,14 @@ func creativeDuetContractPreservesObservedInputAndGeneratedResponseProvenance() 
         ImprovEvent.note(note: 60, velocity: 72, time: 0, duration: 0.4),
         ImprovEvent.cc(controller: 64, value: 127, time: 0.1),
     ]
+    let observation = CreativeDuetPhraseProvenance.Observation(
+        id: UUID(),
+        source: .init(kind: .midi1, id: "creative-duet-test", generation: 1),
+        timingProvenance: .hostOnly
+    )
     let phrase = CreativeDuetPhrase(
         events: events,
-        provenance: .observed(from: events)
+        provenance: .init(observations: [observation])
     )
     let generation = CreativeDuetGeneration(
         requestID: 7,
@@ -688,8 +693,8 @@ func creativeDuetContractPreservesObservedInputAndGeneratedResponseProvenance() 
         timeout: .seconds(1)
     )
 
-    #expect(phrase.provenance.source == .observedLiveInput)
-    #expect(phrase.provenance.observedCapabilities == [.pitch, .onset, .velocity, .duration, .controller])
+    #expect(phrase.provenance.observations == [observation])
+    #expect(phrase.provenance.observations.first?.capabilities == .midi)
     #expect(response.schedule == schedule)
     #expect(response.provider == .localRule)
     #expect(response.generation == generation)

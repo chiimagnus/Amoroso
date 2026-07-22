@@ -200,10 +200,12 @@ final class ARGuideAIPerformanceViewModel {
 
     func recordKeyContactForPhraseRecordingIfNeeded(
         usesBluetoothMIDIInput: Bool,
+        isVirtualPianoEnabled: Bool = false,
         observations: [PianoKeyContactObservation]
     ) {
         aiPerformanceService.recordKeyContactForPhraseRecordingIfNeeded(
             usesBluetoothMIDIInput: usesBluetoothMIDIInput,
+            isVirtualPianoEnabled: isVirtualPianoEnabled,
             observations: observations
         )
     }

@@ -10,44 +10,32 @@ struct CreativeDuetPhrase: Equatable, Sendable {
 }
 
 struct CreativeDuetPhraseProvenance: Equatable, Sendable {
-    enum Source: String, Equatable, Sendable {
-        case observedLiveInput
-        case recording
+    struct Observation: Equatable, Sendable {
+        let id: UUID
+        let source: PerformanceObservation.Source
+        let timingProvenance: PerformanceClockCorrectionProvenance
+
+        var capabilities: PerformanceInputCapabilities {
+            source.capabilities
+        }
     }
 
-    enum Capability: String, Hashable, Sendable {
-        case pitch
-        case onset
-        case velocity
-        case duration
-        case controller
-    }
+    let observations: [Observation]
 
-    let source: Source
-    let observedCapabilities: Set<Capability>
-    let approximations: Set<String>
-
-    static func observed(from events: [ImprovEvent]) -> Self {
-        var capabilities: Set<Capability> = [.onset]
-
-        for event in events {
-            switch event.type {
-            case .note:
-                if event.note != nil { capabilities.insert(.pitch) }
-                if event.velocity != nil { capabilities.insert(.velocity) }
-                if event.duration != nil { capabilities.insert(.duration) }
-            case .cc:
-                if event.controller != nil, event.value != nil {
-                    capabilities.insert(.controller)
-                }
+    init(observations: [Observation]) {
+        self.observations = observations.reduce(into: []) { unique, observation in
+            if unique.contains(observation) == false {
+                unique.append(observation)
             }
         }
+    }
 
-        return Self(
-            source: .observedLiveInput,
-            observedCapabilities: capabilities,
-            approximations: []
-        )
+    static var empty: Self {
+        Self(observations: [])
+    }
+
+    func merging(_ other: Self) -> Self {
+        Self(observations: observations + other.observations)
     }
 }
 
