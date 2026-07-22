@@ -374,6 +374,57 @@ func unavailableCapabilitiesNeverFilterCandidatesOrContributeCosts() throws {
 }
 
 @Test
+func controllerAssignmentMaximizesCoverageBeforeMinimizingCost() {
+    let first = ScorePerformanceControllerEvent(
+        sourceDirectionID: nil,
+        performedOccurrenceIndex: 0,
+        tick: 960,
+        controllerNumber: 64,
+        value: 0,
+        outputCapabilityRequirement: .continuousControlChange
+    )
+    let second = ScorePerformanceControllerEvent(
+        sourceDirectionID: nil,
+        performedOccurrenceIndex: 0,
+        tick: 1_920,
+        controllerNumber: 64,
+        value: 127,
+        outputCapabilityRequirement: .continuousControlChange
+    )
+    let engine = PerformanceAlignmentEngine(
+        configuration: .init(candidateWindowSeconds: 0.7)
+    )
+    let onlyFirst = makeAlignmentObservation(
+        generation: 1,
+        note: 0,
+        seconds: 0.4,
+        event: .controller(.controlChange(number: 64, value: .init(midi1: 0)))
+    )
+    let flexible = makeAlignmentObservation(
+        generation: 1,
+        note: 0,
+        seconds: 1.4,
+        event: .controller(.controlChange(number: 64, value: .init(midi1: 127)))
+    )
+
+    let result = engine.align(
+        plan: makeAlignmentPlan(noteEvents: [], controllerEvents: [first, second]),
+        observations: [onlyFirst, flexible],
+        performanceStart: .init(seconds: 0)
+    )
+
+    #expect(result.controllerLinks.filter {
+        if case .aligned = $0 { true } else { false }
+    }.count == 2)
+    #expect(result.controllerLinks.contains {
+        if case .missing = $0 { true } else { false }
+    } == false)
+    #expect(result.controllerLinks.contains {
+        if case .extra = $0 { true } else { false }
+    } == false)
+}
+
+@Test
 func releaseDurationParticipatesInCandidateSelection() throws {
     let short = makeAlignmentEvent(
         sourceID: makeAlignmentSourceID(ordinal: 0),

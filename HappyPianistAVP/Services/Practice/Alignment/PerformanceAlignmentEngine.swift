@@ -368,10 +368,29 @@ struct PerformanceAlignmentEngine: Sendable {
         let scoreIDs = Array(Set(snapshots.flatMap { $0.candidates.map(\.score.eventID) }))
             .sorted { $0.description < $1.description }
         let scoreIndex = Dictionary(uniqueKeysWithValues: scoreIDs.enumerated().map { ($0.element, $0.offset) })
+        let costs = snapshots.map { snapshot in
+            snapshot.candidates.compactMap { candidate -> (targetIndex: Int, cost: Double)? in
+                guard let index = scoreIndex[candidate.score.eventID] else { return nil }
+                return (index, candidate.totalCost)
+            }
+        }
+        return Dictionary(uniqueKeysWithValues: optimalTargetAssignments(
+            costs: costs,
+            targetCount: scoreIDs.count
+        ).map { observationIndex, targetIndex in
+            (snapshots[observationIndex].observation.observationID, scoreIDs[targetIndex])
+        })
+    }
+
+    private func optimalTargetAssignments(
+        costs: [[(targetIndex: Int, cost: Double)]],
+        targetCount: Int
+    ) -> [Int: Int] {
+        guard costs.isEmpty == false, targetCount > 0 else { return [:] }
         let source = 0
         let observationOffset = 1
-        let scoreOffset = observationOffset + snapshots.count
-        let sink = scoreOffset + scoreIDs.count
+        let targetOffset = observationOffset + costs.count
+        let sink = targetOffset + targetCount
         var graph = Array(repeating: [FlowEdge](), count: sink + 1)
 
         func addEdge(_ from: Int, _ to: Int, _ capacity: Int, _ cost: Double) {
@@ -381,15 +400,19 @@ struct PerformanceAlignmentEngine: Sendable {
             graph[to].append(reverse)
         }
 
-        for observationIndex in snapshots.indices {
+        for observationIndex in costs.indices {
             addEdge(source, observationOffset + observationIndex, 1, 0)
-            for candidate in snapshots[observationIndex].candidates {
-                guard let index = scoreIndex[candidate.score.eventID] else { continue }
-                addEdge(observationOffset + observationIndex, scoreOffset + index, 1, candidate.totalCost)
+            for candidate in costs[observationIndex] {
+                addEdge(
+                    observationOffset + observationIndex,
+                    targetOffset + candidate.targetIndex,
+                    1,
+                    candidate.cost
+                )
             }
         }
-        for index in scoreIDs.indices {
-            addEdge(scoreOffset + index, sink, 1, 0)
+        for index in 0 ..< targetCount {
+            addEdge(targetOffset + index, sink, 1, 0)
         }
 
         var potential = Array(repeating: 0.0, count: graph.count)
@@ -431,11 +454,12 @@ struct PerformanceAlignmentEngine: Sendable {
             }
         }
 
-        var result: [UUID: ScorePerformanceNoteEventID] = [:]
-        for observationIndex in snapshots.indices {
+        var result: [Int: Int] = [:]
+        for observationIndex in costs.indices {
             let node = observationOffset + observationIndex
-            for edge in graph[node] where edge.to >= scoreOffset && edge.to < sink && edge.capacity == 0 {
-                result[snapshots[observationIndex].observation.observationID] = scoreIDs[edge.to - scoreOffset]
+            for edge in graph[node]
+            where edge.to >= targetOffset && edge.to < sink && edge.capacity == 0 {
+                result[observationIndex] = edge.to - targetOffset
                 break
             }
         }
@@ -499,37 +523,42 @@ struct PerformanceAlignmentEngine: Sendable {
             return availableScoreEvents.map { .notObserved(score: .init(event: $0)) }
         }
 
-        var used: Set<UUID> = []
-        var links: [PerformanceAlignmentControllerLink] = []
-        for scoreEvent in availableScoreEvents {
-            let scoreSeconds = timeMap.seconds(at: scoreEvent.tick)
-            let candidate = observed
-                .filter { used.contains($0.0.id) == false && $0.1 == Int(scoreEvent.controllerNumber) }
-                .map { item in
-                    (
-                        observation: item.0,
-                        value: item.2,
-                        deviation: item.0.alignmentTimestamp.seconds
-                            - performanceStart.seconds - scoreSeconds
-                    )
-                }
-                .filter { abs($0.deviation) <= configuration.candidateWindowSeconds }
-                .min { lhs, rhs in abs(lhs.deviation) < abs(rhs.deviation) }
-            guard let candidate else {
-                links.append(.missing(score: .init(event: scoreEvent)))
-                continue
+        let costs = observed.map { item in
+            availableScoreEvents.enumerated().compactMap { index, scoreEvent
+                -> (targetIndex: Int, cost: Double)? in
+                guard item.1 == Int(scoreEvent.controllerNumber) else { return nil }
+                let scoreSeconds = timeMap.seconds(at: scoreEvent.tick)
+                let deviation = item.0.alignmentTimestamp.seconds
+                    - performanceStart.seconds - scoreSeconds
+                guard abs(deviation) <= configuration.candidateWindowSeconds else { return nil }
+                let valueDeviation = abs(Double(item.2) - Double(scoreEvent.value)) / 127
+                return (index, abs(deviation) + valueDeviation)
             }
-            used.insert(candidate.observation.id)
-            links.append(.aligned(
-                score: .init(event: scoreEvent),
-                observation: .init(observation: candidate.observation),
-                timeDeviationSeconds: candidate.deviation,
-                normalizedValueDeviation: abs(Double(candidate.value) - Double(scoreEvent.value)) / 127
-            ))
         }
-        links.append(contentsOf: observed
-            .filter { used.contains($0.0.id) == false }
-            .map { .extra(observation: .init(observation: $0.0)) })
+        let scoreByObservation = optimalTargetAssignments(
+            costs: costs,
+            targetCount: availableScoreEvents.count
+        )
+        let observationByScore = Dictionary(uniqueKeysWithValues: scoreByObservation.map {
+            ($0.value, $0.key)
+        })
+        var links = availableScoreEvents.enumerated().map { scoreIndex, scoreEvent in
+            guard let observationIndex = observationByScore[scoreIndex] else {
+                return PerformanceAlignmentControllerLink.missing(score: .init(event: scoreEvent))
+            }
+            let item = observed[observationIndex]
+            let scoreSeconds = timeMap.seconds(at: scoreEvent.tick)
+            return .aligned(
+                score: .init(event: scoreEvent),
+                observation: .init(observation: item.0),
+                timeDeviationSeconds: item.0.alignmentTimestamp.seconds
+                    - performanceStart.seconds - scoreSeconds,
+                normalizedValueDeviation: abs(Double(item.2) - Double(scoreEvent.value)) / 127
+            )
+        }
+        links.append(contentsOf: observed.indices
+            .filter { scoreByObservation[$0] == nil }
+            .map { .extra(observation: .init(observation: observed[$0].0)) })
         return links
     }
 
