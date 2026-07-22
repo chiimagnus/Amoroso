@@ -193,7 +193,7 @@ private func makeRecorder(
     clock: RecorderClock,
     sleeper: RecorderSleeper = RecorderSleeper(),
     diagnosticsReporter: (any DiagnosticsReporting)? = nil,
-    performanceAnalyzer: PracticePerformanceAnalyzer? = nil
+    performanceAnalyzer: PracticePerformanceAnalyzer = PracticePerformanceAnalyzer()
 ) -> PracticeSessionRecorder {
     PracticeSessionRecorder(
         repository: repository,
@@ -575,7 +575,8 @@ func recorderFinalizeUsesBoundaryAfterBlockedPersistenceAndInterleavedEvent() as
     let recorder = PracticeSessionRecorder(
         repository: repository,
         clock: clock.makeClock(),
-        sleeper: RecorderSleeper()
+        sleeper: RecorderSleeper(),
+        performanceAnalyzer: PracticePerformanceAnalyzer()
     )
     await beginActiveVisit(recorder: recorder)
     await recorder.setGuiding(true)
@@ -605,7 +606,8 @@ func recorderSemanticEventsReturnBeforeSlowPersistenceCompletes() async throws {
     let recorder = PracticeSessionRecorder(
         repository: repository,
         clock: clock.makeClock(),
-        sleeper: RecorderSleeper()
+        sleeper: RecorderSleeper(),
+        performanceAnalyzer: PracticePerformanceAnalyzer()
     )
     await beginActiveVisit(recorder: recorder)
     let guidingCompletion = RecorderCompletionProbe()
