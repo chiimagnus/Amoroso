@@ -251,16 +251,66 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
 }
 
 @MainActor
+@Test
+func passageCompletionDrainsTheLastMIDIObservationBeforeAssessment() async throws {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "drain-r1")
+    let inputSource = FakeProtocolSeparatedPracticeInputEventSource()
+    let recorder = PracticeSessionRecorder(
+        repository: LearningLoopSessionRepository(),
+        performanceAnalyzer: PracticePerformanceAnalyzer()
+    )
+    await recorder.beginVisit(id: UUID(), songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+    let session = makeLearningLoopSession(
+        playback: LearningLoopPlaybackService(),
+        coordinator: PracticeProgressCoordinator(repository: LearningLoopRepository()),
+        recorder: recorder,
+        practiceInputEventSource: inputSource
+    )
+    session.songIdentity = identity
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0, offTick: 480)],
+        measureSpans: [learningLoopSpan()]
+    )
+    session.roundConfigurationController.pendingRequiredSuccesses = 1
+    _ = session.applyPendingRoundConfiguration()
+    await session.applyLaunchRestorePolicy(.freshDefaults)
+    session.startGuidingIfReady()
+    await session.waitForSessionRecorderEvents()
+
+    inputSource.emitMIDI1(MIDI1InputEvent(
+        kind: .noteOn(note: 60, velocity: 100),
+        channel: 1,
+        group: 0,
+        source: .init(identifier: .sourceIndex(0), endpointName: "test"),
+        receivedAt: .now,
+        receivedAtUptimeSeconds: ProcessInfo.processInfo.systemUptime
+    ))
+    for _ in 0 ..< 100 {
+        if await recorder.analysisSnapshot().isRunning == false { break }
+        await Task.yield()
+    }
+    await session.waitForSessionRecorderEvents()
+
+    let snapshot = await recorder.analysisSnapshot()
+    let pitch = try #require(snapshot.assessment?.dimensions.first { $0.dimension == .exactPitch })
+    #expect(snapshot.acceptedObservationCount == 1)
+    #expect(pitch.outcome == .correct)
+}
+
+@MainActor
 private func makeLearningLoopSession(
     playback: LearningLoopPlaybackService,
     coordinator: PracticeProgressCoordinator,
     recorder: PracticeSessionRecorder? = nil,
+    practiceInputEventSource: PracticeInputEventSourceProtocol? = nil,
     diagnosticsReporter: (any DiagnosticsReporting)? = nil
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
         chordAttemptAccumulator: LearningLoopChordAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playback,
+        practiceInputEventSource: practiceInputEventSource,
         progressCoordinator: coordinator,
         sessionRecorder: recorder,
         diagnosticsReporter: diagnosticsReporter

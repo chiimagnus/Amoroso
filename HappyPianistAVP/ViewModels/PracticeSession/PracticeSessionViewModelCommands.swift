@@ -266,6 +266,7 @@ extension PracticeSessionViewModel {
     func suspendAndFlushProgress() async -> PracticeProgressSaveStatus {
         suspendPracticeWork()
         await waitForSessionRecorderEvents()
+        await waitForPendingPerformanceObservationRecording()
         await sessionRecorder?.setGuiding(false)
         return await flushProgress()
     }
@@ -424,6 +425,7 @@ extension PracticeSessionViewModel {
         sessionRecorderEventTask = Task { @MainActor [weak self] in
             await previousTask?.value
             guard let self else { return }
+            await self.waitForPendingPerformanceObservationRecording()
             await sessionRecorder.setGuiding(false)
             let snapshot = await sessionRecorder.analysisSnapshot()
             guard self.acceptsCompletedPassageAnalysis(

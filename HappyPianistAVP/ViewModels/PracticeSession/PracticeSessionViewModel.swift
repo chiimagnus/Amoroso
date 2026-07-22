@@ -226,6 +226,9 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             guard let sessionRecorder else { return }
             switch event {
             case let .guiding(isGuiding):
+                if isGuiding == false {
+                    await waitForPendingPerformanceObservationRecording()
+                }
                 await sessionRecorder.setGuiding(isGuiding)
             case let .settingsPresented(isPresented):
                 await sessionRecorder.setSettingsPresented(isPresented)
@@ -247,6 +250,11 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
 
     func waitForSessionRecorderEvents() async {
         await sessionRecorderEventTask?.value
+    }
+
+    func waitForPendingPerformanceObservationRecording() async {
+        await practiceMIDIInputService?.waitForPendingObservationRecording()
+        await audioRecognitionInputService?.waitForPendingObservationRecording()
     }
 
     func handle(effect: PracticeSessionEffect) {

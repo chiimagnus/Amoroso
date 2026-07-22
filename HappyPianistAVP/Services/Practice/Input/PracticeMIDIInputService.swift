@@ -170,6 +170,10 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
         observationBroadcaster.makeStream(bufferingPolicy: .bufferingNewest(4096))
     }
 
+    func waitForPendingObservationRecording() async {
+        await observationRecordingTask?.value
+    }
+
     private func handleMIDI1(_ event: MIDI1InputEvent) {
         guard let generation = acceptedGeneration(for: event.receivedAtUptimeSeconds) else { return }
         let observation = observationAdapter.observation(for: event, generation: generation)

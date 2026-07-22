@@ -196,6 +196,10 @@ final class PracticeAudioRecognitionInputService: PerformanceObservationStreamPr
         observationBroadcaster.makeStream(bufferingPolicy: .bufferingNewest(4096))
     }
 
+    func waitForPendingObservationRecording() async {
+        await observationRecordingTask?.value
+    }
+
     private func handle(_ evidence: TargetAudioEvidence) {
         guard stateStore.isAudioRecognitionRunning else { return }
         guard stateStore.autoplayState == .off else { return }
