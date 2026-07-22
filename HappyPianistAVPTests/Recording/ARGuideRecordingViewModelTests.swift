@@ -43,11 +43,13 @@ func recordingTeardownCancelsPendingOfflineAlignment() async {
         observations: [makeTestKeyContactObservation(midiNote: 60, phase: .started)]
     )
     viewModel.stopRecording()
-    #expect(await probe.waitUntilStarted())
+    let didStart = await probe.waitUntilStarted()
+    #expect(didStart)
 
     viewModel.stop()
 
-    #expect(await probe.waitUntilCancelled())
+    let didCancel = await probe.waitUntilCancelled()
+    #expect(didCancel)
     #expect(viewModel.alignmentDiagnosticsByTakeID.isEmpty)
 }
 
@@ -66,19 +68,20 @@ private actor RecordingAlignmentCancellationProbe {
     }
 
     func waitUntilStarted() async -> Bool {
-        for _ in 0 ..< 1_000 {
-            if started { return true }
-            await Task.yield()
-        }
-        return false
+        await waitUntil { started }
     }
 
     func waitUntilCancelled() async -> Bool {
-        for _ in 0 ..< 1_000 {
-            if cancelled { return true }
-            await Task.yield()
+        await waitUntil { cancelled }
+    }
+
+    private func waitUntil(_ condition: () -> Bool) async -> Bool {
+        // ponytail: bounded polling prevents a product failure from hanging the test indefinitely.
+        for _ in 0 ..< 100 {
+            if condition() { return true }
+            try? await Task.sleep(for: .milliseconds(10))
         }
-        return false
+        return condition()
     }
 }
 
