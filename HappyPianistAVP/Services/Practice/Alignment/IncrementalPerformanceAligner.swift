@@ -220,7 +220,15 @@ struct IncrementalPerformanceAligner: Sendable {
     private mutating func trimBuffer(using alignment: PerformanceAlignment?) {
         guard observations.count > configuration.maximumBufferedObservations else { return }
         let overflow = observations.count - configuration.maximumBufferedObservations
-        let evictedIDs = Set(observations.prefix(overflow).map(\.id))
+        let committedIDs = Set(committedLinks.keys).union(committedControllerLinks.keys)
+        var evictedIDs = Set(observations.lazy.filter {
+            committedIDs.contains($0.id) || $0.isDiscardableAlignmentAuxiliary
+        }.prefix(overflow).map(\.id))
+        if evictedIDs.count < overflow {
+            evictedIDs.formUnion(observations.lazy.filter {
+                evictedIDs.contains($0.id) == false
+            }.prefix(overflow - evictedIDs.count).map(\.id))
+        }
         if let alignment {
             for link in alignment.links where link.observationID.map(evictedIDs.contains) == true {
                 commitForced(link)
@@ -229,9 +237,9 @@ struct IncrementalPerformanceAligner: Sendable {
                 commit(link)
             }
         }
-        // ponytail: the hard cap freezes the oldest unresolved assignment; raise the cap if ambiguity can span more observations.
-        observations.removeFirst(overflow)
-        discardedObservationCount += overflow
+        // ponytail: discard semantically inert controller traffic before freezing unresolved musical evidence.
+        observations.removeAll { evictedIDs.contains($0.id) }
+        discardedObservationCount += evictedIDs.count
     }
 
     private mutating func commitForced(_ link: PerformanceAlignmentLink) {
@@ -351,6 +359,17 @@ struct IncrementalPerformanceAligner: Sendable {
         }
         sourceGenerations[identity] = source.generation
         return true
+    }
+}
+
+private extension PerformanceObservation {
+    var isDiscardableAlignmentAuxiliary: Bool {
+        guard case let .controller(controller) = event else { return false }
+        guard source.capabilities.controllers != .unavailable else { return true }
+        guard case let .controlChange(number, _) = controller,
+              let controllerNumber = UInt8(exactly: number)
+        else { return true }
+        return MusicXMLPedalController(rawValue: controllerNumber) == nil
     }
 }
 

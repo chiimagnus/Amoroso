@@ -682,6 +682,59 @@ func incrementalTrimPreservesCompleteFinalFacts() throws {
 }
 
 @Test
+func bufferTrimDiscardsIrrelevantControllersBeforeFreezingProvisionalNotes() throws {
+    let first = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 0),
+        occurrenceIndex: 0,
+        onTick: 0
+    )
+    let second = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 1),
+        occurrenceIndex: 0,
+        onTick: 960
+    )
+    let plan = makeAlignmentPlan(noteEvents: [first, second])
+    let engine = PerformanceAlignmentEngine(
+        configuration: .init(candidateWindowSeconds: 0.7)
+    )
+    var aligner = IncrementalPerformanceAligner(
+        engine: engine,
+        configuration: .init(maximumBufferedObservations: 32, commitHorizonSeconds: 10)
+    )
+    aligner.start(plan: plan, generation: 1, performanceStart: .init(seconds: 0))
+    let flexible = makeAlignmentObservation(generation: 1, seconds: 0.6)
+    _ = aligner.append(flexible)
+    for index in 0 ..< 32 {
+        _ = aligner.append(makeAlignmentObservation(
+            generation: 1,
+            seconds: 0.61 + Double(index) * 0.001,
+            event: .controller(.programChange(program: index))
+        ))
+    }
+    let scarce = makeAlignmentObservation(generation: 1, seconds: 1)
+    _ = aligner.append(scarce)
+
+    let online = try #require(aligner.finish())
+    let offline = engine.align(
+        plan: plan,
+        observations: [flexible, scarce],
+        performanceStart: .init(seconds: 0),
+        generation: 1
+    )
+    let onlineAligned = online.links.compactMap { link -> ScorePerformanceNoteEventID? in
+        guard case let .aligned(score, _, _) = link else { return nil }
+        return score.eventID
+    }
+    let offlineAligned = offline.links.compactMap { link -> ScorePerformanceNoteEventID? in
+        guard case let .aligned(score, _, _) = link else { return nil }
+        return score.eventID
+    }
+
+    #expect(Set(onlineAligned) == Set(offlineAligned))
+    #expect(aligner.bufferedObservationCount == 2)
+}
+
+@Test
 func committedScoreEventsCannotBeRematched() throws {
     let first = makeAlignmentEvent(
         sourceID: makeAlignmentSourceID(ordinal: 0),
