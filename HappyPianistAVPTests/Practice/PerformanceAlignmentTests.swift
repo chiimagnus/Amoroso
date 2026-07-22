@@ -1572,7 +1572,8 @@ private func makeAlignmentEvent(
             curveVelocity: nil,
             articulationDelta: 0,
             unclampedVelocity: 90,
-            velocity: 90
+            velocity: 90,
+            usesGenericDynamicBaseline: false
         ),
         staff: 1,
         voice: 1,

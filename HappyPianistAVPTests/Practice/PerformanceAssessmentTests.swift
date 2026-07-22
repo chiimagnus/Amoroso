@@ -855,6 +855,35 @@ func velocityAndDynamicContourFollowPlanTargetsIncludingAccentDelta() throws {
 }
 
 @Test
+func genericDynamicBaselineDegradesVelocityConclusion() throws {
+    func velocityStatus(usesGenericBaseline: Bool) throws -> PerformanceAssessmentEvidenceStatus {
+        let event = makeAssessmentEvent(
+            velocity: 90,
+            usesGenericDynamicBaseline: usesGenericBaseline
+        )
+        let plan = makeAssessmentPlan(events: [event])
+        let alignment = PerformanceAlignment(
+            planID: plan.id,
+            sourceGeneration: 7,
+            links: [makeAlignedLink(
+                event: event,
+                observation: makeAssessmentObservation(time: 0, velocity: 90),
+                onsetDeviation: 0
+            )]
+        )
+        let assessment = try #require(PerformanceAssessmentService().assess(
+            plan: plan,
+            alignment: alignment,
+            measureSpans: makeTestMeasureSpans(for: plan)
+        ))
+        return try assessmentResult(.velocity, in: assessment).evidenceStatus
+    }
+
+    #expect(try velocityStatus(usesGenericBaseline: true) == .degraded)
+    #expect(try velocityStatus(usesGenericBaseline: false) == .observed)
+}
+
+@Test
 func genericVoicingUsesTraceableVoiceHandAndFingeringInsteadOfHighestPitch() throws {
     let rightHand = ScoreHandAssignment(hand: .right, provenance: .score)
     let events = [
@@ -1192,6 +1221,7 @@ private func makeAssessmentEvent(
     writtenOffTick: Int? = nil,
     performedOffTick: Int? = nil,
     velocity: UInt8 = 90,
+    usesGenericDynamicBaseline: Bool = false,
     articulationDelta: Int = 0,
     staff: Int = 1,
     voice: Int = 1,
@@ -1228,7 +1258,8 @@ private func makeAssessmentEvent(
             curveVelocity: nil,
             articulationDelta: articulationDelta,
             unclampedVelocity: Int(velocity),
-            velocity: velocity
+            velocity: velocity,
+            usesGenericDynamicBaseline: usesGenericDynamicBaseline
         ),
         staff: staff,
         voice: voice,
@@ -1350,6 +1381,16 @@ private func makeAlignedLink(
     releaseDeviation: TimeInterval? = nil,
     releaseStatus: PerformanceAlignmentEvidenceStatus = .notObserved
 ) -> PerformanceAlignmentLink {
+    let pitchStatus: PerformanceAlignmentEvidenceStatus = switch observation.source.capabilities.pitch {
+    case .observed: .observed
+    case .degraded: .degraded
+    case .unavailable: .notObserved
+    }
+    let onsetStatus: PerformanceAlignmentEvidenceStatus = switch observation.source.capabilities.onset {
+    case .observed: .observed
+    case .degraded: .degraded
+    case .unavailable: .notObserved
+    }
     let velocityStatus: PerformanceAlignmentEvidenceStatus = switch observation.source.capabilities.velocity {
     case .observed: .observed
     case .degraded: .degraded
@@ -1359,16 +1400,16 @@ private func makeAlignedLink(
         score: .init(event: event),
         observation: .init(observation: observation),
         evidence: [
-            .init(dimension: .pitch, status: .observed, cost: 0),
+            .init(dimension: .pitch, status: pitchStatus, cost: 0),
             .init(
                 dimension: .onset,
-                status: .observed,
+                status: onsetStatus,
                 cost: abs(onsetDeviation),
                 deviationSeconds: onsetDeviation
             ),
             .init(
                 dimension: .chordSpread,
-                status: chordSpread == nil ? .notObserved : .observed,
+                status: chordSpread == nil ? .notObserved : onsetStatus,
                 cost: chordSpread,
                 deviationSeconds: chordSpread
             ),

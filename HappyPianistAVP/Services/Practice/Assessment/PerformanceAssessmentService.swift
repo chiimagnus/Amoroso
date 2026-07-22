@@ -1228,7 +1228,10 @@ struct PerformanceAssessmentService: Sendable {
     private func velocityStatus(_ note: AlignedNote) -> PerformanceAssessmentEvidenceStatus {
         let status = note.evidence.first(where: { $0.dimension == .velocity })?.status
             ?? alignmentStatus(note.observation.source.capabilities.velocity)
-        return assessmentStatus(status, event: note.event)
+        let assessed = assessmentStatus(status, event: note.event)
+        return assessed == .observed && note.event.velocityResolution.usesGenericDynamicBaseline
+            ? .degraded
+            : assessed
     }
 
     private func alignmentStatus(

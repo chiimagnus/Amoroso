@@ -239,7 +239,8 @@ func makeTestScorePerformancePlan(
                 curveVelocity: nil,
                 articulationDelta: 0,
                 unclampedVelocity: Int(note.velocity),
-                velocity: note.velocity
+                velocity: note.velocity,
+                usesGenericDynamicBaseline: false
             ),
             staff: note.staff,
             voice: note.voice,
