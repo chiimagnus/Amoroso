@@ -128,11 +128,46 @@ func progressRepositoryPersistsOnlyMeasureAssessmentSummaries() async throws {
     #expect(metrics[0]["sampleCount"] as? Int == 4)
     #expect(metrics[0]["confidence"] as? Double == 0.8)
     #expect(allJSONKeys(in: root).isDisjoint(with: [
-        "alignment", "cue", "evidence", "observationID", "planID", "sourceGeneration",
-        "summary", "teacherPrompt", "tickRange", "visuals",
+        "alignment", "coachingAction", "coachingDecision", "cue", "evidence", "feedback",
+        "observationID", "planID", "sourceGeneration", "summary", "targetProfile",
+        "teacherPrompt", "tickRange", "toleranceProfile", "visuals",
     ]))
     #expect(String(decoding: data, as: UTF8.self).contains(observationID.uuidString) == false)
     #expect(await repository.progress(for: progress.identity) == reduced.progress)
+}
+
+@Test
+func progressRepositoryDropsInjectedDerivedCoachingStateOnRewrite() async throws {
+    let (repository, directory) = try makeRepositoryFixture()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let paths = PracticeProgressPaths(rootDirectoryURL: directory)
+    let progress = makeProgress()
+    try await repository.upsert(progress)
+
+    let storedData = try Data(contentsOf: paths.fileURL)
+    var root = try #require(JSONSerialization.jsonObject(with: storedData) as? [String: Any])
+    var songs = try #require(root["songs"] as? [[String: Any]])
+    songs[0]["coachingDecision"] = ["kind": "pitchAccuracy"]
+    songs[0]["feedback"] = ["summary": "must-not-restore"]
+    songs[0]["targetProfile"] = ["provenance": "teacher"]
+    root["cue"] = ["kind": "handHighlight"]
+    root["summary"] = "must-not-restore"
+    try JSONSerialization.data(withJSONObject: root).write(to: paths.fileURL, options: .atomic)
+
+    guard case let .loaded(document) = await repository.load() else {
+        Issue.record("Expected derived fields to be ignored by the persistence whitelist")
+        return
+    }
+    let restored = try #require(document.songs.first)
+    #expect(restored == progress)
+    try await repository.upsert(restored)
+
+    let rewrittenData = try Data(contentsOf: paths.fileURL)
+    let rewritten = try JSONSerialization.jsonObject(with: rewrittenData)
+    #expect(allJSONKeys(in: rewritten).isDisjoint(with: [
+        "coachingAction", "coachingDecision", "cue", "feedback", "summary", "targetProfile",
+        "toleranceProfile",
+    ]))
 }
 
 @Test
