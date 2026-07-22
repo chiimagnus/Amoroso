@@ -135,54 +135,45 @@ struct PerformanceAssessmentService: Sendable {
                 dimension: .onset,
                 samples: onsetSamples,
                 unit: .seconds,
-                capabilities: capabilities,
                 links: links
             ),
             timingResult(
                 dimension: .tempoRelativeTiming,
                 samples: tempoRelativeSamples,
                 unit: .normalized,
-                capabilities: capabilities,
                 links: links
             ),
             chordSpreadResult(
                 events: events,
                 aligned: aligned,
-                links: links,
-                capabilities: capabilities
+                links: links
             ),
             durationResult(
                 aligned: aligned,
                 links: links,
-                timeMap: timeMap,
-                capabilities: capabilities
+                timeMap: timeMap
             ),
             releaseResult(
                 aligned: aligned,
-                links: links,
-                capabilities: capabilities
+                links: links
             ),
             articulationResult(
                 aligned: aligned,
                 links: links,
-                timeMap: timeMap,
-                capabilities: capabilities
+                timeMap: timeMap
             ),
             velocityResult(
                 aligned: aligned,
-                links: links,
-                capabilities: capabilities
+                links: links
             ),
             dynamicContourResult(
                 aligned: aligned,
-                links: links,
-                capabilities: capabilities
+                links: links
             ),
             voicingResult(
                 events: events,
                 aligned: aligned,
-                links: links,
-                capabilities: capabilities
+                links: links
             ),
             pedalTimingResult(
                 links: controllerLinks
@@ -193,13 +184,11 @@ struct PerformanceAssessmentService: Sendable {
             tempoContinuityResult(
                 plan: plan,
                 aligned: aligned,
-                timeMap: timeMap,
-                capabilities: capabilities
+                timeMap: timeMap
             ),
             phraseContinuityResult(
                 plan: plan,
-                aligned: aligned,
-                capabilities: capabilities
+                aligned: aligned
             ),
         ]
         return rubric.select(
@@ -336,7 +325,6 @@ struct PerformanceAssessmentService: Sendable {
         dimension: PerformanceAssessmentDimension,
         samples: [MetricSample],
         unit: PerformanceAssessmentMeasurementUnit,
-        capabilities: PerformanceInputCapabilities,
         links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         guard samples.isEmpty == false else {
@@ -360,8 +348,7 @@ struct PerformanceAssessmentService: Sendable {
     private func chordSpreadResult(
         events: [ScorePerformanceNoteEvent],
         aligned: [AlignedNote],
-        links: [PerformanceAlignmentLink],
-        capabilities: PerformanceInputCapabilities
+        links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         let eligibleChords = Dictionary(grouping: events, by: \.performedOnTick)
             .filter { _, chord in
@@ -434,8 +421,7 @@ struct PerformanceAssessmentService: Sendable {
     private func durationResult(
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        timeMap: ScorePerformancePlanTimeMap,
-        capabilities: PerformanceInputCapabilities
+        timeMap: ScorePerformancePlanTimeMap
     ) -> PerformanceAssessmentDimensionResult {
         let samples = aligned.compactMap { note -> MetricSample? in
             guard let evidence = note.evidence.first(where: { $0.dimension == .duration }),
@@ -489,8 +475,7 @@ struct PerformanceAssessmentService: Sendable {
 
     private func releaseResult(
         aligned: [AlignedNote],
-        links: [PerformanceAlignmentLink],
-        capabilities: PerformanceInputCapabilities
+        links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         let samples = aligned.compactMap { metricSample(for: $0, dimension: .release) }
         let hasIncompleteEvidence = aligned.contains { note in
@@ -528,8 +513,7 @@ struct PerformanceAssessmentService: Sendable {
     private func articulationResult(
         aligned: [AlignedNote],
         links: [PerformanceAlignmentLink],
-        timeMap: ScorePerformancePlanTimeMap,
-        capabilities: PerformanceInputCapabilities
+        timeMap: ScorePerformancePlanTimeMap
     ) -> PerformanceAssessmentDimensionResult {
         let lanes = Dictionary(grouping: aligned) { note in
             VoiceLane(
@@ -626,8 +610,7 @@ struct PerformanceAssessmentService: Sendable {
 
     private func velocityResult(
         aligned: [AlignedNote],
-        links: [PerformanceAlignmentLink],
-        capabilities: PerformanceInputCapabilities
+        links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         let samples = aligned.compactMap { note -> MetricSample? in
             guard let performed = performedVelocity(note) else { return nil }
@@ -671,8 +654,7 @@ struct PerformanceAssessmentService: Sendable {
 
     private func dynamicContourResult(
         aligned: [AlignedNote],
-        links: [PerformanceAlignmentLink],
-        capabilities: PerformanceInputCapabilities
+        links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         let lanes = Dictionary(grouping: aligned) { note in
             VoiceLane(
@@ -751,8 +733,7 @@ struct PerformanceAssessmentService: Sendable {
     private func voicingResult(
         events: [ScorePerformanceNoteEvent],
         aligned: [AlignedNote],
-        links: [PerformanceAlignmentLink],
-        capabilities: PerformanceInputCapabilities
+        links: [PerformanceAlignmentLink]
     ) -> PerformanceAssessmentDimensionResult {
         let eligibleChords = Dictionary(grouping: events, by: \.performedOnTick)
             .filter { _, chord in
@@ -956,8 +937,7 @@ struct PerformanceAssessmentService: Sendable {
     private func tempoContinuityResult(
         plan: ScorePerformancePlan,
         aligned: [AlignedNote],
-        timeMap: ScorePerformancePlanTimeMap,
-        capabilities: PerformanceInputCapabilities
+        timeMap: ScorePerformancePlanTimeMap
     ) -> PerformanceAssessmentDimensionResult {
         let onsets = timedOnsets(aligned)
         let expressionBoundaries = Set(plan.annotations.compactMap { annotation in
@@ -1009,8 +989,7 @@ struct PerformanceAssessmentService: Sendable {
 
     private func phraseContinuityResult(
         plan: ScorePerformancePlan,
-        aligned: [AlignedNote],
-        capabilities: PerformanceInputCapabilities
+        aligned: [AlignedNote]
     ) -> PerformanceAssessmentDimensionResult {
         let phraseAnnotations = plan.annotations.filter { $0.kind == .phrase }
         let phraseBoundaries = Set(phraseAnnotations.map(\.tick))
