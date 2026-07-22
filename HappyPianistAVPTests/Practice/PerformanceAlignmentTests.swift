@@ -193,6 +193,83 @@ func chordSpreadUsesCurrentOccurrenceAndRespectsArpeggioProvenance() throws {
 }
 
 @Test
+func unavailableCapabilitiesNeverFilterCandidatesOrContributeCosts() throws {
+    let unavailable = PerformanceInputCapabilities(
+        pitch: .observed,
+        onset: .unavailable,
+        release: .unavailable,
+        velocity: .unavailable,
+        controllers: .unavailable,
+        polyphony: .unavailable,
+        hand: .unavailable,
+        finger: .unavailable,
+        position: .unavailable,
+        confidence: .unavailable
+    )
+    let left = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 0),
+        occurrenceIndex: 0,
+        handAssignment: .init(hand: .left, provenance: .score)
+    )
+    let right = makeAlignmentEvent(
+        sourceID: makeAlignmentSourceID(ordinal: 1),
+        occurrenceIndex: 0,
+        handAssignment: .init(hand: .right, provenance: .score)
+    )
+    let controller = ScorePerformanceControllerEvent(
+        sourceDirectionID: nil,
+        performedOccurrenceIndex: 0,
+        tick: 0,
+        controllerNumber: 64,
+        value: 127,
+        outputCapabilityRequirement: .continuousControlChange
+    )
+    let plan = makeAlignmentPlan(noteEvents: [left, right], controllerEvents: [controller])
+    let note = makeAlignmentObservation(
+        generation: 1,
+        note: 60,
+        seconds: 0.2,
+        capabilities: unavailable,
+        hand: .left
+    )
+    let capableNote = makeAlignmentObservation(generation: 1, note: 72, seconds: 0)
+    let unsupportedController = makeAlignmentObservation(
+        generation: 1,
+        seconds: 0,
+        event: .controller(.controlChange(number: 64, value: .init(midi1: 127))),
+        capabilities: unavailable
+    )
+
+    let result = PerformanceAlignmentEngine().align(
+        plan: plan,
+        observations: [note, capableNote, unsupportedController],
+        performanceStart: .init(seconds: 0)
+    )
+
+    guard case let .ambiguous(_, candidates) = result.links.first else {
+        Issue.record("Unavailable hand evidence must not filter unison candidates")
+        return
+    }
+    #expect(candidates.count == 2)
+    #expect(candidates.allSatisfy { candidate in
+        candidate.evidence.contains {
+            $0.dimension == .onset
+                && $0.status == .notObserved
+                && $0.cost == nil
+                && $0.deviationSeconds == nil
+        } && candidate.evidence.contains {
+            $0.dimension == .chordSpread
+                && $0.status == .notObserved
+                && $0.cost == nil
+                && $0.deviationSeconds == nil
+        } && candidate.evidence.contains {
+            $0.dimension == .hand && $0.status == .notObserved && $0.cost == nil
+        }
+    })
+    #expect(result.controllerLinks == [.missing(score: .init(event: controller))])
+}
+
+@Test
 func releaseDurationAndControllerEvidenceRespectCapabilities() throws {
     let event = makeAlignmentEvent(sourceID: makeAlignmentSourceID(ordinal: 0), occurrenceIndex: 0)
     let controller = ScorePerformanceControllerEvent(

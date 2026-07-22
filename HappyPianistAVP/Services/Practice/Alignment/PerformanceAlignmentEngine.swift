@@ -137,8 +137,12 @@ struct PerformanceAlignmentEngine: Sendable {
         generation: UInt64?
     ) -> [PerformanceAlignmentCandidateSnapshot] {
         let observedOnsets = observations.compactMap { observation -> (Int, TimeInterval)? in
+            let capabilities = observation.source.capabilities
             guard observation.source.role != .systemPlayback,
                   generation.map({ observation.source.generation == $0 }) ?? true,
+                  capabilities.pitch != .unavailable,
+                  capabilities.onset != .unavailable,
+                  capabilities.polyphony != .unavailable,
                   let note = observation.alignmentOnsetMIDINote
             else { return nil }
             return (note, max(0, observation.alignmentTimestamp.seconds - performanceStart.seconds))
@@ -280,7 +284,9 @@ struct PerformanceAlignmentEngine: Sendable {
         timeMap: ScorePerformancePlanTimeMap
     ) -> [PerformanceAlignmentControllerLink] {
         let observed = observations.compactMap { observation -> (PerformanceObservation, Int, UInt8)? in
-            guard case let .controller(.controlChange(number, value)) = observation.event else { return nil }
+            guard observation.source.capabilities.controllers != .unavailable,
+                  case let .controller(.controlChange(number, value)) = observation.event
+            else { return nil }
             guard let controllerNumber = UInt8(exactly: number),
                   MusicXMLPedalController(rawValue: controllerNumber) != nil
             else { return nil }
@@ -359,8 +365,10 @@ struct PerformanceAlignmentEngine: Sendable {
         let pitchMatching = pitchEvidence == .observed
             ? temporal.filter { $0.event.midiNote == observedNote }
             : temporal
+        let handEvidence = observation.source.capabilities.hand
+        let observedHand = handEvidence == .unavailable ? nil : observation.hand
         let matching: [TimedNote]
-        if let observedHand = observation.hand {
+        if let observedHand {
             matching = pitchMatching.filter { timedNote in
                 timedNote.event.handAssignment.hand == .unknown
                     || timedNote.event.handAssignment.hand == observedHand
@@ -380,7 +388,10 @@ struct PerformanceAlignmentEngine: Sendable {
             let event = timedNote.event
             let onsetDeviation = observedSeconds - timedNote.seconds
             let chordEvents = preparedPlan.chordEventsByTick[event.performedOnTick] ?? []
-            let measuresChordSpread = chordEvents.count > 1
+            let onsetEvidence = observation.source.capabilities.onset
+            let polyphonyEvidence = observation.source.capabilities.polyphony
+            let measuresChordSpread = polyphonyEvidence != .unavailable
+                && chordEvents.count > 1
                 && chordEvents.contains { note in
                     note.timingProvenance.contains { $0.kind == .arpeggio }
                 } == false
@@ -397,8 +408,12 @@ struct PerformanceAlignmentEngine: Sendable {
                 chordOnsets.min().map { maximum - $0 }
             }) ?? 0
             let pitchCost = event.midiNote == observedNote ? 0 : configuration.pitchMismatchCost
-            let onsetCost = abs(onsetDeviation) * configuration.onsetWeight
-            let chordCost = chordSpread * configuration.chordSpreadWeight
+            let onsetCost = onsetEvidence == .unavailable
+                ? 0
+                : abs(onsetDeviation) * configuration.onsetWeight
+            let chordCost = measuresChordSpread
+                ? chordSpread * configuration.chordSpreadWeight
+                : 0
             return PerformanceAlignmentCandidate(
                 score: .init(event: event),
                 totalCost: pitchCost + onsetCost + chordCost,
@@ -410,22 +425,22 @@ struct PerformanceAlignmentEngine: Sendable {
                     ),
                     .init(
                         dimension: .onset,
-                        status: Self.evidenceStatus(observation.source.capabilities.onset),
-                        cost: onsetCost,
-                        deviationSeconds: onsetDeviation
+                        status: Self.evidenceStatus(onsetEvidence),
+                        cost: onsetEvidence == .unavailable ? nil : onsetCost,
+                        deviationSeconds: onsetEvidence == .unavailable ? nil : onsetDeviation
                     ),
                     .init(
                         dimension: .chordSpread,
                         status: measuresChordSpread
-                            ? Self.evidenceStatus(observation.source.capabilities.polyphony)
+                            ? Self.evidenceStatus(polyphonyEvidence)
                             : .notObserved,
                         cost: measuresChordSpread ? chordCost : nil,
                         deviationSeconds: measuresChordSpread ? chordSpread : nil
                     ),
                     .init(
                         dimension: .hand,
-                        status: observation.hand == nil ? .notObserved : .observed,
-                        cost: observation.hand.map {
+                        status: observedHand == nil ? .notObserved : Self.evidenceStatus(handEvidence),
+                        cost: observedHand.map {
                             event.handAssignment.hand == .unknown || event.handAssignment.hand == $0 ? 0 : 1
                         }
                     ),
