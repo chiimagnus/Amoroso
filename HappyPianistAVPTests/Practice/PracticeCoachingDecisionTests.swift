@@ -71,6 +71,13 @@ func musicalIssueRetainsAssessmentEvidenceAndBoundsConfidence() {
 @Test
 func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
     let issue = makeCoachingIssue()
+    let fingerings = [MusicXMLFingering(
+        text: "2",
+        alternate: .enabled,
+        placementToken: "above",
+        hand: .left,
+        provenance: .teacher
+    )]
     let handFocus = ScoreHandAssignment(
         hand: .left,
         provenance: .score,
@@ -85,6 +92,7 @@ func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
         scoreRange: issue.scoreRange,
         tempoRatio: 0.2,
         handFocus: handFocus,
+        fingerings: fingerings,
         voiceFocus: CoachingVoiceFocus(partID: "P1", staff: 2, voice: 1),
         repeatCount: 0,
         referenceUse: .manualReplay,
@@ -95,6 +103,7 @@ func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
 
     #expect(action.tempoRatio == PracticeRoundConfiguration.supportedTempoRange.lowerBound)
     #expect(action.handFocus == handFocus)
+    #expect(action.fingerings == fingerings)
     #expect(action.voiceFocus == CoachingVoiceFocus(partID: "P1", staff: 2, voice: 1))
     #expect(action.repeatCount == 1)
     #expect(action.referenceUse == .manualReplay)
@@ -102,6 +111,66 @@ func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
     #expect(action.completionCondition.consecutiveAssessments == 1)
     #expect(decision.issue == issue)
     #expect(decision.action == action)
+}
+
+@Test
+func decisionCarriesP13FingeringFactsWithoutCollapsingMultiplicityOrProvenance() throws {
+    let sourceNoteID = MusicXMLSourceNoteID(
+        partID: "P1",
+        sourceMeasureIndex: 0,
+        sourceMeasureNumberToken: "1",
+        staff: 1,
+        voice: 1,
+        sourceOrdinal: 0
+    )
+    let fingerings = [
+        MusicXMLFingering(
+            sourceID: MusicXMLFingeringSourceID(sourceNoteID: sourceNoteID, sourceOrdinal: 0),
+            text: "2",
+            substitution: .enabled,
+            placementToken: "above",
+            hand: .right,
+            provenance: .score
+        ),
+        MusicXMLFingering(
+            text: "3",
+            alternate: .enabled,
+            placementToken: "below",
+            hand: .right,
+            provenance: .teacher
+        ),
+        MusicXMLFingering(
+            text: "4",
+            hand: .right,
+            provenance: .user
+        ),
+    ]
+    let assignment = ScoreHandAssignment(hand: .right, provenance: .teacher, confidence: 0.9)
+    let plan = makeTestScorePerformancePlan(notes: [TestScorePerformanceNote(
+        midiNote: 60,
+        onTick: 0,
+        handAssignment: assignment,
+        fingerings: fingerings
+    )])
+    let dimension = makeDimension(.exactPitch, outcome: .incorrect, confidence: 0.9)
+    let assessment = PassagePerformanceAssessment(
+        planID: plan.id,
+        sourceGeneration: 7,
+        tickRange: 0 ..< 480,
+        rubricVersion: .capabilityAware,
+        dimensions: [dimension],
+        measures: []
+    )
+
+    let decision = try #require(CoachingDecisionService().decision(
+        for: assessment,
+        scoreEvents: plan.noteEvents
+    ))
+
+    #expect(decision.action.handFocus == assignment)
+    #expect(decision.action.fingerings == fingerings)
+    #expect(decision.action.fingerings.map(\.sourceID) == fingerings.map(\.sourceID))
+    #expect(decision.action.fingerings.map(\.provenance) == [.score, .teacher, .user])
 }
 
 @Test

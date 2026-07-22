@@ -17,6 +17,11 @@ struct CoachingDecision: Equatable, Sendable {
     let action: CoachingAction
 }
 
+struct PracticeCoachingPresentation: Equatable, Sendable {
+    let sourceLabel: String
+    let fingeringText: String?
+}
+
 struct PracticeFeedbackContext: Equatable {
     let passageFacts: [MeasurePracticeFacts]
     let passageSourceMeasureIDs: Set<PracticeSourceMeasureID>

@@ -2,13 +2,42 @@ import SwiftUI
 
 struct PracticeFeedbackCueView: View {
     let event: PracticeFeedbackEvent
+    let coachingPresentation: PracticeCoachingPresentation?
+
+    init(
+        event: PracticeFeedbackEvent,
+        coachingPresentation: PracticeCoachingPresentation? = nil
+    ) {
+        self.event = event
+        self.coachingPresentation = coachingPresentation
+    }
 
     var body: some View {
         let presentation = PracticeFeedbackCuePresentation(event: event)
-        Label(presentation.title, systemImage: presentation.systemImage)
+        VStack(alignment: .leading) {
+            Label(presentation.title, systemImage: presentation.systemImage)
+            if let coachingPresentation {
+                if let fingeringText = coachingPresentation.fingeringText {
+                    Text("指法 \(fingeringText)")
+                        .font(.caption)
+                }
+                Text(coachingPresentation.sourceLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
             .padding()
             .glassBackgroundEffect()
-            .accessibilityLabel(presentation.title)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel(for: presentation))
+    }
+
+    private func accessibilityLabel(for presentation: PracticeFeedbackCuePresentation) -> String {
+        [
+            presentation.title,
+            coachingPresentation?.fingeringText.map { "指法 \($0)" },
+            coachingPresentation?.sourceLabel,
+        ].compactMap { $0 }.joined(separator: "，")
     }
 }
 

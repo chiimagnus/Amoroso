@@ -56,6 +56,7 @@ struct CoachingAction: Equatable, Sendable {
     let scoreRange: Range<Int>
     let tempoRatio: Double?
     let handFocus: ScoreHandAssignment?
+    let fingerings: [MusicXMLFingering]
     let voiceFocus: CoachingVoiceFocus?
     let repeatCount: Int
     let referenceUse: CoachingReferenceUse?
@@ -67,6 +68,7 @@ struct CoachingAction: Equatable, Sendable {
         scoreRange: Range<Int>,
         tempoRatio: Double? = nil,
         handFocus: ScoreHandAssignment? = nil,
+        fingerings: [MusicXMLFingering] = [],
         voiceFocus: CoachingVoiceFocus? = nil,
         repeatCount: Int,
         referenceUse: CoachingReferenceUse? = nil,
@@ -81,6 +83,7 @@ struct CoachingAction: Equatable, Sendable {
                 : nil
         }
         self.handFocus = handFocus
+        self.fingerings = fingerings
         self.voiceFocus = voiceFocus
         self.repeatCount = max(1, repeatCount)
         self.referenceUse = referenceUse

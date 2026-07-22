@@ -1,8 +1,12 @@
 import Foundation
 
 struct PracticeExercisePolicy: Sendable {
-    func action(for issue: MusicalIssue) -> CoachingAction? {
+    func action(
+        for issue: MusicalIssue,
+        scoreEvents: [ScorePerformanceNoteEvent] = []
+    ) -> CoachingAction? {
         guard let dimension = issue.dimensionResults.first?.dimension else { return nil }
+        let relevantEvents = scoreEvents.filter { issue.scoreRange.contains($0.performedOnTick) }
 
         let specification: (
             kind: CoachingActionKind,
@@ -44,10 +48,22 @@ struct PracticeExercisePolicy: Sendable {
             kind: specification.kind,
             scoreRange: issue.scoreRange,
             tempoRatio: specification.tempoRatio,
+            handFocus: handFocus(in: relevantEvents),
+            fingerings: relevantEvents.flatMap(\.fingerings),
             repeatCount: specification.repeatCount,
             referenceUse: specification.referenceUse,
             cueUse: specification.cueUse,
             completionCondition: CoachingCompletionCondition(target: completionTarget)
         )
+    }
+
+    private func handFocus(in events: [ScorePerformanceNoteEvent]) -> ScoreHandAssignment? {
+        guard let first = events.first?.handAssignment,
+              first.hand != .unknown,
+              events.allSatisfy({ $0.handAssignment == first })
+        else {
+            return nil
+        }
+        return first
     }
 }

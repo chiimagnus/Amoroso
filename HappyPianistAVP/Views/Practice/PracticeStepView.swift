@@ -46,7 +46,10 @@ struct PracticeStepView: View {
         .padding(.vertical, 30)
         .overlay(alignment: .top) {
             if let cue = viewModel.practiceFeedbackViewModel.cue {
-                PracticeFeedbackCueView(event: cue)
+                PracticeFeedbackCueView(
+                    event: cue,
+                    coachingPresentation: viewModel.practiceFeedbackViewModel.coachingPresentation
+                )
                     .transition(.opacity)
                     .accessibilityAddTraits(.updatesFrequently)
             }

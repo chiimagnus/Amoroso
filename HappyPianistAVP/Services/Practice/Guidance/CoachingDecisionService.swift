@@ -14,14 +14,23 @@ struct CoachingDecisionService: Sendable {
 
     func decision(
         for assessment: PassagePerformanceAssessment,
+        scoreEvents: [ScorePerformanceNoteEvent] = [],
         context: CoachingPriorityContext = CoachingPriorityContext()
     ) -> CoachingDecision? {
-        priorityPolicy.primaryDecision(from: candidates(for: assessment), context: context)
+        priorityPolicy.primaryDecision(
+            from: candidates(for: assessment, scoreEvents: scoreEvents),
+            context: context
+        )
     }
 
-    func candidates(for assessment: PassagePerformanceAssessment) -> [CoachingDecision] {
+    func candidates(
+        for assessment: PassagePerformanceAssessment,
+        scoreEvents: [ScorePerformanceNoteEvent] = []
+    ) -> [CoachingDecision] {
         issues(from: assessment).compactMap { issue in
-            exercisePolicy.action(for: issue).map { CoachingDecision(issue: issue, action: $0) }
+            exercisePolicy.action(for: issue, scoreEvents: scoreEvents).map {
+                CoachingDecision(issue: issue, action: $0)
+            }
         }
     }
 
