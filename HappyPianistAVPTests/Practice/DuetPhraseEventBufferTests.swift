@@ -127,16 +127,52 @@ func performanceObservationPhraseAdapterUnifiesMIDIRecordingAndHandEvidence() {
     #expect(handPhraseEvent != nil)
     guard let handPhraseEvent else { return }
 
+    let handReleaseObservation = PerformanceObservation(
+        source: handSource,
+        timing: .init(
+            host: .init(seconds: 10.9),
+            source: nil,
+            correctedHost: .init(seconds: 10.9),
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .contact(id: "right-index-1", keyCandidate: 64, phase: .ended)
+    )
+    let handReleasePhraseEvent = adapter.phraseEvent(from: handReleaseObservation)
+    #expect(handReleasePhraseEvent != nil)
+    guard let handReleasePhraseEvent else { return }
+
+    let pedalObservation = PerformanceObservation(
+        source: midiSource,
+        timing: .init(
+            host: .init(seconds: 10.2),
+            source: nil,
+            correctedHost: .init(seconds: 10.2),
+            mapping: nil,
+            provenance: .latencyEstimate
+        ),
+        event: .controller(.controlChange(number: 64, value: .init(midi1: 127)))
+    )
+    let pedalPhraseEvent = adapter.phraseEvent(from: pedalObservation)
+    #expect(pedalPhraseEvent != nil)
+    guard let pedalPhraseEvent else { return }
+
     var notes = DuetPhraseBuffer()
     notes.record(midiPhraseEvent, sustainIsDown: false)
     notes.record(recordingPhraseEvent, sustainIsDown: false)
     notes.record(handPhraseEvent, sustainIsDown: false)
-    let snapshot = notes.snapshot(nowTimestampSeconds: 10.7, lookbackSeconds: 4, maxPromptSeconds: 3)
+    notes.record(handReleasePhraseEvent, sustainIsDown: false)
+    let snapshot = notes.snapshot(nowTimestampSeconds: 11, lookbackSeconds: 4, maxPromptSeconds: 3)
+
+    var controls = DuetPhraseEventBuffer()
+    controls.record(pedalPhraseEvent)
 
     #expect(snapshot.promptNotes.contains {
         $0.note == 60 && $0.velocity == 78 && abs($0.duration - 0.4) < 0.000_001
     })
-    #expect(snapshot.promptNotes.contains { $0.note == 64 && $0.velocity == 66 })
+    #expect(snapshot.promptNotes.contains {
+        $0.note == 64 && $0.velocity == 66 && abs($0.duration - 0.4) < 0.000_001
+    })
     #expect(snapshot.phraseProvenance.observations.contains {
         $0.id == midiID && $0.capabilities == .midi && $0.timingProvenance == .latencyEstimate
     })
@@ -144,4 +180,64 @@ func performanceObservationPhraseAdapterUnifiesMIDIRecordingAndHandEvidence() {
         $0.id == handID && $0.capabilities == .handContact
     })
     #expect(recordingPhraseEvent.timestamp == .init(seconds: 10.4))
+    #expect(midiPhraseEvent.sustainObservation == .observed)
+    #expect(handPhraseEvent.sustainObservation == .notObserved)
+    #expect(controls.snapshot(nowTimestampSeconds: 11, lookbackSeconds: 4, maxPromptSeconds: 3).sustainValue == 127)
+}
+
+@Test
+func phraseAndRecordingReuseInputObservationIdentity() throws {
+    let source = MIDIInputSource(identifier: .sourceIndex(9), endpointName: "identity")
+    let inputID = try #require(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+    let input = MIDI1InputEvent(
+        observationID: inputID,
+        kind: .noteOn(note: 60, velocity: 73),
+        channel: 1,
+        group: 0,
+        source: source,
+        receivedAt: .now,
+        receivedAtUptimeSeconds: 4
+    )
+    var phraseObservationAdapter = MIDIPerformanceObservationAdapter()
+    var recordingAdapter = MIDIRecordingAdapter()
+    let phraseObservation = phraseObservationAdapter.observation(for: input, generation: 2)
+    let recordingObservation = recordingAdapter.observation(for: input)
+    let phraseEvent = try #require(PerformanceObservationPhraseAdapter().phraseEvent(from: phraseObservation))
+
+    var recorder = RecordingTakeRecorder()
+    recorder.start(now: 3)
+    recorder.record(recordingObservation)
+    let take = recorder.stop(now: 5, createdAt: .distantPast)
+
+    #expect(phraseObservation.id == inputID)
+    #expect(recordingObservation.id == inputID)
+    #expect(phraseEvent.observationID == inputID)
+    #expect(take.events.first?.observation?.id == inputID)
+
+    let contactObservationID = try #require(UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
+    let contact = makeTestKeyContactObservation(
+        midiNote: 64,
+        phase: .started,
+        observationID: contactObservationID,
+        resolvedVelocity: 81
+    )
+    let contactAdapter = PianoKeyContactPerformanceObservationAdapter()
+    let aiContact = contactAdapter.observation(
+        from: contact,
+        sourceKind: .virtualPianoContact,
+        generation: 3
+    )
+    let recordedContact = contactAdapter.observation(
+        from: contact,
+        sourceKind: .virtualPianoContact,
+        generation: 4
+    )
+
+    #expect(aiContact.id == contactObservationID)
+    #expect(recordedContact.id == contactObservationID)
+    if case let .contact(id, _, _) = aiContact.event {
+        #expect(id == "\(contact.hand)-\(contact.finger)-\(contact.id.sequence)")
+    } else {
+        Issue.record("contact input did not retain its playback contact identity")
+    }
 }

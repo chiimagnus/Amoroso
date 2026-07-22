@@ -11,12 +11,21 @@ struct CreativeDuetPhrase: Equatable, Sendable {
 
 struct CreativeDuetPhraseProvenance: Equatable, Sendable {
     struct Observation: Equatable, Sendable {
+        enum SustainObservation: Equatable, Sendable {
+            case observed
+            case notObserved
+        }
+
         let id: UUID
         let source: PerformanceObservation.Source
         let timingProvenance: PerformanceClockCorrectionProvenance
 
         var capabilities: PerformanceInputCapabilities {
             source.capabilities
+        }
+
+        var sustainObservation: SustainObservation {
+            capabilities.controllers == .unavailable ? .notObserved : .observed
         }
     }
 

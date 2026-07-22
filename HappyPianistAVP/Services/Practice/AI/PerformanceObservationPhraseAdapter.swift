@@ -24,6 +24,10 @@ struct PerformanceObservationPhraseAdapter {
                 timingProvenance: timingProvenance
             )
         }
+
+        var sustainObservation: CreativeDuetPhraseProvenance.Observation.SustainObservation {
+            provenance.sustainObservation
+        }
     }
 
     func phraseEvent(from observation: PerformanceObservation) -> PhraseEvent? {
