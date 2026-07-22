@@ -12,6 +12,7 @@ actor DuetAIPlaybackQueue {
     private struct WindowItem {
         let schedule: [PracticeSequencerMIDIEvent]
         let routing: PracticeSoundRoutingSettings
+        let provider: ImprovBackendKind?
         let requestGeneration: Int
     }
 
@@ -89,6 +90,7 @@ actor DuetAIPlaybackQueue {
         schedule: [PracticeSequencerMIDIEvent],
         routing: PracticeSoundRoutingSettings,
         submittedAtUptimeSeconds: TimeInterval? = nil,
+        provider: ImprovBackendKind? = nil,
         requestGeneration: Int = .max
     ) async -> SubmitResult {
         let now = submittedAtUptimeSeconds ?? nowUptimeSeconds()
@@ -110,6 +112,7 @@ actor DuetAIPlaybackQueue {
         pendingWindow = WindowItem(
             schedule: shiftedSchedule,
             routing: routing,
+            provider: provider,
             requestGeneration: requestGeneration
         )
         ensurePlaybackLoop()
@@ -165,7 +168,7 @@ actor DuetAIPlaybackQueue {
                 category: .ai,
                 stage: "continuousDuet.buildSequence",
                 summary: "AI 即兴序列构建失败",
-                reason: String(describing: error)
+                reason: "provider=\(item.provider?.rawValue ?? "unknown");failure=sequence_build"
             )
             return
         }
@@ -199,7 +202,7 @@ actor DuetAIPlaybackQueue {
                     category: .ai,
                     stage: "continuousDuet.playbackStart",
                     summary: "AI 即兴播放启动失败",
-                    reason: String(describing: error)
+                    reason: "provider=\(item.provider?.rawValue ?? "unknown");failure=playback_start"
                 )
                 return
             }

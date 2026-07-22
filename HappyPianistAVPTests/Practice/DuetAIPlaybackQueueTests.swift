@@ -2,6 +2,10 @@ import Foundation
 @testable import HappyPianistAVP
 import Testing
 
+private enum DuetAIPlaybackQueueTestError: Error {
+    case simulated
+}
+
 @MainActor
 private final class FakeImmediatePlaybackService: PracticeSequencerPlaybackServiceProtocol {
     private(set) var stopCallCount = 0
@@ -11,9 +15,17 @@ private final class FakeImmediatePlaybackService: PracticeSequencerPlaybackServi
 
     private var loadedSequence: PracticeSequencerSequence?
     private var isPlaying = false
+    private let failsWarmUp: Bool
+
+    init(failsWarmUp: Bool = false) {
+        self.failsWarmUp = failsWarmUp
+    }
 
     func warmUp() throws {
         warmUpCallCount += 1
+        if failsWarmUp {
+            throw DuetAIPlaybackQueueTestError.simulated
+        }
     }
 
     func stop(resetCommands _: [PerformanceTransportCommand]) {
@@ -176,6 +188,83 @@ func duetAIPlaybackQueueSubmitWindowShiftsLeadInForQueuedWindows() async {
     #expect(abs(result2.shiftedSchedule[0].timeSeconds - 0.05) < 1e-9)
     #expect(abs(result2.windowEndUptimeSeconds - 100.15) < 1e-9)
 
+    await queue.stopAll()
+}
+
+@Test
+func duetAIPlaybackQueueBuildFailureDiagnosticIsClassified() async {
+    let diagnosticsReporter = InMemoryDiagnosticsReporter()
+    let fakeService = await MainActor.run { FakeImmediatePlaybackService() }
+    let factory = await MainActor.run {
+        DuetAIPlaybackServiceFactory(
+            makeLocalSamplerPlaybackService: { fakeService },
+            makeExternalMIDIPlaybackService: { _ in fakeService }
+        )
+    }
+    let queue = DuetAIPlaybackQueue(
+        diagnosticsReporter: diagnosticsReporter,
+        nowUptimeSeconds: { 50 },
+        sleepFor: { _ in },
+        buildSequence: { _ in throw DuetAIPlaybackQueueTestError.simulated },
+        playbackServiceFactory: { factory },
+        onPlaybackActiveChanged: { _ in }
+    )
+    let routing = PracticeSoundRoutingSettings(outputRoute: .localSampler, midiDestinationUniqueID: nil, sendLocalControlOff: false)
+    _ = await queue.submitWindow(
+        schedule: [PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 72, velocity: 80))],
+        routing: routing,
+        submittedAtUptimeSeconds: 50,
+        provider: .localRule
+    )
+
+    for _ in 0 ..< 200 {
+        await Task.yield()
+        let events = await diagnosticsReporter.events
+        if events.contains(where: { $0.reason == "provider=local_rule;failure=sequence_build" }) { break }
+    }
+
+    let events = await diagnosticsReporter.events
+    #expect(events.contains(where: { $0.reason == "provider=local_rule;failure=sequence_build" }))
+    await queue.stopAll()
+}
+
+@Test
+func duetAIPlaybackQueuePlaybackStartFailureDiagnosticIsClassified() async {
+    let diagnosticsReporter = InMemoryDiagnosticsReporter()
+    let fakeService = await MainActor.run { FakeImmediatePlaybackService(failsWarmUp: true) }
+    let factory = await MainActor.run {
+        DuetAIPlaybackServiceFactory(
+            makeLocalSamplerPlaybackService: { fakeService },
+            makeExternalMIDIPlaybackService: { _ in fakeService }
+        )
+    }
+    let queue = DuetAIPlaybackQueue(
+        diagnosticsReporter: diagnosticsReporter,
+        nowUptimeSeconds: { 50 },
+        sleepFor: { _ in },
+        buildSequence: { schedule in
+            let end = schedule.map(\.timeSeconds).max() ?? 0
+            return PracticeSequencerSequence(midiData: Data(), durationSeconds: end, events: schedule)
+        },
+        playbackServiceFactory: { factory },
+        onPlaybackActiveChanged: { _ in }
+    )
+    let routing = PracticeSoundRoutingSettings(outputRoute: .localSampler, midiDestinationUniqueID: nil, sendLocalControlOff: false)
+    _ = await queue.submitWindow(
+        schedule: [PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 72, velocity: 80))],
+        routing: routing,
+        submittedAtUptimeSeconds: 50,
+        provider: .localCoreMLDuet
+    )
+
+    for _ in 0 ..< 200 {
+        await Task.yield()
+        let events = await diagnosticsReporter.events
+        if events.contains(where: { $0.reason == "provider=local_coreml_duet;failure=playback_start" }) { break }
+    }
+
+    let events = await diagnosticsReporter.events
+    #expect(events.contains(where: { $0.reason == "provider=local_coreml_duet;failure=playback_start" }))
     await queue.stopAll()
 }
 

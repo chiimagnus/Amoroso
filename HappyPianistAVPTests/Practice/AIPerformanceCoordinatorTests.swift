@@ -556,6 +556,59 @@ func selectedBackendTimeoutAndInvalidResponseStopWithClassifiedDiagnostics() asy
 
 @Test
 @MainActor
+func responseLatencyQualityGateStopsSelectedBackend() async {
+    let nowUptime: TimeInterval = 0
+    var states: [AIPerformanceService.State] = []
+    let diagnosticsReporter = InMemoryDiagnosticsReporter()
+    let backendService = FakeBackendDiscoveryService()
+    let orchestrator = FakeDiscoveryOrchestrator(service: backendService)
+    let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
+    let backend = FakeScheduleBackend(
+        kind: selectedKind,
+        playbackPlan: .schedule([
+            PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 72, velocity: 90)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 72)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.3, kind: .noteOn(midi: 76, velocity: 88)),
+            PracticeSequencerMIDIEvent(timeSeconds: 0.5, kind: .noteOff(midi: 76)),
+        ], backendLatencyMS: 400)
+    )
+    let playbackService = FakeSequencerPlaybackService()
+    let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
+        makeLocalSamplerPlaybackService: { playbackService },
+        makeExternalMIDIPlaybackService: { _ in playbackService }
+    )
+    let service = AIPerformanceService(
+        diagnosticsReporter: diagnosticsReporter,
+        nowUptimeSeconds: { nowUptime },
+        sleepFor: { _ in },
+        discoveryOrchestrator: orchestrator,
+        backendRegistry: ImprovBackendRegistry(backends: [backend]),
+        selectedBackendKind: { selectedKind },
+        aiPlaybackServiceFactory: { aiPlaybackFactory },
+        onStateChanged: { states.append($0) }
+    )
+    defer { service.setEnabled(false) }
+
+    let session = FakePracticeSession()
+    service.updatePracticeSession(session)
+    service.setEnabled(true)
+    recordDuetTestPhrase(service)
+
+    let expectedReason = "provider=network_bonjour_http_aria_v2;failure=quality_gate"
+    for _ in 0 ..< 500 {
+        await Task.yield()
+        let events = await diagnosticsReporter.events
+        if events.contains(where: { $0.reason == expectedReason }) { break }
+    }
+
+    #expect(playbackService.playCallCount == 0)
+    #expect(states.last?.lastImprovStatusText?.contains("质量门拒绝") == true)
+    let events = await diagnosticsReporter.events
+    #expect(events.contains(where: { $0.reason == expectedReason }))
+}
+
+@Test
+@MainActor
 func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
     let nowUptime: TimeInterval = 0
 

@@ -26,6 +26,7 @@ final class AIPerformanceService {
     private struct CandidateEvaluation {
         let shapedSchedule: [PracticeSequencerMIDIEvent]
         let assessment: DuetPhrasePolicy.QualityAssessment
+        let responseQualityAssessment: ImprovQualityRubric.Assessment
     }
 
     private struct CandidateDiagnostics {
@@ -574,6 +575,7 @@ final class AIPerformanceService {
             schedule: shapedSchedule,
             routing: practiceSession.settingsProvider.soundRoutingSettings,
             submittedAtUptimeSeconds: now,
+            provider: kind,
             requestGeneration: phraseGenerationAtRequest
         )
         guard result.wasAccepted,
@@ -663,6 +665,10 @@ final class AIPerformanceService {
         controlMode: DuetTurnTakingCore.Mode,
         horizonSeconds: TimeInterval
     ) -> CandidateEvaluation {
+        let responseQualityAssessment = ImprovQualityRubric().assess(
+            response.schedule,
+            responseLatencySeconds: responseLatencySeconds(for: response)
+        )
         let rawAssessment = DuetPhrasePolicy.assessSchedule(
             response.schedule,
             noteSnapshot: noteSnapshot,
@@ -691,12 +697,20 @@ final class AIPerformanceService {
                 horizonSeconds: horizonSeconds
             )
         }
-        return CandidateEvaluation(shapedSchedule: shapedSchedule, assessment: assessment)
+        return CandidateEvaluation(
+            shapedSchedule: shapedSchedule,
+            assessment: assessment,
+            responseQualityAssessment: responseQualityAssessment
+        )
     }
 
     private func selectBestCandidate(from evaluations: [CandidateEvaluation]) -> CandidateEvaluation? {
         evaluations
-            .filter { $0.shapedSchedule.isEmpty == false && $0.assessment.band != .reject }
+            .filter {
+                $0.shapedSchedule.isEmpty == false
+                    && $0.assessment.band != .reject
+                    && $0.responseQualityAssessment.isUsable
+            }
             .max { lhs, rhs in
                 if bandRank(lhs.assessment.band) != bandRank(rhs.assessment.band) {
                     return bandRank(lhs.assessment.band) < bandRank(rhs.assessment.band)
@@ -706,6 +720,13 @@ final class AIPerformanceService {
                 }
                 return lhs.assessment.noteOnCount < rhs.assessment.noteOnCount
             }
+    }
+
+    private func responseLatencySeconds(for response: CreativeDuetResponse) -> TimeInterval? {
+        switch response.provenance {
+        case let .backendGenerated(latencyMS):
+            latencyMS.map { TimeInterval($0) / 1_000 }
+        }
     }
 
     private func bandRank(_ band: DuetPhrasePolicy.QualityAssessment.Band) -> Int {
