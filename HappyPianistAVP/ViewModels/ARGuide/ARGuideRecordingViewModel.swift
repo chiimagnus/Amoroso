@@ -49,7 +49,7 @@ final class ARGuideRecordingViewModel {
             RecordingTake,
             ScorePerformancePlan
         ) async -> RecordedTakeAlignmentDiagnostics? = { take, plan in
-            let task = Task.detached(priority: .utility) {
+            let task = Task<RecordedTakeAlignmentDiagnostics?, Never>.detached(priority: .utility) {
                 guard Task.isCancelled == false,
                       let result = try? RecordedTakeAligner().alignResult(take: take, plan: plan),
                       Task.isCancelled == false
