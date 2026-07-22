@@ -124,9 +124,19 @@ func alignmentEngineUsesCapabilitiesRangeGenerationAndPlanResolution() throws {
     #expect(exact.links.contains {
         if case let .aligned(score, _, _) = $0 { score.eventID == event.id } else { false }
     })
-    #expect(wrong.links.contains { if case .extra = $0 { true } else { false } })
+    #expect(wrong.links.contains { link in
+        guard case let .extra(_, _, reason) = link else { return false }
+        return reason == .noPitchCandidate
+    })
     #expect(stale.links.isEmpty)
-    #expect(outsideRange.links.contains { if case .extra = $0 { true } else { false } })
+    #expect(outsideRange.links.contains { link in
+        guard case let .extra(_, _, reason) = link else { return false }
+        return reason == .outsideActiveRange
+    })
+    #expect(try JSONDecoder().decode(
+        PerformanceAlignment.self,
+        from: JSONEncoder().encode(wrong)
+    ) == wrong)
 }
 
 @Test

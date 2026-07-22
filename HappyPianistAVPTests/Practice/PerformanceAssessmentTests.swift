@@ -365,7 +365,8 @@ func assessmentKeepsExtraAndMissingNotesAsSeparateIncorrectFacts() throws {
             ),
             .extra(
                 observation: .init(observation: extraObservation),
-                evidence: [.init(dimension: .pitch, status: .observed, cost: 5)]
+                evidence: [.init(dimension: .pitch, status: .observed, cost: 5)],
+                noCandidateReason: .noPitchCandidate
             ),
         ]
     )
@@ -407,7 +408,8 @@ func unlocalizedExtraNotePreventsMultipleMeasuresFromClaimingCorrectness() throw
             ),
             .extra(
                 observation: .init(observation: extra),
-                evidence: [.init(dimension: .pitch, status: .observed, cost: 5)]
+                evidence: [.init(dimension: .pitch, status: .observed, cost: 5)],
+                noCandidateReason: nil
             ),
         ]
     )

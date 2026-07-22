@@ -263,7 +263,7 @@ struct PerformanceAssessmentService: Sendable {
             )
         }
         samples.append(contentsOf: links.compactMap { link -> MetricSample? in
-            guard case let .extra(observation, evidence) = link else { return nil }
+            guard case let .extra(observation, evidence, _) = link else { return nil }
             return MetricSample(
                 value: 1,
                 status: assessmentStatus(
@@ -1093,7 +1093,7 @@ struct PerformanceAssessmentService: Sendable {
         var capabilities: [PerformanceInputCapabilities] = links.compactMap { link in
             switch link {
             case let .aligned(_, observation, _),
-                 let .extra(observation, _),
+                 let .extra(observation, _, _),
                  let .ambiguous(observation, _),
                  let .provisional(_, observation, _),
                  let .unknown(observation, _):
@@ -1478,7 +1478,7 @@ struct PerformanceAssessmentService: Sendable {
         var result: [PerformanceAssessmentDimension: [PerformanceAssessmentEvidenceLink]] = [:]
         for link in links {
             switch link {
-            case let .extra(observation, _):
+            case let .extra(observation, _, _):
                 result[.extraNotes, default: []].append(
                     .unmatchedObservation(observationID: observation.observationID)
                 )

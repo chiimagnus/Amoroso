@@ -324,7 +324,8 @@ struct PerformanceAlignmentEngine: Sendable {
                         dimension: .pitch,
                         status: .observed,
                         cost: configuration.unmatchedCost
-                    )]
+                    )],
+                    noCandidateReason: snapshot.noCandidateReason
                 ))
                 continue
             }
@@ -344,7 +345,8 @@ struct PerformanceAlignmentEngine: Sendable {
                         dimension: .pitch,
                         status: .observed,
                         cost: configuration.unmatchedCost
-                    )]
+                    )],
+                    noCandidateReason: nil
                 ))
                 continue
             }

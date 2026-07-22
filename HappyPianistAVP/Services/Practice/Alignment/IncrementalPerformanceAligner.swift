@@ -393,7 +393,7 @@ private extension PerformanceAlignmentLink {
     var observationReference: PerformanceAlignmentObservationReference? {
         switch self {
         case let .aligned(_, observation, _),
-             let .extra(observation, _),
+             let .extra(observation, _, _),
              let .ambiguous(observation, _),
              let .provisional(_, observation, _),
              let .unknown(observation, _):
