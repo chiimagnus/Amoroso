@@ -1082,6 +1082,29 @@ func analyzerImmediatelyPublishesAssessmentFromItsFinishedAlignment() async thro
     #expect(try assessmentResult(.velocity, in: assessment).outcome == .correct)
 }
 
+@Test
+func analyzerPublishesMissingAssessmentForSilentRoundAndFinishesIdempotently() async throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let analyzer = PracticePerformanceAnalyzer()
+
+    await analyzer.configure(plan: plan, activeTickRange: nil)
+    await analyzer.beginRound(at: .init(seconds: 5))
+    let first = await analyzer.finishRound()
+    let second = await analyzer.finishRound()
+
+    let alignment = try #require(first.alignment)
+    let assessment = try #require(first.assessment)
+    #expect(alignment.links.contains { link in
+        guard case let .missing(score, _) = link else { return false }
+        return score.eventID == event.id
+    })
+    #expect(assessment.planID == plan.id)
+    #expect(assessment.dimensions.isEmpty)
+    #expect(first == second)
+    #expect(first.isRunning == false)
+}
+
 private func makeAssessmentEvent(
     ordinal: Int = 0,
     midiNote: Int = 60,

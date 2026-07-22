@@ -42,7 +42,7 @@ actor PracticePerformanceAnalyzer {
     func beginRound(at start: PerformanceMonotonicInstant) {
         roundGeneration += 1
         roundStart = start
-        aligner = nil
+        aligner = makeAligner(at: start)
         latestAlignment = nil
         latestAssessment = nil
         acceptedObservationCount = 0
@@ -51,20 +51,8 @@ actor PracticePerformanceAnalyzer {
     }
 
     func record(_ observation: PerformanceObservation) {
-        guard let plan else {
-            rejectedObservationCount += 1
-            return
-        }
         if aligner == nil {
-            var newAligner = IncrementalPerformanceAligner()
-            let start = roundStart ?? observation.alignmentTimestamp
-            newAligner.start(
-                plan: plan,
-                generation: nil,
-                performanceStart: start,
-                activeTickRange: activeTickRange
-            )
-            aligner = newAligner
+            aligner = makeAligner(at: roundStart ?? observation.alignmentTimestamp)
         }
         guard var current = aligner,
               current.append(observation) != nil
@@ -78,7 +66,7 @@ actor PracticePerformanceAnalyzer {
     }
 
     func finishRound() async -> PracticePerformanceAnalyzerSnapshot {
-        if var current = aligner {
+        if var current = aligner, current.state == .running {
             let elapsed = ContinuousClock().measure {
                 latestAlignment = current.finish()
             }
@@ -126,6 +114,20 @@ actor PracticePerformanceAnalyzer {
             alignment: latestAlignment,
             tickRange: activeTickRange
         )
+    }
+
+    private func makeAligner(
+        at start: PerformanceMonotonicInstant
+    ) -> IncrementalPerformanceAligner? {
+        guard let plan else { return nil }
+        var aligner = IncrementalPerformanceAligner()
+        aligner.start(
+            plan: plan,
+            generation: nil,
+            performanceStart: start,
+            activeTickRange: activeTickRange
+        )
+        return aligner
     }
 
     private func report(_ snapshot: PracticePerformanceAnalyzerSnapshot) async {
