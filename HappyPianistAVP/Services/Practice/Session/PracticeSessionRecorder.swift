@@ -96,7 +96,6 @@ actor PracticeSessionRecorder {
     private var persistenceTask: Task<PracticeSessionRecorderSaveStatus, Never>?
     private var persistenceGeneration = 0
     private var didReportPendingFailure = false
-    private var performanceObservations: [PerformanceObservation] = []
 
     init(
         repository: any PracticeSessionRepositoryProtocol,
@@ -132,7 +131,6 @@ actor PracticeSessionRecorder {
         pendingRecord = nil
         saveStatus = .idle
         didReportPendingFailure = false
-        performanceObservations.removeAll(keepingCapacity: true)
         await performanceAnalyzer?.reset()
         visit = VisitState(
             id: id,
@@ -295,7 +293,6 @@ actor PracticeSessionRecorder {
         visit = nil
         saveStatus = .idle
         didReportPendingFailure = false
-        performanceObservations.removeAll(keepingCapacity: false)
         await performanceAnalyzer?.reset()
         if let abandonedSessionID {
             await repository.abandonLiveSession(id: abandonedSessionID)
@@ -304,17 +301,7 @@ actor PracticeSessionRecorder {
 
     func record(_ observation: PerformanceObservation) async {
         guard let visit, visit.practiceStartedAt != nil, visit.isFinalized == false else { return }
-        performanceObservations.append(observation)
         await performanceAnalyzer?.record(observation)
-    }
-
-    func observationSnapshot() -> [PerformanceObservation] {
-        performanceObservations.enumerated().sorted { lhs, rhs in
-            if lhs.element.timing.correctedHost != rhs.element.timing.correctedHost {
-                return lhs.element.timing.correctedHost < rhs.element.timing.correctedHost
-            }
-            return lhs.offset < rhs.offset
-        }.map(\.element)
     }
 
     func configureAnalysis(plan: ScorePerformancePlan, activeTickRange: Range<Int>?) async {

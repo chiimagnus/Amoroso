@@ -135,7 +135,7 @@ func performanceClockSynchronizerFallsBackToHostForUncalibratedSource() {
 }
 
 @Test
-func sessionRecorderKeepsRawObservationsInMemoryWithoutWritingProgressJSON() async throws {
+func sessionRecorderDoesNotWriteRawObservationsToProgressJSON() async throws {
     let repository = RecorderRepository()
     let clock = try RecorderClock()
     let recorder = makeRecorder(repository: repository, clock: clock)
@@ -162,11 +162,6 @@ func sessionRecorderKeepsRawObservationsInMemoryWithoutWritingProgressJSON() asy
     ))
     _ = await recorder.checkpoint()
 
-    let snapshot = await recorder.observationSnapshot()
-    #expect(snapshot.map(\.event) == [
-        .noteOn(note: 64, velocity: .init(midi1: 100)),
-        .noteOff(note: 64, releaseVelocity: .init(midi1: 40)),
-    ])
     let progressRecord = try #require(await repository.records().last)
     let data = try JSONEncoder().encode(progressRecord)
     #expect(String(decoding: data, as: UTF8.self).contains("endpoint:1") == false)
