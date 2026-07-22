@@ -6,7 +6,7 @@
 
 HappyPianist 当前是：
 
-> **以找键、和弦完成和小节练习为核心，具备可审查乐谱驱动回放、多来源输入观察和 transient 客观演奏分析的空间钢琴练习系统。**
+> **以找键、和弦完成和小节练习为核心，具备可审查乐谱驱动回放、多来源输入观察、客观演奏分析和小节级成熟度事实的空间钢琴练习系统。**
 
 当前可以安全宣称：
 
@@ -102,7 +102,7 @@ MIDI / target audio / real or virtual piano contact
 
 `PerformanceAlignmentEngine` 与有界增量状态机已处理连续演奏中的 missing、extra、重复音、同音多声部、performed occurrence 和 controller，并保留 score/observation identity、候选证据、ambiguous、provisional 与 unknown。`PerformanceAssessmentService` 从该证据生成带单位、置信度和适用条件的 pitch、timing、duration、velocity、voicing 与 pedal 等客观维度；没有能力或证据不足的维度保持 unavailable/insufficient，不用默认零分填补。
 
-这些结果当前只存在于 session 或 take 分析内存中，不写入进度 JSON，也未通过足够的真实设备、授权曲目和钢琴专家一致性验证。因此仍不能把 rubric 阈值解释为艺术质量、身体技术或等同教师的诊断，rubato、风格表达与真正错误的边界仍需专家证据。
+完整 alignment、逐音证据和 take assessment 只存在于运行期；进度 JSON 只保存经过批准的小节级 maturity、rubric version、证据覆盖率和 metric summaries，不保存 observation identity、原始输入或逐音对齐。现有 rubric 尚未通过足够的真实设备、授权曲目和钢琴专家一致性验证，因此仍不能把阈值解释为艺术质量、身体技术或等同教师的诊断，rubato、风格表达与真正错误的边界仍需专家证据。
 
 ### 4. 三类输入不能共用一个准确率
 
@@ -142,16 +142,15 @@ MIDI / target audio / real or virtual piano contact
 1. 用真实 exporter corpus 关闭剩余 MusicXML 正确性与 unsupported 报告缺口。
 2. 在指定 Vision Pro、音频路由与 MIDI 设备上建立触键、输出、重复音和踏板基线。
 3. 用授权 MIDI take 与专家标注验证 alignment、rubric 阈值和证据不足边界。
-4. 将批准的小节级评价事实交给现有 reducer，不新增第二套持久化体系。
-5. 只在可靠 metric、confidence、适用前提和退出条件齐全时增加 coaching rule。
-6. 最后再做风格化参考 profile、教师参考演奏或更高级生成模型。
+4. 只在可靠 metric、confidence、适用前提和退出条件齐全时增加 coaching rule。
+5. 最后再做风格化参考 profile、教师参考演奏或更高级生成模型。
 
 ## 必须保留的架构边界
 
 - `PracticeStep` 继续只负责即时判定。
 - source measure 继续是正式练习事实的持久化单位。
 - cue、summary、恢复地图、RealityKit 表现和原始逐帧传感数据不写入 progress JSON。
-- score alignment 与 assessment 在批准 schema 前保持 session 内存数据。
+- score alignment、逐音 assessment evidence 与完整 take assessment 保持运行期数据；progress JSON 只接受批准的小节级聚合事实。
 - AI 后端严格使用用户选择，失败即停止本次生成，不自动切换。
 - 新实现替换旧实现时，同一 task 删除旧 API、旧状态、旧测试和双轨分支。
 
