@@ -15,26 +15,6 @@ HappyPianist 是一个面向 Apple Vision Pro 的钢琴练习应用。它把 Mus
 - 练习中录制、回放并导出 MIDI take。
 - AI 对弹支持本地规则、本地 CoreML，以及可选的 Mac 侧 Aria v2 网络后端。
 
-## 仓库结构
-
-```text
-HappyPianist.xcodeproj      visionOS 工程
-HappyPianistAVP/            App 源码
-HappyPianistAVPTests/       Swift Testing 测试
-Packages/RealityKitContent/ RealityKit 内容包
-python_backend/             可选的 Aria v2 本地服务与工具
-docs/                       项目知识库
-```
-
-当前工程只有 `HappyPianistAVP` 与 `HappyPianistAVPTests` 两个 target；仓库中没有 macOS App target。架构、数据流、配置和测试入口见 [`docs/overview.md`](docs/overview.md)。
-
-## 环境要求
-
-- 支持 visionOS 26.0 SDK 的 Xcode
-- visionOS Simulator 或 Apple Vision Pro
-- Swift 6
-- 可选：Python 3.11+ 与 `uv`，仅用于 Aria v2 网络后端
-
 ## 资源状态
 
 仓库已包含 `HappyPianistAVP/Resources/Fonts/Bravura.otf`。以下私有或体积较大的资源不随源码分发：
