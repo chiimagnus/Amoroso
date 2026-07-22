@@ -34,13 +34,39 @@ final class AIPerformanceService {
         let topRejectReason: DuetPhrasePolicy.QualityAssessment.Reason?
     }
 
+    private enum GenerationFailureCategory: String {
+        case invalidSelection = "invalid_selection"
+        case unavailable
+        case timeout
+        case invalidResponse = "invalid_response"
+        case qualityGate = "quality_gate"
+        case failed
+
+        var statusText: String {
+            switch self {
+            case .invalidSelection:
+                "后端选择无效"
+            case .unavailable:
+                "后端不可用"
+            case .timeout:
+                "生成超时"
+            case .invalidResponse:
+                "响应无效"
+            case .qualityGate:
+                "质量门拒绝"
+            case .failed:
+                "生成失败"
+            }
+        }
+    }
+
     private let diagnosticsReporter: (any DiagnosticsReporting)?
     private let nowUptimeSeconds: () -> TimeInterval
     private let sleepFor: @Sendable (Duration) async -> Void
     private let improvSessionID: String
     private let discoveryOrchestrator: any ImprovBackendDiscoveryOrchestrating
     private let backendRegistry: ImprovBackendRegistry
-    private let selectedBackendKind: @MainActor () -> ImprovBackendKind
+    private let selectedBackendKind: @MainActor () -> ImprovBackendKind?
     private let aiPlaybackServiceFactory: @MainActor () -> DuetAIPlaybackServiceFactory
     private let backendTimeout: Duration
     private let onStateChanged: @MainActor (State) -> Void
@@ -70,6 +96,7 @@ final class AIPerformanceService {
     private var isAIPlaybackActive = false
     private var latestSchedule: [PracticeSequencerMIDIEvent] = []
     private var lastImprovStatusText: String?
+    private var generationFailureStatusText: String?
     private var latestCandidateDiagnostics: CandidateDiagnostics?
 
     @MainActor
@@ -89,7 +116,7 @@ final class AIPerformanceService {
         sleepFor: @escaping @Sendable (Duration) async -> Void = { duration in try? await Task.sleep(for: duration) },
         discoveryOrchestrator: any ImprovBackendDiscoveryOrchestrating,
         backendRegistry: ImprovBackendRegistry,
-        selectedBackendKind: @escaping @MainActor () -> ImprovBackendKind,
+        selectedBackendKind: @escaping @MainActor () -> ImprovBackendKind?,
         aiPlaybackServiceFactory: @escaping @MainActor () -> DuetAIPlaybackServiceFactory,
         backendTimeout: Duration = .seconds(12),
         onStateChanged: @escaping @MainActor (State) -> Void
@@ -149,6 +176,7 @@ final class AIPerformanceService {
             controlEstimator.reset()
             latestSchedule = []
             lastImprovStatusText = nil
+            generationFailureStatusText = nil
             latestCandidateDiagnostics = nil
             notifyStateChanged()
 
@@ -167,9 +195,10 @@ final class AIPerformanceService {
         controlEstimator.reset()
         latestSchedule = []
         lastImprovStatusText = "AI 即兴：连续共演模式已启用"
+        generationFailureStatusText = nil
         latestCandidateDiagnostics = nil
         notifyStateChanged()
-        syncBackendDiscoveryIfNeeded()
+        _ = syncBackendDiscoveryIfNeeded()
         startControlLoop()
     }
 
@@ -198,7 +227,7 @@ final class AIPerformanceService {
     ) {
         guard usesBluetoothMIDIInput == false else { return }
         guard isEnabled else { return }
-        syncBackendDiscoveryIfNeeded()
+        guard syncBackendDiscoveryIfNeeded() else { return }
 
         let sourceKind: PerformanceObservation.Source.Kind = isVirtualPianoEnabled
             ? .virtualPianoContact
@@ -245,7 +274,7 @@ final class AIPerformanceService {
 
     func recordPerformanceObservationForPhraseRecordingIfNeeded(_ observation: PerformanceObservation) {
         guard isEnabled, observation.source.role == .userPerformance else { return }
-        syncBackendDiscoveryIfNeeded()
+        guard syncBackendDiscoveryIfNeeded() else { return }
         recordPhraseObservation(observation)
     }
 
@@ -343,7 +372,7 @@ final class AIPerformanceService {
         guard isEnabled else { return }
         guard practiceSession != nil else { return }
 
-        syncBackendDiscoveryIfNeeded()
+        guard syncBackendDiscoveryIfNeeded() else { return }
 
         let now = nowUptimeSeconds()
         let bootstrapPolicy = DuetPhrasePolicy.RequestPolicy(
@@ -392,7 +421,7 @@ final class AIPerformanceService {
             }
         }
 
-        lastImprovStatusText = makeStatusText(decision: decision, noteSnapshot: noteSnapshot)
+        lastImprovStatusText = generationFailureStatusText ?? makeStatusText(decision: decision, noteSnapshot: noteSnapshot)
         notifyStateChanged()
     }
 
@@ -418,7 +447,11 @@ final class AIPerformanceService {
         phrase: CreativeDuetPhrase,
         requestPolicy: DuetPhrasePolicy.RequestPolicy
     ) async {
-        let kind = selectedBackendKind()
+        guard let kind = selectedBackendKind() else {
+            reportGenerationFailure(provider: nil, category: .invalidSelection)
+            return
+        }
+        generationFailureStatusText = nil
         let requestID = nextRequestID
         let activationAtRequest = activationID
         let phraseGenerationAtRequest = phraseGeneration
@@ -460,11 +493,13 @@ final class AIPerformanceService {
         guard isEnabled else { return }
         guard activationAtRequest == activationID else { return }
         guard phraseGenerationAtRequest == phraseGeneration else { return }
-        guard kind == selectedBackendKind() else { return }
+        guard selectedBackendKind() == kind else { return }
         guard let practiceSession else { return }
-        guard let backend = backendRegistry.backend(for: kind) else {
-            lastImprovStatusText = "AI 即兴：后端不可用（\(kind.rawValue)）"
-            notifyStateChanged()
+        let backend: any ImprovBackendProtocol
+        do {
+            backend = try backendRegistry.backend(for: kind)
+        } catch {
+            reportGenerationFailure(provider: kind, category: failureCategory(for: error))
             return
         }
 
@@ -481,28 +516,22 @@ final class AIPerformanceService {
                 requestID: requestID,
                 activationID: activationAtRequest
             )
+        } catch is CancellationError {
+            return
         } catch {
             guard isEnabled,
                   activationAtRequest == activationID,
                   phraseGenerationAtRequest == phraseGeneration,
-                  kind == selectedBackendKind()
+                  selectedBackendKind() == kind
             else { return }
-            diagnosticsReporter?.recordSystem(
-                severity: .warning,
-                category: .ai,
-                stage: "continuousDuet.generate",
-                summary: "AI 即兴生成失败",
-                reason: String(describing: error)
-            )
-            lastImprovStatusText = "AI 即兴：生成失败（\(kind.rawValue)）"
-            notifyStateChanged()
+            reportGenerationFailure(provider: kind, category: failureCategory(for: error))
             return
         }
 
         guard isEnabled else { return }
         guard activationAtRequest == activationID else { return }
         guard phraseGenerationAtRequest == phraseGeneration else { return }
-        guard kind == selectedBackendKind() else { return }
+        guard selectedBackendKind() == kind else { return }
 
         let now = nowUptimeSeconds()
         let noteSnapshot = noteContext.snapshot(
@@ -532,12 +561,14 @@ final class AIPerformanceService {
             .first
         guard let bestCandidate = selectBestCandidate(from: evaluations) else {
             latestCandidateDiagnostics = CandidateDiagnostics(band: .reject, candidateCount: evaluations.count, topRejectReason: topRejectReason)
-            lastImprovStatusText = makeStatusText(decision: decision, noteSnapshot: noteSnapshot)
-            notifyStateChanged()
+            reportGenerationFailure(provider: kind, category: .qualityGate)
             return
         }
         let shapedSchedule = bestCandidate.shapedSchedule
-        guard shapedSchedule.isEmpty == false else { return }
+        guard shapedSchedule.isEmpty == false else {
+            reportGenerationFailure(provider: kind, category: .qualityGate)
+            return
+        }
 
         let result = await aiPlaybackQueue.submitWindow(
             schedule: shapedSchedule,
@@ -549,7 +580,7 @@ final class AIPerformanceService {
               isEnabled,
               activationAtRequest == activationID,
               phraseGenerationAtRequest == phraseGeneration,
-              kind == selectedBackendKind()
+              selectedBackendKind() == kind
         else { return }
         latestSchedule = result.shiftedSchedule
         latestCandidateDiagnostics = CandidateDiagnostics(
@@ -572,7 +603,6 @@ final class AIPerformanceService {
     ) async throws -> [CreativeDuetResponse] {
         let candidateCount = preferredCandidateCount(for: kind)
         var responses: [CreativeDuetResponse] = []
-        var firstError: (any Error)?
         responses.reserveCapacity(candidateCount)
 
         for candidateIndex in 0 ..< candidateCount {
@@ -582,20 +612,14 @@ final class AIPerformanceService {
                 activationID: activationID,
                 seed: candidateSeed(baseSeed: baseSeed, candidateIndex: candidateIndex)
             )
-            do {
-                let response = try await backend.generateCreativeResponse(
-                    phrase: phrase,
-                    generation: generation,
-                    timeout: backendTimeout
-                )
-                responses.append(response)
-            } catch {
-                if candidateCount == 1 { throw error }
-                if firstError == nil { firstError = error }
-            }
+            let response = try await backend.generateCreativeResponse(
+                phrase: phrase,
+                generation: generation,
+                timeout: backendTimeout
+            )
+            responses.append(response)
         }
 
-        if responses.isEmpty, let firstError { throw firstError }
         return responses
     }
 
@@ -695,9 +719,21 @@ final class AIPerformanceService {
         }
     }
 
-    private func syncBackendDiscoveryIfNeeded() {
-        let kind = selectedBackendKind()
-        guard kind != lastKnownBackendKind else { return }
+    @discardableResult
+    private func syncBackendDiscoveryIfNeeded() -> Bool {
+        guard let kind = selectedBackendKind() else {
+            if lastKnownBackendKind != nil, isEnabled {
+                let invalidatedPhraseGeneration = invalidateGeneration()
+                Task { [aiPlaybackQueue] in
+                    await aiPlaybackQueue.stopAll(rejectingThrough: invalidatedPhraseGeneration)
+                }
+                discoveryOrchestrator.stopAll()
+                lastKnownBackendKind = nil
+            }
+            reportGenerationFailure(provider: nil, category: .invalidSelection)
+            return false
+        }
+        guard kind != lastKnownBackendKind else { return true }
         if lastKnownBackendKind != nil, isEnabled {
             let invalidatedPhraseGeneration = invalidateGeneration()
             Task { [aiPlaybackQueue] in
@@ -706,6 +742,65 @@ final class AIPerformanceService {
         }
         lastKnownBackendKind = kind
         discoveryOrchestrator.start(for: kind)
+        return true
+    }
+
+    private func failureCategory(for error: any Error) -> GenerationFailureCategory {
+        if error is ImprovBackendRegistryError {
+            return .unavailable
+        }
+        if let error = error as? LocalRuleImprovBackendError {
+            return error == .timeout ? .timeout : .invalidResponse
+        }
+        if let error = error as? LocalCoreMLDuetImprovBackendError {
+            return error == .timeout ? .timeout : .invalidResponse
+        }
+        if let error = error as? AriaNetworkBonjourHTTPImprovBackendError {
+            switch error {
+            case .backendNotResolved, .discoveryDenied, .discoveryFailed:
+                return .unavailable
+            case .emptyReply:
+                return .invalidResponse
+            }
+        }
+        if let error = error as? AriaNetworkBonjourWebSocketImprovBackendError {
+            switch error {
+            case .backendNotResolved, .discoveryDenied, .discoveryFailed:
+                return .unavailable
+            case .missingWebSocketPath, .invalidWebSocketURL, .emptyReply:
+                return .invalidResponse
+            }
+        }
+        if let error = error as? ImprovStreamingClientError {
+            return error == .timeout ? .timeout : .invalidResponse
+        }
+        if error is ImprovBackendClientError {
+            return .invalidResponse
+        }
+        if let error = error as? URLError, error.code == .timedOut {
+            return .timeout
+        }
+        return .failed
+    }
+
+    private func reportGenerationFailure(
+        provider: ImprovBackendKind?,
+        category: GenerationFailureCategory
+    ) {
+        let providerToken = provider?.rawValue ?? "none"
+        let statusText = "AI 即兴：\(category.statusText)（\(providerToken)）"
+        guard generationFailureStatusText != statusText else { return }
+
+        diagnosticsReporter?.recordSystem(
+            severity: .warning,
+            category: .ai,
+            stage: "continuousDuet.generate",
+            summary: "AI 即兴生成失败",
+            reason: "provider=\(providerToken);failure=\(category.rawValue)"
+        )
+        generationFailureStatusText = statusText
+        lastImprovStatusText = statusText
+        notifyStateChanged()
     }
 
     @discardableResult

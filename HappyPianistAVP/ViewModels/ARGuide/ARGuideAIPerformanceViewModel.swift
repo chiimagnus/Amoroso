@@ -102,7 +102,11 @@ final class ARGuideAIPerformanceViewModel {
     }
 
     var backendStatusText: String? {
-        switch backendSelection.selectedKind() {
+        guard let selectedKind = backendSelection.selectedKind() else {
+            return "后端：已保存的选择无效，请在设置中重新选择。"
+        }
+
+        switch selectedKind {
         case .networkBonjourHTTPAriaV2:
             return backendDiscoveryStatusText(
                 backendName: "Aria v2",
