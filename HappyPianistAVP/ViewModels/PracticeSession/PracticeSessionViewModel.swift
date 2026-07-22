@@ -14,6 +14,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             measureSpans: [MusicXMLMeasureSpan],
             activeTickRange: Range<Int>?
         )
+        case inputCapabilitiesAvailable(PerformanceInputCapabilities)
         case resetAnalysis
     }
 
@@ -210,7 +211,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             performanceAssessmentLifecycleGeneration += 1
             self.currentCoachingDecision = nil
             resetsCoaching = true
-        case .guiding, .settingsPresented, .checkpoint:
+        case .guiding, .settingsPresented, .checkpoint, .inputCapabilitiesAvailable:
             resetsCoaching = false
         }
         guard sessionRecorder != nil || resetsCoaching else { return }
@@ -236,6 +237,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
                     measureSpans: measureSpans,
                     activeTickRange: activeTickRange
                 )
+            case let .inputCapabilitiesAvailable(capabilities):
+                await sessionRecorder.registerInputCapabilities(capabilities)
             case .resetAnalysis:
                 await sessionRecorder.resetAnalysis()
             }
@@ -265,6 +268,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
             stopAudioRecognition()
         case .stopPracticeInput:
             stopPracticeInput()
+        case let .inputCapabilitiesAvailable(capabilities):
+            enqueueSessionRecorderEvent(.inputCapabilitiesAvailable(capabilities))
         }
     }
 }

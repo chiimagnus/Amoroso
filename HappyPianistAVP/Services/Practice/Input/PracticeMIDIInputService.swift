@@ -96,11 +96,15 @@ final class PracticeMIDIInputService: PerformanceObservationStreamProviding {
             stateStore.practiceInputLastResetStepIndex = snapshot.currentStepIndex
         }
 
-        guard stateStore.isPracticeInputRunning == false else { return }
+        if stateStore.isPracticeInputRunning {
+            effectHandler?.handle(effect: .inputCapabilitiesAvailable(.midi))
+            return
+        }
         do {
             try practiceInputEventSource.start()
             stateStore.isPracticeInputRunning = true
             activeSourceGeneration = UInt64(max(0, stateStore.practiceInputGeneration))
+            effectHandler?.handle(effect: .inputCapabilitiesAvailable(.midi))
         } catch {
             stateStore.isPracticeInputRunning = false
             resetMatchingStateIfNeeded()

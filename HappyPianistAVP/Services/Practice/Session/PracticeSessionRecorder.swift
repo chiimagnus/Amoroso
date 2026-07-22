@@ -304,6 +304,11 @@ actor PracticeSessionRecorder {
         await performanceAnalyzer.record(observation)
     }
 
+    func registerInputCapabilities(_ capabilities: PerformanceInputCapabilities) async {
+        guard let visit, visit.isGuiding, visit.isFinalized == false else { return }
+        await performanceAnalyzer.registerInputCapabilities(capabilities)
+    }
+
     func configureAnalysis(
         plan: ScorePerformancePlan,
         measureSpans: [MusicXMLMeasureSpan],

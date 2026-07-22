@@ -50,6 +50,7 @@ struct PerformanceAssessmentService: Sendable {
         plan: ScorePerformancePlan,
         alignment: PerformanceAlignment,
         measureSpans: [MusicXMLMeasureSpan],
+        inputCapabilities operationalCapabilities: PerformanceInputCapabilities = .unavailable,
         tickRange: Range<Int>? = nil
     ) -> PassagePerformanceAssessment? {
         guard alignment.planID == plan.id else { return nil }
@@ -67,10 +68,10 @@ struct PerformanceAssessmentService: Sendable {
             Self.belongsToActiveRange($0, tickRange: tickRange)
         }
         let timeMap = ScorePerformancePlanTimeMap(plan: plan)
-        let capabilities = inputCapabilities(
+        let capabilities = operationalCapabilities.merging(inputCapabilities(
             links: activeLinks,
             controllerLinks: activeControllerLinks
-        )
+        ))
         let passageDimensions = dimensions(
             plan: plan,
             events: activeEvents,
@@ -93,6 +94,7 @@ struct PerformanceAssessmentService: Sendable {
                 links: activeLinks,
                 controllerLinks: activeControllerLinks,
                 measureSpans: measureSpans,
+                operationalCapabilities: operationalCapabilities,
                 passageTickRange: resolvedTickRange,
                 timeMap: timeMap
             )
@@ -1403,6 +1405,7 @@ struct PerformanceAssessmentService: Sendable {
         links: [PerformanceAlignmentLink],
         controllerLinks: [PerformanceAlignmentControllerLink],
         measureSpans: [MusicXMLMeasureSpan],
+        operationalCapabilities: PerformanceInputCapabilities,
         passageTickRange: Range<Int>,
         timeMap: ScorePerformancePlanTimeMap
     ) -> [MeasurePerformanceAssessment] {
@@ -1429,10 +1432,10 @@ struct PerformanceAssessmentService: Sendable {
                 return nil
             }
             let eventByID = Dictionary(uniqueKeysWithValues: measureEvents.map { ($0.id, $0) })
-            let measureCapabilities = inputCapabilities(
+            let measureCapabilities = operationalCapabilities.merging(inputCapabilities(
                 links: measureLinks,
                 controllerLinks: measureControllerLinks
-            )
+            ))
             let measureDimensions = dimensions(
                 plan: plan,
                 events: measureEvents,

@@ -21,6 +21,7 @@ actor PracticePerformanceAnalyzer {
     private var aligner: IncrementalPerformanceAligner?
     private var latestAlignment: PerformanceAlignment?
     private var latestAssessment: PassagePerformanceAssessment?
+    private var inputCapabilities = PerformanceInputCapabilities.unavailable
     private var acceptedObservationCount = 0
     private var rejectedObservationCount = 0
     private var alignmentLatencyMilliseconds: Int64?
@@ -51,6 +52,7 @@ actor PracticePerformanceAnalyzer {
         aligner = makeAligner(at: start)
         latestAlignment = nil
         latestAssessment = nil
+        inputCapabilities = .unavailable
         acceptedObservationCount = 0
         rejectedObservationCount = 0
         alignmentLatencyMilliseconds = nil
@@ -69,6 +71,12 @@ actor PracticePerformanceAnalyzer {
         acceptedObservationCount += 1
         latestAlignment = current.appendSnapshot
         aligner = current
+        updateAssessment()
+    }
+
+    func registerInputCapabilities(_ capabilities: PerformanceInputCapabilities) {
+        inputCapabilities = inputCapabilities.merging(capabilities)
+        updateAssessment()
     }
 
     func finishRound() async -> PracticePerformanceAnalyzerSnapshot {
@@ -106,6 +114,7 @@ actor PracticePerformanceAnalyzer {
         aligner = nil
         latestAlignment = nil
         latestAssessment = nil
+        inputCapabilities = .unavailable
         acceptedObservationCount = 0
         rejectedObservationCount = 0
         alignmentLatencyMilliseconds = nil
@@ -120,6 +129,7 @@ actor PracticePerformanceAnalyzer {
             plan: plan,
             alignment: latestAlignment,
             measureSpans: measureSpans,
+            inputCapabilities: inputCapabilities,
             tickRange: activeTickRange
         )
     }

@@ -1091,7 +1091,7 @@ func alignmentIgnoresNonPedalControlChangesForPedalAssessment() {
 }
 
 @Test
-func analyzerImmediatelyPublishesAssessmentFromItsFinishedAlignment() async throws {
+func analyzerPublishesAssessmentFromCommittedAndFinishedAlignment() async throws {
     let event = makeAssessmentEvent()
     let plan = makeAssessmentPlan(events: [event])
     let analyzer = PracticePerformanceAnalyzer()
@@ -1100,8 +1100,11 @@ func analyzerImmediatelyPublishesAssessmentFromItsFinishedAlignment() async thro
     await analyzer.configure(plan: plan, measureSpans: makeTestMeasureSpans(for: plan), activeTickRange: nil)
     await analyzer.beginRound(at: start)
     await analyzer.record(makeAssessmentObservation(time: 5))
+    let runningSnapshot = await analyzer.snapshot()
     let snapshot = await analyzer.finishRound()
 
+    #expect(runningSnapshot.assessment != nil)
+    #expect(runningSnapshot.isRunning)
     let assessment = try #require(snapshot.assessment)
     #expect(snapshot.alignment != nil)
     #expect(try assessmentResult(.exactPitch, in: assessment).outcome == .correct)
@@ -1116,6 +1119,7 @@ func analyzerPublishesMissingAssessmentForSilentRoundAndFinishesIdempotently() a
 
     await analyzer.configure(plan: plan, measureSpans: makeTestMeasureSpans(for: plan), activeTickRange: nil)
     await analyzer.beginRound(at: .init(seconds: 5))
+    await analyzer.registerInputCapabilities(.midi)
     let first = await analyzer.finishRound()
     let second = await analyzer.finishRound()
 
@@ -1126,9 +1130,23 @@ func analyzerPublishesMissingAssessmentForSilentRoundAndFinishesIdempotently() a
         return score.eventID == event.id
     })
     #expect(assessment.planID == plan.id)
-    #expect(assessment.dimensions.isEmpty)
+    #expect(try assessmentResult(.missingNotes, in: assessment).outcome == .incorrect)
+    #expect(assessment.measures.first?.dimensions.first { $0.dimension == .missingNotes }?.outcome == .incorrect)
     #expect(first == second)
     #expect(first.isRunning == false)
+}
+
+@Test
+func analyzerDoesNotInventMissingFactsWhenNoInputActuallyStarted() async throws {
+    let event = makeAssessmentEvent()
+    let plan = makeAssessmentPlan(events: [event])
+    let analyzer = PracticePerformanceAnalyzer()
+
+    await analyzer.configure(plan: plan, measureSpans: makeTestMeasureSpans(for: plan), activeTickRange: nil)
+    await analyzer.beginRound(at: .init(seconds: 5))
+    let snapshot = await analyzer.finishRound()
+
+    #expect(try #require(snapshot.assessment).dimensions.isEmpty)
 }
 
 private func makeAssessmentEvent(
