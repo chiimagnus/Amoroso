@@ -59,11 +59,32 @@ final class PracticeFeedbackViewModel {
         if fingeringLabels.isEmpty == false {
             sourceLabels.append("指法依据：\(fingeringLabels.joined(separator: "、"))")
         }
-        guard sourceLabels.isEmpty == false else { return nil }
         return PracticeCoachingPresentation(
-            sourceLabel: sourceLabels.joined(separator: "；"),
+            actionLabel: actionLabel(decision.action),
+            sourceLabel: sourceLabels.isEmpty ? nil : sourceLabels.joined(separator: "；"),
             fingeringText: decision.action.fingerings.fingeringDisplayText
         )
+    }
+
+    private static func actionLabel(_ action: CoachingAction) -> String {
+        let instruction = switch action.kind {
+        case .pitchAccuracy: "确认音高后重练"
+        case .onsetAlignment: "跟随节拍对齐落键"
+        case .chordSynchronization: "让和弦同时落下"
+        case .durationControl: "保持完整音值"
+        case .articulationControl: "按谱面衔接音符"
+        case .voiceBalance: "突出目标声部"
+        case .dynamicShaping: "练习力度走向"
+        case .pedalCoordination: "对齐踏板更换"
+        case .tempoStability: "保持速度连贯"
+        case .phraseContinuity: "连贯完成乐句"
+        case .evidenceCheck: "再演奏一次以补充证据"
+        }
+        guard action.kind != .evidenceCheck else { return instruction }
+        let tempo = action.tempoRatio.map {
+            "，速度调至 \($0.formatted(.percent.precision(.fractionLength(0))))"
+        } ?? ""
+        return "\(instruction)\(tempo)，重复 \(action.repeatCount) 次"
     }
 
     private static func handSourceLabel(_ assignment: ScoreHandAssignment) -> String? {

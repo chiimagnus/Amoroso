@@ -109,12 +109,27 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
         ),
         event: .noteOn(note: 60, velocity: .init(midi1: 90))
     ))
+    await recorder.record(PerformanceObservation(
+        source: .init(kind: .midi1, id: "midi:integration", generation: 1),
+        timing: .init(
+            host: instant,
+            source: nil,
+            correctedHost: instant,
+            mapping: nil,
+            provenance: .hostOnly
+        ),
+        event: .noteOn(note: 61, velocity: .init(midi1: 90))
+    ))
     session.recordAttemptOutcome(matchedLearningLoopOutcome())
     session.advanceToNextStep()
     await session.waitForSessionRecorderEvents()
 
     let firstSummary = try #require(session.sessionProgress?.measureFacts.first?.performanceMaturity)
     #expect(firstSummary.metricSummaries.contains { $0.dimension == .exactPitch })
+    let decision = try #require(session.currentCoachingDecision)
+    #expect(decision.issue.kind == .evidence)
+    #expect(decision.action.kind == .evidenceCheck)
+    #expect(session.latestFeedbackEvent?.kind == .roundSummaryReady)
     #expect(try #require(await recorder.analysisSnapshot()).isRunning == false)
 
     session.recordPassageCompletion()
@@ -124,6 +139,9 @@ func completedPassagePersistsAssessmentOnceAndFinishesAnalyzerRound() async thro
     #expect(await session.flushProgress() == .saved)
     let saved = try #require(await progressRepository.progress(for: identity))
     #expect(saved.measureFacts.first?.performanceMaturity == firstSummary)
+
+    session.recordPassageRestart()
+    #expect(session.currentCoachingDecision == nil)
 }
 
 @MainActor

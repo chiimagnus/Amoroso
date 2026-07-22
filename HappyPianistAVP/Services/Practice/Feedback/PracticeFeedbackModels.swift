@@ -18,7 +18,8 @@ struct CoachingDecision: Equatable, Sendable {
 }
 
 struct PracticeCoachingPresentation: Equatable, Sendable {
-    let sourceLabel: String
+    let actionLabel: String
+    let sourceLabel: String?
     let fingeringText: String?
 }
 

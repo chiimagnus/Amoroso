@@ -155,6 +155,7 @@ struct LiveAppGraph {
                     settingsProvider: settingsProvider,
                     progressCoordinator: progressCoordinator,
                     sessionRecorder: practiceSessionRecorder,
+                    coachingDecisionService: CoachingDecisionService(),
                     diagnosticsReporter: diagnosticsReporter
                 )
 
@@ -170,6 +171,7 @@ struct LiveAppGraph {
                     handPianoActivityGate: makeHandPianoActivityGate(),
                     progressCoordinator: progressCoordinator,
                     sessionRecorder: practiceSessionRecorder,
+                    coachingDecisionService: CoachingDecisionService(),
                     diagnosticsReporter: diagnosticsReporter
                 )
 
@@ -187,6 +189,7 @@ struct LiveAppGraph {
                     handPianoActivityGate: makeHandPianoActivityGate(),
                     progressCoordinator: progressCoordinator,
                     sessionRecorder: practiceSessionRecorder,
+                    coachingDecisionService: CoachingDecisionService(),
                     diagnosticsReporter: diagnosticsReporter
                 )
             }

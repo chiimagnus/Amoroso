@@ -17,13 +17,17 @@ struct PracticeFeedbackCueView: View {
         VStack(alignment: .leading) {
             Label(presentation.title, systemImage: presentation.systemImage)
             if let coachingPresentation {
+                Text(coachingPresentation.actionLabel)
+                    .font(.caption)
                 if let fingeringText = coachingPresentation.fingeringText {
                     Text("指法 \(fingeringText)")
                         .font(.caption)
                 }
-                Text(coachingPresentation.sourceLabel)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let sourceLabel = coachingPresentation.sourceLabel {
+                    Text(sourceLabel)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
             .padding()
@@ -35,6 +39,7 @@ struct PracticeFeedbackCueView: View {
     private func accessibilityLabel(for presentation: PracticeFeedbackCuePresentation) -> String {
         [
             presentation.title,
+            coachingPresentation?.actionLabel,
             coachingPresentation?.fingeringText.map { "指法 \($0)" },
             coachingPresentation?.sourceLabel,
         ].compactMap { $0 }.joined(separator: "，")

@@ -114,7 +114,7 @@ func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
 }
 
 @Test
-func decisionCarriesP13FingeringFactsWithoutCollapsingMultiplicityOrProvenance() throws {
+func decisionCarriesP13FingeringFactsWithoutCollapsingMultiplicityOrProvenance() async throws {
     let sourceNoteID = MusicXMLSourceNoteID(
         partID: "P1",
         sourceMeasureIndex: 0,
@@ -162,7 +162,7 @@ func decisionCarriesP13FingeringFactsWithoutCollapsingMultiplicityOrProvenance()
         measures: []
     )
 
-    let decision = try #require(CoachingDecisionService().decision(
+    let decision = try #require(await CoachingDecisionService().decision(
         for: assessment,
         scoreEvents: plan.noteEvents
     ))
@@ -212,7 +212,7 @@ func exercisePolicyMapsEveryIssueToASpecificRemeasurableAction() {
 }
 
 @Test
-func decisionServiceUsesMeasureEvidenceAndSkipsCorrectResults() {
+func decisionServiceUsesMeasureEvidenceAndSkipsCorrectResults() async {
     let correctPitch = makeDimension(.exactPitch, outcome: .correct, confidence: 1)
     let incorrectOnset = makeDimension(.onset, outcome: .incorrect, confidence: 0.8)
     let insufficientPedal = makeDimension(
@@ -241,7 +241,7 @@ func decisionServiceUsesMeasureEvidenceAndSkipsCorrectResults() {
         )]
     )
 
-    let decisions = CoachingDecisionService().candidates(for: assessment)
+    let decisions = await CoachingDecisionService().candidates(for: assessment)
 
     #expect(decisions.map(\.issue.kind) == [.onset, .evidence])
     #expect(decisions.map(\.action.kind) == [.onsetAlignment, .evidenceCheck])

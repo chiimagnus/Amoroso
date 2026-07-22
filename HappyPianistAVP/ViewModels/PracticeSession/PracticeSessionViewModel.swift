@@ -32,6 +32,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     let progressCoordinator: PracticeProgressCoordinator?
     let sessionRecorder: PracticeSessionRecorder?
     let diagnosticsReporter: (any DiagnosticsReporting)?
+    let coachingDecisionService: CoachingDecisionService
     let feedbackPolicy = PracticeFeedbackPolicy()
 
     var practiceMIDIInputService: PracticeMIDIInputService?
@@ -80,6 +81,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         roundDefaultsStore: (any PracticeRoundDefaultsStoreProtocol)? = nil,
         progressCoordinator: PracticeProgressCoordinator? = nil,
         sessionRecorder: PracticeSessionRecorder? = nil,
+        coachingDecisionService: CoachingDecisionService = CoachingDecisionService(),
         diagnosticsReporter: (any DiagnosticsReporting)? = nil
     ) {
         stateStore = PracticeSessionStateStore()
@@ -100,6 +102,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         self.settingsProvider = resolvedSettingsProvider
         self.progressCoordinator = progressCoordinator
         self.sessionRecorder = sessionRecorder
+        self.coachingDecisionService = coachingDecisionService
         self.diagnosticsReporter = diagnosticsReporter
         roundConfigurationController = PracticeRoundConfigurationController(
             stateStore: stateStore,
@@ -191,13 +194,14 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     }
 
     func enqueueSessionRecorderEvent(_ event: SessionRecorderEvent) {
-        guard let sessionRecorder else { return }
         switch event {
         case .configureAnalysis, .resetAnalysis:
             performanceAssessmentLifecycleGeneration += 1
+            self.currentCoachingDecision = nil
         case .guiding, .settingsPresented, .checkpoint:
             break
         }
+        guard let sessionRecorder else { return }
         let previousTask = sessionRecorderEventTask
         sessionRecorderEventTask = Task { @MainActor in
             await previousTask?.value

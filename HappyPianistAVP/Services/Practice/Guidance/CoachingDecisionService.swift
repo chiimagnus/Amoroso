@@ -1,6 +1,6 @@
 import Foundation
 
-struct CoachingDecisionService: Sendable {
+actor CoachingDecisionService {
     private let exercisePolicy: PracticeExercisePolicy
     private let priorityPolicy: CoachingPriorityPolicy
 

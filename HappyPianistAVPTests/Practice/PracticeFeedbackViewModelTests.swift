@@ -59,16 +59,18 @@ func feedbackViewModelPresentsNeutralHandAndFingeringSources() throws {
     viewModel.present(event, coachingDecision: CoachingDecision(issue: issue, action: action))
 
     let presentation = try #require(viewModel.coachingPresentation)
+    #expect(presentation.actionLabel.localizedStandardContains("确认音高"))
+    #expect(presentation.actionLabel.localizedStandardContains("重复 1 次"))
     #expect(presentation.fingeringText == "1–2")
-    #expect(presentation.sourceLabel.localizedStandardContains("推测"))
-    #expect(presentation.sourceLabel.localizedStandardContains("原谱"))
-    #expect(presentation.sourceLabel.localizedStandardContains("教师"))
+    #expect(presentation.sourceLabel?.localizedStandardContains("推测") == true)
+    #expect(presentation.sourceLabel?.localizedStandardContains("原谱") == true)
+    #expect(presentation.sourceLabel?.localizedStandardContains("教师") == true)
     viewModel.cancel()
     #expect(viewModel.coachingPresentation == nil)
 }
 
 @Test @MainActor
-func scenePresentationInvalidationIsSynchronous() {
+func coachingDecisionClearsOnGenerationSkipAndSceneInvalidation() {
     let viewModel = ARGuideViewModel(
         appState: AppState(),
         practiceSetupState: PracticeSetupState()
@@ -78,13 +80,26 @@ func scenePresentationInvalidationIsSynchronous() {
         sourceMeasureID: nil,
         kind: .roundSummaryReady
     )
+    let decision = feedbackDecision(
+        source: PracticeSourceMeasureID(partID: "P1", sourceMeasureIndex: 0)
+    )
+    viewModel.practiceSessionViewModel.currentCoachingDecision = decision
+    viewModel.practiceSessionViewModel.enqueueSessionRecorderEvent(.resetAnalysis)
+    #expect(viewModel.practiceSessionViewModel.currentCoachingDecision == nil)
+
+    viewModel.practiceSessionViewModel.currentCoachingDecision = decision
+    viewModel.practiceSessionViewModel.skip()
+    #expect(viewModel.practiceSessionViewModel.currentCoachingDecision == nil)
+
     viewModel.practiceFeedbackViewModel.present(event)
     viewModel.practiceSessionViewModel.latestFeedbackEvent = event
+    viewModel.practiceSessionViewModel.currentCoachingDecision = decision
 
     viewModel.invalidatePracticeFeedbackPresentation()
 
     #expect(viewModel.practiceFeedbackViewModel.cue == nil)
     #expect(viewModel.practiceSessionViewModel.latestFeedbackEvent == nil)
+    #expect(viewModel.practiceSessionViewModel.currentCoachingDecision == nil)
 }
 
 private struct NeverFeedbackSleeper: SleeperProtocol {

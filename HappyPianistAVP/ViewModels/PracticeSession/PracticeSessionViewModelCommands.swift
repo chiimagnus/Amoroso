@@ -138,6 +138,7 @@ extension PracticeSessionViewModel {
         self.acceptsPracticeAttempts = true
         self.sessionProgress = nil
         self.isRestoredSessionPaused = false
+        self.currentCoachingDecision = nil
 
         if let progress, let progressSession, let progressCoordinator {
             await restoreExactProgress(
@@ -289,6 +290,7 @@ extension PracticeSessionViewModel {
 
     func invalidateFeedbackPresentation() {
         self.latestFeedbackEvent = nil
+        self.currentCoachingDecision = nil
     }
 
     func resumeAfterSuspension() {
@@ -360,6 +362,7 @@ extension PracticeSessionViewModel {
 
     func recordPassageRestart(at timestamp: Date = .now) {
         guard let identity = self.songIdentity, let configuration = self.activeRoundConfiguration else { return }
+        self.currentCoachingDecision = nil
         let result = attemptReducer.reducePassageRestart(
             progress: self.sessionProgress,
             identity: identity,
@@ -386,14 +389,16 @@ extension PracticeSessionViewModel {
         )
         self.sessionProgress = result.progress
         self.attemptReductionState = result.reductionState
-        publishFeedback(for: result.fact, previousProgress: previousProgress, progress: result.progress)
         if sessionRecorder == nil {
+            publishFeedback(for: result.fact, previousProgress: previousProgress, progress: result.progress)
             checkpointProgress()
         }
         enqueueCompletedPassageAnalysis(
             identity: identity,
             configuration: configuration,
             timestamp: timestamp,
+            feedbackFact: result.fact,
+            previousProgress: previousProgress,
             nextRoundStepIndex: nextRoundStepIndex
         )
     }
@@ -402,6 +407,8 @@ extension PracticeSessionViewModel {
         identity: PracticeSongIdentity,
         configuration: PracticeRoundConfiguration,
         timestamp: Date,
+        feedbackFact: PracticeSessionFact?,
+        previousProgress: SongPracticeProgress?,
         nextRoundStepIndex: Int?
     ) {
         guard let sessionRecorder else {
@@ -450,6 +457,17 @@ extension PracticeSessionViewModel {
                     lifecycleGeneration: lifecycleGeneration
                 ) else { return }
                 if shouldApply, let progress = self.sessionProgress {
+                    let decision = await self.coachingDecisionService.decision(
+                        for: assessment,
+                        scoreEvents: self.performancePlan?.noteEvents ?? []
+                    )
+                    guard self.acceptsCompletedPassageAnalysis(
+                        identity: identity,
+                        configuration: configuration,
+                        progressGeneration: progressGeneration,
+                        lifecycleGeneration: lifecycleGeneration
+                    ) else { return }
+                    self.currentCoachingDecision = decision
                     var assessedProgress = self.attemptReducer.reducePerformanceAssessment(
                         progress: progress,
                         identity: identity,
@@ -460,6 +478,14 @@ extension PracticeSessionViewModel {
                     assessedProgress.updatedAt = max(assessedProgress.updatedAt, .now)
                     self.sessionProgress = assessedProgress
                 }
+            }
+
+            if let progress = self.sessionProgress {
+                self.publishFeedback(
+                    for: feedbackFact,
+                    previousProgress: previousProgress,
+                    progress: progress
+                )
             }
 
             if let progressCoordinator,
@@ -515,7 +541,8 @@ extension PracticeSessionViewModel {
             previousProgress: previousProgress,
             progress: progress,
             eventSequence: nextSequence,
-            passageSourceMeasureIDs: self.activeRange?.sourceMeasureIDs ?? []
+            passageSourceMeasureIDs: self.activeRange?.sourceMeasureIDs ?? [],
+            coachingDecision: self.currentCoachingDecision
         )
         guard events.isEmpty == false else { return }
         self.feedbackEventSequence = nextSequence
@@ -827,6 +854,7 @@ extension PracticeSessionViewModel {
     }
 
     func skip() {
+        self.currentCoachingDecision = nil
         if self.state == .ready {
             startGuidingIfReady()
             return
