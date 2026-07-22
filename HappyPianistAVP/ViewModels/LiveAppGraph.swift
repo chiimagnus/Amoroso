@@ -104,6 +104,9 @@ struct LiveAppGraph {
         let makeHandPianoActivityGate: () -> HandPianoActivityGate = {
             HandPianoActivityGate()
         }
+        let makeCoachingDecisionService: () -> CoachingDecisionService = {
+            CoachingDecisionService(diagnosticsReporter: diagnosticsReporter)
+        }
         let makeAudioRecognitionService: () -> PracticeAudioRecognitionServiceProtocol? = {
             #if targetEnvironment(simulator)
                 nil
@@ -156,6 +159,7 @@ struct LiveAppGraph {
                     settingsProvider: settingsProvider,
                     progressCoordinator: progressCoordinator,
                     sessionRecorder: practiceSessionRecorder,
+                    coachingDecisionService: makeCoachingDecisionService(),
                     diagnosticsReporter: diagnosticsReporter
                 )
 
@@ -172,6 +176,7 @@ struct LiveAppGraph {
                     handPianoActivityGate: makeHandPianoActivityGate(),
                     progressCoordinator: progressCoordinator,
                     sessionRecorder: practiceSessionRecorder,
+                    coachingDecisionService: makeCoachingDecisionService(),
                     diagnosticsReporter: diagnosticsReporter
                 )
 
@@ -190,6 +195,7 @@ struct LiveAppGraph {
                     handPianoActivityGate: makeHandPianoActivityGate(),
                     progressCoordinator: progressCoordinator,
                     sessionRecorder: practiceSessionRecorder,
+                    coachingDecisionService: makeCoachingDecisionService(),
                     diagnosticsReporter: diagnosticsReporter
                 )
             }

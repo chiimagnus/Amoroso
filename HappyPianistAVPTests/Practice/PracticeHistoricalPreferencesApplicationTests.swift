@@ -81,7 +81,8 @@ private func historicalApplicationSession(
         roundDefaultsStore: defaults,
         progressCoordinator: repository.map {
             PracticeProgressCoordinator(repository: $0, checkpointDelay: .seconds(60))
-        }
+        },
+        coachingDecisionService: CoachingDecisionService()
     )
 }
 

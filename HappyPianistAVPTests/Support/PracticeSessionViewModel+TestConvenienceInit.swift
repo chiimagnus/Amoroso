@@ -15,6 +15,7 @@ extension PracticeSessionViewModel {
         handPianoActivityGate: HandPianoActivityGate? = nil,
         progressCoordinator: PracticeProgressCoordinator? = nil,
         sessionRecorder: PracticeSessionRecorder? = nil,
+        coachingDecisionService: CoachingDecisionService? = nil,
         diagnosticsReporter: (any DiagnosticsReporting)? = nil,
         manualAdvanceMode: ManualAdvanceMode = .step
     ) {
@@ -38,6 +39,8 @@ extension PracticeSessionViewModel {
             roundDefaultsStore: TestPracticeRoundDefaultsStore(),
             progressCoordinator: progressCoordinator,
             sessionRecorder: sessionRecorder,
+            coachingDecisionService: coachingDecisionService
+                ?? CoachingDecisionService(diagnosticsReporter: diagnosticsReporter),
             diagnosticsReporter: diagnosticsReporter
         )
     }
