@@ -27,6 +27,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     let playbackSequenceBuilder: any PlaybackSequenceBuildingProtocol
     let keyContactDetectionService: any KeyContactDetectingProtocol
     let realPianoContactDetectionService: any KeyContactDetectingProtocol
+    let handObservationSourceKind: PerformanceObservation.Source.Kind?
     let audioRecognitionService: PracticeAudioRecognitionServiceProtocol?
     let practiceInputEventSource: PracticeInputEventSourceProtocol?
     let audioStepAttemptAccumulator: AudioStepAttemptAccumulator
@@ -58,6 +59,8 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     var lastProgressRestoreOutcome: PracticeProgressRestoreOutcome = .none
     @ObservationIgnored var sessionRecorderEventTask: Task<Void, Never>?
     @ObservationIgnored var performanceAssessmentLifecycleGeneration = 0
+    @ObservationIgnored var handObservationRecordingTask: Task<Void, Never>?
+    @ObservationIgnored var hasRegisteredHandCapabilities = false
     @ObservationIgnored var autoplayTimelineBuildTask: Task<Void, Never>?
     @ObservationIgnored var autoplayTimelineBuildGeneration = 0
 
@@ -77,6 +80,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         playbackSequenceBuilder: (any PlaybackSequenceBuildingProtocol)? = nil,
         keyContactDetectionService: (any KeyContactDetectingProtocol)? = nil,
         realPianoContactDetectionService: (any KeyContactDetectingProtocol)? = nil,
+        handObservationSourceKind: PerformanceObservation.Source.Kind? = nil,
         midiPracticeStepMatcher: (any MIDIPracticeStepMatchingProtocol)? = nil,
         audioRecognitionService: PracticeAudioRecognitionServiceProtocol? = nil,
         practiceInputEventSource: PracticeInputEventSourceProtocol? = nil,
@@ -98,6 +102,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
         self.playbackSequenceBuilder = playbackSequenceBuilder ?? PlaybackSequenceBuilder()
         self.keyContactDetectionService = keyContactDetectionService ?? KeyContactDetectionService()
         self.realPianoContactDetectionService = realPianoContactDetectionService ?? RealPianoContactDetectionService()
+        self.handObservationSourceKind = handObservationSourceKind
         self.audioRecognitionService = audioRecognitionService
         self.practiceInputEventSource = practiceInputEventSource
         self.audioStepAttemptAccumulator = audioStepAttemptAccumulator
@@ -255,6 +260,7 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     func waitForPendingPerformanceObservationRecording() async {
         await practiceMIDIInputService?.waitForPendingObservationRecording()
         await audioRecognitionInputService?.waitForPendingObservationRecording()
+        await handObservationRecordingTask?.value
     }
 
     func handle(effect: PracticeSessionEffect) {

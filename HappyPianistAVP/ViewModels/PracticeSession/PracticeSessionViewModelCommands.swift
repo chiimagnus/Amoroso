@@ -798,6 +798,7 @@ extension PracticeSessionViewModel {
         }
 
         guard case .guiding = self.state else { return }
+        self.hasRegisteredHandCapabilities = false
         enqueueSessionRecorderEvent(.guiding(true))
 
         if self.autoplayState == .playing {
@@ -1039,6 +1040,7 @@ extension PracticeSessionViewModel {
     }
 
     private func beginNextLoopRound(at firstStepIndex: Int) {
+        self.hasRegisteredHandCapabilities = false
         roundConfigurationController.beginNextRound()
         self.latestFeedbackEvent = nil
         recordPassageRestart()

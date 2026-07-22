@@ -299,17 +299,72 @@ func passageCompletionDrainsTheLastMIDIObservationBeforeAssessment() async throw
 }
 
 @MainActor
+@Test
+func realPianoContactFlowsIntoTheSessionAssessment() async throws {
+    let identity = PracticeSongIdentity(songID: UUID(), scoreRevision: "hand-r1")
+    let recorder = PracticeSessionRecorder(
+        repository: LearningLoopSessionRepository(),
+        performanceAnalyzer: PracticePerformanceAnalyzer()
+    )
+    await recorder.beginVisit(id: UUID(), songID: identity.songID, sceneIsActive: true)
+    await recorder.bindIdentity(identity)
+    let session = makeLearningLoopSession(
+        playback: LearningLoopPlaybackService(),
+        coordinator: PracticeProgressCoordinator(repository: LearningLoopRepository()),
+        recorder: recorder,
+        handObservationSourceKind: .realPianoContact
+    )
+    session.songIdentity = identity
+    session.installTestPerformanceNotes(
+        [TestScorePerformanceNote(midiNote: 60, onTick: 0, offTick: 480)],
+        measureSpans: [learningLoopSpan()]
+    )
+    await session.applyLaunchRestorePolicy(.freshDefaults)
+    session.startGuidingIfReady()
+    await session.waitForSessionRecorderEvents()
+
+    let calibrationID = UUID()
+    session.recordHandPerformanceObservations([makeTestKeyContactObservation(
+        midiNote: 60,
+        phase: .started,
+        timestamp: PerformanceClock.live().now(),
+        resolvedVelocity: 73,
+        calibrationID: calibrationID
+    )])
+    session.recordPassageCompletion()
+    await session.waitForSessionRecorderEvents()
+
+    let snapshot = await recorder.analysisSnapshot()
+    let assessment = try #require(snapshot.assessment)
+    let pitch = try #require(assessment.dimensions.first { $0.dimension == .exactPitch })
+    #expect(snapshot.acceptedObservationCount == 1)
+    #expect(pitch.outcome == .correct)
+    #expect(pitch.evidence.contains { evidence in
+        guard case let .note(_, observationID, _) = evidence else { return false }
+        return snapshot.alignment?.links.contains { link in
+            guard case let .aligned(_, observation, _) = link else { return false }
+            return observation.observationID == observationID
+                && observation.hand == .right
+                && observation.finger == 2
+                && observation.calibrationReference == calibrationID.uuidString
+        } == true
+    })
+}
+
+@MainActor
 private func makeLearningLoopSession(
     playback: LearningLoopPlaybackService,
     coordinator: PracticeProgressCoordinator,
     recorder: PracticeSessionRecorder? = nil,
     practiceInputEventSource: PracticeInputEventSourceProtocol? = nil,
+    handObservationSourceKind: PerformanceObservation.Source.Kind? = nil,
     diagnosticsReporter: (any DiagnosticsReporting)? = nil
 ) -> PracticeSessionViewModel {
     PracticeSessionViewModel(
         chordAttemptAccumulator: LearningLoopChordAccumulator(),
         sleeper: TaskSleeper(),
         sequencerPlaybackService: playback,
+        handObservationSourceKind: handObservationSourceKind,
         practiceInputEventSource: practiceInputEventSource,
         progressCoordinator: coordinator,
         sessionRecorder: recorder,

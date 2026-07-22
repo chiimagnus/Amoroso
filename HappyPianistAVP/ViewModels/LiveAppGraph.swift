@@ -148,6 +148,7 @@ struct LiveAppGraph {
                     chordAttemptAccumulator: makeChordAttemptAccumulator(),
                     sleeper: makeSleeper(),
                     sequencerPlaybackService: sequencerPlaybackService,
+                    handObservationSourceKind: nil,
                     audioRecognitionService: nil,
                     practiceInputEventSource: makeBluetoothMIDIEventSource(),
                     audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
@@ -164,6 +165,7 @@ struct LiveAppGraph {
                     sleeper: makeSleeper(),
                     sequencerPlaybackService: makeLocalSamplerPlaybackService(),
                     keyContactDetectionService: KeyContactDetectionService(calibration: touchCalibration),
+                    handObservationSourceKind: .virtualPianoContact,
                     audioRecognitionService: nil,
                     practiceInputEventSource: nil,
                     audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
@@ -181,6 +183,7 @@ struct LiveAppGraph {
                     realPianoContactDetectionService: RealPianoContactDetectionService(
                         calibration: touchCalibration
                     ),
+                    handObservationSourceKind: .realPianoContact,
                     audioRecognitionService: makeAudioRecognitionService(),
                     practiceInputEventSource: nil,
                     audioStepAttemptAccumulator: makeAudioStepAttemptAccumulator(),
