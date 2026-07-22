@@ -250,6 +250,42 @@ func decisionServiceUsesMeasureEvidenceAndSkipsCorrectResults() async {
 }
 
 @Test
+func decisionServiceRetainsOnlyUnlocalizedPassageEvidenceAlongsideMeasures() async {
+    let measureOnset = makeDimension(.onset, outcome: .incorrect, confidence: 0.8)
+    let passageExtra = makeDimension(.extraNotes, outcome: .incorrect, confidence: 0.9)
+    let occurrenceID = PracticeMeasureOccurrenceID(
+        sourceMeasureID: PracticeSourceMeasureID(
+            partID: "P1",
+            sourceMeasureIndex: 0,
+            sourceNumberToken: "1"
+        ),
+        occurrenceIndex: 0
+    )
+    let assessment = PassagePerformanceAssessment(
+        planID: ScorePerformancePlanID(rawValue: "plan"),
+        sourceGeneration: 7,
+        tickRange: 0 ..< 960,
+        rubricVersion: .capabilityAware,
+        dimensions: [measureOnset, passageExtra],
+        measures: [MeasurePerformanceAssessment(
+            occurrenceID: occurrenceID,
+            tickRange: 0 ..< 480,
+            dimensions: [measureOnset]
+        )]
+    )
+
+    let decisions = await CoachingDecisionService().candidates(for: assessment)
+
+    #expect(decisions.count == 2)
+    #expect(decisions[0].issue.kind == .onset)
+    #expect(decisions[0].issue.scoreRange == 0 ..< 480)
+    #expect(decisions[0].issue.measureOccurrenceIDs == [occurrenceID])
+    #expect(decisions[1].issue.kind == .pitch)
+    #expect(decisions[1].issue.scoreRange == 0 ..< 960)
+    #expect(decisions[1].issue.measureOccurrenceIDs.isEmpty)
+}
+
+@Test
 func priorityPolicyRanksPrerequisitesSeverityConfidenceAndCoverage() {
     guard
         let evidence = makeDecision(
