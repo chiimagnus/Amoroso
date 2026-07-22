@@ -49,12 +49,18 @@ final class ARGuideRecordingViewModel {
             RecordingTake,
             ScorePerformancePlan
         ) async -> RecordedTakeAlignmentDiagnostics? = { take, plan in
-            await Task.detached(priority: .utility) {
-                guard let result = try? RecordedTakeAligner().alignResult(take: take, plan: plan) else {
-                    return nil
-                }
+            let task = Task.detached(priority: .utility) {
+                guard Task.isCancelled == false,
+                      let result = try? RecordedTakeAligner().alignResult(take: take, plan: plan),
+                      Task.isCancelled == false
+                else { return nil }
                 return result.diagnostics
-            }.value
+            }
+            return await withTaskCancellationHandler {
+                await task.value
+            } onCancel: {
+                task.cancel()
+            }
         }
     ) {
         self.takeLibraryViewModel = takeLibraryViewModel ?? TakeLibraryViewModel()
@@ -189,6 +195,8 @@ final class ARGuideRecordingViewModel {
     func stop() {
         midiRecordingState.stop()
         recordingPlan = nil
+        alignmentTasks.values.forEach { $0.cancel() }
+        alignmentTasks.removeAll()
         let previousStopTask = playbackStopTask
         let takePlaybackViewModel = takePlaybackViewModel
         playbackStopTask = Task {
