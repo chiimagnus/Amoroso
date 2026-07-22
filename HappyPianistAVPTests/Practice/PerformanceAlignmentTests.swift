@@ -1423,7 +1423,7 @@ func goldenAlignmentReplaysCoverRequiredPerformanceCases() throws {
 }
 
 @Test
-func incrementalAlignmentKeepsLongScoreReplayBounded() {
+func incrementalAlignmentKeepsLongScoreReplayBounded() throws {
     let eventCount = 512
     let events = (0 ..< eventCount).map { index in
         makeAlignmentEvent(
@@ -1449,8 +1449,10 @@ func incrementalAlignmentKeepsLongScoreReplayBounded() {
         }
     }
     #expect(aligner.bufferedObservationCount <= 32)
-    #expect(aligner.discardedObservationCount == eventCount - 32)
-    _ = aligner.finish()
+    #expect(aligner.discardedObservationCount + aligner.bufferedObservationCount == eventCount)
+    let finished = aligner.finish()
+    let final = try #require(finished)
+    #expect(final.links.count == eventCount)
 
     // ponytail: broad regression ceiling; replace with Instruments metrics if this debug-simulator check exceeds 5 seconds.
     #expect(elapsed < .seconds(5))

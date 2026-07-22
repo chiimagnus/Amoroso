@@ -233,15 +233,16 @@ struct IncrementalPerformanceAligner: Sendable {
 
     private mutating func trimBuffer(using alignment: PerformanceAlignment?) {
         guard observations.count > configuration.maximumBufferedObservations else { return }
-        let overflow = observations.count - configuration.maximumBufferedObservations
         let committedIDs = Set(committedLinks.keys).union(committedControllerLinks.keys)
         var evictedIDs = Set(observations.lazy.filter {
             committedIDs.contains($0.id) || $0.isDiscardableAlignmentAuxiliary
-        }.prefix(overflow).map(\.id))
-        if evictedIDs.count < overflow {
+        }.map(\.id))
+        let overflow = observations.count - evictedIDs.count - configuration.maximumBufferedObservations
+        if overflow > 0 {
+            let preferredEvictedIDs = evictedIDs
             evictedIDs.formUnion(observations.lazy.filter {
-                evictedIDs.contains($0.id) == false
-            }.prefix(overflow - evictedIDs.count).map(\.id))
+                preferredEvictedIDs.contains($0.id) == false
+            }.prefix(overflow).map(\.id))
         }
         if let alignment {
             for link in alignment.links where link.observationID.map(evictedIDs.contains) == true {
