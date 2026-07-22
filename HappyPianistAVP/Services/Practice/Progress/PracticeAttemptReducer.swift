@@ -231,7 +231,9 @@ struct PracticeAttemptReducer {
             $0.occurrenceID.sourceMeasureID
         }
         for (sourceMeasureID, assessments) in grouped {
-            let dimensions = aggregateDimensions(assessments.flatMap(\.dimensions))
+            let dimensions = PerformanceAssessmentDimensionResult.aggregated(
+                assessments.flatMap(\.dimensions)
+            )
             guard dimensions.isEmpty == false else { continue }
             let coverage = PerformanceAssessmentEvidenceCoverage(dimensions: dimensions)
             let maturity: MeasurePerformanceMaturity
@@ -262,78 +264,6 @@ struct PracticeAttemptReducer {
                     performanceMaturity: summary
                 ))
             }
-        }
-    }
-
-    private func aggregateDimensions(
-        _ results: [PerformanceAssessmentDimensionResult]
-    ) -> [PerformanceAssessmentDimensionResult] {
-        let grouped = Dictionary(grouping: results, by: \.dimension)
-        return PerformanceAssessmentDimension.allCases.compactMap { dimension in
-            guard let values = grouped[dimension], values.isEmpty == false else { return nil }
-            let sampleCount = saturatingSum(values.map(\.sampleCount))
-            return PerformanceAssessmentDimensionResult(
-                dimension: dimension,
-                outcome: aggregateOutcome(values.map(\.outcome)),
-                evidenceStatus: aggregateEvidenceStatus(values.map(\.evidenceStatus)),
-                measurement: aggregateMeasurement(values),
-                sampleCount: sampleCount,
-                confidence: weightedMean(
-                    values.compactMap { result in
-                        result.confidence.map { ($0, result.sampleCount) }
-                    }
-                ),
-                evidence: values.flatMap(\.evidence)
-            )
-        }
-    }
-
-    private func aggregateOutcome(_ outcomes: [PracticeEvidenceOutcome]) -> PracticeEvidenceOutcome {
-        if outcomes.contains(.incorrect) { return .incorrect }
-        if outcomes.allSatisfy({ $0 == .correct }) { return .correct }
-        return .insufficientEvidence
-    }
-
-    private func aggregateEvidenceStatus(
-        _ statuses: [PerformanceAssessmentEvidenceStatus]
-    ) -> PerformanceAssessmentEvidenceStatus {
-        if statuses.contains(.insufficient) || statuses.contains(.notObserved) { return .insufficient }
-        if statuses.contains(.degraded) { return .degraded }
-        return statuses.contains(.observed) ? .observed : .notObserved
-    }
-
-    private func aggregateMeasurement(
-        _ results: [PerformanceAssessmentDimensionResult]
-    ) -> PerformanceAssessmentMeasurement? {
-        let measurements = results.compactMap { result in
-            result.measurement.map { ($0, result.sampleCount) }
-        }
-        guard let unit = measurements.first?.0.unit,
-              measurements.allSatisfy({ $0.0.unit == unit })
-        else { return nil }
-        let value: Double?
-        if unit == .count {
-            let total = measurements.map { $0.0.value }.reduce(0, +)
-            value = total.isFinite ? total : nil
-        } else {
-            value = weightedMean(measurements.map { ($0.0.value, $0.1) })
-        }
-        return value.flatMap { PerformanceAssessmentMeasurement(value: $0, unit: unit) }
-    }
-
-    private func weightedMean(_ values: [(value: Double, weight: Int)]) -> Double? {
-        let positive = values.filter { $0.weight > 0 }
-        let totalWeight = positive.reduce(0.0) { $0 + Double($1.weight) }
-        guard totalWeight > 0 else { return nil }
-        let total = positive.reduce(0.0) { $0 + ($1.value * Double($1.weight)) }
-        guard total.isFinite else { return nil }
-        return total / totalWeight
-    }
-
-    private func saturatingSum(_ values: [Int]) -> Int {
-        values.reduce(0) { total, value in
-            let (sum, overflow) = total.addingReportingOverflow(max(0, value))
-            return overflow ? Int.max : sum
         }
     }
 

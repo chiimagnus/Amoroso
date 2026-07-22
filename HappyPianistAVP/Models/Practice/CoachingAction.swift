@@ -43,11 +43,9 @@ enum CoachingCompletionTarget: Equatable, Sendable {
 
 struct CoachingCompletionCondition: Equatable, Sendable {
     let target: CoachingCompletionTarget
-    let consecutiveAssessments: Int
 
-    init(target: CoachingCompletionTarget, consecutiveAssessments: Int = 1) {
+    init(target: CoachingCompletionTarget) {
         self.target = target
-        self.consecutiveAssessments = max(1, consecutiveAssessments)
     }
 }
 

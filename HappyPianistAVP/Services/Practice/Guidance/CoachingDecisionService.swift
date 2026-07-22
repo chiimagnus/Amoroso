@@ -1,6 +1,11 @@
 import Foundation
 
 actor CoachingDecisionService {
+    private struct SessionKey: Equatable {
+        let planID: ScorePerformancePlanID
+        let sourceGeneration: UInt64
+    }
+
     private enum Disposition {
         case pending
         case accepted
@@ -16,6 +21,10 @@ actor CoachingDecisionService {
     private let exercisePolicy: PracticeExercisePolicy
     private let priorityPolicy: CoachingPriorityPolicy
     private let diagnosticsReporter: (any DiagnosticsReporting)?
+    private var sessionKey: SessionKey?
+    private var skippedDecisions: Set<CoachingDecisionSignature> = []
+    private var previousDecision: CoachingDecision?
+    private var consecutiveUnimprovedAssessments = 0
     private var trackedDecision: TrackedDecision?
 
     init(
@@ -30,14 +39,26 @@ actor CoachingDecisionService {
 
     func decision(
         for assessment: PassagePerformanceAssessment,
-        scoreEvents: [ScorePerformanceNoteEvent] = [],
-        context: CoachingPriorityContext = CoachingPriorityContext()
+        scoreEvents: [ScorePerformanceNoteEvent] = []
     ) async -> CoachingDecision? {
-        await remeasureAcceptedDecision(with: assessment)
+        prepareSession(for: assessment)
+        updatePriorityContext(with: await remeasureAcceptedDecision(with: assessment))
+        let context = CoachingPriorityContext(
+            skippedDecisions: skippedDecisions,
+            previousDecision: previousDecision,
+            consecutiveUnimprovedAssessments: consecutiveUnimprovedAssessments
+        )
         let decision = priorityPolicy.primaryDecision(
             from: candidates(for: assessment, scoreEvents: scoreEvents),
             context: context
         )
+        if let decision,
+           let previousDecision,
+           CoachingDecisionSignature(decision) != CoachingDecisionSignature(previousDecision)
+        {
+            self.previousDecision = nil
+            consecutiveUnimprovedAssessments = 0
+        }
         if let decision,
            let before = metric(
                in: decision.issue.dimensionResults,
@@ -58,6 +79,14 @@ actor CoachingDecisionService {
         return decision
     }
 
+    func reset() {
+        sessionKey = nil
+        skippedDecisions = []
+        previousDecision = nil
+        consecutiveUnimprovedAssessments = 0
+        trackedDecision = nil
+    }
+
     func accept(_ decision: CoachingDecision) async {
         guard var trackedDecision,
               trackedDecision.decision == decision,
@@ -73,6 +102,13 @@ actor CoachingDecisionService {
               trackedDecision.decision == decision,
               trackedDecision.disposition == .pending
         else { return }
+        skippedDecisions.insert(CoachingDecisionSignature(trackedDecision.decision))
+        if let previousDecision,
+           CoachingDecisionSignature(previousDecision) == CoachingDecisionSignature(trackedDecision.decision)
+        {
+            self.previousDecision = nil
+            consecutiveUnimprovedAssessments = 0
+        }
         self.trackedDecision = nil
         await report(trackedDecision, outcome: .skipped)
     }
@@ -103,15 +139,48 @@ actor CoachingDecisionService {
         }
     }
 
+    private func prepareSession(for assessment: PassagePerformanceAssessment) {
+        let nextKey = SessionKey(
+            planID: assessment.planID,
+            sourceGeneration: assessment.sourceGeneration
+        )
+        guard sessionKey != nextKey else { return }
+        reset()
+        sessionKey = nextKey
+    }
+
+    private func updatePriorityContext(
+        with result: (decision: CoachingDecision, completionMet: Bool?)?
+    ) {
+        guard let result, let completionMet = result.completionMet else { return }
+        if completionMet {
+            previousDecision = nil
+            consecutiveUnimprovedAssessments = 0
+            return
+        }
+        // ponytail: completion is the shared progress signal; add rubric-aware deltas if partial gains matter.
+        if let previousDecision,
+           CoachingDecisionSignature(previousDecision) == CoachingDecisionSignature(result.decision)
+        {
+            consecutiveUnimprovedAssessments += 1
+        } else {
+            previousDecision = result.decision
+            consecutiveUnimprovedAssessments = 1
+        }
+    }
+
     private func remeasureAcceptedDecision(
         with assessment: PassagePerformanceAssessment
-    ) async {
+    ) async -> (decision: CoachingDecision, completionMet: Bool?)? {
         guard let trackedDecision,
               trackedDecision.disposition == .accepted
-        else { return }
-        guard assessment.planID == trackedDecision.decision.issue.provenance.planID else {
+        else { return nil }
+        let provenance = trackedDecision.decision.issue.provenance
+        guard assessment.planID == provenance.planID,
+              assessment.sourceGeneration == provenance.sourceGeneration
+        else {
             self.trackedDecision = nil
-            return
+            return nil
         }
         let after = metric(
             in: assessmentDimensions(
@@ -120,15 +189,17 @@ actor CoachingDecisionService {
             ),
             for: trackedDecision.decision.action.completionCondition.target
         )
+        let completionMet = after.map {
+            completes(trackedDecision.decision.action.completionCondition.target, with: $0)
+        }
         self.trackedDecision = nil
         await report(
             trackedDecision,
             outcome: .remeasured,
             after: after,
-            completionMet: after.map {
-                completes(trackedDecision.decision.action.completionCondition.target, with: $0)
-            }
+            completionMet: completionMet
         )
+        return (trackedDecision.decision, completionMet)
     }
 
     private func assessmentDimensions(
@@ -152,7 +223,9 @@ actor CoachingDecisionService {
         case let .dimensionOutcome(dimension, _), let .evidenceAvailable(dimension):
             dimension
         }
-        return dimensions.first { $0.dimension == targetDimension }
+        return PerformanceAssessmentDimensionResult.aggregated(
+            dimensions.filter { $0.dimension == targetDimension }
+        ).first
             .map(PianoPerformanceCoachingMetricSnapshot.init)
     }
 

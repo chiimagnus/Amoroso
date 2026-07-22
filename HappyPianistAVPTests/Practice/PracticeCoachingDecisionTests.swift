@@ -84,8 +84,7 @@ func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
         confidence: 0.9
     )
     let completion = CoachingCompletionCondition(
-        target: .dimensionOutcome(dimension: .onset, outcome: .correct),
-        consecutiveAssessments: 0
+        target: .dimensionOutcome(dimension: .onset, outcome: .correct)
     )
     let action = CoachingAction(
         kind: .onsetAlignment,
@@ -108,7 +107,6 @@ func coachingActionCarriesExecutableParametersAndNormalizesBounds() {
     #expect(action.repeatCount == 1)
     #expect(action.referenceUse == .manualReplay)
     #expect(action.cueUse == .metronome)
-    #expect(action.completionCondition.consecutiveAssessments == 1)
     #expect(decision.issue == issue)
     #expect(decision.action == action)
 }
@@ -350,6 +348,105 @@ func priorityPolicyHonorsSkipAndStopsRepeatingUnimprovedAction() {
     #expect(changed == tempo)
 }
 
+@Test
+func decisionServiceCarriesSkipAndUnimprovedStateIntoPriorityPolicy() async throws {
+    let assessment = makeCoachingAssessment(dimensions: [
+        makeDimension(.onset, outcome: .incorrect, confidence: 0.9),
+        makeDimension(.tempoContinuity, outcome: .incorrect, confidence: 0.8),
+    ])
+    let skipService = CoachingDecisionService()
+
+    let skipped = try #require(await skipService.decision(for: assessment))
+    #expect(skipped.action.kind == .onsetAlignment)
+    await skipService.skip(skipped)
+    #expect(try #require(await skipService.decision(for: assessment)).action.kind == .tempoStability)
+
+    let retryService = CoachingDecisionService()
+    let first = try #require(await retryService.decision(for: assessment))
+    await retryService.accept(first)
+    let repeated = try #require(await retryService.decision(for: assessment))
+    #expect(repeated.action.kind == .onsetAlignment)
+    await retryService.accept(repeated)
+    let changed = try #require(await retryService.decision(for: assessment))
+    #expect(changed.action.kind == .tempoStability)
+}
+
+@Test
+func decisionServiceDoesNotRemeasureAcrossSourceGenerations() async throws {
+    let reporter = InMemoryDiagnosticsReporter()
+    let service = CoachingDecisionService(diagnosticsReporter: reporter)
+    let firstAssessment = makeCoachingAssessment(
+        sourceGeneration: 1,
+        dimensions: [makeDimension(.onset, outcome: .incorrect, confidence: 0.9)]
+    )
+    let first = try #require(await service.decision(for: firstAssessment))
+    let firstDecisionID = try #require(await reporter.events.first?.operationID)
+    await service.accept(first)
+
+    let next = try #require(await service.decision(for: makeCoachingAssessment(
+        sourceGeneration: 2,
+        dimensions: [makeDimension(.onset, outcome: .incorrect, confidence: 0.9)]
+    )))
+    let events = await reporter.events
+
+    #expect(next.issue.provenance.sourceGeneration == 2)
+    #expect(events.filter { $0.reason.contains("outcome=issued") }.count == 2)
+    #expect(events.contains {
+        $0.operationID == firstDecisionID && $0.reason.contains("outcome=remeasured")
+    } == false)
+}
+
+@Test
+func decisionServiceAggregatesMultipartRemeasurementConservatively() async throws {
+    let reporter = InMemoryDiagnosticsReporter()
+    let service = CoachingDecisionService(diagnosticsReporter: reporter)
+    let initial = makeCoachingAssessment(dimensions: [
+        makeDimension(.onset, outcome: .incorrect, confidence: 0.9),
+    ])
+    let decision = try #require(await service.decision(for: initial))
+    let decisionID = try #require(await reporter.events.first?.operationID)
+    await service.accept(decision)
+
+    let correct = PerformanceAssessmentDimensionResult(
+        dimension: .onset,
+        outcome: .correct,
+        evidenceStatus: .observed,
+        measurement: PerformanceAssessmentMeasurement(value: 0.1, unit: .seconds),
+        sampleCount: 2,
+        confidence: 0.9,
+        evidence: []
+    )
+    let incorrect = PerformanceAssessmentDimensionResult(
+        dimension: .onset,
+        outcome: .incorrect,
+        evidenceStatus: .observed,
+        measurement: PerformanceAssessmentMeasurement(value: 0.2, unit: .seconds),
+        sampleCount: 3,
+        confidence: 0.8,
+        evidence: []
+    )
+    let remeasurement = PassagePerformanceAssessment(
+        planID: initial.planID,
+        sourceGeneration: initial.sourceGeneration,
+        tickRange: initial.tickRange,
+        rubricVersion: initial.rubricVersion,
+        dimensions: [],
+        measures: [
+            makeMeasureAssessment(partID: "P1", dimensions: [correct]),
+            makeMeasureAssessment(partID: "P2", dimensions: [incorrect]),
+        ]
+    )
+
+    _ = await service.decision(for: remeasurement)
+    let event = try #require(await reporter.events.first {
+        $0.operationID == decisionID && $0.reason.contains("outcome=remeasured")
+    })
+
+    #expect(event.reason.contains("afterOutcome=incorrect"))
+    #expect(event.reason.contains("afterSamples=5"))
+    #expect(event.reason.contains("completion=unmet"))
+}
+
 private func makeCoachingIssue(
     kind: MusicalIssueKind = .onset,
     dimension: PerformanceAssessmentDimension = .onset,
@@ -374,6 +471,38 @@ private func makeCoachingIssue(
             sourceGeneration: 1,
             rubricVersion: .capabilityAware
         )
+    )
+}
+
+private func makeCoachingAssessment(
+    sourceGeneration: UInt64 = 1,
+    dimensions: [PerformanceAssessmentDimensionResult]
+) -> PassagePerformanceAssessment {
+    PassagePerformanceAssessment(
+        planID: ScorePerformancePlanID(rawValue: "plan"),
+        sourceGeneration: sourceGeneration,
+        tickRange: 0 ..< 480,
+        rubricVersion: .capabilityAware,
+        dimensions: dimensions,
+        measures: []
+    )
+}
+
+private func makeMeasureAssessment(
+    partID: String,
+    dimensions: [PerformanceAssessmentDimensionResult]
+) -> MeasurePerformanceAssessment {
+    MeasurePerformanceAssessment(
+        occurrenceID: PracticeMeasureOccurrenceID(
+            sourceMeasureID: PracticeSourceMeasureID(
+                partID: partID,
+                sourceMeasureIndex: 0,
+                sourceNumberToken: "1"
+            ),
+            occurrenceIndex: 0
+        ),
+        tickRange: 0 ..< 480,
+        dimensions: dimensions
     )
 }
 

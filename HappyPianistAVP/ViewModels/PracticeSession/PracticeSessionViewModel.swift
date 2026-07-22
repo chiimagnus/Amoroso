@@ -195,17 +195,29 @@ final class PracticeSessionViewModel: PracticeSessionEffectHandlerProtocol {
     }
 
     func enqueueSessionRecorderEvent(_ event: SessionRecorderEvent) {
+        let resetsCoaching: Bool
         switch event {
-        case .configureAnalysis, .resetAnalysis:
+        case .configureAnalysis:
             performanceAssessmentLifecycleGeneration += 1
             self.currentCoachingDecision = nil
+            resetsCoaching = false
+        case .resetAnalysis:
+            performanceAssessmentLifecycleGeneration += 1
+            self.currentCoachingDecision = nil
+            resetsCoaching = true
         case .guiding, .settingsPresented, .checkpoint:
-            break
+            resetsCoaching = false
         }
-        guard let sessionRecorder else { return }
+        guard sessionRecorder != nil || resetsCoaching else { return }
         let previousTask = sessionRecorderEventTask
+        let sessionRecorder = sessionRecorder
+        let coachingDecisionService = coachingDecisionService
         sessionRecorderEventTask = Task { @MainActor in
             await previousTask?.value
+            if resetsCoaching {
+                await coachingDecisionService.reset()
+            }
+            guard let sessionRecorder else { return }
             switch event {
             case let .guiding(isGuiding):
                 await sessionRecorder.setGuiding(isGuiding)
