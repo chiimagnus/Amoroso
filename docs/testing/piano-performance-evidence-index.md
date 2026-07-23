@@ -6,7 +6,7 @@
 
 | 证据 | 代码基线 / 版本 | 实际运行 | 结果 | 可证明的范围 |
 | --- | --- | --- | --- | --- |
-| 完整 visionOS Simulator suite | `63810b2` + P15-T17 docs closeout | `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=86364D5F-BCCF-48C5-AF79-8154E5689FA3' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO` | `passed`：2026-07-23 | Swift 6 类型检查和已接入的 Simulator 自动化；不证明真机、听感或教学效果。 |
+| 完整 visionOS Simulator suite | `4ea2b844c959b16a85208c5f8f058274d5d9918e`（P15-T17 source/test baseline） | `xcodebuild test -project HappyPianist.xcodeproj -scheme HappyPianistAVP -destination 'platform=visionOS Simulator,id=86364D5F-BCCF-48C5-AF79-8154E5689FA3' CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO` | `passed`：2026-07-23 | Swift 6 类型检查和已接入的 Simulator 自动化；不证明真机、听感或教学效果。 |
 | 专业 corpus manifest | `f1cc54f`，manifest v1 | `ProfessionalCorpusManifestTests` 由完整 suite 覆盖 | `passed`：2026-07-23 | fixture 登记、授权字段、重复与未登记文件检查。 |
 | corpus score / performance snapshots | `902511c`、`2c2d842` | `ProfessionalCorpusScoreSnapshotTests`、`ProfessionalCorpusPerformanceSnapshotTests` 由完整 suite 覆盖 | `passed`：2026-07-23 | 已登记 fixture 的 source facts、event stream、range/seek/loop 与 app/CoreMIDI projection。 |
 | observation confusion matrix | `379c163` | `PerformanceObservationConfusionMatrixTests` 由完整 suite 覆盖 | `passed`：2026-07-23 | MIDI、target audio 与 hand 的 capability/calibration 分层 replay；不代表真机准确率。 |
