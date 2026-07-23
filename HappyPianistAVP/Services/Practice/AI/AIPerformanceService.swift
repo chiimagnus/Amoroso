@@ -620,6 +620,9 @@ final class AIPerformanceService {
                 generation: generation,
                 timeout: backendTimeout
             )
+            guard response.provider == kind, response.generation == generation else {
+                throw ImprovBackendClientError.invalidResponse
+            }
             responses.append(applyingObservedLatency(to: response, startedAt: startedAt))
         }
 

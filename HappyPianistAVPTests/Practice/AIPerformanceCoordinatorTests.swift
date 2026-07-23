@@ -51,19 +51,25 @@ private actor FakeScheduleBackend: ImprovBackendProtocol {
     private let schedule: [PracticeSequencerMIDIEvent]
     private let backendLatencyMS: Int?
     private let responseDelay: Duration?
+    private let responseProvider: ImprovBackendKind?
+    private let responseGenerationRequestIDOffset: Int?
 
     init(
         kind: ImprovBackendKind,
         displayName: String = "Fake",
         schedule: [PracticeSequencerMIDIEvent],
         backendLatencyMS: Int? = nil,
-        responseDelay: Duration? = nil
+        responseDelay: Duration? = nil,
+        responseProvider: ImprovBackendKind? = nil,
+        responseGenerationRequestIDOffset: Int? = nil
     ) {
         self.kind = kind
         self.displayName = displayName
         self.schedule = schedule
         self.backendLatencyMS = backendLatencyMS
         self.responseDelay = responseDelay
+        self.responseProvider = responseProvider
+        self.responseGenerationRequestIDOffset = responseGenerationRequestIDOffset
     }
 
     func generateCreativeResponse(
@@ -74,10 +80,22 @@ private actor FakeScheduleBackend: ImprovBackendProtocol {
         if let responseDelay {
             try await Task.sleep(for: responseDelay)
         }
+        let responseGeneration: CreativeDuetGeneration
+        if let responseGenerationRequestIDOffset {
+            responseGeneration = CreativeDuetGeneration(
+                requestID: generation.requestID + responseGenerationRequestIDOffset,
+                activationID: generation.activationID,
+                seed: generation.seed,
+                sessionID: generation.sessionID,
+                parameters: generation.parameters
+            )
+        } else {
+            responseGeneration = generation
+        }
         return CreativeDuetResponse(
             schedule: schedule,
-            provider: kind,
-            generation: generation,
+            provider: responseProvider ?? kind,
+            generation: responseGeneration,
             provenance: .backendGenerated(latencyMS: backendLatencyMS)
         )
     }
@@ -586,6 +604,66 @@ func selectedBackendTimeoutAndInvalidResponseStopWithClassifiedDiagnostics() asy
         #expect(callCount > 0)
         #expect(playbackService.playCallCount == 0)
         #expect(states.last?.lastImprovStatusText?.contains(statusText) == true)
+        let events = await diagnosticsReporter.events
+        #expect(events.contains(where: { $0.reason == expectedReason }))
+    }
+}
+
+@Test
+@MainActor
+func mismatchedCreativeResponseMetadataStopsWithInvalidResponseDiagnostics() async {
+    let scenarios: [(provider: ImprovBackendKind?, requestIDOffset: Int?)] = [
+        (.localRule, nil),
+        (nil, 1),
+    ]
+
+    for scenario in scenarios {
+        let nowUptime: TimeInterval = 0
+        var states: [AIPerformanceService.State] = []
+        let diagnosticsReporter = InMemoryDiagnosticsReporter()
+        let backendService = FakeBackendDiscoveryService()
+        let orchestrator = FakeDiscoveryOrchestrator(service: backendService)
+        let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
+        let backend = FakeScheduleBackend(
+            kind: selectedKind,
+            schedule: [
+                PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 72, velocity: 90)),
+                PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 72)),
+            ],
+            responseProvider: scenario.provider,
+            responseGenerationRequestIDOffset: scenario.requestIDOffset
+        )
+        let playbackService = FakeSequencerPlaybackService()
+        let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
+            makeLocalSamplerPlaybackService: { playbackService },
+            makeExternalMIDIPlaybackService: { _ in playbackService }
+        )
+        let service = AIPerformanceService(
+            diagnosticsReporter: diagnosticsReporter,
+            nowUptimeSeconds: { nowUptime },
+            sleepFor: { _ in },
+            discoveryOrchestrator: orchestrator,
+            backendRegistry: ImprovBackendRegistry(backends: [backend]),
+            selectedBackendKind: { selectedKind },
+            aiPlaybackServiceFactory: { aiPlaybackFactory },
+            onStateChanged: { states.append($0) }
+        )
+        defer { service.setEnabled(false) }
+
+        let session = FakePracticeSession()
+        service.updatePracticeSession(session)
+        service.setEnabled(true)
+        recordDuetTestPhrase(service)
+
+        let expectedReason = "provider=network_bonjour_http_aria_v2;failure=invalid_response"
+        for _ in 0 ..< 500 {
+            await Task.yield()
+            let events = await diagnosticsReporter.events
+            if events.contains(where: { $0.reason == expectedReason }) { break }
+        }
+
+        #expect(playbackService.playCallCount == 0)
+        #expect(states.last?.lastImprovStatusText?.contains("响应无效") == true)
         let events = await diagnosticsReporter.events
         #expect(events.contains(where: { $0.reason == expectedReason }))
     }
