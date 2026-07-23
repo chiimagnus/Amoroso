@@ -142,7 +142,7 @@ flowchart TD
 - feedback 表现不进入 progress JSON。
 - AI 对弹 response 是运行期创意内容，不是 `ScorePerformancePlan`、忠实示范、assessment target 或教师事实；它不得改写练习进度。
 - AI 只接收用户 observation 派生的 phrase；system playback 与旧 generation response 必须丢弃。
-- AI 的 unavailable、timeout、invalid response 与 quality gate failure 终止本次生成，不自动切换后端；诊断只记录 provider kind 与 failure category，不记录 prompt、AI 正文或原始表现事件。
+- AI 的 unavailable、timeout、invalid response 与 quality gate failure 终止本次生成，不自动切换后端；诊断只记录枚举化的 provider、failure category、quality gate reason/latency bucket 与 cancel/stale outcome，不记录 prompt、AI 正文或原始表现事件。
 - 曲谱准备失败的界面说明、技术详情、系统日志和导出日志必须来自同一个 typed failure。
 - 曲库 selection 只更新内存并异步持久化；不得触发 resolver、曲谱准备或 ARGuide。只有练习窗口激活 registered request 后才执行这些副作用。
 - trailing Ornament 只能消费 `loading`、`invitation`、`overview`、`unavailable` 最终 presentation；不得持有 launch owner、配置 controller、score service、MusicXML parser 或第二个练习入口。
