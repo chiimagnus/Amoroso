@@ -27,6 +27,31 @@
       ],
       "distributionScope": "none",
       "blockedReason": "MuseScore is not installed on this execution host, and no score with verified source and redistribution terms is available locally."
+    },
+    {
+      "id": "dorico-grace-ornament-tuplet",
+      "status": "blocked",
+      "exporter": {
+        "name": "Dorico",
+        "version": "not installed on execution host"
+      },
+      "source": "No redistributable Dorico export is present in this repository.",
+      "license": "not acquired",
+      "semanticTags": [
+        "grace",
+        "ornament",
+        "tuplet",
+        "voice"
+      ],
+      "expectedOutputs": [
+        "source-facts",
+        "normalization",
+        "performed-order",
+        "notation",
+        "performance-events"
+      ],
+      "distributionScope": "none",
+      "blockedReason": "Dorico is not installed on this execution host, and no score with verified source and redistribution terms is available locally."
     }
   ]
 }
