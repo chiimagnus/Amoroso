@@ -7,6 +7,18 @@ import Foundation
 struct CreativeDuetPhrase: Equatable, Sendable {
     let events: [ImprovEvent]
     let provenance: CreativeDuetPhraseProvenance
+
+    var dialogueNotes: [ImprovDialogueNote] {
+        events.compactMap { event in
+            guard event.type == .note,
+                  let note = event.note,
+                  let velocity = event.velocity,
+                  let duration = event.duration
+            else { return nil }
+            return ImprovDialogueNote(note: note, velocity: velocity, time: event.time, duration: duration)
+        }
+        .sorted { $0.time < $1.time }
+    }
 }
 
 struct CreativeDuetPhraseProvenance: Equatable, Sendable {

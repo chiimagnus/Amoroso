@@ -48,19 +48,32 @@ private actor FakeScheduleBackend: ImprovBackendProtocol {
     nonisolated let kind: ImprovBackendKind
     nonisolated let displayName: String
 
-    private let playbackPlan: ImprovBackendPlaybackPlan
+    private let schedule: [PracticeSequencerMIDIEvent]
+    private let backendLatencyMS: Int?
 
-    init(kind: ImprovBackendKind, displayName: String = "Fake", playbackPlan: ImprovBackendPlaybackPlan) {
+    init(
+        kind: ImprovBackendKind,
+        displayName: String = "Fake",
+        schedule: [PracticeSequencerMIDIEvent],
+        backendLatencyMS: Int? = nil
+    ) {
         self.kind = kind
         self.displayName = displayName
-        self.playbackPlan = playbackPlan
+        self.schedule = schedule
+        self.backendLatencyMS = backendLatencyMS
     }
 
-    func generatePlaybackPlan(
-        request _: ImprovGenerateRequestV2,
+    func generateCreativeResponse(
+        phrase _: CreativeDuetPhrase,
+        generation: CreativeDuetGeneration,
         timeout _: Duration
-    ) async throws -> ImprovBackendPlaybackPlan {
-        playbackPlan
+    ) async throws -> CreativeDuetResponse {
+        CreativeDuetResponse(
+            schedule: schedule,
+            provider: kind,
+            generation: generation,
+            provenance: .backendGenerated(latencyMS: backendLatencyMS)
+        )
     }
 }
 
@@ -68,23 +81,34 @@ private actor RecordingSeedBackend: ImprovBackendProtocol {
     nonisolated let kind: ImprovBackendKind
     nonisolated let displayName: String
 
-    private let playbackPlan: ImprovBackendPlaybackPlan
+    private let schedule: [PracticeSequencerMIDIEvent]
+    private let backendLatencyMS: Int?
     private(set) var requestedSeeds: [UInt64] = []
 
-    init(kind: ImprovBackendKind, displayName: String = "Recording", playbackPlan: ImprovBackendPlaybackPlan) {
+    init(
+        kind: ImprovBackendKind,
+        displayName: String = "Recording",
+        schedule: [PracticeSequencerMIDIEvent],
+        backendLatencyMS: Int? = nil
+    ) {
         self.kind = kind
         self.displayName = displayName
-        self.playbackPlan = playbackPlan
+        self.schedule = schedule
+        self.backendLatencyMS = backendLatencyMS
     }
 
-    func generatePlaybackPlan(
-        request: ImprovGenerateRequestV2,
+    func generateCreativeResponse(
+        phrase _: CreativeDuetPhrase,
+        generation: CreativeDuetGeneration,
         timeout _: Duration
-    ) async throws -> ImprovBackendPlaybackPlan {
-        if let seed = request.params.seed {
-            requestedSeeds.append(seed)
-        }
-        return playbackPlan
+    ) async throws -> CreativeDuetResponse {
+        requestedSeeds.append(generation.seed)
+        return CreativeDuetResponse(
+            schedule: schedule,
+            provider: kind,
+            generation: generation,
+            provenance: .backendGenerated(latencyMS: backendLatencyMS)
+        )
     }
 }
 
@@ -106,10 +130,11 @@ private actor ThrowingBackend: ImprovBackendProtocol {
         self.displayName = displayName
     }
 
-    func generatePlaybackPlan(
-        request _: ImprovGenerateRequestV2,
+    func generateCreativeResponse(
+        phrase _: CreativeDuetPhrase,
+        generation _: CreativeDuetGeneration,
         timeout _: Duration
-    ) async throws -> ImprovBackendPlaybackPlan {
+    ) async throws -> CreativeDuetResponse {
         callCount += 1
         switch failure {
         case .timeout:
@@ -137,14 +162,20 @@ private actor SequencedCandidateBackend: ImprovBackendProtocol {
         self.schedules = schedules
     }
 
-    func generatePlaybackPlan(
-        request _: ImprovGenerateRequestV2,
+    func generateCreativeResponse(
+        phrase _: CreativeDuetPhrase,
+        generation: CreativeDuetGeneration,
         timeout _: Duration
-    ) async throws -> ImprovBackendPlaybackPlan {
+    ) async throws -> CreativeDuetResponse {
         let requestIndex = callCount
         let index = min(requestIndex, max(0, schedules.count - 1))
         callCount += 1
-        return .schedule(schedules[index], backendLatencyMS: nil)
+        return CreativeDuetResponse(
+            schedule: schedules[index],
+            provider: kind,
+            generation: generation,
+            provenance: .backendGenerated(latencyMS: nil)
+        )
     }
 }
 
@@ -287,7 +318,7 @@ func disableCancelsPendingPlaybackAndStopsSequencer() async {
         PracticeSequencerMIDIEvent(timeSeconds: 0.0, kind: .noteOn(midi: 60, velocity: 90)),
         PracticeSequencerMIDIEvent(timeSeconds: 10.0, kind: .noteOff(midi: 60)),
     ]
-    let fakeBackend = FakeScheduleBackend(kind: selectedKind, playbackPlan: .schedule(schedule, backendLatencyMS: nil))
+    let fakeBackend = FakeScheduleBackend(kind: selectedKind, schedule: schedule)
 
     let service = AIPerformanceService(
         nowUptimeSeconds: { nowUptime },
@@ -458,10 +489,10 @@ func selectedUnavailableBackendStopsWithoutLocalSubstitution() async {
     let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
     let localFallback = RecordingSeedBackend(
         kind: .localRule,
-        playbackPlan: .schedule([
+        schedule: [
             PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 72, velocity: 90)),
             PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 72)),
-        ], backendLatencyMS: nil)
+        ]
     )
     let playbackService = FakeSequencerPlaybackService()
     let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
@@ -565,12 +596,13 @@ func responseLatencyQualityGateStopsSelectedBackend() async {
     let selectedKind: ImprovBackendKind = .networkBonjourHTTPAriaV2
     let backend = FakeScheduleBackend(
         kind: selectedKind,
-        playbackPlan: .schedule([
+        schedule: [
             PracticeSequencerMIDIEvent(timeSeconds: 0, kind: .noteOn(midi: 72, velocity: 90)),
             PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 72)),
             PracticeSequencerMIDIEvent(timeSeconds: 0.3, kind: .noteOn(midi: 76, velocity: 88)),
             PracticeSequencerMIDIEvent(timeSeconds: 0.5, kind: .noteOff(midi: 76)),
-        ], backendLatencyMS: 400)
+        ],
+        backendLatencyMS: 400
     )
     let playbackService = FakeSequencerPlaybackService()
     let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
@@ -619,7 +651,7 @@ func localRuleBackendUsesDeterministicMultiCandidateSeeds() async {
         PracticeSequencerMIDIEvent(timeSeconds: 0.0, kind: .noteOn(midi: 72, velocity: 90)),
         PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 72)),
     ]
-    let backend = RecordingSeedBackend(kind: selectedKind, playbackPlan: .schedule(schedule, backendLatencyMS: nil))
+    let backend = RecordingSeedBackend(kind: selectedKind, schedule: schedule)
 
     let playbackService = FakeSequencerPlaybackService()
     let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
@@ -687,7 +719,7 @@ func networkBackendRemainsSingleCandidate() async {
         PracticeSequencerMIDIEvent(timeSeconds: 0.0, kind: .noteOn(midi: 72, velocity: 90)),
         PracticeSequencerMIDIEvent(timeSeconds: 0.2, kind: .noteOff(midi: 72)),
     ]
-    let backend = RecordingSeedBackend(kind: selectedKind, playbackPlan: .schedule(schedule, backendLatencyMS: nil))
+    let backend = RecordingSeedBackend(kind: selectedKind, schedule: schedule)
 
     let playbackService = FakeSequencerPlaybackService()
     let aiPlaybackFactory = DuetAIPlaybackServiceFactory(
@@ -947,7 +979,8 @@ func creativeDuetContractPreservesObservedInputAndGeneratedResponseProvenance() 
     ]
     let backend = FakeScheduleBackend(
         kind: .localRule,
-        playbackPlan: .schedule(schedule, backendLatencyMS: 17)
+        schedule: schedule,
+        backendLatencyMS: 17
     )
 
     let response = try await backend.generateCreativeResponse(
