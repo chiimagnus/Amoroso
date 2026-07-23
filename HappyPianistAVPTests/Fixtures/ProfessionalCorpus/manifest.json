@@ -52,6 +52,32 @@
       ],
       "distributionScope": "none",
       "blockedReason": "Dorico is not installed on this execution host, and no score with verified source and redistribution terms is available locally."
+    },
+    {
+      "id": "sibelius-cross-staff-transpose-endings",
+      "status": "blocked",
+      "exporter": {
+        "name": "Sibelius",
+        "version": "not installed on execution host"
+      },
+      "source": "No redistributable Sibelius export is present in this repository.",
+      "license": "not acquired",
+      "semanticTags": [
+        "cross-staff",
+        "repeat",
+        "ending",
+        "transpose",
+        "meter"
+      ],
+      "expectedOutputs": [
+        "source-facts",
+        "normalization",
+        "performed-order",
+        "notation",
+        "performance-events"
+      ],
+      "distributionScope": "none",
+      "blockedReason": "Sibelius is not installed on this execution host, and no score with verified source and redistribution terms is available locally."
     }
   ]
 }
