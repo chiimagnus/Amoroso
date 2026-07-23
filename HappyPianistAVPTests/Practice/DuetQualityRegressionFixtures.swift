@@ -41,7 +41,7 @@ enum DuetQualityRegressionFixtures {
     struct BackendQualityCorpus {
         enum Response {
             case generatedRule
-            case coreMLEventIDs([Int])
+            case scriptedCoreML([Int])
             case networkFakeEvents([ImprovEvent])
         }
 
@@ -284,7 +284,7 @@ enum DuetQualityRegressionFixtures {
             ImprovDialogueNote(note: 60, velocity: 80, time: 0, duration: 0.5),
         ],
         parameters: .init(topP: 0.95, maxTokens: 128, strategy: "model", seed: 7),
-        response: .coreMLEventIDs([375, 60, 64, 67, 330, 188, 192, 195]),
+        response: .scriptedCoreML([64, 305, 192, 355, 305]),
         expectedBand: .acceptable
     )
 
@@ -303,5 +303,40 @@ enum DuetQualityRegressionFixtures {
         expectedBand: .acceptable
     )
 
-    static let backendQualityCorpus = [ruleQualityCorpus, coreMLQualityCorpus, networkFakeQualityCorpus]
+    static let networkWebSocketFakeQualityCorpus = BackendQualityCorpus(
+        provider: .networkBonjourWebSocketAriaV2,
+        seed: 100,
+        promptNotes: [
+            ImprovDialogueNote(note: 64, velocity: 86, time: 0, duration: 0.2),
+        ],
+        parameters: .init(topP: 0.9, maxTokens: 64, strategy: "network-stream", seed: 100),
+        response: .networkFakeEvents([
+            .cc(controller: 64, value: 127, time: 0),
+            .note(note: 67, velocity: 88, time: 0, duration: 0.2),
+            .note(note: 71, velocity: 84, time: 0.24, duration: 0.2),
+        ]),
+        expectedBand: .acceptable
+    )
+
+}
+
+extension DuetQualityRegressionFixtures.BackendQualityCorpus {
+    var creativePhrase: CreativeDuetPhrase {
+        CreativeDuetPhrase(
+            events: promptNotes.map {
+                .note(note: $0.note, velocity: $0.velocity, time: $0.time, duration: $0.duration)
+            },
+            provenance: .empty
+        )
+    }
+
+    var creativeGeneration: CreativeDuetGeneration {
+        CreativeDuetGeneration(
+            requestID: 1,
+            activationID: 1,
+            seed: seed,
+            sessionID: "quality-corpus",
+            parameters: parameters
+        )
+    }
 }

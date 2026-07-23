@@ -1,6 +1,14 @@
 @testable import HappyPianistAVP
 import Testing
 
+private struct FixedPerformanceRNNModelLoader: PerformanceRNNCoreMLModelLoading {
+    let stepModel: any PerformanceRNNStepModeling
+
+    func loadStepModel() async throws -> any PerformanceRNNStepModeling {
+        stepModel
+    }
+}
+
 @Test
 func performanceRNNEventCodec_decodesSingleNoteWithVelocity() {
     let codec = PerformanceRNNEventCodec()
@@ -37,19 +45,38 @@ func performanceRNNEventCodec_decodesChordInStableOrder() {
 }
 
 @Test
-func performanceRNNEventCodecCoreMLQualityCorpusUsesTheSharedGate() {
+func localCoreMLDuetBackendQualityCorpusUsesNativeCreativeResponse() async throws {
     let corpus = DuetQualityRegressionFixtures.coreMLQualityCorpus
     #expect(corpus.provider == .localCoreMLDuet)
     #expect(corpus.parameters.seed == .some(corpus.seed))
     #expect(corpus.parameters.strategy == "model")
-    guard case let .coreMLEventIDs(eventIDs) = corpus.response else {
-        Issue.record("Core ML corpus must decode its golden event IDs.")
+    guard case let .scriptedCoreML(eventIDs) = corpus.response else {
+        Issue.record("Core ML corpus must use its scripted step-model sequence.")
         return
     }
 
-    let notes = PerformanceRNNEventCodec().decode(eventIDs: eventIDs, promptEndTimeSeconds: 0)
-    let schedule = ImprovScheduleBuilder().buildSchedule(from: notes, leadInSeconds: 0)
+    let codec = PerformanceRNNEventCodec()
+    let warmupCalls = codec.encode(notes: corpus.promptNotes).count + 1
+    let backend = LocalCoreMLDuetImprovBackend(
+        modelLoader: FixedPerformanceRNNModelLoader(
+            stepModel: ScriptedStepModel(
+                warmupCallCount: warmupCalls,
+                scriptedNextEventIDs: eventIDs
+            )
+        ),
+        generator: PerformanceRNNImprovGenerator(codec: codec),
+        scheduleBuilder: ImprovScheduleBuilder()
+    )
+    let generation = corpus.creativeGeneration
+    let response = try await backend.generateCreativeResponse(
+        phrase: corpus.creativePhrase,
+        generation: generation,
+        timeout: .seconds(1)
+    )
 
-    #expect(schedule.isEmpty == false)
-    #expect(ImprovQualityRubric().assess(schedule).band == corpus.expectedBand)
+    #expect(response.provider == corpus.provider)
+    #expect(response.generation == generation)
+    #expect(response.provenance == .backendGenerated(latencyMS: nil))
+    #expect(response.schedule.isEmpty == false)
+    #expect(ImprovQualityRubric().assess(response.schedule).band == corpus.expectedBand)
 }
