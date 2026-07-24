@@ -122,7 +122,7 @@ Library View -> SongLibraryViewModel -> SongLibraryImportTransactionService -> S
 | `Services/PianoMode/VirtualPiano/` | 虚拟钢琴放置提示、琴键实体、键盘调试轴与虚拟键盘 overlay。 |
 | `Services/Immersive/PianoGuide/PianoGuideOverlayController.swift` | 练习高亮 beam、贴图和沉浸空间中的共享 keyboard root。 |
 | `Services/Practice/Feedback/PracticeRestorationEffectRenderer.swift` | 根据练习反馈事件渲染短暂的空间恢复效果。 |
-| `Services/Immersive/VirtualPerformer/` | 虚拟演奏者 rig、姿态与演奏动画。 |
+| `Services/Practice/AI/VirtualPerformer/` | 虚拟演奏者 rig、姿态与演奏动画。 |
 
 规则：
 
