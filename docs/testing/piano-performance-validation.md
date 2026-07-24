@@ -39,6 +39,21 @@ xcodebuild test \
 
 alignment/assessment/coaching 自动化至少要覆盖：score/occurrence identity、bounded window、missing/extra/unknown/ambiguous、输入 capability、target provenance、evidence check、单一动作排序、accept/skip，以及同 source generation 的下一轮 remeasure。测试只能证明规则实现一致，不能证明建议具有音乐或教学有效性。
 
+## Simulator 覆盖边界
+
+Simulator 运行记录必须绑定提交 SHA、Xcode/visionOS、destination、命令和完整退出结果；`build-for-testing` 不是通过证据。下表是覆盖边界，不是能力声明：
+
+| 链路 | Simulator 可验证的范围 |
+| --- | --- |
+| MusicXML、playback 与 range | source/performed identity、事件顺序、范围重建、loop 和 app/CoreMIDI projection。 |
+| MIDI、音频输出与 reset | timestamp、generation、controller、失败恢复、interruption、route change 与无残留发声。 |
+| 手部输入 | contact 生命周期、calibration version、tracking loss、unknown/insufficient 与重复触键。 |
+| recording、session 与 progress | checkpoint、generation、恢复、flush-before-teardown 与持久化边界。 |
+| alignment、assessment 与 coaching | occurrence、missing/extra/ambiguous、能力分层、证据状态、单一动作与复测。 |
+| AI 输入与输出生命周期 | 取消、乱序响应、generation 隔离和 teardown。 |
+
+Simulator 不证明真实 MIDI、麦克风、手部追踪、audio onset、路由恢复或钢琴听感；对应结论仍需真机或人工证据。
+
 仓库不提交 `HappyPianistAVP/Resources/SeedScores/` 和 Core ML 模型。依赖这些私有资源的集成测试在资源缺失时会跳过；资源存在时仍会执行，不能把跳过记录为资源集成已通过。
 
 ## 输出可靠性验收边界
@@ -112,6 +127,14 @@ Simulator 可以验收：
 
 钢琴家盲听的曲目覆盖、随机化、匿名 participant ID、设备/版本记录与分维度评分见[钢琴家盲听与演奏验证协议](pianist-blind-evaluation-protocol.md)。在协议实际执行并留下聚合证据前，状态始终是 `pending evidence`。
 
-用户演奏 assessment 与独立教师标注的语料、agreement、分维度 precision/recall/correlation，以及 `unknown` 与 `insufficient` 的处理见[演奏 assessment 与教师标注一致性协议](performance-assessment-validity-protocol.md)。未完成该协议不能把 assessment 的规则实现称为评价有效性。
+## Assessment 与教师标注
 
-指导动作的 before/after、练习剂量、对照、完整段落迁移与副作用记录见[coaching 教学有效性协议](coaching-efficacy-protocol.md)。动作被点击、接受或复测并不等于教学有效。
+每轮冻结 score/plan、输入 capability、calibration、设备、rubric 与 target provenance；至少两位教师独立盲标。按 pitch、timing、duration、dynamics、voicing、pedal 分维度报告 agreement、precision、recall、correlation、有效/`unknown`/`insufficient` 样本数。缺少可靠输入或教师无法判断时保留原状态，不改写成错误或失败。
+
+规则 replay 不能替代独立标注；未完成标注或未达到预先绑定阈值时，assessment 与相关能力声明保持 `pending evidence` 或 `blocked evidence`。
+
+## Coaching 教学有效性
+
+研究开始前冻结 app/score/plan/rubric、目标范围、before assessment、action、completion condition、对照和练习剂量。记录 action 是否发出不等于有效；必须比较 before/after、对照、完整段落迁移、实际剂量和负面副作用，并分维度报告有效、`unknown`、`insufficient` 样本数。
+
+研究记录只使用匿名 ID 与聚合结果；点击、接受、跳过或单次 remeasure 不能单独升级教学能力声明。

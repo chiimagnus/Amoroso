@@ -10,7 +10,7 @@
 | 专业 corpus manifest | `f1cc54f`，manifest v1 | `ProfessionalCorpusManifestTests` 由完整 suite 覆盖 | `passed`：2026-07-23 | fixture 登记、授权字段、重复与未登记文件检查。 |
 | corpus score / performance snapshots | `902511c`、`2c2d842` | `ProfessionalCorpusScoreSnapshotTests`、`ProfessionalCorpusPerformanceSnapshotTests` 由完整 suite 覆盖 | `passed`：2026-07-23 | 已登记 fixture 的 source facts、event stream、range/seek/loop 与 app/CoreMIDI projection。 |
 | observation confusion matrix | `379c163` | `PerformanceObservationConfusionMatrixTests` 由完整 suite 覆盖 | `passed`：2026-07-23 | MIDI、target audio 与 hand 的 capability/calibration 分层 replay；不代表真机准确率。 |
-| Simulator 覆盖地图 | matrix v1 | [visionOS Simulator 钢琴演奏全链路矩阵](visionos-piano-performance-matrix.md) | `passed`：2026-07-23 | 准备、回放、输入、录制、alignment、assessment、coaching 与 AI 的自动化入口。 |
+| Simulator 自动化覆盖 | validation v1 | [钢琴演奏专业化验证手册](piano-performance-validation.md) | `passed`：2026-07-23 | 准备、回放、输入、录制、alignment、assessment、coaching 与 AI 的自动化边界。 |
 
 完整命令的实际退出状态必须保留在此表；测试文件存在、`build-for-testing` 或旧运行记录都不是当前通过证据。
 
@@ -21,8 +21,8 @@
 | MuseScore、Dorico、Sibelius、Finale 的可授权 fixture | `ProfessionalCorpus/manifest.json` v1 | `blocked evidence`：执行主机没有对应 exporter，也没有经确认的可再分发文件 | 内部 fixture、伪造 exporter provenance 或不明来源下载。 |
 | Apple Vision Pro、音频路由、MIDI 与手部真实测量 | [硬件 latency、jitter 与可靠性协议](piano-hardware-latency-protocol.md) v1 | `pending evidence` | Simulator bucket、diagnostic 字段或校准配置。 |
 | 钢琴家盲听与演奏评审 | [钢琴家盲听与演奏验证协议](pianist-blind-evaluation-protocol.md) v1 | `pending evidence` | 单个 demo、作者主观听感或测试事件相等性。 |
-| assessment 与教师标注一致性 | [演奏 assessment 与教师标注一致性协议](performance-assessment-validity-protocol.md) v1 | `pending evidence` | 规则测试、总分或没有 unknown/insufficient 分层的结果。 |
-| coaching 教学有效性 | [coaching 教学有效性协议](coaching-efficacy-protocol.md) v1 | `pending evidence` | 建议点击、accept/skip 或单次 remeasure。 |
+| assessment 与教师标注一致性 | [钢琴演奏专业化验证手册](piano-performance-validation.md) 的 assessment section v1 | `pending evidence` | 规则测试、总分或没有 unknown/insufficient 分层的结果。 |
+| coaching 教学有效性 | [钢琴演奏专业化验证手册](piano-performance-validation.md) 的 coaching section v1 | `pending evidence` | 建议点击、accept/skip 或单次 remeasure。 |
 
 ## Claim-gate 汇总
 

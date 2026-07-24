@@ -2,6 +2,8 @@
 
 HappyPianist 是一个面向 Apple Vision Pro 的钢琴练习应用。仓库包含 visionOS App、测试、RealityKit 内容包，以及可选的 Mac 侧 Aria v2 Python 服务。
 
+源码目录、符号定义和调用关系以 CodeGraph 为准；本知识库只保留代码图无法表达的产品意图、数据契约、运行边界与验证规则。
+
 ## 运行单元
 
 | 运行单元 | 入口 | 作用 |
@@ -22,13 +24,10 @@ Xcode 工程只有 `HappyPianistAVP` 与 `HappyPianistAVPTests` 两个 target；
 | 曲谱真值、参考演奏、输入证据、演奏评价、虚拟指导与专业验收路线 | [piano-performance-quality.md](piano-performance-quality.md) |
 | Xcode、权限、依赖、资源、设置与可选服务 | [configuration.md](configuration.md) |
 | Documents 目录、JSON、曲库、进度与诊断文件 | [storage.md](storage.md) |
-| App 窗口、钢琴模式、曲库与沉浸空间 | [modules/happypianist-avp.md](modules/happypianist-avp.md) |
-| 练习 session、判定、进度、反馈与回放 | [modules/happypianist-avp-practice.md](modules/happypianist-avp-practice.md) |
 | 日常需要验证的核心功能 | [testing/core-function-checklist.md](testing/core-function-checklist.md) |
-| 钢琴演奏专业化的证据层级与总规则 | [testing/piano-performance-validation.md](testing/piano-performance-validation.md) |
-| 自动化覆盖与实际 Simulator run 记录规则 | [testing/visionos-piano-performance-matrix.md](testing/visionos-piano-performance-matrix.md) |
+| 钢琴演奏专业化的证据层级、Simulator 边界与运行规则 | [testing/piano-performance-validation.md](testing/piano-performance-validation.md) |
 | 真机 latency、jitter、可靠性与 calibration 记录 | [testing/piano-hardware-latency-protocol.md](testing/piano-hardware-latency-protocol.md) |
-| 钢琴家盲评、教师标注一致性与 coaching 有效性 | [testing/pianist-blind-evaluation-protocol.md](testing/pianist-blind-evaluation-protocol.md)、[assessment 协议](testing/performance-assessment-validity-protocol.md)、[coaching 协议](testing/coaching-efficacy-protocol.md) |
+| 钢琴家盲评、教师标注一致性与 coaching 有效性 | [testing/pianist-blind-evaluation-protocol.md](testing/pianist-blind-evaluation-protocol.md)、[testing/piano-performance-validation.md](testing/piano-performance-validation.md) |
 | 专业能力的通过条件与 pending / blocked 语义 | [testing/piano-capability-claim-gates.md](testing/piano-capability-claim-gates.md) |
 
 ## 产品主流程
