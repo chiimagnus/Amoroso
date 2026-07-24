@@ -115,9 +115,9 @@ Library View -> SongLibraryViewModel -> SongLibraryImportTransactionService -> S
 | 代码 | 作用 |
 | --- | --- |
 | `HappyPianistAVP/Views/Shared/ImmersiveView.swift` | `RealityView` 容器和 overlay 挂载点。 |
-| `HappyPianistAVP/Services/Tracking/ARTrackingService.swift` | 按 `ARTrackingRequirements` 管理最小 ARKit provider 集合，并发布 newest-only typed 手部快照。 |
+| `HappyPianistAVP/Services/ARSession/ARTrackingService.swift` | 按 `ARTrackingRequirements` 管理最小 ARKit provider 集合，并发布 newest-only typed 手部快照。 |
 | `HappyPianistAVP/Models/Tracking/FingerTipsSnapshot.swift` | 固定手别与手指身份的 typed snapshot，替代逐帧字符串字典。 |
-| `HappyPianistAVP/Services/HandTracking/PianoKeyHitTestIndex.swift` | 键盘几何索引与常数级相邻候选命中。 |
+| `HappyPianistAVP/Services/HandInput/PianoKeyHitTestIndex.swift` | 键盘几何索引与常数级相邻候选命中。 |
 | `Services/Immersive/*OverlayController.swift` | 校准、琴键、虚拟钢琴和调试 overlay。 |
 | `PianoGuideOverlayController` | 高亮与练习恢复效果的共享 root。 |
 
