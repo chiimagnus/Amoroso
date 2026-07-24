@@ -4,34 +4,6 @@ HappyPianist 是一个面向 Apple Vision Pro 的钢琴练习应用。它把 Mus
 
 ![scene](docs/assets/scene1.jpg)
 
-## 当前能力
-
-- 批量导入 `.musicxml`、`.xml`、`.mxl` 曲谱，以原文件名同卷暂存并逐项建立曲库；同名冲突先停在确认边界，不会静默改名或覆盖。
-- App 启动后直接进入曲库；左上角“选择钢琴”和“开始练习”分别通过单层 `pushWindow` 打开准备窗口与练习窗口，关闭后恢复原曲库状态。
-- 记录小节级练习事实，恢复上次片段与位置。
-- 将连续演奏对齐为按输入能力裁剪的客观 assessment，并展示一个可执行练习建议、非模态即时反馈、练习总结与小节恢复地图。
-- 在沉浸空间显示键位高亮与轻量恢复效果。
-- 记录结构化诊断事件，并允许用户导出七天内的安全诊断日志。
-- 练习中录制、回放并导出 MIDI take。
-- AI 对弹提供用户选择后端的运行期创意响应（本地规则、本地 CoreML、可选 Mac Aria v2）；它不是原谱示范或评分基准，失败不会自动切换后端。
-
-## 能力与验证边界
-
-当前的乐谱回放、MIDI objective assessment、虚拟琴力度和练习建议都是已实现的练习能力，不是“钢琴家级示范”“专业评分”“表现力乐器”或“教师替代品”的通过声明。多 exporter 授权曲库、真机 latency/reliability、钢琴家盲评、教师标注与教学有效性证据尚未完成；对应能力保持 `pending evidence`，缺少合法 exporter 语料的项目为 `blocked evidence`。
-
-完整的当前边界与能力声明门见[钢琴演奏与专业质量边界](docs/piano-performance-quality.md)。
-
-## 本地验证
-
-```bash
-make doctor
-make destinations
-make build
-make test
-```
-
-缺少私有曲谱、SoundFont 或 CoreML 模型时，对应资源测试会跳过；这不等于资源集成通过。详细边界见 [docs/overview.md](docs/overview.md)。
-
 ## 资源状态
 
 仓库已包含 `HappyPianistAVP/Resources/Fonts/Bravura.otf`。以下私有或体积较大的资源不随源码分发：
