@@ -118,11 +118,11 @@ Library View -> SongLibraryViewModel -> SongLibraryImportTransactionService -> S
 | `HappyPianistAVP/Services/ARSession/ARTrackingService.swift` | 按 `ARTrackingRequirements` 管理最小 ARKit provider 集合，并发布 newest-only typed 手部快照。 |
 | `HappyPianistAVP/Models/Tracking/FingerTipsSnapshot.swift` | 固定手别与手指身份的 typed snapshot，替代逐帧字符串字典。 |
 | `HappyPianistAVP/Services/HandInput/PianoKeyHitTestIndex.swift` | 键盘几何索引与常数级相邻候选命中。 |
-| `Services/Immersive/Calibration/CalibrationOverlayController.swift` | 真实钢琴校准的 reticle 与 A0/C8 锚点 overlay。 |
-| `Services/PianoMode/VirtualPiano/` | 虚拟钢琴放置提示、琴键实体、键盘调试轴与虚拟键盘 overlay。 |
-| `Services/Immersive/PianoGuide/PianoGuideOverlayController.swift` | 练习高亮 beam、贴图和沉浸空间中的共享 keyboard root。 |
-| `Services/Practice/Feedback/PracticeRestorationEffectRenderer.swift` | 根据练习反馈事件渲染短暂的空间恢复效果。 |
-| `Services/Practice/AI/VirtualPerformer/` | 虚拟演奏者 rig、姿态与演奏动画。 |
+| `HappyPianistAVP/Services/PianoMode/RealPiano/CalibrationOverlayController.swift` | 真实钢琴校准的 reticle 与 A0/C8 锚点 overlay。 |
+| `HappyPianistAVP/Services/PianoMode/VirtualPiano/` | 虚拟钢琴放置提示、琴键实体、键盘调试轴与虚拟键盘 overlay。 |
+| `HappyPianistAVP/Services/Practice/Guides/PianoGuideOverlayController.swift` | 练习高亮 beam、贴图和沉浸空间中的共享 keyboard root。 |
+| `HappyPianistAVP/Services/Practice/Feedback/PracticeRestorationEffectRenderer.swift` | 根据练习反馈事件渲染短暂的空间恢复效果。 |
+| `HappyPianistAVP/Services/Practice/AI/VirtualPerformer/` | 虚拟演奏者 rig、姿态与演奏动画。 |
 
 规则：
 
