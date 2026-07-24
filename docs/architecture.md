@@ -1,182 +1,63 @@
 # 架构
 
-## 系统上下文
+源码目录、符号定义和调用关系由 CodeGraph 提供；本页只记录不能从调用图直接得到的职责、边界和不变量。
 
-```mermaid
-flowchart LR
-  XML[MusicXML / MXL] --> LIB[Song Library]
-  LIB --> PREP[PracticePreparationService]
-  PREP --> SESSION[PracticeSessionViewModel]
+## 依赖方向
 
-  MIC[Microphone] --> SESSION
-  MIDI[Bluetooth MIDI] --> SESSION
-  VPIANO[Virtual Piano] --> SESSION
-
-  SESSION --> PLAY[Playback / Recording]
-  SESSION --> PROGRESS[Practice Progress]
-  SESSION --> FEEDBACK[Feedback / Summary / Map]
-  SESSION --> IMMERSIVE[RealityKit Overlays]
-
-  SESSION --> AI[ImprovBackendRegistry]
-  AI --> LOCAL[Local Rule / CoreML]
-  AI -->|optional| ARIA[Mac Aria v2 Server]
+```text
+SwiftUI / RealityKit
+        ↓
+ViewModel / AppState
+        ↓
+Services / Repositories
+        ↓
+Models / Contracts
 ```
 
-## 运行时边界
+- **Model**：纯数据与契约，不持有 UI 或文件、网络、设备副作用。
+- **View**：渲染和发送 intent，不直接读写 repository 或设备。
+- **ViewModel**：编排状态、生命周期和依赖，不复制服务事实。
+- **Service / Repository**：隔离文件、MusicXML、音频、MIDI、ARKit、AI 与诊断副作用。
 
-| 单元 | 位置 | 核心职责 |
+新增服务先定义稳定协议，再由 `LiveAppGraph.make()` 注入并接入 consumer。单一实现不提前建 factory、manager 或兼容层。
+
+## 运行边界
+
+| 边界 | 唯一 owner | 必须保持的事实 |
 | --- | --- | --- |
-| visionOS App | `HappyPianistAVP/` | Library 主窗口、由 Library 单层 push 的钢琴准备 / Practice 窗口、沉浸空间、录制与 AI 对弹。 |
-| visionOS Tests | `HappyPianistAVPTests/` | 业务逻辑和 Apple target 集成测试。 |
-| RealityKit 内容包 | `Packages/RealityKitContent/` | Reality Composer Pro 资产和 bundle。 |
-| Python 服务（可选） | `python_backend/` | Aria v2 推理、Bonjour、HTTP/WS 与 smoketest。 |
+| App 与窗口 | `HappyPianistAVPApp`、`AppState` | Library 是入口；preparation 与 practice 是单层 pushed window；immersive space 只承载空间内容。 |
+| 组合根 | `LiveAppGraph` | 共享的 index store、曲库 provider、progress repository、diagnostics reporter 与 practice recorder 不在 ViewModel 内重新创建。 |
+| 曲库 | `SongLibraryViewModel`、`SongLibraryImportTransactionService` | selection 只是内存 intent；导入、替换、恢复和删除由 actor 事务 owner 处理。 |
+| 曲谱准备 | `PracticePreparationService` | MusicXML 先形成唯一 `ScorePerformancePlan`，再投影 steps、guides、notation 和 playback。 |
+| 练习会话 | `PracticeSessionViewModel`、`PracticeSessionRecorder` | active configuration 在一轮内不可变；退出顺序是停止新输入、flush 事实、终结会话、teardown 设备。 |
+| 输入与评价 | platform adapters、`PerformanceObservation`、analyzer | 音频、MIDI、手部证据共用 observation 契约，但保留各自 capability 和 unknown 边界。 |
+| 反馈与指导 | assessment、`CoachingDecisionService`、feedback policies | 每次最多一个有范围和完成条件的动作；表现层是持久化事实的派生物。 |
+| AI 对弹 | `AIPerformanceService`、`ImprovBackendRegistry` | 严格使用用户选择的 provider；response 是运行期创意内容，不是谱面真值或评分依据。 |
 
-## App 依赖图
+## 不变量
 
-```mermaid
-flowchart TD
-  APP[HappyPianistAVPApp] --> STATE[AppState]
-  STATE --> SETUP[PracticeSetupState]
-  STATE --> SETUPCOORD[PianoSetupCoordinator]
-  STATE --> LIBRARY[SongLibraryViewModel]
-  STATE --> LAUNCH[PracticeLaunchViewModel]
-  STATE --> ARGUIDE[ARGuideViewModel]
-  STATE --> MODES[PianoModeRegistryService]
+- 正式曲谱来源是 MusicXML；可进入练习的 prepared result 同时具备可演奏 steps 和 measure spans。
+- `ScorePerformancePlan` 是声音事件唯一真源；steps、guides、notation 和 tempo 查询都只能从它或 source score 单向投影。
+- `PracticeStep` 只负责即时判定；source measure 才是正式练习事实的持久化单位。
+- occurrence identity 负责重复结构中的播放位置，source identity 负责跨回合聚合学习事实。
+- alignment、逐音 evidence、target profile、`MusicalIssue`、coaching decision 和复测关联只存在运行期。
+- 未观察、低置信度、unknown、insufficient 与 degraded capability 不得被改写成用户错误。
+- AI/system playback、旧 generation 和后台期间的事件不得进入用户 observation 或 progress。
+- progress、metadata、session 是同一 JSON 文件中的独立 concern；调用方不得整份覆盖另两个 concern。
+- 诊断只通过 `DiagnosticsReporting` 进入系统日志和筛选后的导出日志；导出不得包含原谱、逐音输入、绝对路径、凭据或 AI 正文。
+- 主 Actor 不执行 MusicXML 解析、文件 IO、设备重活；长生命周期任务在 teardown 时取消。
 
-  LIBRARY --> BOOTSTRAP[SongLibraryBootstrapLoader actor]
-  BOOTSTRAP --> RECOVERY[SongLibraryImportTransactionService actor]
-  RECOVERY --> INDEX
-  BOOTSTRAP --> BUNDLED[BundledSongLibraryProvider]
-  BOOTSTRAP --> INDEX[SongLibraryIndexStore]
-  LIBRARY --> IMPORT[SongLibraryImportTransactionService]
-  IMPORT --> INDEX
-  LIBRARY --> FILES[SongFileStore]
-  LIBRARY --> HISTORY[FilePracticeProgressRepository actor]
-  HISTORY --> PRESENTATION[SongPracticeLibrarySnapshotBuilder]
-  PRESENTATION --> ORNAMENT[Library Practice Ornament]
-  LIBRARY --> DIAG[DiagnosticsReporting]
+## 修改规则
 
-  LAUNCH --> RESOLVER[SongLibraryEntryResolver]
-  RESOLVER --> BUNDLED
-  RESOLVER --> INDEX
-  RESOLVER --> FILES
-  LAUNCH --> PREP[PracticePreparationService]
-  LAUNCH --> ARGUIDE
-
-  PREP --> PARSER[MusicXMLParser]
-  PREP --> EXPAND[MusicXMLStructureExpander]
-  PREP --> HANDS[MusicXMLHandRouter]
-  PREP --> PLAN[ScorePerformancePlanBuilder]
-  PLAN --> STEPS[PracticeStepBuilder]
-  PLAN --> GUIDES[PianoHighlightGuideBuilderService]
-  PLAN --> NOTATION[ScoreNotationProjection]
-  PLAN --> TIMELINE[AutoplayPerformanceTimeline / PlaybackSequenceBuilder]
-  TIMELINE --> OUTPUT[AVAudio Sequencer / CoreMIDI adapters]
-  PREP --> NOTATION
-
-  ARGUIDE --> SESSION[PracticeSessionViewModel]
-  LAUNCH --> RECORDER[PracticeSessionRecorder actor]
-  SESSION --> RECORDER
-  RECORDER --> HISTORY
-  RECORDER --> ANALYZER[PracticePerformanceAnalyzer]
-  ANALYZER --> ALIGN[IncrementalPerformanceAligner]
-  ANALYZER --> ASSESS[PerformanceAssessmentService]
-  ANALYZER -->|assessment| SESSION
-  SESSION --> INPUT[Platform input services]
-  INPUT --> OBS[PerformanceObservation adapters]
-  OBS --> RECORDER
-  OBS --> OBS_CONSUMERS[Matcher / Recording / AI phrase]
-  SESSION --> PLAYBACK[Playback Services]
-  SESSION --> PROGRESS[PracticeProgressCoordinator]
-  SESSION --> COACH[CoachingDecisionService]
-  COACH --> FEEDBACK[Feedback Policies / ViewModels]
-  LIBRARY --> DIAGNOSTICS[AppDiagnosticsReporter]
-  DIAGNOSTICS --> OSLOG[os.Logger]
-  DIAGNOSTICS --> LOGSTORE[7-day JSONL Store]
-```
-
-`LiveAppGraph.make()` 是 live app 的 composition root。新增服务必须在创建它的 task 中完成注入和消费；不要留下未接入的协议或实现。
-
-## 窗口与空间
-
-`HappyPianistAVPApp` 声明：
-
-- `library` 窗口
-- `preparation` 窗口
-- `practice` 窗口
-- 混合式 `ImmersiveSpace`
-
-`library` 是启动时主窗口。左上角“选择钢琴”使用 `pushWindow` 打开 `preparation`，“开始练习”使用 `pushWindow` 打开 `practice`；两个 pushed window 都通过 `dismissWindow` 恢复原 Library，因此无需维护来源、目标或待处理窗口切换状态。`PianoSetupCoordinator` 只持有钢琴模式 registry、readiness 状态与重置行为。`PracticeLaunchViewModel` 是曲谱准备 request、激活、失败、恢复与 prepared-song 清理的唯一 owner；`PracticeWindowRootView` 是练习 leave、immersive close/recover 与返回曲库的唯一 owner。`ARGuideViewModel` 协调沉浸空间、追踪、练习 session、录制与 AI 服务。`ARTrackingRequirements` 从当前流程推导最小 provider 集合；后台或退出沉浸空间时统一暂停追踪、输入消费者和 RealityKit 长生命周期任务，恢复 active 后按当前 request 重建。
-
-## 主要领域边界
-
-| 边界 | 核心类型 | 说明 |
-| --- | --- | --- |
-| 曲库 | `SongLibraryEntry`、`SongLibraryIndex` | bundled 与用户导入曲目的统一索引；entry version token 标识文件版本。 |
-| 曲库练习展示 | `SongPracticeLibraryPresentationState`、`LibraryPracticeProgressOrnamentView` | 从单曲 history 纯派生四态最终 presentation，并在 trailing Ornament 只读展示；不持久化 UI summary。 |
-| 曲谱准备 | `PreparedPractice`、`ScorePerformancePlan`、`PracticePreparationService` | MusicXML 到唯一演奏计划，再投影 steps、guide、notation projection 与 measure spans。 |
-| 平台输入 | `PracticeAudioRecognitionInputService`、`MIDIPerformanceObservationAdapter`、`PianoKeyContactPerformanceObservationAdapter` | 麦克风、MIDI 与触键各自适配为同一 `PerformanceObservation`；能力、单调时钟、generation 与 calibration reference 不降级。 |
-| 平台输出 | `AutoplayPerformanceTimeline`、`PlaybackSequenceBuilder`、`AVAudioSequencerPracticePlaybackService`、`CoreMIDIPracticePlaybackService` | 从 plan 投影 timeline/sequence，再由音频或 MIDI adapter 输出；range state、reset 与诊断不从 step 或 guide 重建。 |
-| 练习配置 | `PracticeRoundConfigurationController` | pending 与 active round configuration。 |
-| 范围 | `PracticeMeasureIndex`、`PracticeActiveRange` | 小节、step、回放、谱面和完成边界的统一投影。 |
-| 判定 | `StepAttemptMatchResult`、matcher/accumulator | 输入证据转换为当前 step 的 typed attempt outcome。 |
-| 连续演奏分析 | `PracticePerformanceAnalyzer`、`IncrementalPerformanceAligner`、`PerformanceAssessmentService` | 将同一 observation 流对齐到 plan，并按 capability 与 target profile 生成运行期客观 assessment。 |
-| 进度与会话 | `SongPracticeProgress`、`SongScorePracticeMetadata`、`PracticeSessionRecord` | 同一严格 JSON schema 内的小节事实、曲谱 metadata、恢复点与原始会话事实。 |
-| 会话记录 | `PracticeSessionRecorder` | composition root 持有的 window-visit actor；跨 `PracticeSessionViewModel` replacement 计时、checkpoint 并把 observation 送入 analyzer。 |
-| 练习指导 | `MusicalIssue`、`CoachingDecisionService`、`CoachingAction` | 从 assessment 选择一个可复测动作；证据不足时只请求补充证据。 |
-| 反馈 | feedback policies、view models | 从 durable facts 与当前 coaching decision 派生 cue、summary、map 和空间效果。 |
-| 录制 | `RecordingTakeRecorder`、`RecordingTakeStore` | 练习中的 MIDI 风格事件记录、回放与导出。 |
-| AI 对弹 | `AIPerformanceService`、`ImprovBackendRegistry`、`CreativeDuetPhrase` | 只把用户 observation 转为运行期创意响应；严格使用用户选择的本地或网络后端。 |
-| 诊断 | `DiagnosticEvent`、`AppDiagnosticsReporter`、`FileDiagnosticsStore` | 单一事件入口分发到系统日志与受筛选的七天可导出日志。 |
-
-## 关键不变量
-
-- 正式曲谱来源是 MusicXML；可进入练习的 prepared result 必须同时有 steps 与 measure spans。
-- `ScorePerformancePlan` 是声音事件的唯一真源；tempo 查询只能从 plan 派生，steps 与 highlights 只负责判定、导航和显示，notation 则由 plan 与 source score 单向投影。
-- `PracticeStep` 是即时判定单位；持久化事实聚合到 source measure。
-- alignment、逐音 assessment evidence、`MusicalIssue`、coaching decision 与 before/after 关联只存在于运行期；进度只接受批准的小节级 maturity 与 metric summaries。
-- 输出测量的 `PianoOutputMeasurementMetadata` 只可携带 calibration ID/version、样本数、设备/OS 与枚举 audio route；它服务于聚合诊断和真机协议，不进入 progress JSON，也不保存原始 MIDI、音频或手部数据。
-- 未观察、证据不足、低置信度与 degraded capability 不得被改写成错误；coaching 每次最多选择一个可执行动作。
-- 重复结构用 occurrence identity 定位播放位置，用 source identity 汇总学习事实。
-- 本轮 active configuration 在一轮中不可变；设置修改只影响下一轮。
-- 退出、后台、换 session 与完成流程必须先停止新 attempt，再 flush 进度，最后 teardown 输入、追踪、RealityKit task 和回放。
-- 手部热路径只传递 `FingerTipsSnapshot`；订阅使用 newest-only current-value relay，`forEachFinger` 只遍历 thumb 到 little，palm 必须显式读取，消费者不得恢复混合遍历或字符串字典协议。
-- CoreMIDI 输入流必须有固定容量；发生溢出时以 channel-wide All Notes Off 作为状态恢复边界。
-- 曲库 bootstrap 固定先由唯一 `SongLibraryImportTransactionService` 恢复未完成事务，再读取 index，最后扫描 bundle；恢复被阻塞时不得发布任何新 snapshot，也不得放回 ViewModel 初始化或 SwiftUI `body`。
-- bootstrap loader、Library ViewModel 与后续 resolver 必须复用 composition root 注入的同一个 `SongLibraryIndexStore` 和 bundled provider；索引写入只能通过 actor 内 concern mutation，损坏 JSON 必须 fail closed 并保留原文件。
-- score replacement 使用 song ID、旧 version token 与旧文件名三项 exact CAS，只更新文件名、导入时间与新 token；entry 顺序、显示名、音频、bundled 标志和 last-selected 原位保留。
-- `SongLibraryViewModel` 只在 MainActor 编排；score 导入的 security scope、同卷 stage、指纹、target/index commit 与恢复全部由唯一 `SongLibraryImportTransactionService` actor 执行。`SongFileStore` 只保留已入库 score/audio URL 解析与删除；音频复制归 `AudioImportService`。
-- 批量导入队列只保存 operation ID，不跨 actor await 保留外部 URL。队列非 idle 时开始练习和用户曲目删除在 UI 与 MainActor intent 两层同时门控；选曲与试听仍可用。
-- feedback 表现不进入 progress JSON。
-- AI 对弹 response 是运行期创意内容，不是 `ScorePerformancePlan`、忠实示范、assessment target 或教师事实；它不得改写练习进度。
-- AI 只接收用户 observation 派生的 phrase；system playback 与旧 generation response 必须丢弃。
-- AI 的 unavailable、timeout、invalid response 与 quality gate failure 终止本次生成，不自动切换后端；诊断只记录枚举化的 provider、failure category、quality gate reason/latency bucket 与 cancel/stale outcome，不记录 prompt、AI 正文或原始表现事件。
-- 曲谱准备失败的界面说明、技术详情、系统日志和导出日志必须来自同一个 typed failure。
-- 曲库 selection 只更新内存并异步持久化；不得触发 resolver、曲谱准备或 ARGuide。只有练习窗口激活 registered request 后才执行这些副作用。
-- trailing Ornament 只能消费 `loading`、`invitation`、`overview`、`unavailable` 最终 presentation；不得持有 launch owner、配置 controller、score service、MusicXML parser 或第二个练习入口。
-- `PracticeSessionRecorder` 由 `LiveAppGraph` 按 Practice window visit 共享；首次真实进入 guiding 才创建会话，同一窗口的多轮练习或 ViewModel replacement 不得拆分会话。
-- 会话 active duration 只累计 scene active、guiding 且设置未覆盖的单调时钟增量；生命周期边界立即 checkpoint，连续 guiding 最多每 30 秒 checkpoint。
-- 同 revision 的无效 passage/resume 必须回退到当前曲谱的整首配置并立即 checkpoint；小节事实继续保留。
-- progress repository 的 progress、metadata、session mutation 必须保留另外两类 concern；三数组 schema 缺字段或损坏时 fail closed，exact duplicate 使用共享确定性 order，调用方不得整份覆盖。
-- 诊断文件只接收低频且明确可导出的事件，不保存绝对路径或原始演奏数据。
-
-## 高风险修改区
-
-| 区域 | 风险 | 最低验证 |
-| --- | --- | --- |
-| `PracticePreparationService` | parser、repeat、手别、tempo、guide 与 identity 全链路 | MusicXML + preparation tests |
-| `PracticeSessionViewModelCommands` | range、resume、round、completion 与 feedback 生命周期 | session + progress + feedback tests |
-| `PracticeAttemptReducer` | streak、稳定状态与错误事实 | reducer tests |
-| `PracticeProgressCoordinator` | 乱序 load/save、flush 与跨曲污染 | delayed repository tests |
-| `PracticePlaybackControlService` | tempo、片段边界、pedal 与输入抑制 | playback/autoplay tests |
-| MIDI/audio matcher | 错音、漏音、和弦与证据不足 | matcher tests |
-| analyzer / assessment / coaching | occurrence 对齐、能力裁剪、target provenance、单一动作与复测关联 | replay + assessment + coaching tests |
-| `ARGuideViewModel` / `ImmersiveView` | scenePhase、tracking 和 overlay 清理 | Simulator + Vision Pro |
-| `SongLibraryViewModel` | 导入、删除、试听、唯一 selection 与独立异步持久化 | library + selection tests |
-| `PracticeLaunchViewModel` | request generation、prepare/apply 竞态、失败、scene suspend 与 return 清理 | launch + lifecycle tests |
+1. 先用 CodeGraph 查目标符号的调用者和调用路径，再决定共享 owner；不要在每个调用方打补丁。
+2. 结构变化只更新 CodeGraph；文档只补充新的意图、不变量或操作约束。
+3. 新持久化字段必须先说明 owner、schema 和清理行为；不引入第二套存储。
+4. 新输入来源必须定义 observation capability 和未知状态；不把低能力来源伪装成逐音证据。
+5. 新实现替换旧实现时，同一 task 删除旧 API、旧状态、旧测试入口和双轨分支。
 
 ## 验证分层
 
-1. 纯 Swift：模型、reducer、range、matcher、repository、policy。
-2. Xcode target：完整类型检查、资源、SwiftUI、RealityKit、AVFoundation、CoreMIDI 集成。
-3. Simulator / Vision Pro：窗口、生命周期、声音、MIDI、手部追踪、空间对齐与舒适度。
+- 纯 Model、reducer、range、matcher、alignment、assessment 和 coaching policy：确定性 Swift Testing fixture。
+- SwiftUI、RealityKit、AVFoundation、CoreMIDI 和资源：Xcode / visionOS SDK 与 Simulator。
+- 手部追踪、麦克风、真实 MIDI、音频 onset、空间舒适度：Apple Vision Pro 真机。
+- 专业能力措辞：遵循[钢琴演奏与专业质量边界](piano-performance-quality.md)和[验证与测试](testing.md)。

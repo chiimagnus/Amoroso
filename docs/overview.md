@@ -24,11 +24,8 @@ Xcode 工程只有 `HappyPianistAVP` 与 `HappyPianistAVPTests` 两个 target；
 | 曲谱真值、参考演奏、输入证据、演奏评价、虚拟指导与专业验收路线 | [piano-performance-quality.md](piano-performance-quality.md) |
 | Xcode、权限、依赖、资源、设置与可选服务 | [configuration.md](configuration.md) |
 | Documents 目录、JSON、曲库、进度与诊断文件 | [storage.md](storage.md) |
-| 日常需要验证的核心功能 | [testing/core-function-checklist.md](testing/core-function-checklist.md) |
-| 钢琴演奏专业化的证据层级、Simulator 边界与运行规则 | [testing/piano-performance-validation.md](testing/piano-performance-validation.md) |
-| 真机 latency、jitter、可靠性与 calibration 记录 | [testing/piano-hardware-latency-protocol.md](testing/piano-hardware-latency-protocol.md) |
-| 钢琴家盲评、教师标注一致性与 coaching 有效性 | [testing/pianist-blind-evaluation-protocol.md](testing/pianist-blind-evaluation-protocol.md)、[testing/piano-performance-validation.md](testing/piano-performance-validation.md) |
-| 专业能力的通过条件与 pending / blocked 语义 | [testing/piano-capability-claim-gates.md](testing/piano-capability-claim-gates.md) |
+| 日常 smoke、Simulator、真机、盲评与 evidence | [testing.md](testing.md) |
+| 专业能力的通过条件与 pending / blocked 语义 | [piano-performance-quality.md](piano-performance-quality.md) |
 
 ## 产品主流程
 

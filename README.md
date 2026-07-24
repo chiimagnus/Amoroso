@@ -19,7 +19,18 @@ HappyPianist 是一个面向 Apple Vision Pro 的钢琴练习应用。它把 Mus
 
 当前的乐谱回放、MIDI objective assessment、虚拟琴力度和练习建议都是已实现的练习能力，不是“钢琴家级示范”“专业评分”“表现力乐器”或“教师替代品”的通过声明。多 exporter 授权曲库、真机 latency/reliability、钢琴家盲评、教师标注与教学有效性证据尚未完成；对应能力保持 `pending evidence`，缺少合法 exporter 语料的项目为 `blocked evidence`。
 
-完整的当前边界见[钢琴演奏与专业质量边界](docs/piano-performance-quality.md)，每项可升级措辞的条件见[钢琴能力声明证据门](docs/testing/piano-capability-claim-gates.md)。
+完整的当前边界与能力声明门见[钢琴演奏与专业质量边界](docs/piano-performance-quality.md)。
+
+## 本地验证
+
+```bash
+make doctor
+make destinations
+make build
+make test
+```
+
+缺少私有曲谱、SoundFont 或 CoreML 模型时，对应资源测试会跳过；这不等于资源集成通过。详细边界见 [docs/overview.md](docs/overview.md)。
 
 ## 资源状态
 
