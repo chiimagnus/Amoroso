@@ -8,7 +8,7 @@ HappyPianist 是一个面向 Apple Vision Pro 的钢琴练习应用。它把 Mus
 
 - [Anticipation](https://github.com/jthickstun/anticipation) 与 [Anticipatory Music Transformer](https://arxiv.org/abs/2306.08620)
 - [stanford-crfm/music-large-800k](https://huggingface.co/stanford-crfm/music-large-800k)
-- Apple CoreMIDI、RealityKit、ARKit 与 Salamander Grand Piano 音色采样
+- Salamander Grand Piano 音色采样
 - 感谢南客松 S2、`njuer勇闯互联网`、`罗恩`、`大宝哥` 对项目的支持
 
 ## 许可证
